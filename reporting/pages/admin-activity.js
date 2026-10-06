@@ -76,20 +76,26 @@ const UA = (() => {
      the light and the dark ground. */
   const PALETTE = ["var(--blue)", "var(--amber)", "var(--purple)", "#3fb6a8",
                    "var(--red)", "var(--brand)", "#d267a8", "#8a6a4f"];
-  const hashIx = id => {
+  /* DESIGN V2: the categorical order from RS.V2.cat (no green/red/amber as categories).
+     Read at RENDER time -- tones() runs inside every paint -- so the theme button, which
+     re-renders the page, switches the swatches too. Same length (8), so a report keeps
+     its hashed slot across the two looks. */
+  const pal = () => (window.RS && RS.isV2 && RS.isV2()) ? RS.V2.cat : PALETTE;
+  const hashIx = (id, n) => {
     let h = 0;
     for (let i = 0; i < (id || "").length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return h % PALETTE.length;
+    return h % n;
   };
   /* pages -> { pageId: colour }, distinct within this one group wherever the palette allows */
   const tones = pages => {
+    const P = pal();
     const used = new Set(), out = {};
     (pages || []).forEach(p => {
-      const start = hashIx(p.page);
+      const start = hashIx(p.page, P.length);
       let ix = start;
-      for (let n = 0; n < PALETTE.length && used.has(ix); n++) ix = (ix + 1) % PALETTE.length;
+      for (let n = 0; n < P.length && used.has(ix); n++) ix = (ix + 1) % P.length;
       used.add(ix);
-      out[p.page] = PALETTE[ix];
+      out[p.page] = P[ix];
     });
     return out;
   };
@@ -177,6 +183,37 @@ const UA = (() => {
       "font-size:12.5px;color:var(--muted)}",
       ".ua-empty{padding:34px 20px;text-align:center;color:var(--muted);font-size:13px;line-height:1.7}",
       "@media(max-width:860px){.ua-card{grid-template-columns:1fr;gap:11px}.ua-right{text-align:left;flex-direction:row;gap:12px}}",
+      // ---- DESIGN V2 ("Calm finance"): v2 light only, dark keeps everything above.
+      // Flat 10px cards with no lift, sentence-case headers, nothing under 12px.
+      "body.rs-app.light.v2 .ua-note{font-size:13px;border-left-color:var(--brand);background:#FFFFFF}",
+      "body.rs-app.light.v2 .ua-card{border-radius:10px;box-shadow:none;transition:border-color .12s}",
+      "body.rs-app.light.v2 .ua-card:hover{transform:none;border-color:var(--line-2)}",
+      "body.rs-app.light.v2 .ua-who b{font-weight:600}",
+      "body.rs-app.light.v2 .ua-who span{font-size:12.5px}",
+      "body.rs-app.light.v2 .ua-tag{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;",
+      "border-radius:6px;padding:1px 7px;background:#EFF6FF;color:#1D4ED8}",
+      "body.rs-app.light.v2 .ua-chip{font-size:12px;font-weight:500}",
+      "body.rs-app.light.v2 .ua-bar{background:#F1F5F9}",
+      "body.rs-app.light.v2 .ua-bar i.gh{background:#CBD5E1;opacity:1}",
+      "body.rs-app.light.v2 .ua-mline{font-size:12.5px}",
+      "body.rs-app.light.v2 .ua-mline b{font-size:15px;font-weight:600}",
+      "body.rs-app.light.v2 .ua-right b{font-weight:600}",
+      "body.rs-app.light.v2 .ua-right span{font-size:12.5px}",
+      "body.rs-app.light.v2 .ua-back{font-size:13px;font-weight:600}",
+      "body.rs-app.light.v2 .ua-sess{border-radius:10px;box-shadow:none}",
+      "body.rs-app.light.v2 .ua-shead b{font-weight:600}",
+      "body.rs-app.light.v2 .ua-shead span{font-size:12.5px}",
+      "body.rs-app.light.v2 .ua-strip{border-radius:4px}",
+      "body.rs-app.light.v2 .ua-ptab{font-size:13.5px}",
+      "body.rs-app.light.v2 .ua-ptab th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;",
+      "color:var(--muted);background:#F8FAFC;padding:7px 10px 7px 8px;border-bottom-color:var(--line)}",
+      "body.rs-app.light.v2 .ua-ptab td{border-bottom-color:#F1F5F9;padding-left:8px}",
+      "body.rs-app.light.v2 .ua-ptab tbody tr:hover td{background:#F8FAFC}",
+      // a flex td drops out of the row box and breaks the hairline; v2 keeps it a table cell
+      "body.rs-app.light.v2 .ua-ptab td.nm{font-weight:500;display:table-cell}",
+      "body.rs-app.light.v2 .ua-ptab td.nm i{display:inline-block;margin-right:8px;vertical-align:1px}",
+      "body.rs-app.light.v2 .ua-pager{font-size:13px}",
+      "body.rs-app.light.v2 .ua-empty{font-size:13.5px}",
     ].join("");
     document.head.appendChild(st);
   }

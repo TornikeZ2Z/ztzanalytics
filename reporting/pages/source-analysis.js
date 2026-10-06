@@ -84,6 +84,11 @@ async function renderSourceAnalysis(host, lockedSource) {
   // Same four core colours as the Monthly Report (Tornike 2026-07-15): Ink, Blue, Violet, Lime.
   // CATAMBER retired — "Ad spend" moves onto Violet, the core colour that now carries spend everywhere.
   const CATINK = "#0e1621", CATBLUE = "#2f6fd0", CATLIME = "#7ba317", CATVIOLET = "#8b5cf6";
+  // DESIGN V2 (2026-10-06): read at render time, so the theme button repaints. Navy carries the
+  // main series, the light blue the wider set, violet the spend; no lime, red only for "bad leads".
+  const v2 = RS.isV2 && RS.isV2(), V = RS.V2;
+  const C_MAIN = v2 ? V.navy : CATINK, C_BLUE = v2 ? V.accent : CATBLUE, C_LINE = v2 ? V.accent : CATLIME,
+    C_SPEND = v2 ? V.cat[4] : CATVIOLET, C_CTX = v2 ? V.accentBd : "#c6d0db", C_BAD = v2 ? V.neg : "#e5484d", BR = v2 ? 5 : 3;
 
   // 1 · leads vs confirmed by month
   const mts = monthsOf([mbS]);
@@ -92,8 +97,8 @@ async function renderSourceAnalysis(host, lockedSource) {
     // Confirmed counts by BOOKED month (mbSB/bymKey) — matches the KPI and Booking % basis
     const C = mts.map(k => mbSB.filter(r => bymKey(r) === k && r["Status Category"] === "Confirmed").length);
     return new Chart(cv, { type: "bar", data: { labels: mts.map(ymLbl), datasets: [
-      { label: "Leads", data: L, backgroundColor: "#c6d0db", borderRadius: 3 },
-      { label: "Confirmed", data: C, backgroundColor: CATINK, borderRadius: 3 } ] },
+      { label: "Leads", data: L, backgroundColor: C_CTX, borderRadius: BR },
+      { label: "Confirmed", data: C, backgroundColor: C_MAIN, borderRadius: BR } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "l", label: "Leads" }, { key: "c", label: "Confirmed" }, { key: "r", label: "Booking %", fmt: v => v == null ? "—" : pct(v) }],
@@ -106,8 +111,8 @@ async function renderSourceAnalysis(host, lockedSource) {
     const RV = mts2.map(k => M["Revenue"].fn(clS.filter(r => ymKey(r) === k)));
     const AD = mts2.map(k => adS.filter(r => ymKey(r) === k).reduce((a, r) => a + num(r.Amount), 0));
     return new Chart(cv, { type: "bar", data: { labels: mts2.map(ymLbl), datasets: [
-      { label: "Revenue", data: RV, backgroundColor: CATINK, borderRadius: 3 },
-      { label: "Ad spend", data: AD, backgroundColor: CATVIOLET, borderRadius: 3 } ] },
+      { label: "Revenue", data: RV, backgroundColor: C_MAIN, borderRadius: BR },
+      { label: "Ad spend", data: AD, backgroundColor: C_SPEND, borderRadius: BR } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "top" } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "r", label: "Revenue", fmt: money }, { key: "a", label: "Ad spend", fmt: money }, { key: "roi", label: "Revenue per $1 of ads (ROAS)", fmt: v => v == null ? "—" : "$" + v.toFixed(2) }],
@@ -117,7 +122,7 @@ async function renderSourceAnalysis(host, lockedSource) {
   // 3 · booking-rate trend
   RSC.chartCard(grid, { title: "Booking Rate — monthly", buildChart(cv) {
     const B = mts.map(k => { const v = brMonth(k); return v == null ? null : v * 100; });
-    return new Chart(cv, { type: "line", data: { labels: mts.map(ymLbl), datasets: [{ label: "Booking %", data: B, borderColor: CATLIME, backgroundColor: CATLIME, tension: 0, spanGaps: true }] },
+    return new Chart(cv, { type: "line", data: { labels: mts.map(ymLbl), datasets: [{ label: "Booking %", data: B, borderColor: C_LINE, backgroundColor: C_LINE, tension: 0, spanGaps: true }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
   }, buildTable() {
     return RSC.table([{ key: "m", label: "Month" }, { key: "b", label: "Booking %", fmt: v => v == null ? "—" : v.toFixed(1) + "%" }],
@@ -128,7 +133,7 @@ async function renderSourceAnalysis(host, lockedSource) {
   RSC.chartCard(grid, { title: "Revenue by state", buildChart(cv) {
     const g = {}; clS.forEach(r => { const s = trim(r["State Name"]) || "No state"; g[s] = (g[s] || 0) + num(r["Total Bill"]); });
     const rows = Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: CATINK, borderRadius: 3 }] },
+    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: C_MAIN, borderRadius: BR }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
   }, buildTable() {
     const g = {}; clS.forEach(r => { const s = trim(r["State Name"]) || "No state"; g[s] = (g[s] || 0) + num(r["Total Bill"]); });
@@ -140,7 +145,7 @@ async function renderSourceAnalysis(host, lockedSource) {
   RSC.chartCard(grid, { title: "Leads by size of move", buildChart(cv) {
     const g = {}; mbS.forEach(r => { const s = trim(r["Size of Move"]) || "—"; g[s] = (g[s] || 0) + 1; });
     const rows = Object.entries(g).filter(r => r[0] !== "—").sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: CATBLUE, borderRadius: 3 }] },
+    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: C_BLUE, borderRadius: BR }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
   }, buildTable() {
     const g = {}; mbS.forEach(r => { const s = trim(r["Size of Move"]) || "—"; g[s] = (g[s] || 0) + 1; });
@@ -152,7 +157,7 @@ async function renderSourceAnalysis(host, lockedSource) {
   RSC.chartCard(grid, { title: "Bad leads by reason", buildChart(cv) {
     const g = {}; mbS.forEach(r => { if (r["Status Category"] !== "Bad Lead") return; const s = trim(r.Status) || "—"; g[s] = (g[s] || 0) + 1; });
     const rows = Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: "#e5484d", borderRadius: 3 }] },
+    return new Chart(cv, { type: "bar", data: { labels: rows.map(r => r[0]), datasets: [{ data: rows.map(r => r[1]), backgroundColor: C_BAD, borderRadius: BR }] },
       options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
   }, buildTable() {
     const g = {}; mbS.forEach(r => { if (r["Status Category"] !== "Bad Lead") return; const s = trim(r.Status) || "—"; g[s] = (g[s] || 0) + 1; });

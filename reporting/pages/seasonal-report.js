@@ -151,14 +151,26 @@ async function renderSeasonal(host) {
   const adRows = y => adTo == null ? [] : rows("card_expenses", y, null, F, adTo).filter(isAd);
 
   /* ---------- palette (the Monthly Report's four-core system, so the two pages read as one family) ---------- */
-  const INK = "#0e1621", INK2 = "#1b2a3f", SUB = "#5a6775", FAINT = "#93a0b2", LINE = "#e4e9f0", GRID = "#eef1f6", AXIS = "#7b869a";
-  const LIME = "#b7e23b", LIMED = "#7ba317", BLUE = "#2f6fd0", VIOLET = "#8b5cf6", CTX = "#c6d0db", CTX_H = "#aab6c4", INK_H = "#34465f";
-  const POS = "#1c7a4a", NEG = "#b02a37", WARN = "#7a5a12", POS_T1 = "#e0f0e6", NEG_T1 = "#fbe6e7", WARN_BG = "#fff8ec", WARN_BD = "#f2d492", WARN_A = "#f5a524";
-  const MONO = "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace";
-  // one colour per SEASON: history steps from pale to ink, the picked season is lime
-  const yearColor = y => y === Y ? LIME : ["#c6d0db", "#8a9bb2", "#4a6285", INK][Math.max(0, 3 - (Y - 1 - y))] || CTX;
+  /* DESIGN V2 ("Calm finance", 2026-10-06): each constant picks its hex at RENDER time -- classic, or the
+     v2 value when RS.isV2() (LIME -> the blue accent, LIMED -> navy, mono -> IBM Plex Sans). The injected
+     .srx sheet always carries the classic values (shadowed in its block below); v2 is a body.v2 layer. */
+  const SRV2 = RS.isV2(), PV = RS.V2, V = (classic, v2) => SRV2 ? v2 : classic;
+  const INK = V("#0e1621", PV.ink), INK2 = V("#1b2a3f", PV.ink2), SUB = V("#5a6775", PV.muted), FAINT = V("#93a0b2", PV.faint), LINE = V("#e4e9f0", PV.line), GRID = V("#eef1f6", PV.line), AXIS = V("#7b869a", PV.muted);
+  const LIME = V("#b7e23b", PV.accent), LIMED = V("#7ba317", PV.navy), BLUE = V("#2f6fd0", PV.cat[1]), VIOLET = V("#8b5cf6", PV.cat[2]), CTX = V("#c6d0db", PV.ctx), CTX_H = V("#aab6c4", PV.other), INK_H = V("#34465f", PV.ink2);
+  const POS = V("#1c7a4a", PV.pos), NEG = V("#b02a37", PV.neg), WARN = V("#7a5a12", "#92400E"), POS_T1 = V("#e0f0e6", PV.posBg), NEG_T1 = V("#fbe6e7", PV.negBg), WARN_BG = V("#fff8ec", "#FFFBEB"), WARN_BD = V("#f2d492", PV.warnBd), WARN_A = V("#f5a524", PV.warn);
+  const MONO = V("ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace", PV.font);
+  const SANS = V("Inter", PV.font);
+  // one colour per SEASON: history steps from pale to ink, the picked season is lime (v2: the accent)
+  const yearColor = y => y === Y ? LIME : (SRV2 ? ["#CBD5E1", "#94A3B8", "#64748B", "#334155"] : ["#c6d0db", "#8a9bb2", "#4a6285", INK])[Math.max(0, 3 - (Y - 1 - y))] || CTX;
 
   if (!document.getElementById("srx-css")) {
+    // the base sheet is injected once and stays CLASSIC whatever theme first renders it: these
+    // block-scoped names shadow the render-time palette above (v2 is the body.v2 layer below)
+    const { INK, INK2, SUB, FAINT, LINE, GRID, LIME, LIMED, BLUE, CTX, POS, NEG, WARN, NEG_T1, WARN_BG, WARN_BD, WARN_A, MONO } = {
+      INK: "#0e1621", INK2: "#1b2a3f", SUB: "#5a6775", FAINT: "#93a0b2", LINE: "#e4e9f0", GRID: "#eef1f6", LIME: "#b7e23b",
+      LIMED: "#7ba317", BLUE: "#2f6fd0", CTX: "#c6d0db", POS: "#1c7a4a", NEG: "#b02a37", WARN: "#7a5a12", NEG_T1: "#fbe6e7",
+      WARN_BG: "#fff8ec", WARN_BD: "#f2d492", WARN_A: "#f5a524",
+      MONO: "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace" };
     const s = document.createElement("style"); s.id = "srx-css";
     s.textContent = `
     .srx{background:#f4f6fa;color:${INK};border-radius:16px;padding:24px 24px 46px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -274,10 +286,96 @@ async function renderSeasonal(host) {
     }`;
     document.head.appendChild(s);
   }
+  /* DESIGN V2 layer ("Calm finance", 2026-10-06) -- body.rs-app.light.v2 only; dark keeps the classic
+     sheet. Same family as the Monthly Report: a white header instead of the dark cover, white part
+     cards with a navy part number, IBM Plex Sans throughout, sentence-case labels. */
+  if (!document.getElementById("srx-css-v2")) {
+    const s2 = document.createElement("style"); s2.id = "srx-css-v2";
+    const B = "body.rs-app.light.v2 ";
+    s2.textContent = [
+      `.srx{background:#F6F7F9;color:#0F172A;font-family:${RS.V2.font};border-radius:10px;padding:8px 4px 40px}`,
+      `.srx-loading{color:#475569;font-weight:500}`,
+      `.srx-cover{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-radius:10px;padding:20px 22px}`,
+      `.srx-cover:before{display:none}`,
+      `.srx-eyebrow{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
+      `.srx-h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:#0F172A;margin:4px 0 4px}`,
+      `.srx-h1 em{color:#1E3A8A}`,
+      `.srx-cvsub{color:#64748B;font-size:13px;font-weight:400}`,
+      `.srx-pick .rs-slicer-btn .val{color:#0F172A}`,
+      `.srx-pick .rs-slicer-btn .chev{color:#64748B}`,
+      `.srx-print{top:18px;right:20px;background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600;font-size:13px}`,
+      `.srx-print:hover{color:#0F172A;border-color:#94A3B8;background:#F8FAFC}`,
+      `.srx-banner{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;color:#78350F;font-weight:400;font-size:13.5px}`,
+      `.srx-banner b{font-family:inherit;color:#92400E;font-weight:600}`,
+      `.srx-banner.bad{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}`,
+      `.srx-toc{box-shadow:0 1px 0 #E2E8F0;border-bottom-color:#E2E8F0}`,
+      `.srx-tocb{font-weight:600;color:#0F172A;border-color:#E2E8F0;border-radius:999px}`,
+      `.srx-tocb i{font-family:inherit;font-weight:500;color:#64748B}`,
+      `.srx-tocb:hover{border-color:#94A3B8;background:#F8FAFC}`,
+      `.srx-part{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:20px 24px;margin:40px 0 18px}`,
+      `.srx-part:before{display:none}`,
+      `.srx-part .pt{font-size:26px;font-weight:700;letter-spacing:-.4px}`,
+      `.srx-part .ps{font-size:14.5px;font-weight:400;color:#475569;opacity:1}`,
+      `.srx-part .pn{font-family:inherit;font-weight:700;font-size:40px;letter-spacing:-1px;color:#1E3A8A;opacity:1;font-variant-numeric:tabular-nums}`,
+      `.srx-card{border-color:#E2E8F0;border-radius:10px;box-shadow:none}`,
+      `.srx-card:before{display:none}`,
+      `.srx-ch{border-bottom-color:#F1F5F9}`,
+      `.srx-ct{font-size:15px;font-weight:600}`,
+      `.srx-cs{font-family:inherit;font-size:12.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#64748B}`,
+      `.srx-hv b{font-family:inherit;font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums}`,
+      `.srx-note{font-size:13.5px;color:#475569;background:#F8FAFC;border-left:3px solid #93C5FD;border-radius:0 8px 8px 0}`,
+      `.srx-note.how{border-left-color:#CBD5E1}`,
+      `.srx-note b{color:#1E3A8A}`,
+      `.srx-kpi{border-color:#E2E8F0;border-radius:10px;padding:14px 16px}`,
+      `.srx-kpi:before{display:none}`,
+      `.srx-kpi.srx-hero{background:#EFF6FF;border-color:#BFDBFE}`,
+      `.srx-kl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}`,
+      `.srx-kv{font-family:inherit;font-size:26px;font-weight:600;letter-spacing:-.4px}`,
+      `.srx-chip{font-family:inherit;font-size:12.5px;font-weight:600;padding:0;border-radius:0;background:none!important;margin-right:10px}`,
+      `.srx-chip .vs{color:#64748B;font-weight:400}`,
+      `.srx-exec{background:#EFF6FF;color:#0F172A;border:1px solid #BFDBFE;border-radius:10px;font-size:14px}`,
+      `.srx-exec b{color:#1E3A8A}`,
+      `.srx-tbl{font-family:inherit;font-size:13.5px}`,
+      `.srx-tbl th{font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC;border-bottom:1px solid #E2E8F0}`,
+      `.srx-tbl td{border-bottom-color:#F1F5F9;color:#0F172A}`,
+      `.srx-tbl td:first-child{font-family:inherit;font-weight:500}`,
+      `.srx-tbl tbody tr:hover td{background:#F8FAFC}`,
+      `.srx-tbl tr.tot td{font-weight:600;border-top:1px solid #E2E8F0;background:#F8FAFC}`,
+      `.srx-tbl .up,.srx-tbl .dn,.srx-tbl td.ok,.srx-tbl td.no{font-weight:600}`,
+      `.srx-mx td small{font-size:12px;font-weight:500}`,
+      `.srx-big{background:#EFF6FF;color:#0F172A;border:1px solid #BFDBFE;border-radius:10px}`,
+      `.srx-big b{font-family:inherit;font-size:34px;font-weight:700;letter-spacing:-.8px;color:#1E3A8A}`,
+      `.srx-big span{font-weight:600;color:#1E3A8A}`,
+      `.srx-big em{font-family:inherit;color:#475569}`,
+      `.srx-st{border-color:#E2E8F0;border-radius:10px}`,
+      `.srx-st .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}`,
+      `.srx-st .v{font-family:inherit;font-weight:600;letter-spacing:-.3px}`,
+      `.srx-st .s{font-size:12.5px;font-weight:400;color:#64748B}`,
+      `.srx-tbl tr.srx-dr:hover td{background:#F8FAFC}`,
+      `.srx-tbl tr.srx-dr.open td{background:#EFF6FF}`,
+      `.srx-tbl td.srx-car{color:#1E3A8A;font-weight:600}`,
+      `.srx-tbl tr.srx-det>td{background:#F8FAFC;border-bottom:1px solid #93C5FD}`,
+      `.srx-mini{font-family:inherit;font-size:13px}`,
+      `.srx-mini th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC;border-bottom-color:#E2E8F0}`,
+      `.srx-mini td{font-family:inherit!important;color:#0F172A!important}`,
+      `.srx-minif{font-size:12.5px;font-weight:500}`,
+      `.srx-pg{font-family:inherit;font-size:13px;font-weight:500;color:#475569}`,
+      `.srx-pg button{font-weight:600;border-color:#CBD5E1;border-radius:8px}`,
+      `.srx-pg button.all{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;font-weight:600}`,
+      `.srx-link{color:#1D4ED8;font-weight:600;font-family:inherit}`,
+      `.srx-fold summary{color:#1D4ED8;font-weight:600;font-size:13px}`,
+      `.srx-empty{color:#64748B;font-weight:500}`,
+      `.srx-vsw{border-color:#E2E8F0;border-radius:8px}`,
+      `.srx-vsw button{font-size:12.5px;font-weight:500;color:#475569}`,
+      `.srx-vsw button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}`,
+    ].map(r => B + r.replace(/,(?=[^{}]*\{)/g, "," + B)).join("\n")
+      + `\n@media print{${B}.srx{background:#fff;padding:0}}`;
+    document.head.appendChild(s2);
+  }
 
   /* ---------- chart primitives ---------- */
-  const tipTheme = { backgroundColor: INK, titleColor: "#fff", bodyColor: "#e8edf3", borderColor: "#2c3e57", borderWidth: 1, cornerRadius: 7, padding: 9,
-    titleFont: { family: "Inter", weight: "700", size: 12 }, bodyFont: { family: MONO, size: 12 }, boxWidth: 9, boxHeight: 9, usePointStyle: true };
+  const tipTheme = { backgroundColor: INK, titleColor: "#fff", bodyColor: V("#e8edf3", PV.line), borderColor: V("#2c3e57", PV.ink), borderWidth: 1, cornerRadius: 7, padding: 9,
+    titleFont: { family: SANS, weight: SRV2 ? "600" : "700", size: 12 }, bodyFont: { family: MONO, size: 12 }, boxWidth: 9, boxHeight: 9, usePointStyle: true };
   const legend = on => ({ display: !!on, position: "top", align: "end", labels: { color: SUB, font: { size: 12.5, weight: "600" }, boxWidth: 9, boxHeight: 9, usePointStyle: true } });
   const base = (extra, fmtTip) => Object.assign({ __solidBars: true, maintainAspectRatio: false, animation: false,
     interaction: { mode: "index", axis: extra && extra.indexAxis === "y" ? "y" : "x", intersect: false },
@@ -332,7 +430,12 @@ async function renderSeasonal(host) {
   function chartBox(c, h) { const b = document.createElement("div"); b.className = "srx-box"; if (h) b.style.height = h + "px"; const cv = document.createElement("canvas"); b.appendChild(cv); c.appendChild(b); return { b, cv }; }
   const empty = (b, msg) => { b.innerHTML = `<div class="srx-empty">${esc(msg || "No data in this window")}</div>`; };
   function chip(c, p, inv, lbl) {
-    const g = growth(c, p); if (g == null) return `<span class="srx-chip" style="background:${GRID};color:${SUB}">${lbl || "vs " + yy(LY)} —</span>`;
+    const g = growth(c, p);
+    // v2: the one delta format -- "▲ 12%" green / "▼ 4%" red, then "vs 2025" muted
+    if (SRV2) { if (g == null) return `<span class="srx-chip" style="color:${FAINT}">— <span class="vs">${lbl || "vs " + yy(LY)}</span></span>`;
+      const ok = inv ? g < 0 : g >= 0;
+      return `<span class="srx-chip" style="color:${ok ? POS : NEG}">${g >= 0 ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}% <span class="vs">${lbl || "vs " + yy(LY)}</span></span>`; }
+    if (g == null) return `<span class="srx-chip" style="background:${GRID};color:${SUB}">${lbl || "vs " + yy(LY)} —</span>`;
     const good = inv ? g < 0 : g >= 0;
     return `<span class="srx-chip" style="background:${good ? POS_T1 : NEG_T1};color:${good ? POS : NEG}">${lbl || "vs " + yy(LY)} ${g >= 0 ? "▲" : "▼"} ${Math.abs(g * 100).toFixed(0)}%</span>`;
   }
@@ -432,7 +535,7 @@ async function renderSeasonal(host) {
     const s = tail.length ? head.concat([{ k: `All others (${tail.length})`, v: tail.reduce((a, r) => a + r.v, 0) }]) : head;
     const tot = s.reduce((a, r) => a + r.v, 0); const c = card(mount, title, sub, Object.assign({ head: fmt(tot) }, opts)); const { b, cv } = chartBox(c, 300);
     if (!s.length) { empty(b); return c; }
-    const COL = [INK, BLUE, VIOLET, LIME, "#4a6285", "#84aef0", "#c4aef9", LIMED, "#aeb9c8"];
+    const COL = SRV2 ? PV.cat.concat([PV.other]) : [INK, BLUE, VIOLET, LIME, "#4a6285", "#84aef0", "#c4aef9", LIMED, "#aeb9c8"];
     lazyChart(cv, { type: "doughnut", data: { labels: s.map(r => r.k), datasets: [{ data: s.map(r => r.v), backgroundColor: s.map((_, i) => COL[i % COL.length]), borderColor: "#fff", borderWidth: 3 }] },
       options: { __solidBars: true, maintainAspectRatio: false, animation: false, cutout: "62%", plugins: { legend: { position: "right", labels: { color: INK2, font: { size: 12.5 }, boxWidth: 12, usePointStyle: true } },
         tooltip: Object.assign({}, tipTheme, { callbacks: { label: x => `${x.label}: ${fmt(x.parsed)} (${(x.parsed / tot * 100).toFixed(0)}%)` } }) } },
@@ -644,7 +747,7 @@ async function renderSeasonal(host) {
     o = o || {}; const el = document.createElement("div"); // "srx-hero", never bare "hero": portal.css owns .hero {text-align:center;max-width:760px}
     el.className = "srx-kpi" + (o.hero ? " srx-hero" : "");
     let ch;
-    if (o.pp) { const d = c != null && p != null ? (c - p) * 100 : null; ch = d == null ? `<span class="srx-chip" style="background:${GRID};color:${SUB}">vs ${yy(LY)} —</span>` : `<span class="srx-chip" style="background:${(o.inv ? d <= 0 : d >= 0) ? POS_T1 : NEG_T1};color:${(o.inv ? d <= 0 : d >= 0) ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp</span>`; }
+    if (o.pp) { const d = c != null && p != null ? (c - p) * 100 : null; ch = d == null ? `<span class="srx-chip" style="background:${GRID};color:${SUB}">vs ${yy(LY)} —</span>` : `<span class="srx-chip" style="background:${(o.inv ? d <= 0 : d >= 0) ? POS_T1 : NEG_T1};color:${(o.inv ? d <= 0 : d >= 0) ? POS : NEG}">${SRV2 ? `${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp <span class="vs">vs ${yy(LY)}</span>` : `vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp`}</span>`; }
     else ch = chip(c, p, o.inv);
     el.innerHTML = `<div class="srx-kl">${esc(l)}</div><div class="srx-kv">${v}</div>${ch}<span class="srx-chip" style="color:${FAINT}">${yy(LY)}: ${p == null ? "—" : (o.f || String)(p)}</span>`;
     g.appendChild(el);
@@ -899,7 +1002,7 @@ async function renderSeasonal(host) {
       { span2: true, head: fmtN(C.claims) + " claims", chips: chip(C.claims, P.claims, true), barAxis: fmtN });
   } else {
     const csT = claimsIn(Y), csL = claimsIn(LY);
-    const ppChip = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d <= 0 ? POS_T1 : NEG_T1};color:${d <= 0 ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp</span>`; };
+    const ppChip = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d <= 0 ? POS_T1 : NEG_T1};color:${d <= 0 ? POS : NEG}">${SRV2 ? `${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp <span class="vs">vs ${yy(LY)}</span>` : `vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}pp`}</span>`; };
     // headline strip
     const hero = card(gC, `Claims — ${seasonName} ${Y}`, "the one number, and what happened to those claims", { span2: true });
     const med = median(csT.map(r => r["Days After Job"] == null ? null : num(r["Days After Job"])));
@@ -1006,7 +1109,7 @@ async function renderSeasonal(host) {
   const endD = new Date(Date.UTC(Y, T - 1, lastDay(Y, T))), ageDays = Math.floor((Date.now() - endD) / 864e5);
   {
     const hero = card(gR, `Reviews — ${seasonName} ${Y}`, "what the season's jobs earned", { span2: true });
-    const up = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d >= 0 ? POS_T1 : NEG_T1};color:${d >= 0 ? POS : NEG}">vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}pp</span>`; };
+    const up = (c, p) => { if (c == null || p == null) return ""; const d = (c - p) * 100; return `<span class="srx-chip" style="background:${d >= 0 ? POS_T1 : NEG_T1};color:${d >= 0 ? POS : NEG}">${SRV2 ? `${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}pp <span class="vs">vs ${yy(LY)}</span>` : `vs ${yy(LY)} ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}pp`}</span>`; };
     const stat = (l, v, s) => `<div class="srx-st"><div class="l">${esc(l)}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
     const hs = document.createElement("div"); hs.className = "srx-strip";
     hs.innerHTML = (jov ? `<div class="srx-big"><b>${pct0(CC.revPerJob)}</b><span>reviews per eligible job</span>${up(CC.revPerJob, CP.revPerJob)}<em>${fmtN(CC.revs)} reviews on ${fmtN(CC.eligN)} eligible jobs · ${LY}: ${CP.revPerJob == null ? "—" : pct0(CP.revPerJob)}</em></div>`

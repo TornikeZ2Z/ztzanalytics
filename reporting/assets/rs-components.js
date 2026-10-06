@@ -776,7 +776,7 @@ window.RSC = (function () {
       ".rs-dlg-b{font-size:13px;line-height:1.6;color:var(--muted,#5b6b7c);white-space:pre-line}",
       ".rs-dlg-in{width:100%;margin-top:12px;border:1px solid var(--line,#d8dee8);border-radius:10px;",
       "padding:9px 12px;font-size:13px;background:var(--panel-2,#f4f6fa);color:var(--ink,#16202c);outline:0}",
-      ".rs-dlg-in:focus{border-color:var(--brand,#7fa32b)}",
+      ".rs-dlg-in:focus{border-color:var(--brand,#2563EB)}",
       ".rs-dlg-a{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}",
       ".rs-dlg .rs-btn.danger{background:var(--neg,#c2413f);border-color:var(--neg,#c2413f);color:#fff}",
     ].join("");
@@ -904,13 +904,14 @@ window.RSC = (function () {
 
     /* THE TOKENS PAGE CSS IS WRITTEN AGAINST. A standalone document defines none of them,
        so var(--ink) and friends would resolve to nothing and a page's own rules would paint
-       in no colour at all. These are rs.css's LIGHT values, because this is ink on paper. */
-    const PAPER_TOKENS = ":root{--bg:#fff;--panel:#fff;--panel-2:#f8fafc;--line:#e3e8f0;"
-      + "--line-2:#cdd6e2;--ink:#16202c;--muted:#5b6b7c;--faint:#8a97a6;--brand:#5f7c20;"
-      + "--brand-d:#5f7c20;--brand-ink:#fff;--brand-glow:rgba(127,163,43,.14);--blue:#2f62d8;"
-      + "--purple:#7c5cd6;--amber:#b97b0a;--red:#d43d55;--shadow:none;--pos:#5f7c20;"
-      + "--pos-bg:rgba(127,163,43,.12);--warn:#b97b0a;--warn-bg:rgba(185,123,10,.12);"
-      + "--neg:#d43d55;--neg-bg:rgba(212,61,85,.10);--blue-bg:rgba(47,98,216,.10);"
+       in no colour at all. These are the design v2 values (rs.css light.v2, 2026-10-06), because
+       paper always prints in the standard look whichever theme the screen is in. */
+    const PAPER_TOKENS = ":root{--bg:#fff;--panel:#fff;--panel-2:#F8FAFC;--line:#E2E8F0;"
+      + "--line-2:#CBD5E1;--ink:#0F172A;--muted:#475569;--faint:#64748B;--brand:#2563EB;"
+      + "--brand-d:#1E3A8A;--brand-ink:#fff;--brand-glow:rgba(37,99,235,.09);--blue:#2563EB;"
+      + "--purple:#6D28D9;--amber:#B45309;--red:#B91C1C;--shadow:none;--pos:#15803D;"
+      + "--pos-bg:#DCFCE7;--warn:#B45309;--warn-bg:#FEF3C7;"
+      + "--neg:#B91C1C;--neg-bg:#FEE2E2;--blue-bg:#EFF6FF;"
       + "--job-ink:#fff}";
 
     // the page's own stylesheet, by element id or as raw text
@@ -926,26 +927,26 @@ window.RSC = (function () {
 
     const DOC = `<!doctype html><html><head><meta charset="utf-8">
       <title>${esc2(cfg.title || "Report")}</title>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
       <style>
         @page{size:A4 ${cfg.orientation === "portrait" ? "portrait" : "landscape"};margin:12mm}
         ${PAPER_TOKENS}
         ${pageCss}
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
-        body{margin:0;background:#fff;color:#16181D;
-          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+        body{margin:0;background:#fff;color:#0F172A;
+          font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
           font-size:11px;line-height:1.45}
-        .pv-head{border-bottom:2px solid #16181D;padding-bottom:10px;margin-bottom:16px}
+        .pv-head{border-bottom:2px solid #1E3A8A;padding-bottom:10px;margin-bottom:16px}
         .pv-head h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
         .pv-head .sub{font-size:11.5px;color:#5B5F6B}
         .pv-head .note{font-size:10.5px;color:#7A7E88;margin-top:4px}
-        .pv-head .when{float:right;font-size:10px;color:#7A7E88;text-transform:uppercase;
-          letter-spacing:.08em}
+        .pv-head .when{float:right;font-size:10px;color:#64748B}
         /* the kit's vocabulary, restyled for paper */
         .rs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;
           margin:0 0 16px}
         .kpi{border:1px solid #DCDEE3;border-radius:5px;padding:9px 11px;break-inside:avoid}
-        .kpi .l{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#7A7E88}
-        .kpi .v{font-size:19px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+        .kpi .l{font-size:10px;color:#475569}
+        .kpi .v{font-size:19px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
         .kpi .s{font-size:9.5px;color:#7A7E88;margin-top:3px}
         .panel{border:1px solid #DCDEE3;border-radius:6px;margin:0 0 14px;break-inside:avoid;
           overflow:visible}
@@ -955,8 +956,8 @@ window.RSC = (function () {
         .rs-hint{font-size:10px;color:#5B5F6B;padding:8px 12px 0;max-width:110ch}
         .rs-tablewrap{overflow:visible!important;max-height:none!important}
         table{width:100%;border-collapse:collapse;font-size:10px}
-        th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;
-          color:#7A7E88;padding:6px 8px;border-bottom:1px solid #DCDEE3;background:#F7F8FA}
+        th{text-align:left;font-size:9.5px;font-weight:600;
+          color:#475569;padding:6px 8px;border-bottom:1px solid #E2E8F0;background:#F8FAFC}
         td{padding:5px 8px;border-bottom:1px solid #EEF0F3}
         td.num,th.num,td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
         tr{break-inside:avoid}
@@ -972,15 +973,15 @@ window.RSC = (function () {
         .dim,.muted{color:#9A9EA8}
         svg{max-width:100%;height:auto}
         .pv-foot{margin-top:14px;padding-top:8px;border-top:1px solid #DCDEE3;
-          font-size:9px;color:#9A9EA8;text-transform:uppercase;letter-spacing:.08em}
+          font-size:9px;color:#64748B}
         /* ONE THEME PER SHEET: break-after on every page but the last. (There was a 172mm
            min-height too; on the first sheet the title block sits above it, so the section ran
            past the page and printed a blank sheet after it -- 2026-10-01. The break alone already
            starts every theme on a fresh page.) */
         .pv-page{break-after:page;page-break-after:always;padding-bottom:8mm}
         .pv-page:last-of-type{break-after:auto;page-break-after:auto;min-height:0}
-        .pv-page > h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;
-          color:#16181D;margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid #DCDEE3}
+        .pv-page > h2{font-size:14px;font-weight:600;
+          color:#0F172A;margin:0 0 12px;padding-bottom:6px;border-bottom:1px solid #DCDEE3}
         .pv-page > h2:empty{display:none}
         /* a panel taller than a sheet must be allowed to split, or it overflows off the page
            and the rows at the bottom are simply gone */

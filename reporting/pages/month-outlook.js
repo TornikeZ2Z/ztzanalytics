@@ -73,8 +73,41 @@ registerPage({
       .mo-tbl .r{text-align:right;font-variant-numeric:tabular-nums}
       .mo-note{font-size:12px;color:var(--faint);line-height:1.55;margin-top:8px}
       @media(max-width:900px){.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}}
+      /* DESIGN V2 ("Calm finance", 2026-10-06) -- MonthOutlook.dc.html: white cards, sentence-case
+         labels, pill month toggle, the blue total card, one delta format. Dark is untouched. */
+      body.rs-app.light.v2 .mo-bar{gap:8px;margin:4px 0 18px}
+      body.rs-app.light.v2 .mo-seg{border-color:var(--line);border-radius:999px}
+      body.rs-app.light.v2 .mo-seg button{font-size:13.5px;font-weight:500;color:var(--muted);padding:8px 16px;min-height:36px}
+      body.rs-app.light.v2 .mo-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}
+      body.rs-app.light.v2 .mo-card{border-color:var(--line);border-radius:10px;box-shadow:none;padding:16px 18px}
+      body.rs-app.light.v2 .mo-card.total{border:1px solid #BFDBFE;background:#EFF6FF}
+      body.rs-app.light.v2 .mo-card .k{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+      body.rs-app.light.v2 .mo-card.total .k{color:#1E3A8A;font-weight:600}
+      body.rs-app.light.v2 .mo-card .v{font-size:30px;font-weight:700;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+      body.rs-app.light.v2 .mo-card.total .v,body.rs-app.light.v2 .mo-card.total .s,body.rs-app.light.v2 .mo-card.total .s b{color:#1E3A8A}
+      body.rs-app.light.v2 .mo-card .s{font-size:13px}
+      body.rs-app.light.v2 .mo-card .s.m{font-size:12.5px;color:var(--faint)}
+      body.rs-app.light.v2 .mo-card.total .s .mo-vs{color:var(--muted)}
+      body.rs-app.light.v2 .mo-up{color:var(--pos);font-weight:600}
+      body.rs-app.light.v2 .mo-dn{color:var(--neg);font-weight:600}
+      body.rs-app.light.v2 .mo-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:24px 0 10px}
+      body.rs-app.light.v2 .mo-day .n{font-size:12px;font-weight:500;top:-17px}
+      body.rs-app.light.v2 .mo-day.today{outline-color:#2563EB}
+      body.rs-app.light.v2 .mo-days{border-bottom-color:var(--line);padding-top:20px}
+      body.rs-app.light.v2 .mo-dlab span{font-size:12px;color:var(--faint)}
+      body.rs-app.light.v2 .mo-leg{font-size:13px;gap:18px;margin-top:10px}
+      body.rs-app.light.v2 .mo-hb{font-size:13.5px;gap:8px 10px}
+      body.rs-app.light.v2 .mo-hb .t{height:12px;background:#F1F5F9}
+      body.rs-app.light.v2 .mo-tbl{font-size:13.5px}
+      body.rs-app.light.v2 .mo-tbl th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);background:#F8FAFC;border-bottom:1px solid var(--line)}
+      body.rs-app.light.v2 .mo-tbl td{border-bottom-color:#F1F5F9}
+      body.rs-app.light.v2 .mo-tbl tbody tr:hover td{background:#F8FAFC}
+      body.rs-app.light.v2 .mo-note{font-size:12.5px;color:var(--faint)}
     </style>`;
-    const C = { done: "var(--brand-d, #6a8f12)", est: "color-mix(in srgb,var(--brand) 55%,transparent)", ahead: "color-mix(in srgb,var(--blue) 55%,transparent)" };
+    // bar colours: v2 = navy done / light blue still on the calendar (the canvas spec); read at render
+    // time so the theme button, which re-renders the page, switches them
+    const C = RS.isV2() ? { done: RS.V2.navy, est: RS.V2.accentL, ahead: "#93C5FD" }
+      : { done: "var(--brand-d, #6a8f12)", est: "color-mix(in srgb,var(--brand) 55%,transparent)", ahead: "color-mix(in srgb,var(--blue) 55%,transparent)" };
 
     const paint = () => {
       const inMonth = all.filter(r => r["Month"] === S.month && (!S.co || r["Company"] === S.co));
@@ -93,6 +126,8 @@ registerPage({
       const totRev = sum(jobs, "Revenue"), totProf = sum(jobs, "Profit");
       const filtered = !!(S.st || S.city);
       const cmp = (now, then, label) => !then ? "" : (() => { const d = (now - then) / then * 100;
+        // v2: the one delta format -- the change first, then what it is against
+        if (RS.isV2()) return `<div class="s"><span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}%</span> <span class="mo-vs">vs ${label[0].toLowerCase() + label.slice(1)}: ${moneyK(then)}</span></div>`;
         return `<div class="s">${label}: <b>${moneyK(then)}</b> <span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "+" : ""}${d.toFixed(0)}%</span></div>`; })();
       const [y, m] = S.month.split("-").map(Number);
       const days = new Date(y, m, 0).getDate();

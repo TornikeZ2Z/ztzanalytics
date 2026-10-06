@@ -106,6 +106,54 @@ const CONV = (() => {
     .cnv-x{align-self:center;width:min(760px,86%);opacity:.95}
     .cnv-day{align-self:center;font-size:11px;color:var(--muted);background:var(--bg);
       border:1px solid var(--line);border-radius:999px;padding:2px 12px}
+
+    /* DESIGN V2 ("Calm finance"). Prefixed with the body only, never a page wrapper: the
+       Sales Person Analysis lead drawer mounts this same thread (CONV.mountThread). In v2
+       --brand and --blue are the SAME blue, and amber means "warning" only, so the two
+       sides of a call get their own colours here: us = accent blue, the customer = teal
+       (RS.V2.cat[3]). The transcript accent stops being purple and becomes quiet slate;
+       the find-a-word highlight is the selection blue, not a warning amber. */
+    body.rs-app.light.v2 .cnv-facts{border-radius:10px;background:#FFFFFF;border-color:#E2E8F0}
+    body.rs-app.light.v2 .cnv-facts>summary{font-weight:600;font-size:13.5px}
+    body.rs-app.light.v2 .cnv-facts>summary::before{content:"\\25B8  ";color:#64748B}
+    body.rs-app.light.v2 .cnv-facts[open]>summary::before{content:"\\25BE  "}
+    body.rs-app.light.v2 .cnv-search .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;
+      font-weight:600;border-radius:8px}
+    body.rs-app.light.v2 .cnv-search .rs-inp{border-radius:8px}
+    body.rs-app.light.v2 .cnv-hit{border-radius:8px}
+    body.rs-app.light.v2 .cnv-hit:hover{background:#F8FAFC}
+    body.rs-app.light.v2 .cnv-hit.on{background:#EFF6FF;border-color:#93C5FD}
+    body.rs-app.light.v2 .cnv-hit b{font-weight:600;color:#0F172A}
+    body.rs-app.light.v2 .cnv-hit span{font-size:12.5px;color:#64748B;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .cnv-pills .rs-pill{color:#475569;background:#F1F5F9;border-color:transparent}
+    body.rs-app.light.v2 .rs-pill.cnv-pill-tr{background:#EFF6FF;color:#1D4ED8}
+    body.rs-app.light.v2 .cnv-lead h2{font-size:20px;font-weight:600;color:#0F172A}
+    body.rs-app.light.v2 .cnv-lead .meta{color:#64748B;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .cnv-find .rs-inp{border-radius:8px}
+    body.rs-app.light.v2 .cnv-head{font-size:12px;color:#64748B;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .cnv-body{border-radius:10px;border-color:#E2E8F0;background:#F8FAFC;color:#0F172A}
+    body.rs-app.light.v2 .cnv-ev.out .cnv-body{background:#FFFFFF;border-color:#93C5FD}
+    body.rs-app.light.v2 .cnv-miss .cnv-body{border-color:#FECACA;background:#FEF2F2}
+    body.rs-app.light.v2 .cnv-miss .cnv-ico{color:#B91C1C;border-color:#FECACA}
+    body.rs-app.light.v2 .cnv-ico{background:#FFFFFF;border-color:#E2E8F0;color:#334155}
+    body.rs-app.light.v2 .cnv-txt{font-size:14px}
+    body.rs-app.light.v2 .cnv-tbtn{background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;border-radius:8px;
+      font-size:12.5px;font-weight:600;padding:4px 10px}
+    body.rs-app.light.v2 .cnv-tbtn:hover{background:#F8FAFC;border-color:#94A3B8}
+    body.rs-app.light.v2 .cnv-tbtn .n{color:#1D4ED8}
+    body.rs-app.light.v2 .cnv-tr{border-top-color:#E2E8F0}
+    body.rs-app.light.v2 .cnv-sum{background:#F1F5F9;border-left-color:#CBD5E1;font-size:13px;color:#0F172A}
+    body.rs-app.light.v2 .cnv-sum h5{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569}
+    body.rs-app.light.v2 .cnv-utt{font-size:13px}
+    body.rs-app.light.v2 .cnv-utt .t{font-size:12px;color:#64748B}
+    body.rs-app.light.v2 .cnv-utt .s{color:#1D4ED8}
+    body.rs-app.light.v2 .cnv-utt.them .s{color:#0F766E}
+    body.rs-app.light.v2 .cnv-mark{background:#BFDBFE;color:inherit}
+    body.rs-app.light.v2 .cnv-kwn{font-size:12.5px;color:#64748B}
+    body.rs-app.light.v2 .cnv-kwn.none{color:#B45309}
+    body.rs-app.light.v2 .cnv-day{font-size:12px;color:#64748B;background:#FFFFFF;border-color:#E2E8F0;
+      font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .cnv-empty{color:#64748B}
     `;
     document.head.appendChild(st);
   }

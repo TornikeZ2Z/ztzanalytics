@@ -217,10 +217,66 @@ registerPage({
       + ".stc-note{font-size:var(--t4);color:var(--muted);line-height:1.55;white-space:pre-wrap}"
       // the empty / loading state is a kit .panel; only the roomy centred type is ours
       + "body.rs-app .stc .stc-empty{padding:30px;text-align:center;color:var(--faint);font-size:var(--t3)}"
+      + v2Css()
       + "</style>"
       + '<div class="stc"><div id="stcMain"></div></div>'
       + '<div class="stc-scrim" id="stcScrim"></div>'
       + '<div class="stc-draw" id="stcDraw"><div id="stcDrawIn" style="display:flex;flex-direction:column;height:100%"></div></div>';
+
+    /* DESIGN V2 ("Calm finance", 2026-10-06). Light theme only -- every selector carries
+     * body.rs-app.light.v2, so dark keeps the rules above untouched. Type floors at 12px
+     * (the board's 9.5px day counts were below it), section captions lose the uppercase
+     * whisper for a sentence-case section title, the lapsed-account flags take the v2
+     * status colours, and the kit's control bar (.rs-inp / .rs-seg / .rs-tog / .rs-btn) --
+     * which rs.css has no v2 rules for yet -- is restated in its v2 pill shapes inside .stc.
+     * "Owing only" keeps its red lit state: it is a verdict filter, red still means owing. */
+    function v2Css() {
+      var V = "body.rs-app.light.v2 ";
+      return ""
+        + V + ".stc," + V + ".stc-draw{--t4:12.5px;--t5:12px;--t6:12px}"
+        + V + ".stc-h2{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:22px 0 10px}"
+        + V + ".stc-h2 b{color:var(--ink);font-weight:600}"
+        + V + ".stc-h2 .note{font-size:13px;font-weight:400;color:#475569}"
+        + V + ".stc-v{border-radius:8px;border-color:var(--line)}"
+        + V + ".stc-v:hover{transform:none;border-color:#CBD5E1}"
+        + V + ".stc-v.empty:hover{border-color:var(--line)}"
+        + V + ".stc-v .n{font-weight:600;letter-spacing:0;color:#64748B}"
+        + V + ".stc-v.full .n{color:var(--ink)}"
+        + V + ".stc-v .who{font-weight:600}"
+        + V + ".stc-v .d{color:#64748B}"
+        + V + ".stc-v.full{border-left:3px solid #15803D}"
+        + V + ".stc-v.full.owe{border-left-color:#B91C1C}"
+        + V + ".stc-v.multi::after{font-weight:600}"
+        + V + ".stc-flag{border-radius:8px;font-size:12.5px}"
+        + V + ".stc-flag.bad{background:#FEE2E2;color:#991B1B}"
+        + V + ".stc-flag.warn{background:#FEF3C7;color:#92400E}"
+        + V + ".stc-r .nm{font-size:14px;font-weight:600}"
+        + V + ".stc-r .jrow:hover," + V + ".stc-unplaced .jrow:hover{color:#1D4ED8}"
+        + V + ".stc-r .jrow .owe{font-weight:600}"
+        + V + ".stc-scrim{background:rgba(15,23,42,.38)}"
+        + V + ".stc-draw{border-left-color:var(--line)}"
+        + V + ".stc-dh h3{font-size:20px;font-weight:700}"
+        + V + ".stc-x{border-radius:8px;border-color:#CBD5E1}"
+        + V + ".stc-x:hover{background:#F8FAFC;color:var(--ink)}"
+        + V + ".stc-sec{border-radius:10px}"
+        + V + ".stc-sec h5{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+        + V + ".stc-row b{font-weight:600}"
+        // the kit control bar, in v2 shapes
+        + V + ".stc .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+        + V + ".stc .rs-inp{background:#FFFFFF;border-color:var(--line);border-radius:999px;height:36px;padding:0 14px}"
+        + V + ".stc .rs-inp:hover{border-color:#CBD5E1}"
+        + V + ".stc .rs-inp:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}"
+        + V + ".stc .rs-seg{background:#FFFFFF;border:1px solid var(--line);border-radius:999px;padding:3px}"
+        + V + ".stc .rs-seg button{border-radius:999px;font-weight:600;color:#475569;padding:6px 13px}"
+        + V + ".stc .rs-seg button:hover:not(.on){background:#F8FAFC;color:var(--ink)}"
+        + V + ".stc .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+        + V + ".stc .rs-tog{border-radius:999px;border-color:var(--line);font-weight:600;color:#475569}"
+        + V + ".stc .rs-tog:hover{border-color:#CBD5E1}"
+        + V + ".stc .rs-tog.on{background:#FEF2F2;border-color:#FCA5A5;color:#991B1B}"
+        + V + ".stc .rs-tog.on i{background:#B91C1C}"
+        + V + ".stc .rs-btn{border-radius:8px;font-weight:600;color:var(--ink);border-color:#CBD5E1}"
+        + V + ".stc .rs-btn:hover:not(:disabled){background:#F8FAFC;border-color:#CBD5E1;color:var(--ink)}";
+    }
 
     var main = host.querySelector("#stcMain");
     var scrim = host.querySelector("#stcScrim");

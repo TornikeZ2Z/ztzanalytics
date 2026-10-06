@@ -32,7 +32,21 @@
       + ".mfi-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 17px;min-width:170px}"
       + ".mfi-card b{display:block;font-size:21px;letter-spacing:-.4px}"
       + ".mfi-card span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}"
-      + ".mfi-none{padding:24px;color:var(--faint)}";
+      + ".mfi-none{padding:24px;color:var(--faint)}"
+      // DESIGN V2 "Calm finance" (2026-10-06): light theme only, look only. Kit table header,
+      // neutral hover, square status pills, KPI label above an ink figure.
+      + "body.rs-app.light.v2 .mfi-tbl{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden}"
+      + "body.rs-app.light.v2 .mfi-tbl th,body.rs-app.light.v2 .mfi-tbl td{font-size:13.5px;border-bottom-color:#F1F5F9}"
+      + "body.rs-app.light.v2 .mfi-tbl th{background:#F8FAFC;color:#475569;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .mfi-tbl tr:hover td{background:#F8FAFC}"
+      + "body.rs-app.light.v2 .mfi-leg{font-size:12.5px;color:#475569}"
+      + "body.rs-app.light.v2 .mfi-pill{border-radius:6px;font-size:12px;font-weight:600;padding:3px 8px}"
+      + "body.rs-app.light.v2 .mfi-dup{background:#FEE2E2;color:#991B1B}"
+      + "body.rs-app.light.v2 .mfi-chk{background:#FEF3C7;color:#92400E}"
+      + "body.rs-app.light.v2 .mfi-card{display:flex;flex-direction:column;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px}"
+      + "body.rs-app.light.v2 .mfi-card span{order:-1;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}"
+      + "body.rs-app.light.v2 .mfi-card b{font-size:24px;font-weight:700;letter-spacing:-.3px;margin-top:4px}"
+      + "body.rs-app.light.v2 .mfi-none{font-size:14px;color:#64748B}";
     document.head.appendChild(st);
   }
 

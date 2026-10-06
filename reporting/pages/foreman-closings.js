@@ -86,6 +86,52 @@ registerPage({
         .fnc-dt th.r,.fnc-dt td.r{text-align:right;font-variant-numeric:tabular-nums}
         .fnc-dt td{border-bottom:1px solid #eef1f3;padding:6px 8px;white-space:nowrap}
         .fnc-dt td.neg{color:#b02a37}
+        /* ---- DESIGN V2 "Calm finance" (2026-10-06): the same dress as Money Flow's v2 layer, so
+           the two tables still read as one system. Light theme only; dark keeps every rule
+           above. The Preview modal is left alone on purpose -- it is a replica of the archived
+           PDF statement, and the PDF did not change. ---- */
+        body.rs-app.light.v2 .fnc-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
+        body.rs-app.light.v2 .fnc-head p{font-size:14.5px;line-height:1.55;color:#475569;margin-top:6px}
+        body.rs-app.light.v2 .fnc-last{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 .fnc-refresh{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-size:13px;font-weight:600;padding:8px 14px}
+        body.rs-app.light.v2 .fnc-refresh:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .fnc-kpis{gap:12px}
+        body.rs-app.light.v2 .fnc-kpi{display:flex;flex-direction:column;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;background:#FFFFFF}
+        body.rs-app.light.v2 .fnc-kpi span{order:-1;margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
+        body.rs-app.light.v2 .fnc-kpi b,body.rs-app.light.v2 .fnc-kpi.pos b{font-size:26px;font-weight:700;letter-spacing:-.3px;color:#0F172A;margin-top:4px}
+        body.rs-app.light.v2 .fnc-kpi small{font-size:13px;color:#64748B;margin-top:2px}
+        body.rs-app.light.v2 .fnc-seg{background:transparent;border:0;padding:0;gap:6px}
+        body.rs-app.light.v2 .fnc-seg button{border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;border-radius:999px;font-size:13.5px;font-weight:600;padding:7px 14px;min-height:36px}
+        body.rs-app.light.v2 .fnc-seg button:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .fnc-seg button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .fnc-seg button i{font-weight:600;font-size:12px;opacity:.7}
+        body.rs-app.light.v2 .fnc-dseg button{font-size:13px;padding:6px 13px;min-height:34px}
+        body.rs-app.light.v2 .fnc-q{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;padding:8px 14px;min-height:38px;box-sizing:border-box}
+        body.rs-app.light.v2 .fnc-q:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .fnc-card{border-radius:10px;border-color:#E2E8F0}
+        body.rs-app.light.v2 .fnc-tbl th{background:#F8FAFC;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569;border-bottom-color:#E2E8F0}
+        body.rs-app.light.v2 .fnc-tbl td{border-top-color:#F1F5F9}
+        body.rs-app.light.v2 .fnc-tbl tbody tr.fnc-row:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .fnc-tbl .fnc-fmrow td{background:#F8FAFC;font-size:14px;font-weight:700;border-top-color:#E2E8F0}
+        body.rs-app.light.v2 .fnc-tbl .fnc-fmrow:hover td{background:#F1F5F9}
+        body.rs-app.light.v2 .fnc-caret{color:#64748B}
+        body.rs-app.light.v2 .fnc-meta{font-size:13px;font-weight:400;color:#64748B}
+        body.rs-app.light.v2 .fnc-neg{color:#B91C1C} body.rs-app.light.v2 .fnc-pos{color:#15803D}
+        body.rs-app.light.v2 .fnc-doc{color:#1D4ED8;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .fnc-doc:hover{color:#1E3A8A}
+        body.rs-app.light.v2 .fnc-pill{border-radius:6px;font-size:12px;font-weight:600;padding:3px 8px;background:#F1F5F9;color:#475569}
+        body.rs-app.light.v2 .fnc-pill.auto,body.rs-app.light.v2 .fnc-pill.conf{background:#DCFCE7;color:#166534}
+        body.rs-app.light.v2 .fnc-pill.imp{background:#EFF6FF;color:#1D4ED8}
+        body.rs-app.light.v2 .fnc-pill.queued{background:#FEF3C7;color:#92400E}
+        body.rs-app.light.v2 .fnc-note{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}
+        body.rs-app.light.v2 .fnc-run{background:#1E3A8A;border-radius:8px;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .fnc-run:hover{filter:none;background:#1E40AF}
+        body.rs-app.light.v2 .fnc-auto{font-size:13px;color:#475569}
+        body.rs-app.light.v2 .fnc-mini{border-radius:8px;border-color:#CBD5E1;font-size:12.5px;font-weight:600;color:#0F172A}
+        body.rs-app.light.v2 .fnc-mini:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .fnc-mini.go{border-color:#1E3A8A;color:#1E3A8A}
+        body.rs-app.light.v2 .fnc-mini.go:hover{background:#EFF6FF}
+        body.rs-app.light.v2 .fnc-back{background:rgba(15,23,42,.38)}
       `;
       document.head.appendChild(st);
     }

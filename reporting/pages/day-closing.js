@@ -94,7 +94,65 @@
       .dcl-pos{color:${POS}} .dcl-neg{color:${NEG}}
       .dcl-note{padding:10px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
       .dcl-load{padding:40px;text-align:center;color:var(--faint)}
-      .dcl-more{display:block;margin:10px auto}`;
+      .dcl-more{display:block;margin:10px auto}
+      /* ---- DESIGN V2 "Calm finance" (2026-10-06). Light theme only; dark keeps every rule
+         above. Look only -- the strip, the table, the dialogs and the print sheet behave and
+         count exactly as before. The strip is the artboard's "Today's drawer" panel. ---- */
+      body.rs-app.light.v2 .dcl-strip{border:1px solid #E2E8F0;border-radius:10px;padding:12px 16px;background:#FFFFFF}
+      body.rs-app.light.v2 .dcl-strip .big{font-size:20px;font-weight:700}
+      body.rs-app.light.v2 .dcl-strip .unit{font-size:13px;font-weight:500;color:#64748B}
+      body.rs-app.light.v2 .dcl-strip .lbl{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#475569}
+      body.rs-app.light.v2 .dcl-strip .sub{font-size:13px;color:#64748B}
+      body.rs-app.light.v2 .dcl-srow .who{font-size:13px;font-weight:600;color:#475569}
+      body.rs-app.light.v2 .dcl-srow.mine .who{color:#1E3A8A}
+      body.rs-app.light.v2 .dcl-srow + .dcl-srow{border-top:1px solid #F1F5F9}
+      body.rs-app.light.v2 .dcl-btn{border-radius:8px;border-color:#CBD5E1;font-size:13px;font-weight:600}
+      body.rs-app.light.v2 .dcl-btn:hover{background:#F8FAFC}
+      body.rs-app.light.v2 .dcl-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+      body.rs-app.light.v2 .dcl-btn.pri:hover{filter:none;background:#1E40AF}
+      body.rs-app.light.v2 .dcl-btn.sm{font-size:12.5px;padding:5px 10px}
+      body.rs-app.light.v2 .dcl-link{font-size:13.5px;font-weight:600;color:#1D4ED8}
+      body.rs-app.light.v2 .dcl-link:hover{color:#1E3A8A}
+      body.rs-app.light.v2 .dcl-back{background:rgba(15,23,42,.38)}
+      body.rs-app.light.v2 .dcl-modal{border-radius:12px;border-color:#E2E8F0;box-shadow:0 20px 50px rgba(15,23,42,.22)}
+      body.rs-app.light.v2 .dcl-modal h3{font-size:16px;font-weight:600}
+      body.rs-app.light.v2 .dcl-modal p{font-size:13.5px;color:#475569}
+      body.rs-app.light.v2 .dcl-sum tr.tot td{font-weight:700;border-top-color:#E2E8F0}
+      body.rs-app.light.v2 .dcl-f label{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:#475569}
+      body.rs-app.light.v2 .dcl-f input{border-radius:8px;border-color:#CBD5E1}
+      body.rs-app.light.v2 .dcl-err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;font-size:13px}
+      body.rs-app.light.v2 .dcl-ok{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;border-radius:8px;font-size:13px}
+      body.rs-app.light.v2 .dcl-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
+      body.rs-app.light.v2 .dcl-head p{font-size:14.5px;line-height:1.55;color:#475569;margin-top:6px}
+      body.rs-app.light.v2 .dcl-kpis{gap:12px}
+      body.rs-app.light.v2 .dcl-kpi{display:flex;flex-direction:column;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;background:#FFFFFF}
+      body.rs-app.light.v2 .dcl-kpi span{order:-1;margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
+      body.rs-app.light.v2 .dcl-kpi b{font-size:24px;font-weight:700;letter-spacing:-.3px;margin-top:4px}
+      body.rs-app.light.v2 .dcl-kpi small{font-size:12.5px;color:#64748B}
+      body.rs-app.light.v2 .dcl-seg{background:transparent;border:0;padding:0;gap:6px}
+      body.rs-app.light.v2 .dcl-seg button{border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;border-radius:999px;font-size:13.5px;font-weight:600;padding:7px 14px;min-height:36px}
+      body.rs-app.light.v2 .dcl-seg button:hover{background:#F8FAFC}
+      body.rs-app.light.v2 .dcl-seg button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+      body.rs-app.light.v2 .dcl-q{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;padding:8px 14px;min-height:38px;box-sizing:border-box}
+      body.rs-app.light.v2 .dcl-q:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+      body.rs-app.light.v2 .dcl-card{border-radius:10px;border-color:#E2E8F0}
+      body.rs-app.light.v2 .dcl-tbl th{background:#F8FAFC;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569;border-bottom-color:#E2E8F0}
+      body.rs-app.light.v2 .dcl-tbl td{border-top-color:#F1F5F9}
+      body.rs-app.light.v2 .dcl-tbl tr.day td{font-weight:600}
+      body.rs-app.light.v2 .dcl-tbl tr.day:hover td{background:#F8FAFC}
+      body.rs-app.light.v2 .dcl-tbl tr.open td{background:#EFF6FF}
+      body.rs-app.light.v2 .dcl-tbl tr.ps td{background:#F8FAFC}
+      body.rs-app.light.v2 .dcl-tbl tr.ps td.nm{font-weight:600}
+      body.rs-app.light.v2 .dcl-tbl tr.fm td.nm{font-weight:600}
+      body.rs-app.light.v2 .dcl-tbl tr.ln td{font-size:13px;color:#475569}
+      body.rs-app.light.v2 .dcl-caret{color:#64748B}
+      body.rs-app.light.v2 .dcl-pill{border-radius:6px;font-size:12px;font-weight:600;padding:2px 8px}
+      body.rs-app.light.v2 .dcl-pill.rec{background:#FEF3C7;color:#92400E}
+      body.rs-app.light.v2 .dcl-pill.lock{background:#F1F5F9;color:#475569}
+      body.rs-app.light.v2 .dcl-pill.open,body.rs-app.light.v2 .dcl-pill.card{background:#EFF6FF;color:#1D4ED8}
+      body.rs-app.light.v2 .dcl-meta{font-size:12.5px;font-weight:400;color:#64748B}
+      body.rs-app.light.v2 .dcl-pos{color:#15803D} body.rs-app.light.v2 .dcl-neg{color:#B91C1C}
+      body.rs-app.light.v2 .dcl-note{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}`;
     document.head.appendChild(st);
   }
 

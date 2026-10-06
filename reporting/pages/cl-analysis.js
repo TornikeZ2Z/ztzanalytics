@@ -212,6 +212,23 @@ registerPage({
         ".cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}",
         ".cla-vh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}",
         ".cla-vh .rs-hint{margin:0;flex:1 1 340px;min-width:0}",
+        /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, ink figures (amber is for
+           warnings only, so his cut is no longer painted as one), navy for what we keep, nothing
+           under 12px. The proposal slides (.cla-slide) are the document CL is sent -- its own print
+           palette, deliberately left as is. Dark is untouched. */
+        "body.rs-app.light.v2 .cla-led-g>.l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .cla-led-g>.v{font-size:clamp(22px,1.7vw,28px);font-weight:600;letter-spacing:-.4px}",
+        "body.rs-app.light.v2 .cla-led-g>.v.warn{color:var(--ink)}",
+        "body.rs-app.light.v2 .cla-led-g>.v.pos{color:#1E3A8A}",
+        "body.rs-app.light.v2 .cla-led-g li{font-size:12.5px}",
+        "body.rs-app.light.v2 .cla-led-g li b{font-weight:600}",
+        "body.rs-app.light.v2 .cla-eyebrow{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}",
+        "body.rs-app.light.v2 .cla-of{font-size:12px}",
+        "body.rs-app.light.v2 .cla-chk{font-size:13px}",
+        "body.rs-app.light.v2 .cla-chk span{font-size:12px}",
+        "body.rs-app.light.v2 .cla-in{border-radius:8px}",
+        "body.rs-app.light.v2 .cla-wf-tot td{border-top:1px solid var(--line);background:#F8FAFC;font-weight:600}",
+        "body.rs-app.light.v2 .cla-over{font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -1349,14 +1366,15 @@ registerPage({
               datasets: [
                 { label: "Profit per job",
                   data: months.map(m => byMonth[m].n ? byMonth[m].prof / byMonth[m].n : 0),
-                  backgroundColor: "rgba(132,204,22,.78)", yAxisID: "y", order: 3 },
+                  // v2: navy bars + accent line (no lime; amber is for warnings only)
+                  backgroundColor: RS.isV2() ? RS.V2.navy : "rgba(132,204,22,.78)", yAxisID: "y", order: 3 },
                 { type: "line", label: "His cut %",
                   data: months.map(m => byMonth[m].rev
                     ? 100 * byMonth[m].cut / byMonth[m].rev : null),
-                  borderColor: "#b45309", backgroundColor: "#b45309", tension: .3,
+                  borderColor: RS.isV2() ? RS.V2.accent : "#b45309", backgroundColor: RS.isV2() ? RS.V2.accent : "#b45309", tension: RS.isV2() ? .2 : .3,
                   yAxisID: "y1", order: 1 },
                 { type: "line", label: "The 30% cap",
-                  data: months.map(() => 30), borderColor: "#dc2626", borderDash: [5, 4],
+                  data: months.map(() => 30), borderColor: RS.isV2() ? RS.V2.neg : "#dc2626", borderDash: [5, 4],
                   pointRadius: 0, borderWidth: 1.5, yAxisID: "y1", order: 2 },
               ],
             },

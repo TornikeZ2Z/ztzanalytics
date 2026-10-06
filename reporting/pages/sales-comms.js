@@ -144,6 +144,8 @@
   var GROUPS = ["Opening", "Discovery", "Price", "Close"];
   var MIN_CALLS = 50;
 
+  var V2 = "body.rs-app.light.v2 ";   // prefix of every design-v2 rule; dark never matches
+
   function injectStyle() {
     var old = document.getElementById("scx-style");
     if (old) old.remove();
@@ -208,7 +210,36 @@
       + "color:var(--faint)}"
       + ".scx-chg td.num,.scx-chg th.num{text-align:right}"
       + ".scx-chg td.was{color:var(--faint);text-decoration:line-through}"
-      + ".scx-chg tr:last-child td{border-bottom:0}";
+      + ".scx-chg tr:last-child td{border-bottom:0}"
+      // DESIGN V2 ("Calm finance"): sentence-case labels at readable sizes, ink figures at
+      // weight 600, and the rate bar's top band turns GREEN -- --brand meant "good" in the old
+      // look, but in v2 it is the accent blue and only --pos says good.
+      + V2 + ".scx-grp{font-size:12.5px!important;letter-spacing:0;text-transform:none;"
+      + "color:var(--muted);font-weight:600;border-bottom-color:var(--line)}"
+      + V2 + ".scx .rs-table th{font-size:12.5px}"
+      + V2 + ".scx-funnel{margin:2px 0 18px}"
+      + V2 + ".scx-fstep{padding:12px 16px}"
+      + V2 + ".scx-fstep>b{font-size:24px;font-weight:600;letter-spacing:-.3px;color:var(--ink)}"
+      + V2 + ".scx-fstep span{font-size:12.5px;color:var(--faint);margin-top:4px}"
+      + V2 + ".scx-fstep span b{display:inline;font-size:13px;font-weight:500;color:var(--muted)}"
+      + V2 + ".scx-fstep.on>b{color:var(--brand-d)}"
+      + V2 + ".scx-rate{font-weight:600}"
+      + V2 + ".scx-bar{background:#F1F5F9}"
+      + V2 + ".scx-bar i{background:var(--pos)}"
+      + V2 + ".scx-bar i.mid{background:var(--warn)}"
+      + V2 + ".scx-bar i.low{background:var(--neg)}"
+      + V2 + ".scx-thin{font-size:12px}"
+      + V2 + ".scx-shared{background:#F8FAFC}"
+      + V2 + ".scx-shared td:first-child::after{font-size:12px;font-weight:500}"
+      + V2 + ".scx-who{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
+      + "color:var(--muted)}"
+      + V2 + ".scx-utt.hit{background:#EFF6FF}"
+      + V2 + ".scx-note{font-size:13.5px;color:var(--muted)}"
+      + V2 + ".scx-chg{font-size:13.5px}"
+      + V2 + ".scx-chg th,"  + V2 + ".scx-chg td{padding:7px 16px 7px 0;border-bottom-color:#F1F5F9}"
+      + V2 + ".scx-chg th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
+      + "color:var(--muted);border-bottom-color:var(--line)}"
+      + V2 + ".scx-chg td.was{color:var(--faint)}";
     document.head.appendChild(st);
   }
 

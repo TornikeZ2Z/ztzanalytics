@@ -81,8 +81,45 @@
       + ".pks-sug button{font-family:inherit;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);"
       + "background:var(--panel);color:var(--ink);cursor:pointer}"
       + ".pks-sug button:hover{border-color:var(--brand)}"
-      + ".pks-msg{font-size:12px;color:var(--muted)} .pks-msg.bad{color:var(--neg);font-weight:700}";
+      + ".pks-msg{font-size:12px;color:var(--muted)} .pks-msg.bad{color:var(--neg);font-weight:700}"
+      + v2Css();
     document.head.appendChild(st);
+  }
+
+  /* DESIGN V2 ("Calm finance", 2026-10-06). Light theme only -- every selector carries
+     body.rs-app.light.v2, so dark keeps the rules above untouched. The tile reads label
+     first (the v2 card: label, figure, sub) without touching the markup; the segment
+     buttons become pills with the selected one in navy; the kit's .rs-btn / .rs-fld label
+     have no v2 rules in rs.css yet, so their v2 shape is restated here inside .pks. */
+  function v2Css() {
+    const V = "body.rs-app.light.v2 ";
+    return ""
+      + V + ".pks .rs-kpis .kpi{display:flex;flex-direction:column}"
+      + V + ".pks .rs-kpis .kpi .l{order:-1;margin-top:0}"
+      + V + ".pks .rs-kpis .kpi .v{margin-top:4px}"
+      + V + ".pks-bar{height:6px;border-radius:4px;background:#F1F5F9}"
+      + V + ".pks-bar i{background:#2563EB;border-radius:4px}"
+      + V + ".pks-cat{font-size:12px;color:#64748B}"
+      + V + ".pks-heat{border-radius:6px;background:color-mix(in srgb,#2563EB var(--h,0%),transparent)}"
+      + V + ".pks-sortable th.on{color:#1E3A8A}"
+      // any other kit button on the page (the merge editor's): v2 radius and weight
+      + V + ".pks .rs-btn{border-radius:8px;font-weight:600}"
+      + V + ".pks .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}"
+      + V + ".pks-sec h3{font-size:15px;font-weight:600;color:var(--ink)}"
+      + V + ".pks-seg .rs-btn{border-radius:999px;height:34px;padding:0 13px;font-weight:600;"
+      + "color:var(--ink);border-color:var(--line);background:#FFFFFF}"
+      + V + ".pks-seg .rs-btn:hover:not(:disabled){background:#F8FAFC;border-color:#CBD5E1;color:var(--ink)}"
+      + V + ".pks-seg .rs-btn.pri," + V + ".pks-seg .rs-btn.pri:hover:not(:disabled){background:#1E3A8A;"
+      + "border-color:#1E3A8A;color:#FFFFFF;filter:none}"
+      + V + ".pks .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+      + V + ".pks-map input{border-radius:8px;border-color:#CBD5E1}"
+      + V + ".pks-map input:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}"
+      + V + ".pks-map .to{font-weight:600;color:#1E3A8A}"
+      + V + ".pks-sug button{border-color:#CBD5E1;font-weight:500}"
+      + V + ".pks-sug button:hover{background:#F8FAFC;border-color:#94A3B8}"
+      + V + ".pks-msg{font-size:12.5px;color:#475569}"
+      + V + ".pks-msg.bad{color:#B91C1C;font-weight:600}"
+      + V + ".pks-part{font-weight:600}";
   }
 
   const MON3 = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

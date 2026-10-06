@@ -85,6 +85,28 @@ registerPage({
         ".pce-sum .n{font-size:17px;font-weight:850;color:var(--ink)} .pce-sum .n small{font-size:12px;font-weight:600;color:var(--muted);margin-left:5px} .pce-sum .p{font-size:13px;color:var(--muted)} .pce-sum .p b{color:var(--ink);font-size:15px}",
         ".pce-modal .acts{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}",
         ".pce-msg{font-size:12px;color:var(--muted)} .pce-msg.bad{color:var(--neg);font-weight:700} .pce-msg.ok{color:var(--pos);font-weight:700}",
+        // DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, navy selected chips, nothing under 12px
+        "body.rs-app.light.v2 .pce-kpi{border-radius:10px;padding:14px 16px}",
+        "body.rs-app.light.v2 .pce-kpi .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .pce-kpi .v{font-size:24px;font-weight:600}",
+        "body.rs-app.light.v2 .pce-kpi .s{font-size:12.5px;color:var(--faint)}",
+        "body.rs-app.light.v2 .pce-chip{font-size:13px;font-weight:600;padding:6px 12px;color:var(--ink);border-color:var(--line)}",
+        "body.rs-app.light.v2 .pce-chip.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .pce-say{font-size:13.5px}",
+        "body.rs-app.light.v2 .pce-lno,body.rs-app.light.v2 .pce-tag{font-size:12px;font-weight:600;border-radius:6px;background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .pce-tag.dim{background:#F1F5F9;color:var(--muted)}",
+        "body.rs-app.light.v2 .pce-split,body.rs-app.light.v2 .pce-tile .sh,body.rs-app.light.v2 .pce-pool .st small{font-size:12px}",
+        "body.rs-app.light.v2 .pce-btn{font-size:13px;font-weight:600;border-radius:8px;padding:6px 12px}",
+        "body.rs-app.light.v2 .pce-btn.pri{background:#1E3A8A;border-color:#1E3A8A}",
+        "body.rs-app.light.v2 .pce-legend{font-size:13px}",
+        "body.rs-app.light.v2 .pce-modal{border-radius:10px}",
+        "body.rs-app.light.v2 .pce-modal h3{font-weight:600}",
+        "body.rs-app.light.v2 .pce-modal .amt{font-weight:600}",
+        "body.rs-app.light.v2 .pce-modal .amt small,body.rs-app.light.v2 .pce-modal .eyebrow{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}",
+        "body.rs-app.light.v2 .pce-tile{border-radius:10px;background:#FFFFFF}",
+        "body.rs-app.light.v2 .pce-tile.on{border-color:#93C5FD;background:#EFF6FF}",
+        "body.rs-app.light.v2 .pce-tile .st{font-weight:600} body.rs-app.light.v2 .pce-tile .st small{font-size:12px;font-weight:500;color:#1D4ED8;letter-spacing:0}",
+        "body.rs-app.light.v2 .pce-sum{border-radius:10px;background:#F8FAFC} body.rs-app.light.v2 .pce-sum .n{font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }

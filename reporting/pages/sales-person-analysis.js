@@ -152,6 +152,10 @@ registerPage({
       <style>
         .spa-up{color:var(--brand);font-weight:700}.spa-down{color:var(--red);font-weight:700}
         .spa-kd{font-size:12px;font-weight:600;margin-left:2px;vertical-align:2px}
+        /* design v2: green means only good (var(--brand) is the blue accent there) */
+        body.rs-app.light.v2 .spa-up{color:var(--pos);font-weight:600}
+        body.rs-app.light.v2 .spa-down{color:var(--neg);font-weight:600}
+        body.rs-app.light.v2 .spa-kd{font-size:12.5px;font-variant-numeric:tabular-nums}
       </style>
       <div class="rs-page-head">
         <h1>Sales Person Analysis</h1>
@@ -196,11 +200,14 @@ registerPage({
         const top = ranked.slice(0, 20), rest = ranked.slice(20);
         const labels = top.map(x => x.name);
         const data = top.map(x => +((x[c.key] || 0).toFixed(2)));
-        const colors = top.map(() => "#b7e23b");
+        // design v2: accent bars, "all others" in the neutral context grey -- read at render
+        // time so the theme button (which re-renders) switches them
+        const v2 = RS.isV2();
+        const colors = top.map(() => v2 ? RS.V2.accent : "#b7e23b");
         if (rest.length) {   // "everything else" bucket
           labels.push(`All others (${rest.length})`);
           data.push(+rest.reduce((a, x) => a + (x[c.key] || 0), 0).toFixed(2));
-          colors.push("#5b8cff");
+          colors.push(v2 ? RS.V2.other : "#5b8cff");
         }
         return new Chart(canvas, {
           type: "bar",

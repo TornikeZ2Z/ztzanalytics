@@ -45,8 +45,21 @@
                          Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
                          Operations: "#059669" };
       var FALLBACK = ["#7c3aed", "#0ea5e9", "#db2777", "#65a30d", "#0f766e", "#b45309"];
-      var _extra = {};
+      var _extra = {}, _extraV2 = {};
+      /* DESIGN V2: a department is a category, so it takes RS.V2.cat in DEPT_ORDER order --
+         green and red only ever mean good/bad there. The pale #BFDBFE step is skipped: white
+         initials on it cannot be read. Chosen per call, so the theme button switches it. */
       function deptColor(d) {
+        if (window.RS && RS.isV2 && RS.isV2()) {
+          if (!d) return RS.V2.other;
+          var pal = RS.V2.cat.filter(function (c) { return c !== "#BFDBFE"; });
+          var r = DEPT_ORDER.indexOf(d);
+          if (r < 0) {           // an unlisted department continues the order, stably
+            if (_extraV2[d] == null) _extraV2[d] = Object.keys(_extraV2).length;
+            r = DEPT_ORDER.length + _extraV2[d];
+          }
+          return pal[r % pal.length];
+        }
         if (!d) return "#94a3b8";
         if (DEPT_COLOR[d]) return DEPT_COLOR[d];
         if (!_extra[d]) _extra[d] = FALLBACK[Object.keys(_extra).length % FALLBACK.length];
@@ -196,6 +209,48 @@
           ".hd-crew i{font-style:normal;font-size:10.5px;color:var(--faint)}",
           "@media(max-width:900px){.hd-orgwrap{flex-direction:column}"
             + ".hd-flank{width:100%}.hd-vrule{display:none;}}",
+
+          /* ---- DESIGN V2 ("Calm finance", 2026-10-06), light theme only -- dark keeps every
+             rule above. Sentence-case headings and tags at 12px and up, radius 10 surfaces
+             without lifted shadows, count tags in the info palette. */
+          "body.rs-app.light.v2 .hd-av{font-weight:600;letter-spacing:0}",
+          // the department band is a section title
+          "body.rs-app.light.v2 .hd-dept{margin:22px 0 8px}",
+          "body.rs-app.light.v2 .hd-dept i{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}",
+          "body.rs-app.light.v2 .hd-dept em{font-size:12px;font-weight:600;color:#475569;background:#F1F5F9;"
+            + "border-radius:6px;padding:1px 7px}",
+          "body.rs-app.light.v2 .hd-p .pcell b{font-weight:600}",
+          "body.rs-app.light.v2 .hd-msg{font-size:12.5px;font-weight:600}",
+          // editor popup
+          "body.rs-app.light.v2 .hd-ovl{background:var(--scrim)}",
+          "body.rs-app.light.v2 .hd-pane{border-radius:12px;box-shadow:0 18px 48px rgba(15,23,42,.18)}",
+          "body.rs-app.light.v2 .hd-pane .head b{font-weight:600}",
+          "body.rs-app.light.v2 .hd-pane .head span{font-size:12.5px}",
+          "body.rs-app.light.v2 .hd-pane .foot{border-radius:0 0 11px 11px}",
+          // organization chart: flat cards, a sentence-case department tag
+          "body.rs-app.light.v2 .hd-tc{border-radius:10px;box-shadow:none}",
+          "body.rs-app.light.v2 .hd-tc:hover{border-color:#93C5FD}",
+          "body.rs-app.light.v2 .hd-tc:not(.lead){border-left-color:var(--c,#94A3B8)}",
+          "body.rs-app.light.v2 .hd-tc b{font-weight:600}",
+          "body.rs-app.light.v2 .hd-tc b small{font-size:12px;font-weight:500}",
+          "body.rs-app.light.v2 .hd-tc.lead{padding-top:15px}",
+          "body.rs-app.light.v2 .hd-crown{top:-10px;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
+            + "border-radius:6px;padding:1px 8px}",
+          // the crown is a <span>, so `.hd-tc span` was greying its text on the coloured tag
+          "body.rs-app.light.v2 .hd-tc span.hd-crown{color:#FFFFFF;margin-top:0;line-height:1.5}",
+          "body.rs-app.light.v2 .hd-grp,body.rs-app.light.v2 .hd-flabel{font-size:12.5px;font-weight:600;letter-spacing:0;"
+            + "text-transform:none;color:var(--muted)}",
+          "body.rs-app.light.v2 .hd-grp em,body.rs-app.light.v2 .hd-flabel em{font-size:12px;font-weight:600;"
+            + "background:#F1F5F9;border:0;color:#475569;border-radius:6px;padding:0 7px}",
+          // the field flank
+          "body.rs-app.light.v2 .hd-base{border-radius:10px}",
+          "body.rs-app.light.v2 .hd-bhd b{font-size:13px;font-weight:600}",
+          "body.rs-app.light.v2 .hd-bhd em{font-size:12px;font-weight:600;background:#EFF6FF;color:#1D4ED8;"
+            + "border-radius:6px;padding:0 7px}",
+          "body.rs-app.light.v2 .hd-bsub,body.rs-app.light.v2 .hd-crew i{font-size:12px}",
+          "body.rs-app.light.v2 .hd-crew b{font-weight:600}",
+          // the inline 11.5px on "No foreman based here." -- the v2 floor is 12px
+          "body.rs-app.light.v2 .hd-base .hd-dim{font-size:12px !important}",
         ].join("\n");
         document.head.appendChild(st);
       }

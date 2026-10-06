@@ -112,6 +112,13 @@
   function palette() {
     var cs = getComputedStyle(document.body);
     var v = function (n, fb) { var x = (cs.getPropertyValue(n) || "").trim(); return x || fb; };
+    /* design v2: --blue and --brand are one accent there and amber means "warning", so the
+       category charts take the v2 categorical order instead (still read at paint time) */
+    if (RS.isV2 && RS.isV2()) {
+      var V = RS.V2;
+      return { blue: V.cat[1], brand: V.cat[0], violet: V.cat[4], warn: V.cat[3], neg: V.neg,
+               ink: V.ink, muted: V.cat[7], faint: V.other, line: V.line2 };
+    }
     return { blue: v("--blue", "#5b8cff"), brand: v("--brand", "#b7e23b"), violet: v("--purple", "#a78bfa"),
              warn: v("--amber", "#fbbf24"), neg: v("--neg", "#f87171"),
              ink: v("--ink", "#e9eef6"), muted: v("--muted", "#8b98a8"), faint: v("--faint", "#5c6a7c"),
@@ -170,7 +177,16 @@
       + ".os .os-heat{font-weight:700}"
       + ".os .os-heat.z{color:var(--faint);font-weight:500}"
       + ".os .os-more{display:flex;gap:12px;align-items:center;justify-content:center;padding:12px 0 2px}"
-      + ".os th.os-sub{font-size:10px;letter-spacing:.06em;color:var(--faint)}";
+      + ".os th.os-sub{font-size:10px;letter-spacing:.06em;color:var(--faint)}"
+      // DESIGN V2 "Calm finance" (2026-10-06), light only: white lede, readable small text, 600 totals
+      + "body.rs-app.light.v2 .os .os-lede{background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .os .os-lede b{font-weight:600}"
+      + "body.rs-app.light.v2 .os .os-warnbox{background:#FFFBEB;border-color:#FDE68A;color:#78350F;border-radius:10px}"
+      + "body.rs-app.light.v2 .os .os-legend{font-size:12.5px;color:#475569}"
+      + "body.rs-app.light.v2 .os .os-tot td{font-weight:600;border-top:1px solid #E2E8F0;background:#F8FAFC}"
+      + "body.rs-app.light.v2 .os .os-small{font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .os th.os-sub{font-size:12px;letter-spacing:0;color:#64748B;font-weight:500}"
+      + "body.rs-app.light.v2 .os .os-heat{font-weight:600}";
     document.head.appendChild(st);
   }
 

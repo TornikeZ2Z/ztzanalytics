@@ -110,6 +110,34 @@ registerPage({
         ".fo .fo-sec.fo-rest{margin-top:22px;padding-top:12px;border-top:1px solid var(--line)}",
         ".fo .fo-miss{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;"
           + "border:1px solid var(--line-2);color:var(--muted);margin:1px 3px 1px 0;white-space:nowrap}",
+        /* DESIGN V2 ("Calm finance", 2026-10-06): this page IS the standard (Main.dc.html) --
+           sentence-case labels, white cards, navy selected pills, one delta format. Dark untouched. */
+        "body.rs-app.light.v2 .fo .report-head{margin:4px 0 16px}",
+        "body.rs-app.light.v2 .fo .report-head h2{font-size:26px;font-weight:700;letter-spacing:-.35px;color:var(--ink);margin:0 0 6px}",
+        "body.rs-app.light.v2 .fo .report-head .sub{font-size:14.5px;color:var(--muted);line-height:1.55;max-width:var(--rs-prose)}",
+        "body.rs-app.light.v2 .fo .fo-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:10px 0 10px}",
+        "body.rs-app.light.v2 .fo .fo-sec.fo-rest{margin-top:26px;padding-top:16px}",
+        "body.rs-app.light.v2 .fo .fo-note{font-size:13.5px;background:#FFFFFF;border-radius:10px;color:var(--muted)}",
+        "body.rs-app.light.v2 .fo .fo-note.warn{background:#FFFBEB;border-color:#FDE68A;color:#78350F}",
+        "body.rs-app.light.v2 .fo .fo-note.warn b{color:#92400E}",
+        "body.rs-app.light.v2 .fo .fo-hero{gap:12px;margin:0 0 16px}",
+        "body.rs-app.light.v2 .fo .fo-hc{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;padding:14px 16px}",
+        "body.rs-app.light.v2 .fo .fo-hc.fo-now{background:#EFF6FF;border-color:#BFDBFE}",
+        "body.rs-app.light.v2 .fo .fo-hl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .fo .fo-hc.fo-now .fo-hl,body.rs-app.light.v2 .fo .fo-hc.fo-now .fo-hv{color:#1E3A8A}",
+        "body.rs-app.light.v2 .fo .fo-hv{font-size:clamp(22px,1.7vw,30px);font-weight:700;letter-spacing:-.5px}",
+        "body.rs-app.light.v2 .fo .fo-hs{font-size:12.5px;color:var(--faint)}",
+        "body.rs-app.light.v2 .fo .fo-up{color:var(--pos);font-weight:600}",
+        "body.rs-app.light.v2 .fo .fo-dn{color:var(--neg);font-weight:600}",
+        "body.rs-app.light.v2 .fo .fo-vs{color:var(--faint)}",
+        "body.rs-app.light.v2 .fo table.tab tr.fo-sel td{font-weight:600}",
+        "body.rs-app.light.v2 .fo table.tab tr.fo-grp td{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);background:#F8FAFC}",
+        "body.rs-app.light.v2 .fo table.tab tr.fo-tot td{font-weight:600;background:#F8FAFC}",
+        "body.rs-app.light.v2 .fo .fo-proj > div{background:#FFFFFF;border-radius:10px;padding:12px 16px}",
+        "body.rs-app.light.v2 .fo .fo-proj .fo-pl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .fo .fo-proj .fo-pv{font-size:24px;font-weight:600}",
+        "body.rs-app.light.v2 .fo .fo-proj .fo-ps{font-size:12.5px;color:var(--faint)}",
+        "body.rs-app.light.v2 .fo .fo-miss{border-radius:6px;border:0;background:#FEF3C7;color:#92400E;font-size:12px;font-weight:600;padding:2px 8px}",
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -398,6 +426,27 @@ registerPage({
         { label: "Booked", value: hasBookings(S.co) ? fmtN(YTD.bkN) : "—",
           sub: bkTxt(YTD) + (YTDLY && hasBookings(S.co) ? " · last year " + fmtN(YTDLY.bkN) + " jobs" : "") },
       ]);
+      // design v2: the subs carry the ONE delta format (▲ 8.4% green / ▼ 3.1% red, then "vs …" muted).
+      // RSC.kpis escapes its sub, so the v2 lines are written over it; same numbers, same order.
+      if (RS.isV2()) {
+        const d = (a, b, label) => { const c = chg(a, b);
+          return c == null ? `<span class="fo-mute">— ${esc(label)}</span>`
+            : `<span class="${c >= 0 ? "fo-up" : "fo-dn"}">${c >= 0 ? "▲" : "▼"} ${Math.abs(c * 100).toFixed(1)}%</span> <span class="fo-vs">${esc(label)}</span>`; };
+        const lm = "vs " + (LM ? LM.p.label : "last month"), lyL = "vs " + (LY ? LY.p.label : "last year");
+        const gp2 = (o, pairs) => !P2 ? esc(p2Err ? "costs could not load" : "adding up the costs…")
+          : `margin ${esc(pct1(o.gm))} · ` + pairs.map(p => d(o.gp, p[0] && p[0].gp, p[1])).join(" · ");
+        const subs = {
+          foKpiM: [d(A.rev, LM && LM.rev, lm) + " · " + d(A.rev, LY && LY.rev, lyL),
+            d(A.jobs, LM && LM.jobs, lm) + " · " + d(A.jobs, LY && LY.jobs, lyL),
+            d(A.avg, LM && LM.avg, lm) + " · " + d(A.avg, LY && LY.avg, lyL),
+            gp2(A, [[LM, lm], [LY, lyL]]), null],
+          foKpiY: [d(YTD.rev, YTDLY && YTDLY.rev, "vs " + (YTDLY ? YTDLY.p.label + " to the same day" : "last year")),
+            d(YTD.jobs, YTDLY && YTDLY.jobs, "vs last year"), d(YTD.avg, YTDLY && YTDLY.avg, "vs last year"),
+            gp2(YTD, [[YTDLY, "vs last year"]]), null],
+        };
+        Object.keys(subs).forEach(id => host.querySelectorAll("#" + id + " .kpi .s").forEach((s, i) => {
+          if (subs[id][i] != null) s.innerHTML = subs[id][i]; }));
+      }
 
       // a chart that fails must not take the tables with it
       try { mountPace(P, A); }
@@ -497,9 +546,11 @@ registerPage({
       const mount = host.querySelector("#foPace");
       if (!mount) return;
       const light = () => document.body.classList.contains("light");
-      const SEL = () => light() ? "#0e1621" : "#e9eef6";
-      const CTX = () => light() ? "#c6d0db" : "#3a4658";
-      const BLUE = "#2f6fd0", VIOLET = "#8b5cf6";
+      // design v2 (Main.dc.html): the picked month is the accent, last month ink, last year grey dashed
+      const v2 = RS.isV2(), P2C = RS.V2;
+      const SEL = () => v2 ? P2C.accent : light() ? "#0e1621" : "#e9eef6";
+      const CTX = () => v2 ? P2C.ctx : light() ? "#c6d0db" : "#3a4658";
+      const BLUE = v2 ? P2C.ink : "#2f6fd0", VIOLET = v2 ? P2C.other : "#8b5cf6";
       const tone = c => typeof c === "function" ? c() : c;
       const METRICS = { rev: ["Revenue", (rs) => M["Total Bill"].fn(rs), true],
                         jobs: ["Jobs", (rs) => M["Total Jobs"].fn(rs), false],
@@ -542,6 +593,7 @@ registerPage({
               // theme-aware colours are functions (read at draw time), fixed ones plain strings
               label: s.name, data: s.vals, borderColor: tone(s.color), backgroundColor: tone(s.color),
               borderWidth: s.width, pointRadius: 0, pointHitRadius: 6, tension: 0.15,
+              borderDash: v2 && s.color === VIOLET ? [5, 4] : undefined,
               order: data.length - i, spanGaps: false })) },
             options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
               plugins: { legend: { position: "bottom" },
@@ -563,8 +615,9 @@ registerPage({
       if (card) {
         const hint = document.createElement("p");
         hint.className = "rs-hint";
-        hint.textContent = "Bold = this month to the picked day; blue = last month and violet = the same month last year, each "
-          + "as a whole month, so you see how the rest of it usually goes." + (S.paceAll ? " Grey = the other earlier months and years." : "");
+        hint.textContent = (v2 ? "Blue = this month to the picked day; dark = last month and grey dashed = the same month last year, each "
+          : "Bold = this month to the picked day; blue = last month and violet = the same month last year, each ")
+          + "as a whole month, so you see how the rest of it usually goes." + (S.paceAll ? (v2 ? " Light grey" : " Grey") + " = the other earlier months and years." : "");
         card.insertBefore(hint, card.querySelector(".gview"));
         card.querySelectorAll("[data-fo-pace]").forEach(b => b.onclick = () => { if (S.pace !== b.dataset.foPace) { S.pace = b.dataset.foPace; paint(); } });
         card.querySelectorAll("[data-fo-paceall]").forEach(b => b.onclick = () => { S.paceAll = !S.paceAll; paint(); });

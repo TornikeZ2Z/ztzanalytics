@@ -790,7 +790,9 @@ body.rs-app.light.v2 span.up{color:var(--pos);font-weight:600}
 body.rs-app.light.v2 span.down{color:var(--neg);font-weight:600}
 
 /* panels, buttons, tabs */
-body.rs-app.light.v2 .panel{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;box-shadow:none;padding:16px 18px;margin-bottom:16px}
+/* no padding/margin here: at this specificity it would beat every page that resets a panel's
+   padding with body.rs-app .x (Data Quality's cards grew padding) -- spacing stays the kit's */
+body.rs-app.light.v2 .panel{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;box-shadow:none}
 body.rs-app.light.v2 .panel-title{font-size:15px;font-weight:600;letter-spacing:0}
 body.rs-app.light.v2 .btn{border-radius:8px;height:34px;padding:0 13px;font-size:13px;font-weight:600;color:var(--ink);border-color:var(--line-2)}
 body.rs-app.light.v2 .btn:hover{background:var(--panel-2);color:var(--ink)}
@@ -819,3 +821,49 @@ body.rs-app.light.v2 .rs-pill{border-radius:6px;font-weight:600;letter-spacing:0
 body.rs-app.light.v2 .rs-loading .bar{background:#E2E8F0}
 body.rs-app.light.v2 .rs-loading .bar i{background:var(--brand);box-shadow:none}
 body.rs-app.light.v2 .rs-group.on .rs-caret,body.rs-app.light.v2 .rs-group2.on .rs-caret{color:var(--brand-d)}
+
+/* v2: the kit controls (rs-bar / rs-fld / rs-sel / rs-seg / rs-tog / rs-btn) and the pivot
+   group rows -- found still wearing the old weights and caps on the logistics pages. */
+body.rs-app.light.v2 .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+body.rs-app.light.v2 .rs-sel,body.rs-app.light.v2 .rs-inp,body.rs-app.light.v2 .rs-num{background:#FFFFFF;border-radius:8px;font-weight:500}
+body.rs-app.light.v2 .rs-num{font-weight:600}
+body.rs-app.light.v2 .rs-seg{background:#FFFFFF;border-radius:999px}
+body.rs-app.light.v2 .rs-seg button{font-weight:600;border-radius:999px;color:var(--ink)}
+body.rs-app.light.v2 .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}
+body.rs-app.light.v2 .rs-tog{border-radius:999px;font-weight:600;color:var(--ink)}
+body.rs-app.light.v2 .rs-tog.on{background:var(--blue-bg);border-color:#93C5FD;color:var(--brand-d)}
+body.rs-app.light.v2 .rs-tog.on i{background:#1E3A8A}
+body.rs-app.light.v2 .rs-btn{border-radius:8px;font-weight:600;color:var(--ink)}
+body.rs-app.light.v2 .rs-btn:hover:not(:disabled){border-color:var(--line-2);color:var(--ink);background:var(--panel-2)}
+body.rs-app.light.v2 .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;font-weight:600}
+body.rs-app.light.v2 .rs-btn.pri:hover:not(:disabled){background:#1E40AF;border-color:#1E40AF;color:#FFFFFF;filter:none}
+body.rs-app.light.v2 .rs-table tbody tr.rs-group>td{font-weight:600;background:#F8FAFC}
+body.rs-app.light.v2 .rs-table tbody tr.rs-group:hover>td{background:#F1F5F9}
+body.rs-app.light.v2 .rs-table tbody tr.rs-group2>td{font-weight:600;background:#FFFFFF}
+body.rs-app.light.v2 .rs-table tbody tr.rs-group2:hover>td{background:#F8FAFC}
+body.rs-app.light.v2 .rs-pill.ok{color:#166534}
+body.rs-app.light.v2 .rs-pill.warn{color:#92400E}
+body.rs-app.light.v2 .rs-pill.bad{color:#991B1B}
+body.rs-app.light.v2 .rs-pill.info{color:#1D4ED8}
+body.rs-app.light.v2 .rs-pill.mute{background:#F1F5F9;color:#475569;border-color:transparent}
+body.rs-app.light.v2 .rs-pill.pos{background:var(--pos-bg);color:#166534}
+body.rs-app.light.v2 .rs-hint .em{color:var(--brand-d)}
+body.rs-app.light.v2 .rs-datebtn{border-radius:999px;font-weight:600}
+body.rs-app.light.v2 .rs-datebtn.on{background:var(--blue-bg);border-color:#93C5FD;color:var(--brand-d)}
+body.rs-app.light.v2 .rs-slicer-pop .opt-div{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--muted)}
+body.rs-app.light.v2 .rs-sub-card .rs-table th{font-size:12px}
+body.rs-app.light.v2 .si-stage .si-l{text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;color:var(--muted)}
+body.rs-app.light.v2 .si-stage::before{display:none}
+/* Users & Access */
+body.rs-app.light.v2 .acl-user{background:#FFFFFF;border-radius:10px}
+body.rs-app.light.v2 .acl-user .u-sub{font-size:12px}
+body.rs-app.light.v2 .acl-user .avatar{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .acl-badge{border-radius:6px;font-size:12px;font-weight:600;letter-spacing:0;padding:2px 8px}
+body.rs-app.light.v2 .acl-badge.admin{background:#EFF6FF;color:#1D4ED8;border-color:transparent}
+body.rs-app.light.v2 .acl-badge.none{background:#FEE2E2;color:#991B1B;border-color:transparent}
+body.rs-app.light.v2 .acl-tile{background:#FFFFFF;border-radius:8px;font-weight:500;color:var(--ink)}
+body.rs-app.light.v2 .acl-tile.on{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}
+body.rs-app.light.v2 .acl-tile.adm.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .acl-field{border-radius:8px;background:#FFFFFF}
+body.rs-app.light.v2 .acl-switch.on{background:#1E3A8A}
+body.rs-app.light.v2 .acl-switch.on::after{background:#FFFFFF}

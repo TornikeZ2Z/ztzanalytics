@@ -285,9 +285,9 @@ registerPage({
             labels: months,
             datasets: [
               { label: "His Cut", data: months.map(mk => byMonth[mk].cut),
-                backgroundColor: "rgba(132,204,22,.78)", yAxisID: "y", order: 2 },
+                backgroundColor: RS.isV2() ? RS.V2.navy : "rgba(132,204,22,.78)", yAxisID: "y", order: 2 },
               { type: "line", label: "Revenue", data: months.map(mk => byMonth[mk].bill),
-                borderColor: "#64748b", backgroundColor: "#64748b", tension: .3, yAxisID: "y1", order: 1 },
+                borderColor: "#64748b", backgroundColor: "#64748b", tension: RS.isV2() ? .2 : .3, yAxisID: "y1", order: 1 },
             ],
           },
           options: {
@@ -376,6 +376,14 @@ registerPage({
           ".boe-rows .bar i{position:absolute;top:0;bottom:0;border-radius:5px}",
           ".boe-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.boe-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
           ".boe-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
+          // DESIGN V2 ("Calm finance", 2026-10-06): calmer weights, nothing under 12px; dark untouched
+          "body.rs-app.light.v2 .boe-big b{font-weight:600}",
+          "body.rs-app.light.v2 .boe-big span,body.rs-app.light.v2 .boe-rows .l small{font-size:12px}",
+          "body.rs-app.light.v2 .boe-big.his b{color:#0F766E}",
+          "body.rs-app.light.v2 .boe-key{font-size:13px}",
+          "body.rs-app.light.v2 .boe-rows{font-size:13.5px}",
+          "body.rs-app.light.v2 .boe-rows .bar,body.rs-app.light.v2 .boe-stack{background:#F1F5F9}",
+          "body.rs-app.light.v2 .boe-rows .tot{font-weight:600}",
         ].join("");
         document.head.appendChild(st);
       }
@@ -387,7 +395,8 @@ registerPage({
       } else {
         const walk = BO_ECON.walk;
         const W = walk(J), pc = v => W.bill ? pctS(v / W.bill) : "—";
-        const INK = "#334155", LIME = "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8";
+        // v2: "our profit" is navy (green is reserved for good/bad), his cut stays teal, costs grey
+        const INK = "#334155", LIME = RS.isV2() ? RS.V2.navy : "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8";
         const lines = BO_ECON.linesFor(W).map(([k, l, sub]) => [l, sub, W.c[k]]);
         const maxV = W.bill || 1;
         const row = (l, sub, v, col, cls) => `<div class="l${cls ? " " + cls : ""}">${l}${sub ? `<small>${sub}</small>` : ""}</div>
@@ -530,7 +539,7 @@ registerPage({
             labels: ["Giorgi's jobs", "Rest of business"],
             datasets: [
               { label: "Gross Margin", data: [hp.opm, rp.opm].map(v => v == null ? 0 : +(v * 100).toFixed(2)),
-                backgroundColor: ["#84cc16", "#94a3b8"], borderRadius: 4 },
+                backgroundColor: RS.isV2() ? [RS.V2.navy, RS.V2.other] : ["#84cc16", "#94a3b8"], borderRadius: 4 },
             ],
           },
           options: {
@@ -580,9 +589,9 @@ registerPage({
             labels: byType.map(x => x.t),
             datasets: [
               { label: "Gross Profit", data: byType.map(x => +(+x.op).toFixed(2)),
-                backgroundColor: "#84cc16", borderRadius: 4, yAxisID: "y", order: 2 },
+                backgroundColor: (RS.isV2() ? RS.V2.navy : "#84cc16"), borderRadius: 4, yAxisID: "y", order: 2 },
               { type: "line", label: "Gross Margin", data: byType.map(x => x.opm == null ? null : +(x.opm * 100).toFixed(2)),
-                borderColor: "#5b8cff", backgroundColor: "#5b8cff", tension: .3, yAxisID: "y1", order: 1 },
+                borderColor: RS.isV2() ? RS.V2.accent : "#5b8cff", backgroundColor: RS.isV2() ? RS.V2.accent : "#5b8cff", tension: RS.isV2() ? .2 : .3, yAxisID: "y1", order: 1 },
             ],
           },
           options: {
@@ -638,7 +647,7 @@ registerPage({
           data: {
             labels: list.map(x => x.f),
             datasets: [{ label: "Jobs", data: list.map(x => x.jobs),
-              backgroundColor: "#84cc16", borderRadius: 4 }],
+              backgroundColor: (RS.isV2() ? RS.V2.navy : "#84cc16"), borderRadius: 4 }],
           },
           options: {
             indexAxis: "y",

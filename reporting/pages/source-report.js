@@ -129,6 +129,12 @@
   function palette() {
     var cs = getComputedStyle(document.body);
     var v = function (n, fb) { var x = (cs.getPropertyValue(n) || "").trim(); return x || fb; };
+    /* design v2: --blue and --brand are the same accent there, so the two bar series would merge.
+       The v2 categorical order instead: light blue for the wider set, navy for the booked. */
+    if (RS.isV2 && RS.isV2()) {
+      var V = RS.V2;
+      return { blue: V.accentL, brand: V.navy, ink: V.ink, violet: V.cat[4], faint: V.other, muted: V.muted };
+    }
     return { blue: v("--blue", "#5b8cff"), brand: v("--brand", "#b7e23b"),
              ink: v("--ink", "#e9eef6"), violet: v("--purple", "#a78bfa"),
              faint: v("--faint", "#5c6a7c"), muted: v("--muted", "#8b98a8") };
@@ -198,6 +204,17 @@
          portal header instead: scrolled into view it fills the screen, and the sticky header
          has its own scrolling ancestor to stick to. */
       + ".sra .sra-list .rs-tablewrap.rs-fit{--pg-chrome:150px}"
+      // DESIGN V2 "Calm finance" (2026-10-06), light only: the funnel steps light -> navy so
+      // leads, qualified and confirmed stay apart now that --blue and --brand are one accent
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-lead{background:#BFDBFE}"
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-qual{background:#60A5FA;filter:none}"
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-conf{background:#1E3A8A}"
+      + "body.rs-app.light.v2 .sra .sra-fb{background:#F1F5F9}"
+      + "body.rs-app.light.v2 .sra .sra-h h2{font-weight:600}"
+      + "body.rs-app.light.v2 .sra :is(.sra-h .sra-sub,.sra-fl small,.sra-fv em,.sra-rate .sra-ss){font-size:12px}"
+      + "body.rs-app.light.v2 .sra .sra-fl{font-weight:600}"
+      + "body.rs-app.light.v2 .sra :is(.sra-fv,.sra-d){font-weight:600}"
+      + "body.rs-app.light.v2 .sra .sra-tot td{font-weight:600;background:#F8FAFC}"
       + ".sra .sra-list td.wrap{white-space:normal;min-width:220px}"
       + ".sra .sra-list td a.sra-tr{white-space:nowrap}"
       + ".sra .sra-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 2px 0;"

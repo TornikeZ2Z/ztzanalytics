@@ -558,6 +558,15 @@ async function cbRender(host) {
           border-radius:10px;padding:9px 12px;color:var(--ink)}
         .cb-flat{margin:0}
         .cb-void{margin:0;padding:18px}
+        /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case words, navy selected preset,
+           nothing under 12px. Dark is untouched. */
+        body.rs-app.light.v2 .cb-word{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
+        body.rs-app.light.v2 .cb-preset{font-size:13px;font-weight:600;color:var(--ink)}
+        body.rs-app.light.v2 .cb-preset.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .cb-preset.on .x{color:#BFDBFE}
+        body.rs-app.light.v2 .cb-q,body.rs-app.light.v2 .cb-savebox input{border-radius:8px;font-size:13px}
+        body.rs-app.light.v2 .rs-hint.cb-note{background:#FFFBEB;border-color:#FDE68A;color:#78350F}
+        body.rs-app.light.v2 .rs-table.cb-piv td .b{font-size:12px}
 
         /* ---- the pivot: what .rs-table cannot say (sticky first column + total row) */
         .rs-table.cb-piv td{white-space:nowrap}
@@ -811,7 +820,10 @@ async function cbRender(host) {
     }
 
     /* ---- the chart --------------------------------------------------------------- */
-    const PAL = ["#b7e23b", "#5b8cff", "#a78bfa", "#fbbf24", "#f87171", "#34d399", "#f472b6", "#38bdf8"];
+    const PAL_CLASSIC = ["#b7e23b", "#5b8cff", "#a78bfa", "#fbbf24", "#f87171", "#34d399", "#f472b6", "#38bdf8"];
+    // design v2: the kit's categorical order (no lime, and green/red are never categories);
+    // picked at render time so the theme button, which re-renders the page, switches it
+    const V2 = RS.isV2(), PAL = V2 ? RS.V2.cat : PAL_CLASSIC, ONE = V2 ? RS.V2.accent : "#b7e23b", TEN = V2 ? .2 : .3;
     function buildChart(canvas) {
       const G = group();
       const labels = G.rowKeys.concat(G.other ? [G.other.key] : []);
@@ -830,7 +842,7 @@ async function cbRender(host) {
           type: CB.chart === "line" ? "line" : "bar",
           data: labels.map(k => { const v = m.seg(rowsFor(k), bookFor(k)); return v == null ? null : +(+v).toFixed(2); }),
           backgroundColor: color, borderColor: color,
-          borderWidth: CB.chart === "line" ? 2 : 0, borderRadius: 5, pointRadius: 2, tension: .3,
+          borderWidth: CB.chart === "line" ? 2 : 0, borderRadius: 5, pointRadius: 2, tension: TEN,
         }));
       } else if (CB.colDim && (stacked || CB.chart === "bar" || CB.chart === "line")) {
         // Keep 7 series and roll the tail into a named 8th so the stack still sums to the row.
@@ -849,7 +861,7 @@ async function cbRender(host) {
           }),
           backgroundColor: PAL[i % PAL.length], borderColor: PAL[i % PAL.length],
           borderWidth: CB.chart === "line" ? 2 : 0, borderRadius: stacked ? 0 : 5,
-          pointRadius: 2, tension: .3,
+          pointRadius: 2, tension: TEN,
         }));
       } else {
         datasets = [{
@@ -861,9 +873,9 @@ async function cbRender(host) {
             ? labels.map((_, i) => labels.length <= PAL.length
                 ? PAL[i]
                 : `hsl(${Math.round((i * 360) / labels.length)} 68% 56%)`)
-            : "#b7e23b",
-          borderColor: "#b7e23b", borderWidth: CB.chart === "line" ? 2 : 0,
-          borderRadius: 5, pointRadius: 2, tension: .3,
+            : ONE,
+          borderColor: ONE, borderWidth: CB.chart === "line" ? 2 : 0,
+          borderRadius: 5, pointRadius: 2, tension: TEN,
         }];
       }
       const trunc = { callback(v) { const l = this.getLabelForValue ? this.getLabelForValue(v) : v;
@@ -948,7 +960,7 @@ async function cbRender(host) {
         const datasets = series.map((s, i) => ({
           type: "line", label: s.key,
           data: months.map(mm => { const v = s.at(mm); return v == null ? null : +(+v).toFixed(2); }),
-          borderColor: PAL[i], backgroundColor: PAL[i], borderWidth: 2, pointRadius: 2, tension: .3,
+          borderColor: PAL[i], backgroundColor: PAL[i], borderWidth: 2, pointRadius: 2, tension: TEN,
         }));
         return new Chart(canvas, {
           data: { labels: months.map(monthLabel), datasets },

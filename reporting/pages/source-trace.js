@@ -266,7 +266,34 @@ registerPage({
         .strc-mchip.CallRail{background:var(--brand-glow);color:var(--brand-d)}
         .strc-mchip.GoogleLocal{background:var(--blue-bg);color:var(--blue)}
         .strc-mchip.Angi{background:var(--warn-bg);color:var(--warn)}
-        .strc-mchip.Thumbtack{background:color-mix(in srgb,var(--purple) 16%,transparent);color:var(--purple)}`;
+        .strc-mchip.Thumbtack{background:color-mix(in srgb,var(--purple) 16%,transparent);color:var(--purple)}
+        /* DESIGN V2 "Calm finance" (2026-10-06), light only. Selected / winning = navy fill; the
+           final source is a white card with a navy edge, not a solid slab; sentence-case labels;
+           tracker chips are neutral-family tags (amber means only "warning" now). */
+        body.rs-app.light.v2 :is(.strc-lab,.strc-sechead,.strc-slab,.strc-final .fl){text-transform:none;letter-spacing:0;
+          font-size:12.5px;font-weight:500;color:#475569;opacity:1}
+        body.rs-app.light.v2 .strc-sechead{font-size:14px;font-weight:600;color:#0F172A}
+        body.rs-app.light.v2 :is(.strc-howrung,.strc-hit,.strc-cell,.strc-rule){background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}
+        body.rs-app.light.v2 .strc-hit:hover{border-color:#93C5FD;background:#F8FAFC}
+        body.rs-app.light.v2 :is(.strc-hown,.strc-rule.won .strc-badge,.strc-step.chg .strc-dot,.strc-step.fin .strc-dot){
+          background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .strc-rule.won{background:#EFF6FF;border-color:#93C5FD}
+        body.rs-app.light.v2 :is(.strc-rule.won .rs,.strc-step.chg .strc-sval,.strc-step.fin .strc-sval){color:#1E3A8A}
+        body.rs-app.light.v2 .strc-final{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-left:3px solid #1E3A8A;border-radius:10px}
+        body.rs-app.light.v2 .strc-final .fv{font-weight:600;color:#1E3A8A}
+        body.rs-app.light.v2 :is(.strc-cell .big,.strc-sval,.strc-howt,.strc-rule .rt){font-weight:600}
+        body.rs-app.light.v2 .strc-chip{border-color:#CBD5E1;font-weight:600}
+        body.rs-app.light.v2 .strc-chip:hover{border-color:#93C5FD}
+        body.rs-app.light.v2 .strc-chip.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .strc-chip .c{font-size:12px}
+        body.rs-app.light.v2 .rs-table td.strc-key{font-family:inherit;font-size:12.5px}
+        body.rs-app.light.v2 .strc-path code{font-family:inherit;border-radius:6px}
+        body.rs-app.light.v2 .strc-mchip{font-size:12px;font-weight:600;border-radius:6px}
+        body.rs-app.light.v2 .strc-mchip.CallRail{background:#EFF6FF;color:#1E3A8A}
+        body.rs-app.light.v2 .strc-mchip.GoogleLocal{background:#DBEAFE;color:#1D4ED8}
+        body.rs-app.light.v2 .strc-mchip.Angi{background:#CCFBF1;color:#0F766E}
+        body.rs-app.light.v2 .strc-mchip.Thumbtack{background:#EDE9FE;color:#6D28D9}
+        body.rs-app.light.v2 .rs-hint .strc-em{color:#B45309;font-weight:600}`;
       document.head.appendChild(st);
     }
 

@@ -78,6 +78,8 @@
   }
   function pct(n, d) { return d ? Math.round((n / d) * 100) : null; }
 
+  var V2 = "body.rs-app.light.v2 ";   // prefix of every design-v2 rule; dark never matches
+
   function injectStyle() {
     var old = document.getElementById("stx-style");
     if (old) old.remove();
@@ -139,7 +141,53 @@
       + ".stx-who{font-size:10.5px;font-weight:800;letter-spacing:.05em;"
       + "text-transform:uppercase;color:var(--faint);margin-right:8px}"
       + ".stx-utt.hit{background:var(--warn-bg);border-radius:6px;padding-left:8px;"
-      + "padding-right:8px}";
+      + "padding-right:8px}"
+      // DESIGN V2 ("Calm finance"): sentence-case labels, nothing under 12px, navy for the
+      // selected tab and the primary button, a white drawer on the standard scrim. "Active"
+      // was always meant as the good pill -- the kit names it .ok, so .pos rendered plain.
+      + V2 + ".stx-tabs.rs-seg{background:#FFFFFF;border-color:var(--line);border-radius:999px;"
+      + "padding:3px;gap:2px}"
+      + V2 + ".stx-tabs.rs-seg button{border-radius:999px;font-weight:600;color:var(--ink)}"
+      + V2 + ".stx-tabs.rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+      + V2 + ".stx .rs-btn{border-radius:8px;font-weight:600;color:var(--ink);"
+      + "border-color:var(--line-2)}"
+      + V2 + ".stx .rs-btn:hover:not(:disabled){background:var(--panel-2);color:var(--ink);"
+      + "border-color:var(--line-2)}"
+      + V2 + ".stx .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}"
+      + V2 + ".stx .rs-btn.pri:hover:not(:disabled){background:#1E40AF;border-color:#1E40AF;"
+      + "color:#FFFFFF;filter:none}"
+      + V2 + ".stx .rs-pill.pos{background:var(--pos-bg);color:#166534}"
+      + V2 + ".stx-in{background:#FFFFFF;border-color:var(--line-2);border-radius:8px;font-size:13.5px}"
+      + V2 + ".stx-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}"
+      + V2 + ".stx-rate{font-weight:600}"
+      + V2 + ".stx-bar{background:#F1F5F9}"
+      + V2 + ".stx-thin{font-size:12px}"
+      + V2 + ".stx-desc,"  + V2 + ".stx-note{font-size:13.5px;color:var(--muted)}"
+      + V2 + ".stx-expl{font-size:13px}"
+      + V2 + ".stx-conf,"  + V2 + ".stx-scope{font-size:12px;color:var(--faint)}"
+      + V2 + ".stx-link{color:#1D4ED8}"
+      + V2 + ".stx-link:hover{color:#1E3A8A;text-decoration:underline}"
+      + V2 + ".stx-form label{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;"
+      + "color:var(--muted);margin:0 0 5px}"
+      + V2 + ".stx-check{font-size:13px;color:var(--ink)}"
+      + V2 + ".stx-check input{accent-color:#1E3A8A}"
+      + V2 + ".stx-kwhead{font-size:12.5px}"
+      + V2 + ".stx-chip{border-radius:6px;background:#F1F5F9;border-color:transparent;color:#334155;"
+      + "font-size:12.5px}"
+      + V2 + ".stx-chip.warn{background:var(--warn-bg);border-color:#FDE68A;color:#92400E}"
+      + V2 + ".stx-kwwarn{font-size:12.5px;color:#92400E}"
+      + V2 + ".stx-shared{background:#F8FAFC}"
+      + V2 + ".stx-overlay{background:var(--scrim)}"
+      + V2 + ".stx-drawer{background:#FFFFFF;padding:22px 28px;"
+      + "box-shadow:-12px 0 40px rgba(15,23,42,.18)}"
+      + V2 + ".stx-drawer .rs-btn{border-radius:8px;font-weight:600;color:var(--ink);"
+      + "border-color:var(--line-2)}"
+      + V2 + ".stx-utt{border-bottom-color:#F1F5F9;font-size:14px}"
+      + V2 + ".stx-who{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
+      + "color:var(--muted)}"
+      + V2 + ".stx-utt.rep .stx-who{color:#1D4ED8}"
+      + V2 + ".stx-utt.cust .stx-who{color:#0F766E}"
+      + V2 + ".stx-utt.hit{background:#EFF6FF}";
     document.head.appendChild(st);
   }
 

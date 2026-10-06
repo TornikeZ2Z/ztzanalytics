@@ -85,6 +85,21 @@
           ".bos-tbl td small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
           ".bos-tbl tfoot td{font-weight:800;border-top:2px solid var(--line-2)}",
           ".bos-verdict{font-size:14px;line-height:1.55;margin:0 0 4px;max-width:110ch}",
+          // DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, calmer weights, nothing under 12px
+          "body.rs-app.light.v2 .bos-fld{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}",
+          "body.rs-app.light.v2 .bos-fld small{font-size:12px}",
+          "body.rs-app.light.v2 .bos-in{border-radius:8px;background:#FFFFFF;font-weight:600}",
+          "body.rs-app.light.v2 .bos-in:focus{outline-color:#2563EB;border-color:#2563EB}",
+          "body.rs-app.light.v2 .bos-big b{font-weight:600}",
+          "body.rs-app.light.v2 .bos-big.his b,body.rs-app.light.v2 .bos-m .his{color:#0F766E}",
+          "body.rs-app.light.v2 .bos-key{font-size:13px}",
+          "body.rs-app.light.v2 .bos-rows{font-size:13.5px}",
+          "body.rs-app.light.v2 .bos-rows .l small,body.rs-app.light.v2 .bos-tbl td small,body.rs-app.light.v2 .bos-m small{font-size:12px;font-weight:500}",
+          "body.rs-app.light.v2 .bos-rows .bar,body.rs-app.light.v2 .bos-stack{background:#F1F5F9}",
+          "body.rs-app.light.v2 .bos-rows .tot,body.rs-app.light.v2 .bos-tbl tfoot td{font-weight:600}",
+          "body.rs-app.light.v2 .bos-who{font-size:12px;letter-spacing:0;text-transform:none;font-weight:600}",
+          "body.rs-app.light.v2 .bos-m{border-radius:10px}",
+          "body.rs-app.light.v2 .bos-up,body.rs-app.light.v2 .bos-dn{font-weight:600}",
         ].join("");
         document.head.appendChild(st);
       }
@@ -171,7 +186,8 @@
         return { W, hisShare, hisNet, oursCost, ours, hisDelta: hisNet - W.his, oursDelta: ours - W.ours };
       }
 
-      const INK = "#334155", LIME = "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8", AMB = "#d97706";
+      // v2: "our profit" navy (green is reserved for good/bad); the amber crew-flag keeps the v2 warn hue
+      const INK = "#334155", LIME = RS.isV2() ? RS.V2.navy : "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8", AMB = RS.isV2() ? RS.V2.warn : "#d97706";
 
       function paint() {
         if (!J.length) { document.getElementById("bosCards").innerHTML =

@@ -55,6 +55,16 @@ var RP_BANDS = [
   { max: 200,      bg: "#bbf7d0", fg: "#166534",  label: "101–199%" },
   { max: Infinity, bg: "#16a34a", fg: "#fff",     label: "≥200%" },
 ];
+// DESIGN V2: the same five bands in the v2 good/bad tones (red = below goal, green = above,
+// the 100% band neutral). `tint` marks the pale bands whose drawer headline reads in ink.
+var RP_BANDS_V2 = [
+  { max: 50,       bg: "#B91C1C", fg: "#FFFFFF", label: "Below 50%" },
+  { max: 100,      bg: "#FEE2E2", fg: "#991B1B", label: "50–99%", tint: true },
+  { max: 100.0001, bg: "#F1F5F9", fg: "#475569", label: "100%", tint: true },
+  { max: 200,      bg: "#DCFCE7", fg: "#166534", label: "101–199%", tint: true },
+  { max: Infinity, bg: "#15803D", fg: "#FFFFFF", label: "≥200%" },
+];
+function rpBands() { return RS.isV2() ? RP_BANDS_V2 : RP_BANDS; }
 var RP_WIN = { day: [7, 14, 30, 60], week: [8, 12, 26, 52], month: [3, 6, 12, 24] };
 var RP_PLAT = { Google: "#4285F4", Yelp: "#d32323", Angi: "#1aa64b", Trustpilot: "#00b67a",
   Facebook: "#1877f2", Consumer: "#6d28d9", Birdeye: "#f59e0b", BBB: "#0a4d8c", Thumbtack: "#009fd9",
@@ -101,10 +111,24 @@ registerPage({
     var num = function (v) { var n = parseFloat(String(v == null ? "" : v).replace(/[^0-9.\-]/g, "")); return isFinite(n) ? n : 0; };
     var money = function (v) { var s = String(v == null ? "" : v).trim(); if (s === "") return "—"; return "$" + Math.round(num(v)).toLocaleString(); };
     var yes = function (v) { return String(v).trim().toLowerCase() === "yes"; };
-    var band = function (pct) { for (var i = 0; i < RP_BANDS.length; i++) if (pct < RP_BANDS[i].max) return RP_BANDS[i]; return RP_BANDS[RP_BANDS.length - 1]; };
+    var BANDS = rpBands();   // read at render time: the theme button re-renders the page
+    var band = function (pct) { for (var i = 0; i < BANDS.length; i++) if (pct < BANDS[i].max) return BANDS[i]; return BANDS[BANDS.length - 1]; };
+    // "no eligible jobs" cell: a neutral blank in either look
+    var NA_BG = RS.isV2() ? RS.V2.panel2 : "#f3f4f6", NA_FG = RS.isV2() ? RS.V2.other : "#9ca3af";
     var MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     var shortD = function (iso) { iso = String(iso || ""); if (iso.length < 10) return iso; return MON[+iso.slice(5, 7)] + " " + (+iso.slice(8, 10)); };
-    var platColor = function (src) { return RP_PLAT[String(src).split(" ")[0]] || "#6b7280"; };
+    // v2: platforms are categories, not brands -- RS.V2.cat in RP_PLAT's order (unknown = other)
+    var PLAT_KEYS = Object.keys(RP_PLAT);
+    var platColor = function (src) {
+      var k = String(src).split(" ")[0];
+      if (RS.isV2()) { var i = PLAT_KEYS.indexOf(k); return i < 0 ? RS.V2.other : RS.V2.cat[i % RS.V2.cat.length]; }
+      return RP_PLAT[k] || "#6b7280";
+    };
+    // chip ink: white on the dark categories, ink on the pale v2 ones (old look: always white)
+    var platFg = function (src) {
+      var c = platColor(src);
+      return RS.isV2() && ["#60A5FA", "#94A3B8", "#BFDBFE"].indexOf(c) >= 0 ? RS.V2.ink : "#fff";
+    };
     var parseBk = function (s) {
       if (!s) return [];
       return String(s).split("¦").map(function (p) {
@@ -319,7 +343,78 @@ registerPage({
         .rp-bdpz{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;width:44px}
         .rp-bdpz i{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}
         .rp-bdidle{font-size:11.5px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
-        @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}`;
+        @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}
+
+        /* ================= DESIGN V2 ("Calm finance") — light theme only =================
+           Sentence-case labels at 12px+, IBM Plex with tabular figures, flat surfaces, pill
+           filters with a muted label + ink value. The band and platform colours are picked
+           in JS (rpBands / platColor). Dark keeps every rule above. */
+        body.rs-app.light.v2 .rp-bar{background:var(--bg)}
+        body.rs-app.light.v2 .rp-range{font-size:12px;color:var(--faint)}
+        body.rs-app.light.v2 .rp-time,body.rs-app.light.v2 .rp-bdwk{background:#FFFFFF;border-color:var(--line-2);border-radius:999px}
+        body.rs-app.light.v2 .rp-time>button,body.rs-app.light.v2 .rp-bdwk button{border-radius:999px}
+        body.rs-app.light.v2 .rp-time>button:hover:not(:disabled),body.rs-app.light.v2 .rp-bdwk button:hover:not(:disabled){background:var(--panel-2)}
+        body.rs-app.light.v2 .rp-time .rs-slicer.rs-form .rs-slicer-btn{border-radius:999px}
+        body.rs-app.light.v2 .rp-time .rs-slicer.rs-form .rs-slicer-btn .val{font-weight:600}
+        body.rs-app.light.v2 .rp-bdwk button{font-weight:600}
+        body.rs-app.light.v2 .rp-bdwk b{font-weight:600}
+        body.rs-app.light.v2 .rp-ms{border-radius:999px;background:#FFFFFF;height:36px;padding:0 14px;font-size:13px}
+        body.rs-app.light.v2 .rp-ms:hover{border-color:#93C5FD}
+        body.rs-app.light.v2 .rp-ms.on{background:var(--blue-bg);border-color:#93C5FD}
+        body.rs-app.light.v2 .rp-ms .lb{font-weight:500;color:var(--faint)}
+        body.rs-app.light.v2 .rp-ms .all{font-size:13px;font-weight:600;color:var(--ink)}
+        body.rs-app.light.v2 .rp-ms .ct{background:#1E3A8A;color:#FFFFFF;font-size:12px;font-weight:600}
+        body.rs-app.light.v2 .rp-ms .cv{font-size:12px}
+        body.rs-app.light.v2 .rp-pop{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
+        body.rs-app.light.v2 .rp-pop-s{background:#FFFFFF;font-size:13px}
+        body.rs-app.light.v2 .rp-pop-act button{font-size:12px;font-weight:600;background:#FFFFFF;border-radius:8px}
+        body.rs-app.light.v2 .rp-pop-act button:hover{border-color:#93C5FD}
+        body.rs-app.light.v2 .rp-pop-i{font-size:13px}
+        body.rs-app.light.v2 .rp-pop-none{font-size:12.5px}
+        /* the matrix */
+        body.rs-app.light.v2 .rp-mx thead th{background:#F8FAFC;color:var(--muted);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0}
+        body.rs-app.light.v2 .rp-mx thead th.srt{color:var(--brand-d)}
+        body.rs-app.light.v2 .rp-mx th.fm,body.rs-app.light.v2 .rp-mx td.fm{font-size:13.5px;font-weight:500;color:var(--ink)}
+        body.rs-app.light.v2 .rp-mx thead th.fm,body.rs-app.light.v2 .rp-mx thead th.tot{background:#F8FAFC;font-size:12.5px;font-weight:600;color:var(--muted)}
+        body.rs-app.light.v2 .rp-mx thead th.fm.srt,body.rs-app.light.v2 .rp-mx thead th.tot.srt{color:var(--brand-d)}
+        body.rs-app.light.v2 .rp-mx th.tot,body.rs-app.light.v2 .rp-mx td.tot{border-right-width:1px}
+        body.rs-app.light.v2 .rp-cell{border-radius:6px;font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+        body.rs-app.light.v2 .rp-cell small{font-size:12px;font-weight:500;opacity:.88}
+        body.rs-app.light.v2 .rp-legend{font-size:12.5px;color:var(--muted)}
+        /* the drill-down drawer */
+        body.rs-app.light.v2 .rp-drawer{box-shadow:-12px 0 32px rgba(15,23,42,.14)}
+        body.rs-app.light.v2 .rp-scrim{background:var(--scrim);backdrop-filter:none}
+        body.rs-app.light.v2 .rp-dhd .x{border-radius:8px}
+        body.rs-app.light.v2 .rp-dhd .fm{font-weight:600;letter-spacing:0}
+        body.rs-app.light.v2 .rp-dhd .wk{font-size:12.5px;color:var(--faint)}
+        body.rs-app.light.v2 .rp-dhd .big b{font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+        body.rs-app.light.v2 .rp-dhd .big em{font-size:13px}
+        body.rs-app.light.v2 .rp-sec{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)}
+        body.rs-app.light.v2 .rp-roll .row{font-size:12.5px}
+        body.rs-app.light.v2 .rp-roll .bar{border-radius:4px}
+        body.rs-app.light.v2 .rp-roll .bar i{border-radius:4px}
+        body.rs-app.light.v2 .rp-roll .vn{font-weight:600;font-size:12.5px;font-variant-numeric:tabular-nums}
+        body.rs-app.light.v2 .rp-jc{border-radius:10px}
+        body.rs-app.light.v2 .rp-jc .jn{font-weight:600;font-size:13.5px}
+        body.rs-app.light.v2 .rp-jc .meta{font-size:12px}
+        body.rs-app.light.v2 .rp-jc .meta b{font-weight:600;font-variant-numeric:tabular-nums}
+        body.rs-app.light.v2 .rp-plat{font-size:12px;font-weight:600;border-radius:6px}
+        body.rs-app.light.v2 .rp-plat b{font-weight:700}
+        body.rs-app.light.v2 .rp-expl{font-size:12.5px}
+        body.rs-app.light.v2 .rp-exbtn{font-size:12.5px;font-weight:600;color:var(--brand-d)}
+        body.rs-app.light.v2 .rp-exform textarea{font-size:13px;background:#FFFFFF}
+        /* lists + standings */
+        body.rs-app.light.v2 .rp-live-dot{box-shadow:none}
+        body.rs-app.light.v2 .rp-suppage,body.rs-app.light.v2 .rp-pager{font-size:12.5px;font-weight:500}
+        body.rs-app.light.v2 .rp-bdcard{border-radius:10px}
+        body.rs-app.light.v2 .rp-bdpl{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none}
+        body.rs-app.light.v2 .rp-bdnm{font-weight:600}
+        body.rs-app.light.v2 .rp-bdrv{font-weight:600;letter-spacing:-.3px}
+        body.rs-app.light.v2 .rp-bdrv small{font-size:12.5px;font-weight:500;color:var(--faint)}
+        body.rs-app.light.v2 .rp-bdmt{font-size:12.5px;font-weight:500}
+        body.rs-app.light.v2 .rp-bdpz{font-weight:600}
+        body.rs-app.light.v2 .rp-bdpz i{font-size:12px;font-weight:500}
+        body.rs-app.light.v2 .rp-bdidle{font-size:12.5px}`;
       document.head.appendChild(st);
     }
 
@@ -699,7 +794,7 @@ registerPage({
         var elig = num(r["Eligible"]) === 1;
         var bk = parseBk(r["Review Breakdown"]);
         var revHtml = bk.length
-          ? `<div class="rp-plats">` + bk.map(p => `<span class="rp-plat" style="background:${platColor(p.src)}">${esc(p.src)}${p.n > 1 ? ` <b>×${p.n}</b>` : ""}</span>`).join("") + `</div>`
+          ? `<div class="rp-plats">` + bk.map(p => `<span class="rp-plat" style="background:${platColor(p.src)};color:${platFg(p.src)}">${esc(p.src)}${p.n > 1 ? ` <b>×${p.n}</b>` : ""}</span>`).join("") + `</div>`
           : `<span class="rs-pill bad">No review written</span>`;
         var dpct = r["Bill Increase %"] == null || r["Bill Increase %"] === "" ? null : num(r["Bill Increase %"]);
         var expl = elig ? "" : `<div class="rp-expl"><b>Excluded:</b> ${esc(r["Exclusion Reason"] || "—")}${r["Support Intervention Reason"] ? " · " + esc(r["Support Intervention Reason"]) : ""}</div>`;
@@ -721,7 +816,7 @@ registerPage({
           <button class="x" id="rpDx" title="Close">✕</button>
           <div class="fm">${esc(fm)}</div>
           <div class="wk">${esc(colLong(col))}</div>
-          <div class="big"><b style="color:${b.bg === "#e5e7eb" || b.bg === "#fecaca" || b.bg === "#bbf7d0" ? "var(--ink)" : b.bg}">${pct}%</b>
+          <div class="big"><b style="color:${b.tint || b.bg === "#e5e7eb" || b.bg === "#fecaca" || b.bg === "#bbf7d0" ? "var(--ink)" : b.bg}">${pct}%</b>
             <em>${R} review${R === 1 ? "" : "s"} · ${J} eligible job${J === 1 ? "" : "s"} · ${jobs.length} completed</em></div>
         </div>
         <div class="rp-dbody">${rollHtml}
@@ -1011,11 +1106,11 @@ registerPage({
       var body = fmList.map(fm => {
         var f = foremen[fm], tpct = f.J ? Math.round(f.R / f.J * 100) : null, tb = tpct == null ? null : band(tpct);
         var totCell = tpct == null
-          ? `<td class="tot"><span class="rp-cell na" style="background:#f3f4f6;color:#9ca3af">${f.R} / ${f.J}<small>N/A</small></span></td>`
+          ? `<td class="tot"><span class="rp-cell na" style="background:${NA_BG};color:${NA_FG}">${f.R} / ${f.J}<small>N/A</small></span></td>`
           : `<td class="tot"><span class="rp-cell" style="background:${tb.bg};color:${tb.fg};cursor:default">${f.R} / ${f.J}<small>${tpct}%</small></span></td>`;
         var tds = cols.map(c0 => {
           var c = cells[fm + "||" + c0];
-          if (!c || c.J === 0) return `<td><span class="rp-cell na" style="background:#f3f4f6;color:#9ca3af">0 / 0<small>—</small></span></td>`;
+          if (!c || c.J === 0) return `<td><span class="rp-cell na" style="background:${NA_BG};color:${NA_FG}">0 / 0<small>—</small></span></td>`;
           var pct = Math.round(c.R / c.J * 100), b = band(pct);
           var sel = RP.cell === fm + "||" + c0 ? " sel" : "";
           return `<td><span class="rp-cell${sel}" style="background:${b.bg};color:${b.fg}" data-fm="${esc(fm)}" data-col="${c0}">${c.R} / ${c.J}<small>${pct}%</small></span></td>`;
@@ -1026,8 +1121,8 @@ registerPage({
       document.getElementById("rpMatrix").innerHTML = fmList.length
         ? `<table class="rp-mx"><thead>${head}</thead><tbody>${body}</tbody></table>`
         : `<div class="rs-loading" style="padding:22px">No jobs match these filters.</div>`;
-      document.getElementById("rpLegend").innerHTML = RP_BANDS.map(b => `<span><i style="background:${b.bg}"></i>${b.label}</span>`).join("") +
-        `<span><i style="background:#f3f4f6;border:1px solid var(--line)"></i>no eligible jobs</span>`;
+      document.getElementById("rpLegend").innerHTML = BANDS.map(b => `<span><i style="background:${b.bg}"></i>${b.label}</span>`).join("") +
+        `<span><i style="background:${NA_BG};border:1px solid var(--line)"></i>no eligible jobs</span>`;
 
       document.querySelectorAll("#rpMatrix thead th[data-srt]").forEach(th => th.onclick = () => {
         var key = th.dataset.srt;

@@ -485,6 +485,159 @@ registerPage({
         ".pv-grid{display:grid;grid-template-columns:390px minmax(0,1fr);gap:26px;align-items:start}",
         ".pv-left{position:sticky;top:12px}",
         "@media(max-width:900px){.pv-grid{grid-template-columns:1fr}.pv-left{position:static}}",
+
+        /* ---- DESIGN V2 ("Calm finance", 2026-10-06). Only on the light theme, which always
+           carries .v2 now; dark keeps every rule above untouched. Sentence-case labels at
+           12px and up, radius 10 surfaces without heavy shadows, navy for selected/primary,
+           the one status-pill palette, and Plex for numbers (tabular, never monospace). */
+        // page-level and sub-screen tabs: pills, selected = navy
+        "body.rs-app.light.v2 .hq-tabs{gap:6px}",
+        "body.rs-app.light.v2 .hq-tabs button{font-size:13px;font-weight:600;color:var(--ink);background:#FFFFFF;"
+          + "border:1px solid var(--line-2);border-radius:999px;height:34px;padding:0 14px}",
+        "body.rs-app.light.v2 .hq-tabs button:hover{background:var(--panel-2);color:var(--ink)}",
+        "body.rs-app.light.v2 .hq-tabs button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}",
+        // cards and section titles
+        "body.rs-app.light.v2 .hq-card{border-radius:10px;box-shadow:none}",
+        "body.rs-app.light.v2 .hq-card h4,body.rs-app.light.v2 .hq-card h4.eyebrow{font-size:15px;font-weight:600;"
+          + "letter-spacing:0;text-transform:none;color:var(--ink)}",
+        "body.rs-app.light.v2 .hq-secdiv{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}",
+        "body.rs-app.light.v2 .hq-lab{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .hq-grid .h{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .hq-grid .h.ka{color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-msg{font-weight:600}",
+        // buttons: radius 8, secondary white + slate border, primary = navy fill
+        "body.rs-app.light.v2 .hq-btn{border-radius:8px;font-size:13.5px;font-weight:600;color:var(--ink);border-color:var(--line-2)}",
+        "body.rs-app.light.v2 .hq-btn:hover{background:var(--panel-2);border-color:var(--line-2);color:var(--ink)}",
+        "body.rs-app.light.v2 .hq-btn.go,body.rs-app.light.v2 .hq-btn.send{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-btn.go:hover,body.rs-app.light.v2 .hq-btn.send:hover{background:#1E40AF;border-color:#1E40AF;"
+          + "color:#FFFFFF;filter:none}",
+        "body.rs-app.light.v2 .hq-btn.warn:hover{border-color:var(--neg);color:var(--neg);background:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-btn.danger{background:#B91C1C;border-color:#B91C1C;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-btn.danger:hover{background:#991B1B;border-color:#991B1B;color:#FFFFFF;filter:none}",
+        "body.rs-app.light.v2 .hq-add{border-radius:8px;font-weight:600}",
+        // status pills: radius 6, 12px 600, sentence case, the one palette
+        "body.rs-app.light.v2 .hq-pill,body.rs-app.light.v2 .hq-st{font-size:12px;font-weight:600;letter-spacing:0;"
+          + "text-transform:none;border-radius:6px;padding:3px 8px}",
+        "body.rs-app.light.v2 .hq-pill,body.rs-app.light.v2 .hq-pill.draft,body.rs-app.light.v2 .hq-pill.archived,"
+          + "body.rs-app.light.v2 .hq-st.n{background:#F1F5F9;color:#475569}",
+        "body.rs-app.light.v2 .hq-pill.published,body.rs-app.light.v2 .hq-st.g{background:#DCFCE7;color:#166534}",
+        "body.rs-app.light.v2 .hq-pill.closed,body.rs-app.light.v2 .hq-st.a{background:#FEF3C7;color:#92400E}",
+        "body.rs-app.light.v2 .hq-st.b{background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .hq-st.r{background:#FEE2E2;color:#991B1B}",
+        "body.rs-app.light.v2 .hq-read .prov{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
+          + "background:#FEF3C7;color:#92400E;border-radius:6px;padding:1px 7px}",
+        "body.rs-app.light.v2 .hq-orreq{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
+          + "background:#FEF3C7;color:#92400E;border:0;border-radius:6px;padding:1px 7px}",
+        // the questionnaire list
+        "body.rs-app.light.v2 .hq-qitem{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-qitem:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .hq-qitem b{font-size:15px;font-weight:600}",
+        // tables: #F8FAFC sentence-case header, hairline rows, neutral hover
+        "body.rs-app.light.v2 .hq-tbl th{background:#F8FAFC;font-size:12.5px;font-weight:600;letter-spacing:0;"
+          + "text-transform:none;color:var(--muted);padding:9px 10px;border-bottom-color:var(--line)}",
+        "body.rs-app.light.v2 .hq-tbl.board th{padding:10px 12px}",
+        "body.rs-app.light.v2 .hq-tbl td{border-bottom-color:#F1F5F9;color:var(--ink)}",
+        "body.rs-app.light.v2 .hq-tbl td.hq-dim{color:var(--faint)}",
+        "body.rs-app.light.v2 .hq-tbl tr.rowlink:hover td{background:#F8FAFC}",
+        "body.rs-app.light.v2 .hq-av{font-size:12px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-pcell .nm{font-weight:600}",
+        "body.rs-app.light.v2 .hq-pcell .em{font-size:12px}",
+        "body.rs-app.light.v2 .hq-dept{font-weight:500}",
+        // page-own KPI cards: label on top (13px), value 24px/600, as the kit tiles
+        "body.rs-app.light.v2 .hq-kpi{display:flex;flex-direction:column;border-radius:10px;padding:14px 16px}",
+        "body.rs-app.light.v2 .hq-kpi span{order:-1;margin:0 0 4px;font-size:13px;font-weight:500;letter-spacing:0;"
+          + "text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .hq-kpi b{font-size:24px;font-weight:600;letter-spacing:-.3px}",
+        // ONE RESPONSE (reading column)
+        "body.rs-app.light.v2 .hq-orwho b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-orprog b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-orbody{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-orsec{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-orqn{font-size:12px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-orql{font-size:13.5px;font-weight:500}",
+        "body.rs-app.light.v2 .hq-orqd{font-size:12px}",
+        "body.rs-app.light.v2 .hq-orpick{font-weight:600;border-radius:8px}",
+        "body.rs-app.light.v2 .hq-orpick.other i{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}",
+        // stars are a rating, not a warning: navy, never amber
+        "body.rs-app.light.v2 .hq-orstars .on{color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-orstars b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-orsnum b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-orsends{font-size:12px}",
+        // the builder: settings cards, audience options, team chips, question rows
+        "body.rs-app.light.v2 .hq-audopt{border-width:1px;border-radius:10px}",
+        "body.rs-app.light.v2 .hq-audopt:hover,body.rs-app.light.v2 .hq-chip:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .hq-audopt.on,body.rs-app.light.v2 .hq-chip.on{border-color:var(--brand);background:#EFF6FF}",
+        "body.rs-app.light.v2 .hq-audopt b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-audopt .tick,body.rs-app.light.v2 .hq-chip .tick{background:#1E3A8A;color:#FFFFFF;font-weight:700}",
+        "body.rs-app.light.v2 .hq-chip{border-width:1px;border-radius:10px}",
+        "body.rs-app.light.v2 .hq-chip b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-diradd input{border-width:1px;border-radius:8px}",
+        "body.rs-app.light.v2 .hq-ed{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-ed.on{box-shadow:none}",
+        "body.rs-app.light.v2 .hq-ed .num{border-radius:8px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-ed .hq-grid .lbl,body.rs-app.light.v2 .hq-ed .lbl{font-weight:600}",
+        "body.rs-app.light.v2 .hq-ed .mv button{font-size:12px}",
+        "body.rs-app.light.v2 .hq-x:hover{background:#FEE2E2;color:var(--neg)}",
+        "body.rs-app.light.v2 .hq-qr{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-qr:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .hq-qr .lb{font-weight:600}",
+        "body.rs-app.light.v2 .hq-qr .ty{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .hq-ins span{font-size:12px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-ddb{font-weight:600;border-radius:8px}",
+        "body.rs-app.light.v2 .hq-ddm{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}",
+        "body.rs-app.light.v2 .hq-ddi{border-radius:8px}",
+        "body.rs-app.light.v2 .hq-ddi:hover{background:#F8FAFC}",
+        "body.rs-app.light.v2 .hq-ddi.on{background:#EFF6FF}",
+        "body.rs-app.light.v2 .hq-ddi.on .ic{background:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-ddi b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-ddi em{font-size:12px}",
+        "body.rs-app.light.v2 .hq-sel{font-weight:600}",
+        "body.rs-app.light.v2 .hq-reqt .rt{font-weight:600}",
+        "body.rs-app.light.v2 .hq-opt .n.end{font-size:12px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-ka .kah{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-stickybar{border-radius:10px;border-color:var(--line);box-shadow:0 8px 24px rgba(15,23,42,.10)}",
+        "body.rs-app.light.v2 .hq-tag{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A;font-weight:600}",
+        "body.rs-app.light.v2 .hq-tag em{font-size:12px}",
+        "body.rs-app.light.v2 .hq-tag button:hover{background:#FEE2E2;color:var(--neg)}",
+        "body.rs-app.light.v2 .hq-ppl{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-ppl .pp b{font-weight:600}",
+        // anonymous-audience accordion + team links
+        "body.rs-app.light.v2 .hq-anr{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-anr .hd b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-anr .hd .n{font-size:12px;font-weight:600;background:#F1F5F9;border:0;color:#475569;"
+          + "border-radius:6px;padding:2px 8px}",
+        "body.rs-app.light.v2 .hq-anp2{font-weight:500}",
+        "body.rs-app.light.v2 .hq-anp2 em,body.rs-app.light.v2 .hq-anpick .pk em{font-size:12px}",
+        "body.rs-app.light.v2 .hq-anp2 .x{font-size:12px;font-weight:600}",
+        "body.rs-app.light.v2 .hq-anp2 .x:hover{border-color:var(--neg);color:var(--neg)}",
+        "body.rs-app.light.v2 .hq-anpick .pk{font-weight:500}",
+        "body.rs-app.light.v2 .hq-anlk code{font-family:inherit;font-size:12px;font-variant-numeric:tabular-nums}",
+        // statistics
+        "body.rs-app.light.v2 .hq-score{font-weight:600;letter-spacing:-.3px}",
+        "body.rs-app.light.v2 .hq-qhd .lb{font-weight:600}",
+        "body.rs-app.light.v2 .hq-n{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .hq-mx th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .hq-mx td.q{font-weight:500}",
+        "body.rs-app.light.v2 .hq-mx .cell{font-weight:600;border-radius:6px}",
+        "body.rs-app.light.v2 .hq-mx .cell.hid{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .hq-mx .cell .cn{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .hq-mx tfoot td{font-size:12px}",
+        "body.rs-app.light.v2 .hq-donut .mid b{font-weight:600;letter-spacing:-.5px}",
+        "body.rs-app.light.v2 .hq-donut .mid span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .hq-tm .ring b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-tm .nm{font-weight:600}",
+        "body.rs-app.light.v2 .hq-tm .ct,body.rs-app.light.v2 .hq-txt .who{font-size:12px}",
+        "body.rs-app.light.v2 .hq-txt .who b{font-weight:600}",
+        "body.rs-app.light.v2 .hq-lgd{font-size:12.5px}",
+        "body.rs-app.light.v2 .hq-bar .tr{border-radius:4px}",
+        "body.rs-app.light.v2 .hq-bar .tr i{border-radius:4px}",
+        // preview + the two modals: radius 12, a calm scrim, no heavy shadow
+        "body.rs-app.light.v2 .pv-sec{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}",
+        "body.rs-app.light.v2 .pv-q{border-radius:10px}",
+        "body.rs-app.light.v2 .hq-ovl,body.rs-app.light.v2 .hq-cfm{background:var(--scrim)}",
+        "body.rs-app.light.v2 .hq-ovl .pane,body.rs-app.light.v2 .hq-cfm .box{border-radius:12px;"
+          + "box-shadow:0 18px 48px rgba(15,23,42,.18)}",
+        "body.rs-app.light.v2 .hq-cfm h3{font-size:16px;font-weight:600}",
       ].join("\n");
       document.head.appendChild(st);
     }
@@ -510,7 +663,20 @@ registerPage({
                        Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
                        Operations: "#059669", Foremen: "#b45309",
                        Drivers: "#0e7490", Helpers: "#64748b" };
-    var deptColor = function (d) { return DEPT_COLOR[d] || "#7c3aed"; };
+    /* DESIGN V2: departments are categories, so they take RS.V2.cat in order -- green and
+       red mean good/bad there and may not name a team. The pale #BFDBFE step is skipped:
+       it disappears as a dot or an avatar tint. Picked per CALL, so the theme button
+       (which re-renders the page) switches it. */
+    var DEPT_ORDER_V2 = ["Executive", "Operations", "Sales", "Customer Service", "Marketing",
+                         "Finance", "Systems", "Data & Control", "HR", "Foremen", "Drivers", "Helpers"];
+    var deptColor = function (d) {
+      if (window.RS && RS.isV2 && RS.isV2()) {
+        var pal = RS.V2.cat.filter(function (c) { return c !== "#BFDBFE"; });
+        var i = DEPT_ORDER_V2.indexOf(d);
+        return i < 0 ? RS.V2.other : pal[i % pal.length];
+      }
+      return DEPT_COLOR[d] || "#7c3aed";
+    };
     var fmtPct = function (n, d) { return d ? Math.round(n / d * 100) + "%" : "—"; };
     // one corrupt stored value must not blank the whole Results tab
     var safeArr = function (v) { try { var a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
@@ -2145,6 +2311,9 @@ registerPage({
     function hqPrintDoc(title, person, qs, ans) {
       var win = window.open("", "_blank");   /* legacy path, kept for the no-RSC case */
       if (!win) { toast("Allow pop-ups for this site to print.", true); return; }
+      // DESIGN V2: the old brand green was the accent here, not "good" -- navy/blue in v2
+      var v2p = !!(window.RS && RS.isV2 && RS.isV2());
+      var pAcc = v2p ? "#1E3A8A" : "#3d6b2f", pBar = v2p ? "#2563EB" : "#4a7c3a";
 
       var n = 0;
       var rows = (qs || []).map(function (qq) {
@@ -2212,7 +2381,7 @@ registerPage({
         + '.who{text-align:right;font-size:9.5pt;line-height:1.45;color:#48586a}'
         + '.who b{display:block;font-size:12pt;color:#15202b}'
         + 'h2{margin:16px 0 6px;padding-top:9px;border-top:1px solid #d8dee5;font-size:9pt;'
-        + 'font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3d6b2f;'
+        + 'font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:' + pAcc + ';'
         + 'break-after:avoid;page-break-after:avoid}'
         + 'h2:first-of-type{border-top:0;padding-top:0;margin-top:6px}'
         // a question and its answer must never be split across two sheets
@@ -2232,7 +2401,7 @@ registerPage({
         + '.sc{font-size:14pt;font-weight:800}.sc b{font-size:16pt}'
         + '.bar{height:5px;border:1px solid #c6ced7;border-radius:3px;max-width:70mm;'
         + 'overflow:hidden;margin:2px 0}'
-        + '.bar i{display:block;height:100%;background:#4a7c3a}'
+        + '.bar i{display:block;height:100%;background:' + pBar + '}'
         + '.ends{display:flex;justify-content:space-between;max-width:70mm;font-size:8pt;'
         + 'color:#93a1b0}'
         + 'footer{margin-top:16px;padding-top:8px;border-top:1px solid #d8dee5;font-size:8.5pt;'
@@ -2779,7 +2948,9 @@ registerPage({
                 return (b.submitted + b.started) / (b.people || 1) - (a.submitted + a.started) / (a.people || 1);
               }).map(function (c2) {
                 var got = c2.submitted + c2.started, left = Math.max(0, c2.people - got);
-                var dc3 = deptColor(c2.category);
+                // v2: every ring measures the same thing (share answered), so one accent --
+                // the anonymous team names are not departments and fell to grey otherwise
+                var dc3 = RS.isV2() ? RS.V2.accent : deptColor(c2.category);
                 return '<div class="hq-tm"><div class="ring">'
                   + donut([{ v: got, color: dc3 }, { v: left, color: "var(--line)" }], 96, 13)
                   + "<b>" + pctOf(got, c2.people) + "%</b></div>"
@@ -2896,8 +3067,10 @@ registerPage({
                shape a pie is for -- parts of one whole -- where a bar list asked the reader
                to add the numbers up themselves. Multi-choice keeps bars: its parts overlap,
                so they are not a whole and a pie of them would be a lie. */
-            var PIE = ["var(--pos)", "var(--brand)", "var(--warn)", "var(--blue)", "var(--neg)",
-                       "var(--muted)"];
+            // v2: options are categories, so the categorical order -- never green/red
+            var PIE = RS.isV2() ? RS.V2.cat.slice(0, 6)
+              : ["var(--pos)", "var(--brand)", "var(--warn)", "var(--blue)", "var(--neg)",
+                 "var(--muted)"];
             var opts2 = (qq.options || []).filter(function (o) { return counts2[o] > 0; });
             if (qq.qtype !== "multi" && opts2.length && vals.length) {
               inner = '<div class="hq-part" style="grid-template-columns:170px 1fr">'

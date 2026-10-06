@@ -43,7 +43,17 @@ registerPage({
         div.gs-empty{margin-bottom:8px}
         .gs-err{color:var(--neg);font-size:11.5px;font-weight:700;margin-left:10px}
         .gs-meta{font-size:10.5px;color:var(--faint);margin-top:8px}
-        .gs-load{padding:40px;text-align:center;color:var(--faint)}`;
+        .gs-load{padding:40px;text-align:center;color:var(--faint)}
+        /* DESIGN V2 ("Calm finance"), v2 light only: nothing under 12px, quieter weights,
+           the 8px control radius on the remove button */
+        body.rs-app.light.v2 .gs-chip{font-weight:500;font-size:13px;background:#F8FAFC;border-color:var(--line)}
+        body.rs-app.light.v2 .gs-chip button{font-weight:600}
+        body.rs-app.light.v2 .gs-pair{font-size:13px}
+        body.rs-app.light.v2 .gs-pair .arr{font-weight:600}
+        body.rs-app.light.v2 .gs-x{border-radius:8px}
+        body.rs-app.light.v2 .gs-empty{font-size:12.5px}
+        body.rs-app.light.v2 .gs-err{font-size:12.5px;font-weight:600}
+        body.rs-app.light.v2 .gs-meta{font-size:12px}`;
       document.head.appendChild(st);
     }
 

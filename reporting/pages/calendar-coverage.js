@@ -47,7 +47,20 @@
         .cc-chip.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent)}
         .cc-chip b{font-variant-numeric:tabular-nums}
         .cc-chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
-        .cc-reason-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}`;
+        .cc-reason-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+        /* DESIGN V2: sentence-case table header, neutral hover, navy-tint chips, flat cards */
+        body.rs-app.light.v2 #ccSearch{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}
+        body.rs-app.light.v2 #ccSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .cc-tbl th,body.rs-app.light.v2 .cc-tbl td{font-size:13.5px;color:var(--ink);border-bottom-color:#F1F5F9}
+        body.rs-app.light.v2 .cc-tbl th{background:#F8FAFC;color:var(--muted);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom-color:var(--line)}
+        body.rs-app.light.v2 .cc-tbl tr:hover td{background:#F8FAFC}
+        body.rs-app.light.v2 .cc-chip{background:#FFFFFF;border-color:#E2E8F0;font-size:13px}
+        body.rs-app.light.v2 .cc-chip:hover{border-color:#93C5FD;background:var(--blue-bg)}
+        body.rs-app.light.v2 .cc-chip.on{border-color:#93C5FD;background:var(--blue-bg);color:var(--brand-d)}
+        body.rs-app.light.v2 .cc-reason-pill{border-radius:6px;font-size:12px;font-weight:600}
+        body.rs-app.light.v2 .cc-mcard{background:#FFFFFF !important;border-radius:10px !important}
+        body.rs-app.light.v2 .cc-mcard>div:first-child{font-weight:600 !important;font-size:24px !important}
+        body.rs-app.light.v2 .cc-mcard>div:last-child{font-size:12.5px !important;color:var(--faint) !important}`;
       document.head.appendChild(st);
     }
 
@@ -132,19 +145,22 @@
     const nonDirect = rows.filter(r => brByUK.has(r["Unique Key"]) && connectedUK.has(r["Unique Key"]))
       .map(r => ({ req: r["Request #"], cust: r["Customer"], date: r["Date"], m: brByUK.get(r["Unique Key"]) }))
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-    const mCard = (color, label, n, meaning) => `<div style="flex:1;min-width:190px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+    const mCard = (color, label, n, meaning) => `<div class="cc-mcard" style="flex:1;min-width:190px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
         <div style="font-size:23px;font-weight:800;color:${color};font-variant-numeric:tabular-nums">${fmtN(n)}</div>
         <div style="font-size:13px;font-weight:650">${label}</div>
         <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${meaning}</div></div>`;
-    const M = { secondary: ["#e0a458", "Via pickup leg"], cross_branch: ["#6aa6e8", "Cross-branch"] };
-    const mPill = mt => { const c = M[mt] || ["#9aa0aa", mt]; return `<span class="cc-reason-pill" style="background:color-mix(in srgb,${c[0]} 20%,transparent);color:${c[0]}">${esc(c[1])}</span>`; };
+    // v2: the two recovery routes are categories, not verdicts -> categorical tones, read at render time
+    const v2 = RS.isV2();
+    const C_LEG = v2 ? RS.V2.cat[3] : "#e0a458", C_XBR = v2 ? RS.V2.cat[1] : "#6aa6e8", C_NONE = v2 ? RS.V2.faint : "#9aa0aa";
+    const M = { secondary: [C_LEG, "Via pickup leg"], cross_branch: [C_XBR, "Cross-branch"] };
+    const mPill = mt => { const c = M[mt] || [C_NONE, mt]; return `<span class="cc-reason-pill" style="background:color-mix(in srgb,${c[0]} ${v2 ? 12 : 20}%,transparent);color:${c[0]}">${esc(c[1])}</span>`; };
     document.getElementById("ccMethod").innerHTML = `
       <div class="panel" style="margin-top:12px">
         <div class="panel-head"><span class="panel-title">How each job was connected</span></div>
         <div style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap">
-          ${mCard("var(--brand)", "Direct — Request # match", directN, "matched straight on the Request # / job code")}
-          ${mCard("#e0a458", "Via pickup leg", secondaryOnly, "a delivery / 2nd entry with no event of its own — connected through the pickup leg's job code")}
-          ${mCard("#6aa6e8", "Cross-branch", crossOnly, "branch tag differed between calendar &amp; closing — re-matched on same customer + date")}
+          ${mCard(v2 ? RS.V2.navy : "var(--brand)", "Direct — Request # match", directN, "matched straight on the Request # / job code")}
+          ${mCard(C_LEG, "Via pickup leg", secondaryOnly, "a delivery / 2nd entry with no event of its own — connected through the pickup leg's job code")}
+          ${mCard(C_XBR, "Cross-branch", crossOnly, "branch tag differed between calendar &amp; closing — re-matched on same customer + date")}
         </div>
         <div style="padding:0 16px 6px;color:var(--muted);font-size:12.5px">The <b>${fmtN(nonDirect.length)}</b> non-direct links (anything other than a plain Request&nbsp;# match) are listed below so you can review the manual connections.</div>
         <div id="ccMethodTable" style="padding:2px 6px 12px;overflow-x:auto"></div>
@@ -174,14 +190,16 @@
           data: {
             labels: months,
             datasets: [
-              { label: "Connected", data: months.map(m => byMonth[m].conn), backgroundColor: "#84cc16", stack: "s" },
-              { label: "Unconnected", data: months.map(m => byMonth[m].unconn), backgroundColor: "#e2687a", stack: "s" },
+              { label: "Connected", data: months.map(m => byMonth[m].conn), backgroundColor: v2 ? RS.V2.navy : "#84cc16", stack: "s",
+                ...(v2 ? { borderRadius: 4 } : {}) },
+              { label: "Unconnected", data: months.map(m => byMonth[m].unconn), backgroundColor: v2 ? RS.V2.neg : "#e2687a", stack: "s",
+                ...(v2 ? { borderRadius: 4 } : {}) },
             ],
           },
           options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { position: "bottom" } },
-            scales: { x: { stacked: true, ticks: { maxRotation: 60, minRotation: 40, font: { size: 10 } } },
+            scales: { x: { stacked: true, ticks: { maxRotation: 60, minRotation: 40, font: { size: v2 ? 12 : 10 } } },
                       y: { stacked: true, beginAtZero: true } },
           },
         });
@@ -201,14 +219,14 @@
     // ---- unconnected list (the answer), sliced BY REASON ----
     // reason → [swatch colour, one-line meaning]
     const REASONS = {
-      "No calendar event":       ["#e2687a", "no event carries that Request # — mostly older jobs the calendar never tracked"],
-      "No Request #":            ["#9aa0aa", "the closing row has no Request # to join on"],
-      "Event exists, unmatched": ["#e0a458", "a same-Request# event exists but couldn't be confidently matched (rare)"],
+      "No calendar event":       [v2 ? RS.V2.neg : "#e2687a", "no event carries that Request # — mostly older jobs the calendar never tracked"],
+      "No Request #":            [C_NONE, "the closing row has no Request # to join on"],
+      "Event exists, unmatched": [v2 ? RS.V2.warn : "#e0a458", "a same-Request# event exists but couldn't be confidently matched (rare)"],
     };
     const reasonOf = r => reasonByUK.get(r["Unique Key"]) || "—";
     const reasonPill = rn => {
-      const c = (REASONS[rn] || ["#9aa0aa"])[0];
-      return `<span class="cc-reason-pill" style="background:color-mix(in srgb,${c} 20%,transparent);color:${c}">${esc(rn)}</span>`;
+      const c = (REASONS[rn] || [C_NONE])[0];
+      return `<span class="cc-reason-pill" style="background:color-mix(in srgb,${c} ${v2 ? 12 : 20}%,transparent);color:${c}">${esc(rn)}</span>`;
     };
 
     let q = "", reasonFilter = "";
@@ -221,7 +239,7 @@
         ${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${esc(label)} <b>${fmtN(n)}</b></button>`;
       document.getElementById("ccReasons").innerHTML =
         chip("", "All reasons", unconnected.length, "") +
-        order.map(rn => chip(rn, rn, counts[rn], (REASONS[rn] || ["#9aa0aa"])[0])).join("");
+        order.map(rn => chip(rn, rn, counts[rn], (REASONS[rn] || [C_NONE])[0])).join("");
       document.querySelectorAll("#ccReasons .cc-chip").forEach(b =>
         b.onclick = () => { reasonFilter = b.getAttribute("data-r"); paintChips(); paint(); });
     };

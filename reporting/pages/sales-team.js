@@ -471,7 +471,263 @@
     .st-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);padding:12px 14px;min-width:250px}
     .st-pop label{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12.5px;color:var(--muted);margin-bottom:8px}
     .st-pop input{width:64px;background:var(--bg);border:1px solid var(--line);border-radius:7px;color:var(--ink);font:inherit;padding:4px 7px}
-    .st-note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.5}`;
+    .st-note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.5}
+    /* ===== DESIGN V2 "Calm finance" (2026-10-06) — light theme only; dark keeps every rule above.
+       Prefixed on body (not on .st-page) because the lead file lives on document.body and opens
+       over ANY page, so these rules must hold wherever it is mounted. ===== */
+    body.rs-app.light.v2 .st-tabbar{background:none;border:0;padding:0;gap:6px;flex-wrap:wrap;margin:2px 0 18px}
+    body.rs-app.light.v2 .st-tab{font-size:13.5px;font-weight:600;color:var(--ink);background:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;padding:7px 16px;min-height:36px}
+    body.rs-app.light.v2 .st-tab:hover{background:#F8FAFC}
+    body.rs-app.light.v2 .st-tab.on{color:#FFFFFF;background:#1E3A8A;border-color:#1E3A8A;box-shadow:none}
+    body.rs-app.light.v2 .st-kpis{gap:12px}
+    body.rs-app.light.v2 .st-kpi{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:none;transition:none}
+    body.rs-app.light.v2 .st-kpi::before{display:none}
+    body.rs-app.light.v2 .st-kpi:hover{transform:none;box-shadow:none;border-color:#CBD5E1}
+    body.rs-app.light.v2 .st-kpi .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}
+    body.rs-app.light.v2 .st-kpi .v{font-size:26px;font-weight:600;letter-spacing:-.3px;margin-top:4px}
+    body.rs-app.light.v2 .st-kpi .v.st-good{color:#15803D} body.rs-app.light.v2 .st-kpi .v.st-bad{color:#B91C1C}
+    body.rs-app.light.v2 .st-kpi .s{font-size:12.5px;color:#64748B;margin-top:4px}
+    body.rs-app.light.v2 .st-card .st-kpi{padding:12px 14px} body.rs-app.light.v2 .st-card .st-kpi .v{font-size:20px}
+    body.rs-app.light.v2 .st-card{border-radius:10px;box-shadow:none;padding:16px 18px;border-color:#E2E8F0}
+    body.rs-app.light.v2 .st-tbl th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC;padding:10px 13px;border-bottom-color:#E2E8F0}
+    body.rs-app.light.v2 .st-tbl td{font-size:13.5px;color:var(--ink);border-bottom-color:#F1F5F9}
+    body.rs-app.light.v2 .st-tbl tr.click:hover td,body.rs-app.light.v2 .st-gridscroll .st-tbl tbody tr:hover td{background:#F8FAFC}
+    body.rs-app.light.v2 .st-grid{border-radius:10px;box-shadow:none;border-color:#E2E8F0}
+    body.rs-app.light.v2 .st-gridscroll .st-tbl thead th{background:#F8FAFC;border-bottom:1px solid #E2E8F0;box-shadow:0 1px 0 #E2E8F0}
+    body.rs-app.light.v2 .st-good{color:#15803D;font-weight:600} body.rs-app.light.v2 .st-bad{color:#B91C1C;font-weight:600}
+    body.rs-app.light.v2 .st-dim{color:#64748B;font-weight:500}
+    body.rs-app.light.v2 .st-tbl td.st-good{color:#15803D} body.rs-app.light.v2 .st-tbl td.st-bad{color:#B91C1C} body.rs-app.light.v2 .st-tbl td.st-dim{color:#64748B}
+    body.rs-app.light.v2 .st-note{font-size:12.5px;color:#64748B}
+    /* flags = status pills: red bad, amber warning, blue info, grey neutral */
+    body.rs-app.light.v2 .st-flag{font-size:12px;font-weight:600;letter-spacing:0;border:0;border-radius:6px;padding:2px 8px}
+    body.rs-app.light.v2 .st-flag.r{color:#991B1B;background:#FEE2E2} body.rs-app.light.v2 .st-flag.a{color:#92400E;background:#FEF3C7}
+    body.rs-app.light.v2 .st-flag.b{color:#1D4ED8;background:#EFF6FF} body.rs-app.light.v2 .st-flag.p{color:#475569;background:#F1F5F9}
+    /* toolbar: one row of pill filters, the search is a pill too */
+    body.rs-app.light.v2 .st-toolbar{background:none;border:0;box-shadow:none;padding:0;gap:8px}
+    body.rs-app.light.v2 .st-search input{background-color:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;min-height:38px;padding:8px 14px 8px 36px;font-size:13.5px;background-position:13px center}
+    body.rs-app.light.v2 .st-search input:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+    body.rs-app.light.v2 .st-chip{font-size:13px;font-weight:600;color:var(--ink);background:#FFFFFF;border-color:#E2E8F0;padding:7px 14px}
+    body.rs-app.light.v2 .st-chip:hover{background:#F8FAFC;border-color:#CBD5E1;color:var(--ink)}
+    body.rs-app.light.v2 .st-chip.on{color:#FFFFFF;background:#1E3A8A;border-color:#1E3A8A;box-shadow:none}
+    body.rs-app.light.v2 .st-seg{border-color:#CBD5E1;border-radius:8px}
+    body.rs-app.light.v2 .st-seg button{font-size:13px;font-weight:600;color:var(--ink)}
+    body.rs-app.light.v2 .st-seg button.on{background:#1E3A8A;color:#FFFFFF}
+    body.rs-app.light.v2 .st-pop{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
+    body.rs-app.light.v2 .st-pop input{border-radius:6px;background:#FFFFFF;border-color:#CBD5E1}
+    body.rs-app.light.v2 .st-pager{background:#FFFFFF;border-top-color:#E2E8F0}
+    body.rs-app.light.v2 .st-pager-info b,body.rs-app.light.v2 .st-pager-pages{font-weight:600}
+    body.rs-app.light.v2 .st-pager-nav button{border-radius:8px;border-color:#CBD5E1;font-weight:600;min-height:34px;padding:6px 12px}
+    body.rs-app.light.v2 .st-pager-nav button:hover:not(:disabled){border-color:#CBD5E1;background:#F8FAFC;color:var(--ink)}
+    /* Lead Explorer: quick views with counts (selected = navy), a lean list */
+    body.rs-app.light.v2 .lx-views{gap:6px;margin:0 0 10px}
+    body.rs-app.light.v2 .lx-views button{font-size:13px;font-weight:600;color:var(--ink);background:#FFFFFF;border-color:#E2E8F0;padding:7px 14px;min-height:36px;gap:6px}
+    body.rs-app.light.v2 .lx-views button:hover{background:#F8FAFC}
+    body.rs-app.light.v2 .lx-views button i{font-size:13px;font-weight:600;color:#64748B;background:none;padding:0;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .lx-views button[data-c="needcall"] i{color:#B91C1C}
+    body.rs-app.light.v2 .lx-views button[data-c="recall"] i{color:#92400E}
+    body.rs-app.light.v2 .lx-views button[data-c="booked"] i{color:#166534}
+    body.rs-app.light.v2 .lx-views button.on{color:#FFFFFF;background:#1E3A8A;border-color:#1E3A8A}
+    body.rs-app.light.v2 .lx-views button.on i{color:#FFFFFF;background:none;opacity:.75}
+    body.rs-app.light.v2 .lx td{padding-top:11px;padding-bottom:11px}
+    body.rs-app.light.v2 .lx .nm b{font-size:14px;font-weight:600}
+    body.rs-app.light.v2 .lx .nm span,body.rs-app.light.v2 .lx .sub{font-size:12.5px;color:#64748B;margin-top:2px}
+    body.rs-app.light.v2 .lx-st{font-size:12px;font-weight:600;border-radius:6px;padding:3px 8px;background:#F1F5F9;color:#475569}
+    body.rs-app.light.v2 .lx-st.ok{background:#DCFCE7;color:#166534}
+    body.rs-app.light.v2 .lx-st.bad{background:#FEE2E2;color:#991B1B}
+    body.rs-app.light.v2 .lx-st.warn{background:#FEF3C7;color:#92400E}
+    body.rs-app.light.v2 .lx-ans{font-size:12px;font-weight:600;color:#1E3A8A}
+    body.rs-app.light.v2 .st-cal{border-color:#E2E8F0;background:#FFFFFF}
+    body.rs-app.light.v2 .st-cal:hover{border-color:#93C5FD}
+    body.rs-app.light.v2 .st-caldiff{font-size:12px;font-weight:500;color:#B45309}
+    @media(max-width:760px){body.rs-app.light.v2 .lx td[data-l]::before{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}}
+    /* call badges: Called = blue outline pill, Received = green, Not called = red, No data = grey */
+    body.rs-app.light.v2 .st-cb{font-size:12px;font-weight:600;padding:2px 9px;gap:5px}
+    body.rs-app.light.v2 .st-cb::before{width:6px;height:6px}
+    body.rs-app.light.v2 .st-cb.called{color:#1D4ED8;background:#EFF6FF;border-color:#BFDBFE}
+    body.rs-app.light.v2 .st-cb.incoming{color:#166534;background:#F0FDF4;border-color:#BBF7D0}
+    body.rs-app.light.v2 .st-cb.none{color:#B91C1C;background:#FEF2F2;border-color:#FECACA}
+    body.rs-app.light.v2 .st-cb.nodata{color:#475569;background:#F8FAFC;border-color:#E2E8F0}
+    /* Compare */
+    body.rs-app.light.v2 .cmp-wrap{border-radius:10px}
+    body.rs-app.light.v2 .cmp-head{background:#F8FAFC}
+    body.rs-app.light.v2 .cmp-pick label,body.rs-app.light.v2 .cmp-vs{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}
+    body.rs-app.light.v2 .cmp-score b{font-weight:600}
+    body.rs-app.light.v2 .cmp-tbl th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC}
+    body.rs-app.light.v2 .cmp-tbl td{border-bottom-color:#F1F5F9;font-size:14px}
+    body.rs-app.light.v2 .cmp-l{font-weight:600;font-size:14px}
+    body.rs-app.light.v2 .cmp-l .st-dim,body.rs-app.light.v2 .cmp-a i,body.rs-app.light.v2 .cmp-b i,body.rs-app.light.v2 .cmp-a u,body.rs-app.light.v2 .cmp-b u{font-size:12px;font-weight:500;color:#64748B}
+    body.rs-app.light.v2 .cmp-a,body.rs-app.light.v2 .cmp-b,body.rs-app.light.v2 .cmp-d{font-size:16px;font-weight:600}
+    body.rs-app.light.v2 .cmp-sec td{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC}
+    /* Rep profile: white header, no glow, navy avatar */
+    body.rs-app.light.v2 .st-head{background:#FFFFFF;border-radius:10px;box-shadow:none;padding:20px 22px}
+    body.rs-app.light.v2 .st-head::after{display:none}
+    body.rs-app.light.v2 .rp-avatar{background:#1E3A8A;color:#FFFFFF;box-shadow:none;border-radius:12px;font-weight:600}
+    body.rs-app.light.v2 .rp-name{font-size:26px;font-weight:700;letter-spacing:-.35px}
+    body.rs-app.light.v2 .rp-sub{font-size:13px;font-weight:500;color:#475569}
+    body.rs-app.light.v2 .st-pill{font-size:12px;font-weight:600;border:0;border-radius:6px;padding:3px 8px;color:#475569;background:#F1F5F9}
+    body.rs-app.light.v2 .st-pill.on{color:#166534;background:#DCFCE7}
+    body.rs-app.light.v2 .rp-cap{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;margin-bottom:4px}
+    body.rs-app.light.v2 .rp-str{border-radius:8px;font-size:13px;border-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-str-l{font-weight:500;color:#475569} body.rs-app.light.v2 .rp-str-v{font-weight:600}
+    body.rs-app.light.v2 .rp-str-r{font-size:12px;font-weight:600;color:#1E3A8A}
+    body.rs-app.light.v2 .rp-watch .rp-str-r{color:#B45309}
+    body.rs-app.light.v2 .rp-cardcap{font-size:15px;font-weight:600}
+    body.rs-app.light.v2 .rp-alltime{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#92400E;background:#FEF3C7;border:0;border-radius:6px;padding:1px 7px}
+    body.rs-app.light.v2 .rp-mo-val{font-size:12px;font-weight:500;color:#475569}
+    body.rs-app.light.v2 .rp-mo-x{font-size:12px;color:#64748B}
+    body.rs-app.light.v2 .rp-mo-pct{font-size:12px;font-weight:600;color:#1E3A8A}
+    body.rs-app.light.v2 .rp-mo-bar,body.rs-app.light.v2 .rp-mo-open,body.rs-app.light.v2 .rp-lg-l{background:#60A5FA}
+    body.rs-app.light.v2 .rp-mo-fill,body.rs-app.light.v2 .rp-lg-c{background:#1E3A8A}
+    body.rs-app.light.v2 .rp-mo-dead,body.rs-app.light.v2 .rp-lg-d{background:#E2E8F0}
+    body.rs-app.light.v2 .rp-mo-bar{border-radius:4px 4px 0 0}
+    body.rs-app.light.v2 .rp-trend-base{background:#E2E8F0}
+    body.rs-app.light.v2 .rp-mix-l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}
+    body.rs-app.light.v2 .rp-mix-v{font-size:26px;font-weight:600;letter-spacing:-.3px}
+    body.rs-app.light.v2 .rp-mix-gap{font-size:18px;font-weight:600;border-radius:8px}
+    body.rs-app.light.v2 .rp-mix-gap.st-good{color:#15803D;background:#DCFCE7;border-color:#BBF7D0}
+    body.rs-app.light.v2 .rp-mix-gap.st-bad{color:#B91C1C;background:#FEE2E2;border-color:#FECACA}
+    body.rs-app.light.v2 .rp-track{background:#F1F5F9;border-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-track-fill{background:#1E3A8A}
+    body.rs-app.light.v2 .rp-track-mark{background:#0F172A}
+    body.rs-app.light.v2 .rp-dimbar{background:none;border:0;padding:0;gap:6px}
+    body.rs-app.light.v2 .rp-dimbtn{font-size:13px;font-weight:600;color:var(--ink);background:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;padding:6px 14px}
+    body.rs-app.light.v2 .rp-dimbtn:hover{background:#F8FAFC;color:var(--ink)}
+    body.rs-app.light.v2 .rp-dimbtn.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}
+    body.rs-app.light.v2 .rp-int{background:#FFFFFF;border-radius:10px;border-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-int.flag{background:#FEF2F2;border-color:#FECACA}
+    body.rs-app.light.v2 .rp-int.ok .rp-int-i{color:#15803D;background:#DCFCE7}
+    body.rs-app.light.v2 .rp-int.flag .rp-int-i{color:#B91C1C;background:#FEE2E2}
+    body.rs-app.light.v2 .rp-int-t{font-weight:600} body.rs-app.light.v2 .rp-int-n{font-size:12.5px;color:#475569}
+    body.rs-app.light.v2 .rp-int-v{font-weight:600}
+    body.rs-app.light.v2 .rp-who{font-weight:500;color:#475569} body.rs-app.light.v2 .rp-who b{font-weight:600}
+    body.rs-app.light.v2 .rp-assess{background:#FFFFFF;border-radius:10px;box-shadow:none;border-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-assess.top{border-color:#BBF7D0}
+    body.rs-app.light.v2 .rp-assess.warn,body.rs-app.light.v2 .rp-assess.bad{border-color:#FECACA}
+    body.rs-app.light.v2 .rp-vnum{font-size:40px;font-weight:700;letter-spacing:-1px}
+    body.rs-app.light.v2 .rp-assess.top .rp-vnum{color:#15803D}
+    body.rs-app.light.v2 .rp-assess.warn .rp-vnum,body.rs-app.light.v2 .rp-assess.bad .rp-vnum{color:#B91C1C}
+    body.rs-app.light.v2 .rp-vout{font-weight:500;color:#64748B}
+    body.rs-app.light.v2 .rp-vtitle{font-size:18px;font-weight:600;letter-spacing:-.2px}
+    body.rs-app.light.v2 .rp-vicon{border-radius:8px;background:#F8FAFC;border-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-assess.top .rp-vicon{color:#FFFFFF;background:#15803D;border-color:#15803D}
+    body.rs-app.light.v2 .rp-assess.good .rp-vicon{color:#166534;background:#DCFCE7;border-color:#BBF7D0}
+    body.rs-app.light.v2 .rp-assess.warn .rp-vicon,body.rs-app.light.v2 .rp-assess.bad .rp-vicon{color:#B91C1C;background:#FEE2E2;border-color:#FECACA}
+    body.rs-app.light.v2 .rp-vsum{font-weight:400;color:#475569;font-size:14px}
+    body.rs-app.light.v2 .rp-assess-cols{border-top-color:#E2E8F0}
+    body.rs-app.light.v2 .rp-alist li{font-size:13.5px} body.rs-app.light.v2 .rp-alist li b{font-weight:600}
+    body.rs-app.light.v2 .rp-calc summary{font-size:13px;font-weight:600;color:#1D4ED8}
+    body.rs-app.light.v2 .rp-dist-tot td{font-weight:600;background:#F8FAFC;border-top:1px solid #E2E8F0!important}
+    /* ---- LEAD FILE: a right-side sheet (LeadFile.dc.html) ---- */
+    body.rs-app.light.v2 .st-scrim{background:rgba(15,23,42,.38)}
+    body.rs-app.light.v2 .st-drawer{width:min(760px,100%);background:#FFFFFF;box-shadow:-12px 0 40px rgba(15,23,42,.18)}
+    body.rs-app.light.v2 .st-dh{padding:20px 28px 18px;background:#FFFFFF;border-bottom:1px solid #E2E8F0}
+    body.rs-app.light.v2 .st-dh .t{padding-right:52px}
+    body.rs-app.light.v2 .st-dh .t{display:block;font-size:inherit;font-weight:400}
+    body.rs-app.light.v2 .st-dh .s{font-size:13px;color:#475569;margin-top:0}
+    body.rs-app.light.v2 .st-dx{top:20px;right:24px;width:38px;height:38px;display:grid;place-items:center;font-size:16px;line-height:1;color:#334155;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px}
+    body.rs-app.light.v2 .st-dx:hover{background:#F8FAFC}
+    body.rs-app.light.v2 .st-v2meta{font-size:12.5px;color:#64748B;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .st-v2nm{margin:4px 0 6px;font-size:24px;font-weight:700;letter-spacing:-.3px;color:#0F172A;line-height:1.2}
+    body.rs-app.light.v2 .st-v2line{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    body.rs-app.light.v2 .st-v2line .st-cb{margin-left:0}
+    body.rs-app.light.v2 .st-v2rep{font-size:13px;color:#475569;margin-left:2px}
+    body.rs-app.light.v2 .st-v2rep b{color:#0F172A;font-weight:600}
+    body.rs-app.light.v2 .st-v2flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+    body.rs-app.light.v2 .st-dmeta{margin-top:10px;font-size:13px;color:#475569}
+    body.rs-app.light.v2 .st-dmeta b{font-weight:600}
+    body.rs-app.light.v2 .st-dact{margin-top:14px}
+    body.rs-app.light.v2 .st-dact a,body.rs-app.light.v2 .st-dact button{font-size:13.5px;font-weight:600;color:#0F172A;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:8px;padding:8px 14px;min-height:38px;box-sizing:border-box}
+    body.rs-app.light.v2 .st-dact a:hover,body.rs-app.light.v2 .st-dact button:hover{background:#F8FAFC;border-color:#CBD5E1}
+    body.rs-app.light.v2 .st-dact a.pri{color:#FFFFFF;background:#1E3A8A;border-color:#1E3A8A}
+    body.rs-app.light.v2 .st-dact a.pri:hover{background:#1E40AF;border-color:#1E40AF}
+    body.rs-app.light.v2 .st-v2strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:#E2E8F0;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;margin-top:16px}
+    body.rs-app.light.v2 .st-v2strip>div{background:#FFFFFF;padding:10px 14px;min-width:0}
+    body.rs-app.light.v2 .st-v2strip .l{font-size:12px;color:#64748B}
+    body.rs-app.light.v2 .st-v2strip .v{font-size:16px;font-weight:600;color:#0F172A;font-variant-numeric:tabular-nums;line-height:1.35;overflow-wrap:anywhere}
+    body.rs-app.light.v2 .st-v2strip .x{font-size:12px;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    body.rs-app.light.v2 .st-v2strip .x.warn{color:#B45309}
+    body.rs-app.light.v2 .st-db{padding:22px 28px 32px;background:#FFFFFF}
+    body.rs-app.light.v2 .st-db>.st-sheet{max-width:none}
+    /* one column inside the sheet: the story, then the money */
+    body.rs-app.light.v2 .st-drawer .st-lfcols{grid-template-columns:minmax(0,1fr);gap:0}
+    body.rs-app.light.v2 .st-lfv{gap:1px;background:#E2E8F0;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;margin-bottom:16px}
+    body.rs-app.light.v2 .st-lfv .c{background:#FFFFFF;border:0;border-radius:0;padding:10px 14px}
+    body.rs-app.light.v2 .st-lfv .l{font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;color:#64748B}
+    body.rs-app.light.v2 .st-lfv .v{font-size:16px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .st-lfv .c.good .v{color:#15803D} body.rs-app.light.v2 .st-lfv .c.bad .v{color:#B91C1C}
+    body.rs-app.light.v2 .st-lfv .c.warn .v{color:#B45309}
+    body.rs-app.light.v2 #stHost>.st-lfv .l{font-size:13px;font-weight:500;color:#475569} body.rs-app.light.v2 #stHost>.st-lfv .v{font-size:24px}
+    body.rs-app.light.v2 .st-ans{border:1px solid #FDE68A;background:#FFFBEB;border-radius:10px;padding:12px 14px;margin:0 0 16px}
+    body.rs-app.light.v2 .st-ans .h{font-size:13.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#0F172A;margin-bottom:2px}
+    body.rs-app.light.v2 .st-ans .it{font-size:14px;line-height:1.5;border-top-color:#FDE68A;padding:6px 0}
+    body.rs-app.light.v2 .st-ans .it b{font-weight:600;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .st-ans .h+.it{border-top:0}
+    body.rs-app.light.v2 .st-drawer .st-lfv,body.rs-app.light.v2 .st-lfwrap .st-lfv{grid-template-columns:repeat(3,minmax(0,1fr))}
+    body.rs-app.light.v2 .st-ans .it .w{font-size:12.5px;color:#64748B}
+    body.rs-app.light.v2 .st-open{border:1px solid #FDE68A;background:#FFFBEB;border-radius:10px;padding:12px 14px;margin:0 0 16px}
+    body.rs-app.light.v2 .st-open h4{font-size:13.5px;letter-spacing:0;text-transform:none;color:#92400E}
+    body.rs-app.light.v2 .st-open .f{font-size:14px;font-weight:600;color:#92400E}
+    body.rs-app.light.v2 .st-open .s{font-size:14px;color:#0F172A}
+    body.rs-app.light.v2 .st-open .src{font-size:12px;color:#64748B}
+    body.rs-app.light.v2 .st-open details summary{font-size:12.5px;color:#475569}
+    /* underline tabs */
+    body.rs-app.light.v2 .st-dtabs{gap:22px;border-bottom:1px solid #E2E8F0;margin:6px 0 18px}
+    body.rs-app.light.v2 .st-dtabs button{font-size:14px;font-weight:500;color:#64748B;padding:10px 0;border-bottom:2px solid transparent}
+    body.rs-app.light.v2 .st-dtabs button:hover{color:#0F172A}
+    body.rs-app.light.v2 .st-dtabs button.on{font-weight:600;color:#0F172A;border-bottom-color:#1E3A8A}
+    body.rs-app.light.v2 .st-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:#0F172A;margin:22px 0 10px}
+    body.rs-app.light.v2 .st-dpane>.st-sec:first-child,body.rs-app.light.v2 .st-lfcols>div>.st-sec:first-child{margin-top:0}
+    body.rs-app.light.v2 .st-fold{border-top-color:#E2E8F0}
+    body.rs-app.light.v2 .st-fold>summary{font-size:14px;font-weight:600;letter-spacing:0;text-transform:none;color:#0F172A}
+    body.rs-app.light.v2 .st-fin{gap:8px}
+    body.rs-app.light.v2 .st-fin .c{border-color:#E2E8F0;border-radius:8px;padding:9px 12px}
+    body.rs-app.light.v2 .st-fin .l{font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;color:#64748B}
+    body.rs-app.light.v2 .st-fin .v{font-size:15px;font-weight:600;margin-top:2px}
+    body.rs-app.light.v2 .st-fin .v.small{font-size:13.5px;font-weight:500}
+    body.rs-app.light.v2 .st-est{border-radius:10px;border-color:#E2E8F0;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .st-est b{font-size:17px;font-weight:600}
+    body.rs-app.light.v2 .st-xfer{border-radius:10px;border-color:#E2E8F0;font-size:13px;color:#475569}
+    body.rs-app.light.v2 .st-xfer b{font-weight:600}
+    body.rs-app.light.v2 .st-callink{border-radius:8px;font-size:13px;font-weight:600;color:#1D4ED8;border-color:#CBD5E1}
+    body.rs-app.light.v2 .st-callink:hover{border-color:#93C5FD;background:#EFF6FF}
+    body.rs-app.light.v2 .st-all summary{font-size:13px;font-weight:600;color:#1D4ED8}
+    body.rs-app.light.v2 .st-kv{font-size:12.5px}
+    body.rs-app.light.v2 .st-kv div{border-bottom:1px solid #F1F5F9}
+    body.rs-app.light.v2 .st-kv span:first-child{color:#64748B} body.rs-app.light.v2 .st-kv span:last-child{font-weight:500}
+    /* the story as a timeline: a hairline rail, a dot per event */
+    body.rs-app.light.v2 .st-story{border-left:2px solid #E2E8F0;margin-left:5px}
+    body.rs-app.light.v2 .st-srow{position:relative;grid-template-columns:18px minmax(0,1fr);grid-template-areas:"tm tm" "ic tx";gap:1px 4px;padding:0 0 14px 18px;border-bottom:0}
+    body.rs-app.light.v2 .st-srow::before{content:"";position:absolute;left:-6px;top:5px;width:10px;height:10px;border-radius:50%;background:#94A3B8}
+    body.rs-app.light.v2 .st-srow.out::before{background:#2563EB} body.rs-app.light.v2 .st-srow.in::before{background:#15803D}
+    body.rs-app.light.v2 .st-srow.miss::before{background:#B91C1C} body.rs-app.light.v2 .st-srow.ms::before{background:#0F172A}
+    body.rs-app.light.v2 .st-srow .tm{grid-area:tm;font-size:12.5px;color:#64748B;padding-top:0}
+    body.rs-app.light.v2 .st-srow .ic{grid-area:ic;text-align:left;color:#64748B}
+    body.rs-app.light.v2 .st-srow .tx{grid-area:tx;font-size:14px;color:#0F172A}
+    body.rs-app.light.v2 .st-srow .tx b{font-weight:600}
+    body.rs-app.light.v2 .st-srow.out .ic{color:#2563EB} body.rs-app.light.v2 .st-srow.in .ic{color:#15803D}
+    body.rs-app.light.v2 .st-srow.miss .ic{color:#B91C1C} body.rs-app.light.v2 .st-srow.ms .ic{color:#64748B}
+    body.rs-app.light.v2 .st-srow.ms .tx{color:#475569}
+    body.rs-app.light.v2 .st-sday{font-size:12.5px;font-weight:600;letter-spacing:0;color:#475569;margin:0;padding:2px 0 10px 18px;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .st-trb{font-size:12px;font-weight:600;color:#1D4ED8;border-color:#BFDBFE;background:#EFF6FF;border-radius:6px;padding:1px 8px}
+    body.rs-app.light.v2 .st-trb:hover,body.rs-app.light.v2 .st-trb.on{border-color:#93C5FD}
+    body.rs-app.light.v2 .st-trw:not(:empty){border-left-color:#E2E8F0}
+    body.rs-app.light.v2 .st-tl{border-left-color:#E2E8F0}
+    body.rs-app.light.v2 .st-ev::before{background:#94A3B8}
+    body.rs-app.light.v2 .st-ev.call_out::before{background:#2563EB} body.rs-app.light.v2 .st-ev.call_in::before{background:#15803D}
+    body.rs-app.light.v2 .st-ev.sms_out::before,body.rs-app.light.v2 .st-ev.sms_in::before{background:#94A3B8}
+    body.rs-app.light.v2 .st-ev.confirmed::before,body.rs-app.light.v2 .st-ev.closing::before{background:#15803D}
+    body.rs-app.light.v2 .st-ev.refund::before{background:#B91C1C} body.rs-app.light.v2 .st-ev.lead_created::before{background:#0F172A}
+    body.rs-app.light.v2 .st-ev .h{font-size:14px} body.rs-app.light.v2 .st-ev .h b{font-weight:600}
+    body.rs-app.light.v2 .st-ev .m{font-size:13px;color:#475569}
+    @media(max-width:760px){
+      body.rs-app.light.v2 .st-dh{padding:16px 16px 14px}
+      body.rs-app.light.v2 .st-db{padding:16px}
+      body.rs-app.light.v2 .st-dx{top:14px;right:14px}
+      body.rs-app.light.v2 .st-v2nm{font-size:21px}
+      body.rs-app.light.v2 .st-v2strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+      body.rs-app.light.v2 .st-dtabs{gap:18px}
+      body.rs-app.light.v2 .st-drawer .st-lfv,body.rs-app.light.v2 .st-lfwrap .st-lfv{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }`;
     document.head.appendChild(st);
   }
 
@@ -691,23 +947,34 @@
   // page shows them beside its own thread. Without it, this paints the drawer as before.
   function paintDrawer(d, target) {
     const j = d.journey || {}, ev = d.events || [];
+    // design v2 reads the same flags in sentence case; the old look keeps its capitals
+    const v2 = RS.isV2();
+    const FL = (caps, plain) => (v2 ? plain : caps);
     const flags = [];
-    if (+j["Flag Never Called"]) flags.push(`<span class="st-flag r">NO CONTACT</span>`);
-    else if (isConf(j) && !isContacted(j)) flags.push(`<span class="st-flag a" title="Confirmed, so sales did talk to them — the call just isn't in RingCentral (${+j["Conf After Horizon"] ? "confirmed after the export cutoff" : "off-system or after the cutoff"})">CALL NOT IN RC</span>`);
-    if (!inWindow(j)) flags.push(`<span class="st-flag a">CREATED AFTER NEWEST CALL DATA</span>`);
-    if (+j["Flag Slow First Call"]) flags.push(`<span class="st-flag a">SLOW FIRST CALL</span>`);
-    if (+j["Flag Big Quote Gap"]) flags.push(`<span class="st-flag p">QUOTE GAP</span>`);
-    if (+j["Flag Confirmed No Closing"]) flags.push(`<span class="st-flag r">NO CLOSING</span>`);
-    if (+j["Is LD"]) flags.push(`<span class="st-flag b">LONG DISTANCE</span>`);
-    if (!target) drawerEl.querySelector("#stDT").innerHTML =
-      `${esc(j["Customer"] || "Lead")} <span style="color:var(--faint);font-weight:600;font-size:14px">#${esc(j["Job No"] || "")}</span>${callBadge(j)}<div style="margin-top:6px">${flags.join("")}</div>`;
+    if (+j["Flag Never Called"]) flags.push(`<span class="st-flag r">${FL("NO CONTACT", "No contact")}</span>`);
+    else if (isConf(j) && !isContacted(j)) flags.push(`<span class="st-flag a" title="Confirmed, so sales did talk to them — the call just isn't in RingCentral (${+j["Conf After Horizon"] ? "confirmed after the export cutoff" : "off-system or after the cutoff"})">${FL("CALL NOT IN RC", "Call not in RingCentral")}</span>`);
+    if (!inWindow(j)) flags.push(`<span class="st-flag a">${FL("CREATED AFTER NEWEST CALL DATA", "Created after newest call data")}</span>`);
+    if (+j["Flag Slow First Call"]) flags.push(`<span class="st-flag a">${FL("SLOW FIRST CALL", "Slow first call")}</span>`);
+    if (+j["Flag Big Quote Gap"]) flags.push(`<span class="st-flag p">${FL("QUOTE GAP", "Quote gap")}</span>`);
+    if (+j["Flag Confirmed No Closing"]) flags.push(`<span class="st-flag r">${FL("NO CLOSING", "No closing")}</span>`);
+    if (+j["Is LD"]) flags.push(`<span class="st-flag b">${FL("LONG DISTANCE", "Long distance")}</span>`);
+    // V2 HEADER (LeadFile.dc.html): meta line, the name, then status + call badge + rep. The old
+    // look keeps its one-line title.
+    const stCls = isConf(j) ? "ok" : (isDead(j) ? "bad" : (/not confirmed/i.test(j["Status"] || "") ? "warn" : ""));
+    if (!target) drawerEl.querySelector("#stDT").innerHTML = v2
+      ? `<div class="st-v2meta">Lead #${esc(j["Job No"] || "")} · created ${esc((j["Create Datetime"] || "").slice(0, 16))} · ${esc(j["Source"] || "—")}</div>
+         <div class="st-v2nm">${esc(j["Customer"] || "Lead")}</div>
+         <div class="st-v2line"><span class="lx-st ${stCls}">${esc(j["Status"] || j["Status Category"] || "—")}</span>${callBadge(j)}<span class="st-v2rep">Rep <b>${esc(j["Assigned"] || "—")}</b></span></div>
+         ${flags.length ? `<div class="st-v2flags">${flags.join("")}</div>` : ""}`
+      : `${esc(j["Customer"] || "Lead")} <span style="color:var(--faint);font-weight:600;font-size:14px">#${esc(j["Job No"] || "")}</span>${callBadge(j)}<div style="margin-top:6px">${flags.join("")}</div>`;
     // the facts a salesperson reads first, as labelled pairs rather than one long sentence
+    // (v2: status, rep, source and created already sit in the header above)
     const mv0 = String(j["Move Date"] || "").slice(0, 10);
     const dmeta = `<div class="st-dmeta">
-      <span>Status <b>${esc(j["Status"] || "—")}</b></span>
+      ${v2 ? "" : `<span>Status <b>${esc(j["Status"] || "—")}</b></span>
       <span>Rep <b>${esc(j["Assigned"] || "—")}</b></span>
       <span>Source <b>${esc(j["Source"] || "—")}</b></span>
-      <span>Created <b>${esc((j["Create Datetime"] || "").slice(0, 16))}</b></span>
+      <span>Created <b>${esc((j["Create Datetime"] || "").slice(0, 16))}</b></span>`}
       ${mv0 ? `<span>Moves <b>${esc(mv0)}</b></span>` : ""}
       <span>${esc(j["Company"] || "")}</span>
       ${j["Flag"] ? `<span>Flag <b>${esc(j["Flag"])}</b></span>` : ""}${j["Label"] ? `<span>Label <b>${esc(j["Label"])}</b></span>` : ""}
@@ -717,11 +984,36 @@
     const tel = String(mbx["Phone"] || "").replace(/[^0-9+]/g, "");
     const mail = String(mbx["Email"] || "").trim();
     const acts = `<div class="st-dact">
-      ${tel ? `<a href="tel:${esc(tel)}">&#9742; Call ${esc(mbx["Phone"])}</a><a href="sms:${esc(tel)}">&#9993; Text</a>` : ""}
+      ${tel ? `<a class="pri" href="tel:${esc(tel)}">&#9742; Call ${esc(mbx["Phone"])}</a><a href="sms:${esc(tel)}">&#9993; Text</a>` : ""}
       ${mail && !/@draft\.www$/i.test(mail) ? `<a href="mailto:${esc(mail)}">@ Email</a>` : ""}
       <button type="button" class="st-cplink">&#128279; Copy link</button></div>`;
+    // V2 SUMMARY STRIP: move date, route, quote, contact -- four facts read before anything else
+    let strip = "";
+    if (v2) {
+      const today = new Date().toISOString().slice(0, 10);
+      const dd = mv0 ? Math.round((Date.parse(mv0) - Date.parse(today)) / 864e5) : null;
+      const calD = String(j["Cal Event Date"] || "").slice(0, 10);
+      const mvSub = mv0 && calD && calD !== mv0 ? `<div class="x warn">calendar says ${esc(calD)}</div>`
+        : `<div class="x">${dd == null ? "no move date" : dd > 0 ? "in " + dd + " day" + (dd === 1 ? "" : "s")
+          : dd === 0 ? "today" : (-dd) + " day" + (dd === -1 ? "" : "s") + " ago"}</div>`;
+      const town = a => { const m = String(a || "").match(/^\s*([^,]+),\s*([A-Z]{2})\b/); return m ? m[1].trim() + ", " + m[2] : ""; };
+      const from = town(mbx["Moving From"]), to = town(mbx["Moving To"]);
+      const route = from || to ? esc(from || "—") + " → " + esc(to || "—") : "—";
+      const routeSub = [j["Service Type"] || mbx["Service Type"], j["Total CF"] != null ? RS.fmtN(Math.round(+j["Total CF"])) + " CF" : ""].filter(Boolean).map(esc).join(" · ");
+      const qMin = num(j["Min Quote"]), qMax = num(j["Max Quote"]);
+      const qSub = j["Total Bill"] != null ? "billed " + money0(num(j["Total Bill"]))
+        : (qMin != null && qMax != null && qMin !== qMax ? money0(qMin) + " – " + money0(qMax) : "flat quote");
+      const txt = (+j["Sms Out"] || 0) + (+j["Sms In"] || 0);
+      const cell = (l, v, sub) => `<div><div class="l">${l}</div><div class="v">${v}</div>${sub}</div>`;
+      strip = `<div class="st-v2strip">
+        ${cell("Move date", esc(mv0 || "—"), mvSub)}
+        ${cell("Route", route, `<div class="x">${routeSub || "&nbsp;"}</div>`)}
+        ${cell("Quote", money0(num(j["Avg Quote"])), `<div class="x">${qSub}</div>`)}
+        ${cell("Contact", (+j["Out Calls"] || 0) + " out · " + (+j["In Calls"] || 0) + " in", `<div class="x">${txt ? txt + " text" + (txt === 1 ? "" : "s") : "no texts"}</div>`)}
+      </div>`;
+    }
     if (!target) {
-      drawerEl.querySelector("#stDS").innerHTML = dmeta + acts;
+      drawerEl.querySelector("#stDS").innerHTML = dmeta + acts + strip;
       const cb = drawerEl.querySelector(".st-cplink");
       if (cb) cb.onclick = () => {
         const u = location.href;
@@ -1761,7 +2053,7 @@
     if (delta == null) return "transparent";
     const x = Math.max(-1, Math.min(1, delta / 20));   // ±20pts saturates
     return x >= 0
-      ? `color-mix(in srgb, var(--brand) ${Math.round(x * 62)}%, transparent)`
+      ? `color-mix(in srgb, ${RS.isV2() ? "var(--pos)" : "var(--brand)"} ${Math.round(x * 62)}%, transparent)`
       : `color-mix(in srgb, var(--red) ${Math.round(-x * 62)}%, transparent)`;
   }
 
@@ -2140,7 +2432,7 @@
         }).join("")}</div><div class="rp-trend-base"></div>
         <div class="st-note" style="margin-top:8px">Full history — this chart deliberately ignores the date filter so the trend is always readable.
         Bar height = leads created that month, split bottom-up:
-        <b style="color:var(--brand)">confirmed</b> · <b style="color:var(--blue)">qualified but never confirmed</b> · <span style="color:var(--faint)"><b>dead</b></span>.
+        <b style="color:${RS.isV2() ? RS.V2.navy : "var(--brand)"}">confirmed</b> · <b style="color:${RS.isV2() ? RS.V2.accentL : "var(--blue)"}">qualified but never confirmed</b> · <span style="color:var(--faint)"><b>dead</b></span>.
         The % under each bar is the booking rate — the green share of everything above the grey.${best.m ? ` Best month: <b>${best.m}</b> at ${Math.round(100 * best.r)}%.` : ""}</div>`;
     const srcRows = Object.entries(p.bySrc).sort((a, b) => b[1].leads - a[1].leads).slice(0, 8)
       .map(([s, d]) => `<tr><td>${esc(s)}</td><td style="text-align:right">${RS.fmtN(d.leads)}</td>

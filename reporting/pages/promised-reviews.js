@@ -58,7 +58,11 @@
       + ".prv-em{min-width:210px;padding:3px 7px;font-size:12px}"
       + ".prv-save{padding:3px 10px;font-size:12px}"
       + ".prv-pen{border:0;background:none;cursor:pointer;color:var(--faint);font-size:12px;padding:0 4px}"
-      + ".prv-pen:hover{color:var(--blue)}";
+      + ".prv-pen:hover{color:var(--blue)}"
+      // DESIGN V2: no text under 12px; meta lines in the v2 meta grey
+      + "body.rs-app.light.v2 .prv-sub{font-size:12px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .prv-c a{color:#1D4ED8}"
+      + "body.rs-app.light.v2 .prv-em,body.rs-app.light.v2 .prv-save{font-size:12.5px}";
     document.head.appendChild(st);
   }
 

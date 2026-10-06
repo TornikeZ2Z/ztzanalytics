@@ -1052,7 +1052,24 @@ window.RS = (function () {
     return { months, byMonth, byPlat, span, key: reviewPlatKey };
   }
 
-  return { DATASETS, FIELDS, state, load, filtered, monthName, M, value, yoy, groupBy, moneyC,
+  /* DESIGN V2 ("Calm finance", 2026-10-06). The one palette every page draws with when the
+     new look is on -- the CSS tokens in rs.css say the same thing. Pages that paint colours
+     from JS (chart datasets, inline styles) read V2 at RENDER time via isV2(), so the theme
+     button, which re-renders the page, switches them too. CAT is the categorical order:
+     dark -> bright, separable by brightness alone. Green/red are never categories. */
+  const V2 = {
+    ink: "#0F172A", ink2: "#334155", muted: "#475569", faint: "#64748B", line: "#E2E8F0", line2: "#CBD5E1",
+    bg: "#F6F7F9", panel: "#FFFFFF", panel2: "#F8FAFC",
+    navy: "#1E3A8A", accent: "#2563EB", accentL: "#60A5FA", accentBg: "#EFF6FF", accentBd: "#93C5FD",
+    pos: "#15803D", posBg: "#DCFCE7", warn: "#B45309", warnBg: "#FEF3C7", warnBd: "#FDE68A",
+    neg: "#B91C1C", negBg: "#FEE2E2", ctx: "#CBD5E1", other: "#94A3B8",
+    cat: ["#1E3A8A", "#2563EB", "#60A5FA", "#0F766E", "#7C3AED", "#94A3B8", "#BFDBFE", "#334155"],
+    heat: ["#EFF6FF", "#DBEAFE", "#93C5FD", "#3B82F6", "#1E3A8A"],
+    font: "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif",
+  };
+  const isV2 = () => document.body.classList.contains("v2");
+
+  return { DATASETS, FIELDS, state, load, filtered, monthName, V2, isV2, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,

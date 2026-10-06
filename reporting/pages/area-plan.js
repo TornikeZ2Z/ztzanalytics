@@ -1182,6 +1182,130 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
   #apTabs .rs-tab,button.ap2-chip,.ap2-dem,.ap2-mbtn,.ap2-th,details.ap2-ref>summary,
   body.rs-app .ap2-assume .rs-num,body.rs-app .ap2-pane .rs-num{transition:none}
 }
+
+/* ---------- 14 · DESIGN V2 "CALM FINANCE" (2026-10-06) ----------------------
+   The approved standard look, light theme only (body.rs-app.light.v2) -- dark and paper keep
+   everything above. Styles only: no box height changes on the sticky rail (still 54px), no
+   display rule on .ap2-pane, no overflow on panels. The map's tier fills stay the deliberate
+   good -> bad encoding (green, pale green, amber, red); only the chrome around them moves. */
+body.rs-app.light.v2 :is(.ap2-tabs,.ap2-pane,.ap2-assume,.ap2-clockline){
+  --ap-mono:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ap-r1:10px; --ap-r2:8px; --ap-r3:6px;
+  --ap-live:#1E3A8A; --ap-fill:#1E3A8A; --ap-live-soft:#EFF6FF;
+  --ap-sink:none;
+  --ap-pos-ink:#15803D; --ap-warn-ink:#B45309; --ap-neg-ink:#B91C1C}
+body.rs-app.light.v2 :is(.ap2-step .v,.ap2-led-g>.v,.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,.ap2-meas,
+  .ap2-band .k,.ap2-eyebrow,.ap2-assume .rs-num,.ap2-pane .rs-num){font-feature-settings:"tnum" 1}
+body.rs-app.light.v2 .ap2-stlbl{font:600 12px/1 "IBM Plex Sans",sans-serif;letter-spacing:.12em;color:#475569;opacity:.75}
+body.rs-app.light.v2 #apKwList{font-family:inherit !important}
+/* sentence case, readable sizes: every micro-label on the page */
+body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-d .dn,.ap2-dt th,.ap2-band .k,.ap2-step .l,.ap2-dial .l,
+  .ap2-led-g>.l,.ap2-eyebrow,.ap3-kpi span,.ap3-todo li i,.ap3-bar label,.ap3-yrs th,.ap3-list .cols,
+  .ap3-step.plan .site i u,.ap3-step span,.ap2-growth label,.ap3-nb .stp,.ap3-nb .dials label,.ap3-market label,
+  .ap3-nb .if,.ap3-nb li i,.ap3-det .sec,.ap2-chips3 .ap2-chip3 span,.ap2-tip .hd,.ap2-tt .n,.ap2-modes .l){
+  text-transform:none;letter-spacing:0;font-family:inherit;font-size:12.5px;font-weight:500;color:#475569}
+body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-band .k,.ap3-det .sec,.ap2-eyebrow){font-size:13px;font-weight:600}
+body.rs-app.light.v2 .ap2-dt th,body.rs-app.light.v2 .ap3-yrs th,body.rs-app.light.v2 .ap3-list .cols{font-weight:600}
+body.rs-app.light.v2 .ap3-list .cols small{font-size:12px;font-weight:500;color:#64748B}
+body.rs-app.light.v2 :is(.ap2-fld small,.ap2-mbtn small,.ap2-next td small,.ap3-glance .g3 small,.ap3-glance .g3 span,
+  .ap3-glance .hint,.ap3-list .r .n small,.ap3-list .tt button small,.ap3-nb .dials small,.ap3-nb li small,
+  .ap3-nb .nums small,.ap2-xps small,.ap2-step .s,.ap2-dial .m,.ap2-tie,.ap2-small,.ap3-step small,.ap3-todo li small,
+  .ap2-cname b,.ap2-dem .n small,.ap2-chips3 .ap2-chip3 small){font-size:12px}
+/* the tab rail: pills, selected = navy. Height stays 32px -- three sticky headers sit at top:54px */
+body.rs-app.light.v2 #apTabs .rs-tab{border-radius:999px;border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;
+  font-size:13px;font-weight:600;box-shadow:none}
+body.rs-app.light.v2 #apTabs .rs-tab::before{content:none}
+body.rs-app.light.v2 #apTabs .rs-tab:hover{background:#F8FAFC;border-color:#94A3B8;color:#0F172A}
+body.rs-app.light.v2 #apTabs .rs-tab.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 .ap2-tabs .rs-btn{border-radius:8px;font-size:13px;font-weight:600}
+/* no decoration: brackets, stubs and lit edges go; hairlines and white surfaces carry the page */
+body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::before,body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::after,
+body.rs-app.light.v2 .ap2-band::before,body.rs-app.light.v2 .ap2-sech::before,body.rs-app.light.v2 .ap2-d .dq::before,
+body.rs-app.light.v2 .ap2-tt .n::before,body.rs-app.light.v2 span.ap2-chip::before{content:none;display:none}
+body.rs-app.light.v2 .ap2-assume{background:#FFFFFF;border-color:#E2E8F0}
+body.rs-app.light.v2 .ap2-band h2{font-size:17px;font-weight:600;letter-spacing:-.2px}
+body.rs-app.light.v2 .ap2-sech{font-size:15px;font-weight:600;letter-spacing:0}
+body.rs-app.light.v2 .ap2-d .dq{background:#FFFFFF;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:#0F172A}
+body.rs-app.light.v2 .ap2-d .dh b{font-weight:700}
+body.rs-app.light.v2 .ap2-xps{border-left-color:#93C5FD}
+body.rs-app.light.v2 .ap2-card.hot{border-color:#FDE68A;box-shadow:inset 3px 0 0 #B45309}
+body.rs-app.light.v2 .ap2-callout{background:#EFF6FF;border-color:#BFDBFE;border-left-color:#2563EB}
+/* KPI-like readouts: ~26px / 600, ink */
+body.rs-app.light.v2 .ap2-step .v{font-size:26px;font-weight:600;letter-spacing:-.3px}
+body.rs-app.light.v2 .ap2-led-g>.v{font-size:clamp(22px,1.6vw,26px);font-weight:600;letter-spacing:-.3px}
+body.rs-app.light.v2 .ap2-led-g>.v.pos{color:#0F172A}
+body.rs-app.light.v2 .ap3-kpi{border-color:#E2E8F0;border-radius:10px}
+body.rs-app.light.v2 .ap3-kpi>b{font-size:26px;font-weight:600;letter-spacing:-.3px}
+body.rs-app.light.v2 .ap3-kpi>span{font-size:13px;color:#475569}
+body.rs-app.light.v2 :is(.ap3-kpi .d,.ap3-kpi .was i,.ap3-kpi em){font-weight:600}
+body.rs-app.light.v2 .ap3-nb .big b{font-weight:600}
+body.rs-app.light.v2 :is(.ap3-todo .h b,.ap3-nb .h b,.ap3-det .dh b,.ap3-howcard .ap2-h3,details.ap3-how>summary,
+  details.ap2-ref>summary){font-weight:600}
+/* status tags become the standard status pills */
+body.rs-app.light.v2 span.ap2-chip{font-family:inherit;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;
+  border-radius:6px;padding:2px 8px;border:0;background:#F1F5F9;color:#475569}
+body.rs-app.light.v2 span.ap2-chip.y{background:#DCFCE7;color:#166534}
+body.rs-app.light.v2 span.ap2-chip.p{background:#FEF3C7;color:#92400E}
+body.rs-app.light.v2 span.ap2-chip.n{background:#FEE2E2;color:#991B1B}
+body.rs-app.light.v2 .ap2-meas{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;border:0;border-radius:6px;
+  background:#DCFCE7;color:#166534}
+body.rs-app.light.v2 .ap2-q .qn{background:#F1F5F9;border-color:#E2E8F0;color:#475569;font-size:12px}
+body.rs-app.light.v2 .ap2-q .qq{font-weight:600}
+/* controls: toggle groups are pills, the selected one navy */
+body.rs-app.light.v2 button.ap2-chip{border-radius:999px;font-size:12.5px;font-weight:600;letter-spacing:0;background:#FFFFFF;
+  border-color:#CBD5E1;color:#0F172A}
+body.rs-app.light.v2 button.ap2-chip.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap2-mbtn{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-weight:600}
+body.rs-app.light.v2 .ap2-mbtn.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 .ap2-mbtn.on small{color:#DBEAFE}
+body.rs-app.light.v2 .ap3-seg{border-radius:999px;border-color:#CBD5E1;background:#FFFFFF}
+body.rs-app.light.v2 .ap3-seg button{font-weight:600;color:#0F172A;border-right-color:#E2E8F0}
+body.rs-app.light.v2 .ap3-seg button.on{background:#1E3A8A;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 .ap3-yn button{font-weight:600;color:#475569}
+body.rs-app.light.v2 .ap3-yn button.on{background:#F1F5F9;color:#0F172A}
+body.rs-app.light.v2 .ap3-yn button.on.yes{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap3-list .tt button{border-radius:999px;border-color:#CBD5E1;color:#0F172A;font-weight:600}
+body.rs-app.light.v2 .ap3-list .tt button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap3-list .tt button.on small{color:#DBEAFE}
+body.rs-app.light.v2 .ap3-list .tt button.on i{box-shadow:0 0 0 1.5px #FFFFFF}
+body.rs-app.light.v2 .ap3-list .r:hover{background:#F8FAFC}
+body.rs-app.light.v2 .ap3-list .r.on{background:#EFF6FF}
+body.rs-app.light.v2 :is(.ap3-step.drv,.ap3-nb.on){border-color:#1E3A8A;box-shadow:0 0 0 1px #1E3A8A}
+body.rs-app.light.v2 .ap3-printbtn{border-radius:8px;font-weight:600}
+body.rs-app.light.v2 :is(.ap3-step .ctl button,.ap3-step.plan .site button,.ap3-step .trk button){border-radius:8px;border-color:#CBD5E1;font-weight:600}
+body.rs-app.light.v2 :is(.ap2-in,.ap2-growth input,.ap3-nb .dials input){border-radius:8px;border-color:#CBD5E1}
+body.rs-app.light.v2 .ap2-assume .rs-num,body.rs-app.light.v2 .ap2-pane .rs-num{background:#FFFFFF;border-color:#CBD5E1;
+  border-radius:8px;box-shadow:none;font-weight:600}
+body.rs-app.light.v2 .ap2-assume .rs-num:focus,body.rs-app.light.v2 .ap2-pane .rs-num:focus{box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+body.rs-app.light.v2 .ap2-pane .rs-seg button.on{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap2-tt .rs-btn{font-family:inherit;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;border-radius:8px}
+/* tables: the total is a plain #F8FAFC row, no lit edge; selections are the neutral-blue tint */
+body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:600;background:#F8FAFC;box-shadow:inset 0 1px 0 #E2E8F0}
+body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td.ap2-sh{box-shadow:inset 0 1px 0 #E2E8F0,inset 1px 0 0 #CBD5E1,inset -1px 0 0 #CBD5E1}
+body.rs-app.light.v2 .ap2-dt td:first-child{font-weight:600}
+body.rs-app.light.v2 .ap2-th:hover,body.rs-app.light.v2 .ap2-th.on{color:#1E3A8A}
+/* the map: readable tier key, calm controls, a tier chip whose text always reads on its fill */
+body.rs-app.light.v2 .ap2-mapkey{font-size:12.5px;color:#475569;gap:10px 16px}
+body.rs-app.light.v2 .ap2-mk b{font-weight:600}
+body.rs-app.light.v2 .ap2-sw{width:13px;height:13px;border-radius:3px;border-color:rgba(15,23,42,.18)}
+body.rs-app.light.v2 .ap2-sw.cover{border-radius:50%}
+body.rs-app.light.v2 .ap2-headline{border-left-color:#2563EB;background:#FFFFFF}
+body.rs-app.light.v2 .ap2-headline .n{font-weight:600}
+body.rs-app.light.v2 :is(.ap3-findres .tchip,.ap3-nb .tchip){font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px}
+body.rs-app.light.v2 :is(.ap3-findres,.ap3-nb) .tchip.t2{color:#0F172A}
+body.rs-app.light.v2 .ap3-list .r .tb{border-radius:6px;font-weight:600}
+body.rs-app.light.v2 .ap2-flag b{font-weight:600;border-radius:6px;background:#FFFFFF;border-color:#CBD5E1;box-shadow:0 1px 2px rgba(15,23,42,.12)}
+body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn{border-radius:8px;box-shadow:0 1px 3px rgba(15,23,42,.18)}
+body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn.on{background:#1E3A8A}
+body.rs-app.light.v2 .leaflet-tooltip.ap2-tipwrap{border-color:#E2E8F0;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
+body.rs-app.light.v2 .ap2-tip .t{letter-spacing:0;color:#1E3A8A;font-weight:600}
+body.rs-app.light.v2 .ap2-tip .big{font-weight:600}
+/* the Maryland clock: categorical series from the v2 order, the target a slate dash (amber means warning now) */
+body.rs-app.light.v2 .ap2-gt{--gt-t:#2563EB;--gt-c:#94A3B8;--gt-pos:#0F766E;--gt-md:#1E3A8A;--gt-ref:#334155;--gt-lvl:#7C3AED;
+  --gt-grid:#E2E8F0;--gt-axis:#475569;--gt-band:#F1F5F9}
+body.rs-app.light.v2 .ap2-gt-svg text{font-size:12px}
+body.rs-app.light.v2 .ap2-gt-leg{font-size:12.5px}
+body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
     `;
     document.head.appendChild(st);
   }
@@ -4915,11 +5039,11 @@ registerPage({
               return '<div class="assume">Assumes its new ground reaches <b>' + r1(need) + "</b> leads per 10k movers in " + esc(String(FC.year)) +
                 (stNow != null ? " — " + esc(c.st) + " runs " + r1(stNow) + " today" : "") + "</div>"; })() +
             '<div class="ground">Opens <b>' + fmtN((o.opened || []).length) + "</b> counties " +
-              tiers.map(([t, n]) => '<i class="tchip" style="background:' + TC["t" + t] + '">T' + t + " · " + n + "</i>").join("") +
+              tiers.map(([t, n]) => '<i class="tchip t' + t + '" style="background:' + TC["t" + t] + '">T' + t + " · " + n + "</i>").join("") +
               (top.length && !full ? "<small>biggest: " + top.map(x => esc(x.a.County) + " " + esc(x.a.State)).join(", ") + "</small>" : "") + "</div>" +
             /* the side panel's version lists the ground it opens, county by county */
             (full && (o.opened || []).length ? '<div class="opened">' + o.opened.slice(0, 12).map(x =>
-              '<div><i class="tchip" style="background:' + TC["t" + x.tier] + '">T' + x.tier + "</i><span>" + esc(x.a.County) + " " + esc(x.a.State) +
+              '<div><i class="tchip t' + x.tier + '" style="background:' + TC["t" + x.tier] + '">T' + x.tier + "</i><span>" + esc(x.a.County) + " " + esc(x.a.State) +
               "</span><small>" + r1(x.mi) + " mi · " + sgN(x.jobsFull * NB_YEAR1) + " jobs</small></div>").join("") +
               (o.opened.length > 12 ? "<small>and " + fmtN(o.opened.length - 12) + " more</small>" : "") + "</div>" : "") +
             (full && !(o.opened || []).length ? '<div class="assume">No county comes into reach from here: everything within 50 miles is already within 50 miles of a base we have.</div>' : "") +
@@ -5298,7 +5422,7 @@ registerPage({
           const list = () => { FINDQ = fi.value;
             const hits = findAreas(fi.value); fr._hits = hits;
             if (!fi.value.trim()) { if (box && box._highlight) box._highlight(null); }
-            fr.innerHTML = hits.length ? hits.map((a, i) => '<button type="button" data-find="' + i + '"><i class="tchip" style="background:' +
+            fr.innerHTML = hits.length ? hits.map((a, i) => '<button type="button" data-find="' + i + '"><i class="tchip t' + num(a.Tier) + '" style="background:' +
                 (TC["t" + num(a.Tier)] || "var(--faint)") + '">' + (num(a.Tier) >= 1 ? "T" + num(a.Tier) : "–") + "</i><span>" + esc(a.Name) +
                 (a.Level === "Zip" ? "" : ", " + esc(a.State)) + "</span><small>" + esc(a.Level === "Zip" ? "zip · " + a.State : a.Level === "City" ? "city · " + (a.County || "") : "county") + "</small></button>").join("")
               : fi.value.trim().length >= 2 ? '<div class="none">Nothing by that name in our states.</div>' : "";

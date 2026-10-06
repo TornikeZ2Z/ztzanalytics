@@ -21,11 +21,12 @@
     const norm = s => String(s == null ? "" : s).trim().toLowerCase();
     const money = v => (v == null || v === "" || isNaN(+v)) ? "—" : "$" + Math.round(+v).toLocaleString();
 
-    // status -> [colour, label, meaning]
+    // status -> [colour, label, meaning]; v2 tones read at render time (the theme button re-renders)
+    const v2 = RS.isV2();
     const STATUS = {
-      miskey:        ["#e2687a", "Mis-key", "the Request # links this closing to a DIFFERENT person's job (different pickup zip) — almost certainly a mistyped number"],
-      name_variant:  ["#e0a458", "Name variant", "same job — a spelling typo or a 2nd person on the move (couple / coordinator). Benign."],
-      test_record:   ["#9aa0aa", "Test record", "linked to a draft / test moveboard record, not a real customer"],
+      miskey:        [v2 ? RS.V2.neg : "#e2687a", "Mis-key", "the Request # links this closing to a DIFFERENT person's job (different pickup zip) — almost certainly a mistyped number"],
+      name_variant:  [v2 ? RS.V2.warn : "#e0a458", "Name variant", "same job — a spelling typo or a 2nd person on the move (couple / coordinator). Benign."],
+      test_record:   [v2 ? RS.V2.faint : "#9aa0aa", "Test record", "linked to a draft / test moveboard record, not a real customer"],
     };
 
     if (!document.getElementById("rc-style")) {
@@ -46,7 +47,18 @@
         .rc-chip.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent)}
         .rc-chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
         .rc-chip b{font-variant-numeric:tabular-nums}
-        .rc-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}`;
+        .rc-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+        /* DESIGN V2: sentence-case table header, neutral hover, accent-tint chips, flat pills */
+        body.rs-app.light.v2 #rcSearch{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}
+        body.rs-app.light.v2 #rcSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .rc-tbl th,body.rs-app.light.v2 .rc-tbl td{font-size:13.5px;color:var(--ink);border-bottom-color:#F1F5F9}
+        body.rs-app.light.v2 .rc-tbl th{background:#F8FAFC;color:var(--muted);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom-color:var(--line)}
+        body.rs-app.light.v2 .rc-tbl tr:hover td{background:#F8FAFC}
+        body.rs-app.light.v2 .rc-tbl td.rc-neq{color:#B91C1C;font-weight:600}
+        body.rs-app.light.v2 .rc-chip{background:#FFFFFF;border-color:#E2E8F0;font-size:13px}
+        body.rs-app.light.v2 .rc-chip:hover{border-color:#93C5FD;background:var(--blue-bg)}
+        body.rs-app.light.v2 .rc-chip.on{border-color:#93C5FD;background:var(--blue-bg);color:var(--brand-d)}
+        body.rs-app.light.v2 .rc-pill{border-radius:6px;font-size:12px;font-weight:600}`;
       document.head.appendChild(st);
     }
 
@@ -94,8 +106,8 @@
     ]);
 
     const pill = s => {
-      const c = (STATUS[s] || ["#9aa0aa", s])[0], lbl = (STATUS[s] || ["", s])[1];
-      return `<span class="rc-pill" style="background:color-mix(in srgb,${c} 20%,transparent);color:${c}">${esc(lbl)}</span>`;
+      const c = (STATUS[s] || [v2 ? RS.V2.faint : "#9aa0aa", s])[0], lbl = (STATUS[s] || ["", s])[1];
+      return `<span class="rc-pill" style="background:color-mix(in srgb,${c} ${v2 ? 12 : 20}%,transparent);color:${c}">${esc(lbl)}</span>`;
     };
     // a name cell that highlights when it disagrees with the closing customer
     const nameCell = (val, closing) => {
@@ -113,7 +125,7 @@
         ${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${esc(label)} <b>${fmtN(nn)}</b></button>`;
       document.getElementById("rcChips").innerHTML =
         chip("", "All", all.length, "") +
-        order.map(s => chip(s, (STATUS[s] || ["", s])[1], counts[s], (STATUS[s] || ["#9aa0aa"])[0])).join("");
+        order.map(s => chip(s, (STATUS[s] || ["", s])[1], counts[s], (STATUS[s] || [v2 ? RS.V2.faint : "#9aa0aa"])[0])).join("");
       document.querySelectorAll("#rcChips .rc-chip").forEach(b =>
         b.onclick = () => { statusFilter = b.getAttribute("data-s"); chips(); paint(); });
     };

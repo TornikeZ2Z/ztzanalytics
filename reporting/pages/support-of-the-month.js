@@ -138,7 +138,9 @@ registerPage({
       + ".spm-sheet .bar{height:6px;border-radius:3px;background:#EFF0F3;overflow:hidden;margin-top:4px}"
       + ".spm-sheet .bar>i{display:block;height:100%;background:#5F7C20}"
       + ".spm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"
-      + "padding-top:8px;margin-top:4px}";
+      + "padding-top:8px;margin-top:4px}"
+      // design v2: the sheet opens inside the v2 app, so its olive bar turns navy (render time)
+      + (RS.isV2() ? ".spm-sheet .bar>i{background:#1E3A8A}" : "");
 
     const S = window.__SUPOTM || (window.__SUPOTM = { month: null, line: null, work: null,
                                                       score: null, err: {} });
@@ -265,6 +267,59 @@ registerPage({
       + "@media(max-width:640px){.spm-stats{display:grid;grid-template-columns:1fr 1fr;width:100%}"
       + ".spm-st{padding:0 12px;min-width:0}.spm-st:nth-child(odd){border-left:0;padding-left:0}"
       + ".spm-st b{font-size:20px;overflow-wrap:anywhere}.spm-win .nm{font-size:20px}}"
+      /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2.
+         The two score hues become RS.V2.cat[0..1] (the old --brand green no longer exists, and
+         purple is not in the v2 set); status tags become the kit's radius-6 pills. */
+      + "body.rs-app.light.v2 .spm-wrap{--spm-c1:#1E3A8A;--spm-c2:#2563EB}"
+      + "body.rs-app.light.v2 .spm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
+      + "body.rs-app.light.v2 .spm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
+      + "body.rs-app.light.v2 .spm-mopt{font-weight:500;border-radius:8px}"
+      + "body.rs-app.light.v2 .spm-mopt.cur{background:var(--blue-bg);color:var(--brand-d);font-weight:600}"
+      + "body.rs-app.light.v2 .spm-mopt .tag{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
+      + "body.rs-app.light.v2 .spm-sub{font-size:14px}"
+      + "body.rs-app.light.v2 .spm-st span{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      + "body.rs-app.light.v2 .spm-st b{font-size:24px;font-weight:600;letter-spacing:-.3px}"
+      + "body.rs-app.light.v2 .spm-st small{font-size:12.5px}"
+      + "body.rs-app.light.v2 .spm-win{border-radius:10px;border-color:var(--line);box-shadow:none}"
+      + "body.rs-app.light.v2 .spm-win .medal{border-radius:10px;background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-win .medal.dim{background:var(--panel-2);color:var(--faint)}"
+      + "body.rs-app.light.v2 .spm-win .k{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      + "body.rs-app.light.v2 .spm-win .nm{font-weight:700;letter-spacing:-.3px}"
+      + "body.rs-app.light.v2 .spm-win .why{font-size:13px}"
+      + "body.rs-app.light.v2 .spm-win .sc b{font-size:30px;font-weight:600;letter-spacing:-.5px}"
+      + "body.rs-app.light.v2 .spm-win .sc i{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
+      + "body.rs-app.light.v2 .spm-tag{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;border:0;border-radius:6px;padding:2px 8px;color:#475569;background:#F1F5F9}"
+      + "body.rs-app.light.v2 .spm-tag.yg{color:#92400E;background:#FEF3C7}"
+      + "body.rs-app.light.v2 .spm-tag.ok{color:#166534;background:#DCFCE7}"
+      + "body.rs-app.light.v2 .spm-tag.frag{color:#991B1B;background:#FEE2E2}"
+      + "body.rs-app.light.v2 .spm-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:0 0 10px}"
+      + "body.rs-app.light.v2 .spm-cmp th,body.rs-app.light.v2 .spm-cmp td{border-bottom-color:#F1F5F9}"
+      + "body.rs-app.light.v2 .spm-cmp thead th{border-bottom-color:var(--line)}"
+      + "body.rs-app.light.v2 .spm-cmp .lab{font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-cmp .grp td{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);background:#F8FAFC;padding-top:9px;padding-bottom:9px}"
+      + "body.rs-app.light.v2 .spm-cmp .v{font-size:16px;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-cmp tbody tr:not(.grp):hover td{background:#F8FAFC}"
+      + "body.rs-app.light.v2 .spm-rk{border-radius:8px;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-rk.top{background:#1E3A8A;color:#FFFFFF}"
+      + "body.rs-app.light.v2 .spm-ph .nm{font-weight:600}"
+      + "body.rs-app.light.v2 .spm-ph .scr{font-size:24px;font-weight:600;letter-spacing:-.4px}"
+      + "body.rs-app.light.v2 .spm-ph .scr small{font-size:12px;font-weight:500}"
+      + "body.rs-app.light.v2 .spm-ph .oor{font-weight:600}"
+      + "body.rs-app.light.v2 .spm-rep{border-radius:8px;color:var(--ink);font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-rep:hover{border-color:var(--line-2);background:var(--panel-2);color:var(--ink)}"
+      + "body.rs-app.light.v2 .spm-vl li{font-size:13px}"
+      + "body.rs-app.light.v2 .spm-vl li b{font-weight:600}"
+      + "body.rs-app.light.v2 .spm-vl .ok,body.rs-app.light.v2 .spm-vl .mv{font-weight:700}"
+      + "body.rs-app.light.v2 .spm-note{font-size:12.5px}"
+      + "body.rs-app.light.v2 .spm-tile{border-radius:10px;background:#FFFFFF}"
+      + "body.rs-app.light.v2 .spm-tile .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      + "body.rs-app.light.v2 .spm-tile .v{font-size:24px;font-weight:600;letter-spacing:-.3px}"
+      + "body.rs-app.light.v2 .spm-tile .s{font-size:12.5px}"
+      + "body.rs-app.light.v2 .spm-empty{border-radius:10px}"
+      + "body.rs-app.light.v2 .spm-rdim{background:var(--scrim)}"
+      + "body.rs-app.light.v2 .spm-rbtn{border-radius:8px;font-weight:600}"
+      // the phone sizes above must still win over the v2 figure size
+      + "@media(max-width:640px){body.rs-app.light.v2 .spm-st b{font-size:20px}}"
       + SHEET_CSS
       + "</style><div class='spm-wrap' id='spmWrap'><div class='spm-empty'>Reading the record…</div></div>";
 

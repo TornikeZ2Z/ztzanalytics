@@ -224,7 +224,111 @@ registerPage({
         .mf-htbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
         .mf-htbl th{text-align:left;font-size:9px;text-transform:uppercase;color:var(--faint);padding:4px 6px;border-bottom:1px solid var(--line)}
         .mf-htbl td{padding:5px 6px;border-top:1px solid var(--line)}
-        .mf-htbl tr.gone td{opacity:.5;text-decoration:line-through}`;
+        .mf-htbl tr.gone td{opacity:.5;text-decoration:line-through}
+        /* ---- DESIGN V2 "Calm finance" (2026-10-06, MoneyFlow artboard). Light theme only;
+           dark keeps every rule above. Look only: no markup, handler or number changes.
+           Confirm is navy (green now means only "good"), statuses are the kit's square
+           pills, labels sentence case, KPI label above a plain ink figure. ---- */
+        body.rs-app.light.v2 .mf-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
+        body.rs-app.light.v2 .mf-live{border-radius:6px;font-size:12px;font-weight:600;padding:3px 8px;background:#DCFCE7;color:#166534}
+        body.rs-app.light.v2 .mf-live.off{background:#FEF3C7;color:#92400E}
+        body.rs-app.light.v2 .mf-last{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 #mfRefresh{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-weight:600}
+        body.rs-app.light.v2 .mf-kpis{gap:12px}
+        body.rs-app.light.v2 .mf-kpi{display:flex;flex-direction:column;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px}
+        body.rs-app.light.v2 .mf-kpi span{order:-1;margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
+        body.rs-app.light.v2 .mf-kpi b,body.rs-app.light.v2 .mf-kpi.neg b,body.rs-app.light.v2 .mf-kpi.pos b{font-size:26px;font-weight:700;letter-spacing:-.3px;color:#0F172A;margin-top:4px}
+        body.rs-app.light.v2 .mf-kpi small{font-size:13px;color:#64748B;margin-top:2px}
+        body.rs-app.light.v2 .mf-seg{background:transparent;border:0;padding:0;gap:6px;flex-wrap:wrap}
+        body.rs-app.light.v2 .mf-seg button{border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;border-radius:999px;font-size:13.5px;font-weight:600;padding:7px 14px;min-height:36px}
+        body.rs-app.light.v2 .mf-seg button:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .mf-seg button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .mf-seg button i{font-weight:600;font-size:12px;opacity:.7}
+        body.rs-app.light.v2 .mf-dseg button{font-size:13px;padding:6px 13px;min-height:34px}
+        body.rs-app.light.v2 .mf-fmbtn{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;font-weight:600;padding:8px 14px;min-height:38px}
+        body.rs-app.light.v2 .mf-fmbtn.on{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}
+        body.rs-app.light.v2 .mf-q{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;padding:8px 14px;min-height:38px;box-sizing:border-box}
+        body.rs-app.light.v2 .mf-q:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .mf-fmpop,body.rs-app.light.v2 .mf-dtpop{border-radius:10px;border-color:#E2E8F0;box-shadow:0 12px 32px rgba(15,23,42,.14)}
+        body.rs-app.light.v2 .mf-fmhd{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569}
+        body.rs-app.light.v2 .mf-fmpop input{accent-color:#1E3A8A}
+        body.rs-app.light.v2 .mf-fmct{font-size:12px;font-weight:600;color:#475569;background:#F1F5F9;border-color:#E2E8F0}
+        body.rs-app.light.v2 .mf-fmpop .clr,body.rs-app.light.v2 .mf-dtpop .clr{color:#1D4ED8;font-size:12.5px;font-weight:600}
+        body.rs-app.light.v2 .mf-dtpop .pre button{font-size:12.5px;font-weight:600}
+        body.rs-app.light.v2 .mf-dtpop .pre button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .mf-card{border-radius:10px;border-color:#E2E8F0}
+        body.rs-app.light.v2 .mf-tbl th{background:#F8FAFC;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569;border-bottom-color:#E2E8F0}
+        body.rs-app.light.v2 .mf-tbl td{border-top-color:#F1F5F9}
+        body.rs-app.light.v2 .mf-tbl tbody tr.mf-row:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .mf-tbl .mf-fmrow td{background:#F8FAFC;font-size:14px;font-weight:700;border-top-color:#E2E8F0}
+        body.rs-app.light.v2 .mf-tbl .mf-fmrow:hover td{background:#F1F5F9}
+        body.rs-app.light.v2 .mf-fmmeta{font-size:13px;font-weight:400;color:#64748B}
+        body.rs-app.light.v2 .mf-caret{color:#64748B}
+        body.rs-app.light.v2 .mf-tbl td.ck input{accent-color:#1E3A8A}
+        body.rs-app.light.v2 .mf-confirm{background:#1E3A8A;border-radius:8px;font-size:13px;font-weight:600;padding:7px 14px}
+        body.rs-app.light.v2 .mf-confirm:hover{filter:none;background:#1E40AF}
+        body.rs-app.light.v2 .mf-confirm.mf-manual{background:#FFFFFF;color:#1E3A8A;box-shadow:inset 0 0 0 1px #1E3A8A}
+        body.rs-app.light.v2 .mf-confirm.mf-manual:hover{background:#EFF6FF}
+        body.rs-app.light.v2 .mf-charge{border-radius:8px;border-color:#CBD5E1;color:#0F172A;font-size:13px;font-weight:600;padding:6px 12px}
+        body.rs-app.light.v2 .mf-charge:hover,body.rs-app.light.v2 .mf-tbl .mf-fmrow:hover .mf-charge:hover{color:#0F172A;border-color:#94A3B8;background:#F8FAFC}
+        body.rs-app.light.v2 .mf-tbl .mf-fmrow:hover .mf-charge{border-color:#CBD5E1}
+        body.rs-app.light.v2 .mf-pill,body.rs-app.light.v2 .mf-fnpill{border-radius:6px;font-size:12px;font-weight:600;letter-spacing:0;padding:3px 8px;border:0}
+        body.rs-app.light.v2 .mf-st-rec{background:#DCFCE7;color:#166534}
+        body.rs-app.light.v2 .mf-st-mnr{background:#FEF3C7;color:#92400E}
+        body.rs-app.light.v2 .mf-st-nib{background:#FEE2E2;color:#991B1B}
+        body.rs-app.light.v2 .mf-st-con,body.rs-app.light.v2 .mf-st-nnc{background:#F1F5F9;color:#475569;border:0}
+        body.rs-app.light.v2 .mf-fnpill{background:#F1F5F9;color:#475569}
+        body.rs-app.light.v2 .mf-fnpill.fine{background:#FEE2E2;color:#991B1B}
+        body.rs-app.light.v2 .mf-fnpill.repayment{background:#DCFCE7;color:#166534}
+        body.rs-app.light.v2 .mf-fnpill.opening{background:#EFF6FF;color:#1D4ED8}
+        body.rs-app.light.v2 .mf-debtchip{border:0;border-radius:6px;background:#FEE2E2;color:#991B1B;font-size:12px;font-weight:600;padding:3px 8px}
+        body.rs-app.light.v2 .mf-debtchip:hover{background:#FECACA;color:#991B1B}
+        body.rs-app.light.v2 .mf-debtrow td{background:#FFFBEB}
+        body.rs-app.light.v2 .mf-tbl .mf-debtrow:hover td{background:#FEF3C7}
+        body.rs-app.light.v2 .mf-neg,body.rs-app.light.v2 .mf-tbl td.mf-neg,body.rs-app.light.v2 .mf-fnowe{color:#B91C1C}
+        body.rs-app.light.v2 .mf-pos,body.rs-app.light.v2 .mf-tbl td.mf-pos{color:#15803D}
+        body.rs-app.light.v2 .mf-doc,body.rs-app.light.v2 .mf-mhist>button{color:#1D4ED8;font-weight:600}
+        body.rs-app.light.v2 .mf-doc:hover{color:#1E3A8A}
+        body.rs-app.light.v2 .mf-age,body.rs-app.light.v2 .mf-mdc,body.rs-app.light.v2 .mf-fnote,body.rs-app.light.v2 .mf-fnhint{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 .mf-pager{font-size:13px;color:#475569}
+        body.rs-app.light.v2 .mf-pgnav button{border-radius:8px;border-color:#CBD5E1;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .mf-pgnav button:hover:not(:disabled){border-color:#94A3B8;background:#F8FAFC}
+        body.rs-app.light.v2 .mf-fnhead{gap:28px}
+        body.rs-app.light.v2 .mf-fntot span{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
+        body.rs-app.light.v2 .mf-fntot b{font-size:26px;font-weight:700;letter-spacing:-.3px}
+        body.rs-app.light.v2 .mf-fntot i{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 .mf-fnbtn{border-radius:8px;font-size:13px;font-weight:600;background:#FFFFFF;border-color:#CBD5E1}
+        body.rs-app.light.v2 .mf-fnbtn.go{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .mf-fnbtn.go:hover{background:#1E40AF;border-color:#1E40AF}
+        body.rs-app.light.v2 .mf-fnjob{font-size:12px;font-weight:600;color:#475569;border-color:#E2E8F0}
+        body.rs-app.light.v2 .mf-fnedit{border-radius:8px;border-color:#CBD5E1;color:#0F172A;font-weight:600}
+        body.rs-app.light.v2 .mf-fnedit:hover{border-color:#94A3B8;background:#F8FAFC}
+        body.rs-app.light.v2 .mf-fnsettled{font-size:12px;color:#64748B}
+        body.rs-app.light.v2 .mf-veil{font-weight:600;color:#475569}
+        body.rs-app.light.v2 .mf-back{background:rgba(15,23,42,.38)}
+        body.rs-app.light.v2 .mf-modal{border-radius:12px;border-color:#E2E8F0;box-shadow:0 20px 50px rgba(15,23,42,.22)}
+        body.rs-app.light.v2 .mf-mhead b{font-size:16px;font-weight:600}
+        body.rs-app.light.v2 .mf-mhead div{font-size:12.5px;color:#64748B;margin-top:3px}
+        body.rs-app.light.v2 .mf-ro{border-radius:8px;border-color:#E2E8F0;background:#F8FAFC}
+        body.rs-app.light.v2 .mf-ro span{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
+        body.rs-app.light.v2 .mf-ro b{font-weight:700}
+        body.rs-app.light.v2 .mf-ro.bal.ok b{color:#15803D} body.rs-app.light.v2 .mf-ro.bal.off b{color:#B91C1C}
+        body.rs-app.light.v2 .mf-mwhy{font-size:13px;border-left-color:#2563EB;background:#EFF6FF;color:#0F172A}
+        body.rs-app.light.v2 .mf-mdebt{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:8px}
+        body.rs-app.light.v2 .mf-fld label{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:#475569;margin-bottom:4px}
+        body.rs-app.light.v2 .mf-fld label i{color:#64748B;font-weight:400}
+        body.rs-app.light.v2 .mf-fld select,body.rs-app.light.v2 .mf-fld input{border-radius:8px;border-color:#CBD5E1}
+        body.rs-app.light.v2 .mf-fld input:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .mf-fld input.note{font-size:13px}
+        body.rs-app.light.v2 .mf-cancel{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .mf-cancel:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .mf-save{background:#1E3A8A;border-radius:8px;font-size:13.5px;font-weight:600}
+        body.rs-app.light.v2 .mf-save:hover:not([disabled]){background:#1E40AF}
+        body.rs-app.light.v2 .mf-merr{color:#B91C1C;font-size:12.5px;font-weight:600}
+        body.rs-app.light.v2 .mf-mhist>button{font-size:12.5px}
+        body.rs-app.light.v2 .mf-htbl{font-size:12.5px}
+        body.rs-app.light.v2 .mf-htbl th{text-transform:none;font-size:12px;font-weight:600;color:#475569;background:#F8FAFC}
+        body.rs-app.light.v2 .mf-htbl td{border-top-color:#F1F5F9}`;
       document.head.appendChild(st);
     }
 

@@ -139,7 +139,13 @@
       + ".agf-pg b{font-weight:800;color:var(--ink);min-width:62px;text-align:center;"
       + "font-variant-numeric:tabular-nums}"
       + ".agf-tip{font-size:11.5px;color:var(--faint)}"
-      + ".agf-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}";
+      + ".agf-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
+      // DESIGN V2: no text under 12px; the pager figure at v2 weight; the empty state is the
+      // kit's dashed-card state from the component sheet
+      + "body.rs-app.light.v2 .agf-tip{font-size:12px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .agf-pg b{font-weight:600}"
+      + "body.rs-app.light.v2 .agf-empty{border:1px dashed #CBD5E1;border-radius:10px;margin:12px 0;"
+      + "font-size:14px;color:var(--faint)}";
     document.head.appendChild(st);
   }
 

@@ -61,7 +61,18 @@
       + ".bes-note{font-size:12px;color:var(--muted);margin:6px 2px 0}"
       + ".bes tr.bes-day td{background:var(--panel-2);padding:9px 14px;border-top:1px solid var(--line-2)}"
       + ".bes tr.bes-day b{font-size:13.5px;color:var(--ink)}"
-      + ".bes tr.bes-day span{margin-left:10px;font-size:12px;color:var(--muted)}";
+      + ".bes tr.bes-day span{margin-left:10px;font-size:12px;color:var(--muted)}"
+      // DESIGN V2: no text under 12px; day rows on the neutral table-head grey; the three
+      // automations are CATEGORIES, so in v2 they get categorical tints instead of the
+      // good/warn status colours (green and amber mean only good and watch in v2).
+      + "body.rs-app.light.v2 .bes-sub{font-size:12px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .bes-note{font-size:12.5px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .bes tr.bes-day td{background:#F8FAFC;border-top-color:var(--line)}"
+      + "body.rs-app.light.v2 .bes tr.bes-day b{font-size:14px;font-weight:600}"
+      + "body.rs-app.light.v2 .bes tr.bes-day span{font-size:12.5px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .bes .rs-pill.bes-c-survey{background:#F5F3FF;color:#6D28D9}"
+      + "body.rs-app.light.v2 .bes .rs-pill.bes-c-referral-ask{background:#F0FDFA;color:#0F766E}"
+      + "body.rs-app.light.v2 .bes .rs-pill.bes-c-review-request{background:#EFF6FF;color:#1D4ED8}";
     document.head.appendChild(st);
   }
 
@@ -136,7 +147,9 @@
 
       function campaignPill(r) {
         const c = String(r["Campaign"] || "");
-        return '<span class="rs-pill' + (c === "survey" ? " ok" : c === "referral-ask" ? " warn" : "") + '">'
+        // bes-c-<campaign> has no rule outside v2, so the old look is unchanged
+        return '<span class="rs-pill' + (c === "survey" ? " ok" : c === "referral-ask" ? " warn" : "")
+          + " bes-c-" + esc(c) + '">'
           + esc(r["Campaign Label"] || c) + "</span>";
       }
 

@@ -83,6 +83,37 @@ registerPage({
         ".pcx-count{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}",
         ".pcx-msg{font-size:12px;color:var(--muted)} .pcx-msg.bad{color:var(--neg);font-weight:700} .pcx-msg.ok{color:var(--pos);font-weight:700}",
         ".pcx-dim{color:var(--faint)}",
+        // ---- DESIGN V2 ("Calm finance"): the light look only; dark keeps every rule above ----
+        // sentence-case labels at a readable size, radius 10, one weight for figures, neutral hover
+        "body.rs-app.light.v2 .pcx-kpi{border-radius:10px;padding:14px 16px}",
+        "body.rs-app.light.v2 .pcx-kpi .l{font-size:13px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}",
+        "body.rs-app.light.v2 .pcx-kpi .v{font-size:24px;font-weight:600;letter-spacing:-.3px}",
+        "body.rs-app.light.v2 .pcx-kpi .s{font-size:12.5px;color:var(--faint);margin-top:4px}",
+        "body.rs-app.light.v2 .pcx-say{font-size:13px}",
+        "body.rs-app.light.v2 .pcx-lno{font-size:12px;font-weight:600;background:#EFF6FF;color:#1E3A8A}",
+        "body.rs-app.light.v2 .pcx-in{font-size:13px}",
+        "body.rs-app.light.v2 .pcx-in.set{border-color:#93C5FD;background:#EFF6FF}",
+        "body.rs-app.light.v2 .pcx-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}",
+        "body.rs-app.light.v2 .pcx-tree{border-radius:10px}",
+        "body.rs-app.light.v2 .pcx-hd .t{font-weight:600;font-size:15px} body.rs-app.light.v2 .pcx-hd.m .t{font-size:14px;font-weight:600}",
+        "body.rs-app.light.v2 .pcx-hd .n{font-weight:600} body.rs-app.light.v2 .pcx-hd .n small{font-size:12.5px;color:var(--faint)}",
+        "body.rs-app.light.v2 .pcx-hd:hover,body.rs-app.light.v2 .pcx-node.open>.pcx-hd{background:#F8FAFC}",
+        "body.rs-app.light.v2 .pcx-weeks table{font-size:13.5px}",
+        "body.rs-app.light.v2 .pcx-weeks th{font-size:12.5px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;background:#F8FAFC;border-bottom-color:var(--line)}",
+        "body.rs-app.light.v2 .pcx-weeks td{border-bottom-color:#F1F5F9}",
+        "body.rs-app.light.v2 .pcx-weeks tbody tr:hover td{background:#F8FAFC}",
+        "body.rs-app.light.v2 .pcx-weeks td.wk{font-weight:600;color:var(--faint)}",
+        "body.rs-app.light.v2 .pcx-weeks tr.now td.wk,body.rs-app.light.v2 .pcx-weeks tr.now td.lbl{color:#1E3A8A}",
+        "body.rs-app.light.v2 .pcx-weeks td.lbl{font-weight:500}",
+        "body.rs-app.light.v2 .pcx-weeks td.tot{font-weight:600}",
+        "body.rs-app.light.v2 .pcx-weeks .sub{font-size:12px;color:var(--faint)}",
+        // the week tags are status pills: radius 6, 12px/600 -- "this week" info, the rest neutral
+        "body.rs-app.light.v2 .pcx-tag{font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px;background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .pcx-tag.dim{background:#F1F5F9;color:#475569}",
+        "body.rs-app.light.v2 .pcx-shelf table td .neg,body.rs-app.light.v2 .pcx-shelf table td .pos{font-weight:600}",
+        "body.rs-app.light.v2 .pcx-btn{font-size:13px;font-weight:600;border-radius:8px;padding:7px 13px;border-color:#CBD5E1;color:var(--ink)}",
+        "body.rs-app.light.v2 .pcx-btn:hover{border-color:#CBD5E1;background:#F8FAFC}",
+        "body.rs-app.light.v2 .pcx-msg.bad,body.rs-app.light.v2 .pcx-msg.ok{font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }

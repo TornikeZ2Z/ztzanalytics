@@ -286,7 +286,50 @@ registerPage({
         @media (max-width:640px){
           .ttd-det{padding:2px 8px 14px 8px}
           .ttd-ask{display:none}
-        }`;
+        }
+
+        /* DESIGN V2 ("Calm finance"): navy for the topic number and the selected filter, the
+           area label and the Question / Answered label in sentence case, code in the page
+           font, and topics as white panels. Amber stays on what waits for an answer (a
+           warning), green on what is answered (good), red on P1 (the urgent one). */
+        body.rs-app.light.v2 .ttd-sum{font-size:14px;color:#475569;font-variant-numeric:tabular-nums}
+        body.rs-app.light.v2 .ttd-sum b{font-weight:600}
+        body.rs-app.light.v2 .ttd .rs-seg{background:#FFFFFF;border-color:#E2E8F0;border-radius:999px;padding:3px;gap:2px}
+        body.rs-app.light.v2 .ttd .rs-seg button{border-radius:999px;font-weight:600;color:#0F172A}
+        body.rs-app.light.v2 .ttd .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}
+        body.rs-app.light.v2 .ttd-topic{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;
+          padding:14px 16px 6px;margin:0 0 16px}
+        body.rs-app.light.v2 .ttd-topic > header{border-bottom-color:#E2E8F0;padding:0 2px 10px}
+        body.rs-app.light.v2 .ttd-n{background:#1E3A8A;color:#FFFFFF;font-weight:600}
+        body.rs-app.light.v2 .ttd-tt h2{font-size:15px;font-weight:600}
+        body.rs-app.light.v2 .ttd-tt span{font-size:12.5px;color:#64748B;text-transform:none;letter-spacing:0}
+        body.rs-app.light.v2 .ttd-ct{color:#64748B}
+        body.rs-app.light.v2 .ttd-it{border-bottom-color:#F1F5F9}
+        body.rs-app.light.v2 .ttd-it:last-child{border-bottom:0}
+        body.rs-app.light.v2 .ttd-it.open{background:#F8FAFC;border-radius:8px}
+        body.rs-app.light.v2 .ttd-row:hover{background:#F8FAFC}
+        body.rs-app.light.v2 .ttd-mk{border-color:#94A3B8}
+        body.rs-app.light.v2 .ttd-mk.ready{border-color:#2563EB;background:#EFF6FF}
+        body.rs-app.light.v2 .ttd-p{font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px;
+          color:#475569;background:#F1F5F9;border-color:transparent}
+        body.rs-app.light.v2 .ttd-p.p1{color:#991B1B;background:#FEE2E2}
+        body.rs-app.light.v2 .ttd-ti{font-size:14px}
+        body.rs-app.light.v2 .ttd-ask{font-size:12.5px;color:#92400E}
+        body.rs-app.light.v2 .ttd-md{font-size:14px}
+        body.rs-app.light.v2 .ttd-md code{font-family:inherit;font-size:13px;background:#F1F5F9;border-color:#E2E8F0}
+        body.rs-app.light.v2 .ttd-q{border-color:#E2E8F0;border-left-color:#B45309;border-radius:8px;background:#FFFFFF}
+        body.rs-app.light.v2 .ttd-q.ok{border-left-color:#15803D}
+        body.rs-app.light.v2 .ttd-qk{font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:#92400E}
+        body.rs-app.light.v2 .ttd-q.ok .ttd-qk{color:#166534}
+        body.rs-app.light.v2 .ttd-qa{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 .ttd-qt,body.rs-app.light.v2 .ttd-ans{font-size:14px}
+        body.rs-app.light.v2 .ttd-by{font-size:12.5px;color:#64748B}
+        body.rs-app.light.v2 .ttd-lk,body.rs-app.light.v2 .ttd-foot a{color:#1D4ED8}
+        body.rs-app.light.v2 .ttd-form textarea{border-radius:8px;background:#FFFFFF}
+        body.rs-app.light.v2 .ttd .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;
+          font-weight:600;border-radius:8px}
+        body.rs-app.light.v2 .ttd .rs-btn.pri:hover:not(:disabled){background:#1E40AF;border-color:#1E40AF;filter:none}
+        body.rs-app.light.v2 .ttd-foot{font-size:12.5px;color:#64748B}`;
       document.head.appendChild(st);
     }
   },

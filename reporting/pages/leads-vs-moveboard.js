@@ -36,7 +36,22 @@ registerPage({
       .lvm-msops{display:flex;gap:12px;margin:0 2px 7px}
       .lvm-msops .op{font-size:10.5px;font-weight:800;color:#b7e23b;cursor:pointer;text-transform:uppercase;letter-spacing:.07em}
       .lvm-msops .op:hover{text-decoration:underline}
-      .lvm-mss{width:100%;margin-bottom:7px;background:#0e1621;border:1px solid #2c3e57;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px}`;
+      .lvm-mss{width:100%;margin-bottom:7px;background:#0e1621;border:1px solid #2c3e57;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px}
+      /* DESIGN V2: the dark-pill controls become the v2 filter pills -- white, hairline,
+         muted sentence-case label + ink value, a white pop-over, accent instead of lime */
+      body.rs-app.light.v2 .lvm-ctl{color:var(--ink);background:#FFFFFF;border-color:#CBD5E1;border-radius:8px;font-weight:600;font-size:13px;color-scheme:light}
+      body.rs-app.light.v2 .lvm-ctl:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+      body.rs-app.light.v2 .lvm-ctl option{color:var(--ink);background:#FFFFFF}
+      body.rs-app.light.v2 input.lvm-ctl::placeholder{color:var(--faint)}
+      body.rs-app.light.v2 .lvm-grp{background:#FFFFFF;border-color:#E2E8F0;border-radius:999px;padding:4px 6px 4px 12px}
+      body.rs-app.light.v2 .lvm-lbl{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
+      body.rs-app.light.v2 .lvm-msb .n{background:var(--brand-d);color:#FFFFFF;font-size:12px;font-weight:600}
+      body.rs-app.light.v2 .lvm-msp{background:#FFFFFF;border-color:#E2E8F0;box-shadow:0 12px 32px rgba(15,23,42,.14)}
+      body.rs-app.light.v2 .lvm-msrow{color:var(--ink);font-size:13px;font-weight:500}
+      body.rs-app.light.v2 .lvm-msrow:hover{background:#F8FAFC}
+      body.rs-app.light.v2 .lvm-msrow input{accent-color:var(--brand)}
+      body.rs-app.light.v2 .lvm-msops .op{font-size:12.5px;font-weight:600;color:#1D4ED8;text-transform:none;letter-spacing:0}
+      body.rs-app.light.v2 .lvm-mss{background:#FFFFFF;border-color:#CBD5E1;color:var(--ink);border-radius:8px;font-size:13px}`;
       document.head.appendChild(s);
     }
     // one global click-away closer for all multiselect panels
@@ -154,7 +169,11 @@ registerPage({
 
     /* ---------- helpers ---------- */
     const CHIP = { "Arrived same day": ["#e4f3ea", "#1c7a4a"], "Arrived 1–3 days off": ["#e7f0fb", "#1d4f91"], "Never arrived — customer exists from another lead": ["#fdf3d7", "#7a5a12"], "Matched (Angi file has no date)": ["#eef1f5", "#5a6775"], "Never arrived — customer unknown": ["#fbe6e7", "#b02a37"] };
-    const chip = s => { const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };
+    // v2: the same verdicts on the v2 status-pill palette (ok / info / warn / neutral / bad), radius 6
+    const CHIP_V2 = { "Arrived same day": ["#DCFCE7", "#166534"], "Arrived 1–3 days off": ["#EFF6FF", "#1D4ED8"], "Never arrived — customer exists from another lead": ["#FEF3C7", "#92400E"], "Matched (Angi file has no date)": ["#F1F5F9", "#475569"], "Never arrived — customer unknown": ["#FEE2E2", "#991B1B"] };
+    const chip = s => {
+      if (RS.isV2()) { const c = CHIP_V2[s] || CHIP_V2["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap">${esc(s)}</span>`; }
+      const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };
 
     /* ---------- page skeleton ---------- */
     const sameDay = rows.filter(r => r.status === "Arrived same day");
@@ -229,7 +248,7 @@ registerPage({
       document.getElementById("lvmTbl").innerHTML = `<table class="tab"><thead><tr>${HDR.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${
         slice.map(r => { const c = cellsOf(r); return `<tr>${c.map((v, i) => {
           if (i === 10) return `<td>${chip(r.status)}</td>`;
-          if (i === 15 && String(r.attr || "").startsWith("MISATTRIBUTED")) return `<td><span style="background:#fdf3d7;color:#7a5a12;padding:1px 6px;border-radius:4px;font-weight:700">${esc(r.mbSrc || "")}</span></td>`;
+          if (i === 15 && String(r.attr || "").startsWith("MISATTRIBUTED")) return RS.isV2() ? `<td><span style="background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:6px;font-weight:600">${esc(r.mbSrc || "")}</span></td>` : `<td><span style="background:#fdf3d7;color:#7a5a12;padding:1px 6px;border-radius:4px;font-weight:700">${esc(r.mbSrc || "")}</span></td>`;
           return `<td>${esc(v == null ? "" : String(v))}</td>`;
         }).join("")}</tr>`; }).join("")
       }</tbody></table>`;

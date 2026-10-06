@@ -63,7 +63,9 @@
       + "padding:11px 2px 0;font-size:12.5px;color:var(--muted)}"
       + ".wfu-foot .rs-btn{padding:5px 11px;font-size:12.5px}"
       + ".wfu-foot b{font-weight:800;color:var(--ink);min-width:62px;text-align:center;"
-      + "font-variant-numeric:tabular-nums}";
+      + "font-variant-numeric:tabular-nums}"
+      // DESIGN V2 "Calm finance" (2026-10-06), light only
+      + "body.rs-app.light.v2 .wfu-foot b{font-weight:600}";
     document.head.appendChild(st);
   }
 

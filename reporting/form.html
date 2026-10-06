@@ -17,6 +17,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Zip to Zip — Questionnaire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#f4f6f8;--panel:#ffffff;--panel-2:#eef1f4;--line:#e3e8ed;--line-2:#cfd7de;
         --ink:#16202c;--muted:#5b6b7c;--faint:#8a97a5;--brand:#7fa32b;--brand-ink:#ffffff;
@@ -105,6 +108,50 @@
   .sect-done{text-align:center;padding:60px 20px}
   .sect-done .big{font-size:44px}
   .sect-done b{display:block;font-size:20px;margin-top:12px}
+
+  /* DESIGN V2 ("Calm finance", 2026-10-06). This public form has no portal shell and no
+     theme button, so the v2 look is simply layered over the rules above: IBM Plex Sans,
+     slate ink, navy for selected / primary fills, the blue accent tint behind a chosen
+     answer, sentence-case labels, flat white cards, radius 8 controls. No lime. */
+  :root{--bg:#F6F7F9;--panel:#FFFFFF;--panel-2:#F1F5F9;--line:#E2E8F0;--line-2:#CBD5E1;
+        --ink:#0F172A;--muted:#475569;--faint:#64748B;--brand:#1E3A8A;--brand-ink:#FFFFFF;
+        --brand-glow:#EFF6FF;--pos:#15803D;--warn:#B45309;--neg:#B91C1C}
+  body{font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  .brand{font-weight:700}
+  .brand .dot{border-radius:3px}
+  .card{border-radius:10px}
+  .conf{border-left-color:#B45309;background:#FFFBEB;border-radius:0 8px 8px 0;color:#78350F}
+  .anon{border-left-color:#2563EB;border-radius:0 8px 8px 0;color:var(--muted);font-weight:500}
+  .meta{color:#1D4ED8;font-weight:600}
+  .go{border-radius:8px;font-weight:600}
+  .go:hover:not(:disabled){background:#1E40AF}
+  .btn{border-radius:8px;font-weight:600;color:var(--ink)}
+  .btn:hover{background:#F8FAFC}
+  .pb i{background:#2563EB}
+  .part .pn{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#1D4ED8}
+  .part b{font-weight:700}
+  .q{border-radius:10px}
+  .q .lab{font-weight:600}
+  .q .opt{font-size:12px;font-weight:500}
+  .saved{font-size:12px;font-weight:600}
+  .star.on{color:#2563EB}
+  .num{border-radius:8px;font-weight:600;color:var(--ink)}
+  .num:hover{border-color:#93C5FD}
+  .scalelab{font-size:12px}
+  .choice{border-radius:8px}
+  .choice.on{border-color:#93C5FD}
+  .choice input{accent-color:#1E3A8A}
+  .oth:focus{border-bottom-color:#2563EB}
+  select.sel,textarea.ta{border-radius:8px}
+  textarea.ta:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+  .ct{font-size:12px}
+  .navbar{border-radius:10px;border-color:var(--line);box-shadow:0 8px 24px rgba(15,23,42,.10)}
+  .err{font-weight:600}
+  .rrow:hover{background:#F8FAFC}
+  .rrow .tick{background:#DCFCE7;font-size:12px;font-weight:700}
+  .rrow.miss .tick{background:#FEE2E2}
+  .lang{border-radius:8px}
+  .lang button{font-weight:600}
 </style>
 </head>
 <body>

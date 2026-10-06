@@ -82,6 +82,19 @@
     .tec-fields .l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
       color:var(--muted);margin-bottom:5px}
     .tec-fields .h{font-size:11.5px;color:var(--faint);margin-top:4px;max-width:230px;line-height:1.45}
+    /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, a white verdict card with an
+       accent tint instead of a thick bar, nothing under 12px. Dark is untouched. */
+    body.rs-app.light.v2 .tec-eyebrow,body.rs-app.light.v2 .tec-vend .n,body.rs-app.light.v2 .tec-fields .l{
+      font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
+    body.rs-app.light.v2 .tec-note{font-size:13.5px}
+    body.rs-app.light.v2 .tec-verdict{background:#EFF6FF;border:1px solid #BFDBFE;border-left:1px solid #BFDBFE;border-radius:10px}
+    body.rs-app.light.v2 .tec-verdict b{font-weight:600;color:#1E3A8A}
+    body.rs-app.light.v2 .tec-verdict .sub{font-size:13.5px}
+    body.rs-app.light.v2 .tec-hist .b{background:#1E3A8A}
+    body.rs-app.light.v2 .tec-hlab{font-size:12px}
+    body.rs-app.light.v2 .tec-vend{border-radius:10px}
+    body.rs-app.light.v2 .tec-vend .v{font-weight:600}
+    body.rs-app.light.v2 .tec-vend .s,body.rs-app.light.v2 .tec-fields .h{font-size:12px}
     `;
     document.head.appendChild(st);
   }

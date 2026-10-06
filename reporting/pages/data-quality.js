@@ -234,7 +234,18 @@ async function renderChecks(host) {
         ".dq-body{display:none;padding:0 12px 14px}",
         ".dq-card.open .dq-body{display:block}",
         ".dq-empty{margin:0;padding:4px 4px 8px}",
-        ".dq-more{margin:9px 2px 2px}"
+        ".dq-more{margin:9px 2px 2px}",
+        // DESIGN V2: the v2 .panel rule (body.rs-app.light.v2 .panel) outranks the
+        // body.rs-app .dq-card padding reset above, so it is restated at v2 specificity --
+        // otherwise every card grows the panel's 16px padding around its full-bleed header.
+        "body.rs-app.light.v2 .dq-card{padding:0}",
+        "body.rs-app.light.v2 .dq-ch:hover{background:#F8FAFC}",
+        "body.rs-app.light.v2 .dq-card.clean{background:#F8FAFC;border-color:#CBD5E1}",
+        "body.rs-app.light.v2 .dq-card.clean .dq-ch:hover{background:transparent}",
+        "body.rs-app.light.v2 .dq-score b{font-size:26px;font-weight:600;letter-spacing:-.3px;color:var(--ink)}",
+        "body.rs-app.light.v2 .dq-score.clean b{color:var(--pos)}",
+        "body.rs-app.light.v2 .dq-score span{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:var(--muted)}",
+        "body.rs-app.light.v2 .dq-caret{font-size:12px;color:var(--faint)}"
       ].join("");
       document.head.appendChild(st);
     }

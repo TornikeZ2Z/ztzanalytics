@@ -307,6 +307,118 @@ registerPage({
       + ".cu-mleg{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--faint);margin-top:8px}"
       + ".cu-mleg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;"
       + "vertical-align:2px}"
+      /* DESIGN V2 ("Calm finance", 2026-10-06) -- light theme only, dark untouched. The job
+         kinds get the v2 categorical colours (long distance was AMBER, which in v2 means only
+         "watch"), labels are sentence case at 12px+, and the kit's buttons/segments/toggles
+         (rs.css has no v2 answer for them yet) are restyled inside .cu-wrap: navy for selected
+         and primary, neutral hover. cu-sel stays an accent TINT, not the navy fill: a view
+         toggle must not look like Accept (see the cu-sel note below). A "move date" option is a kind, not a warning, so its pill
+         is neutral; the run drawer is a white card; map tooltips are the dark v2 tooltip. */
+      + "body.rs-app.light.v2 .cu-wrap{--job-local:#2563EB;--job-long:#1E3A8A;--job-straight:#7C3AED;--job-labor:#64748B;--empty:#94A3B8}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-seg{background:#FFFFFF;border-color:#E2E8F0;border-radius:999px}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-seg button{border-radius:999px;font-weight:600;color:#475569}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-seg button:hover:not(.on){background:#F8FAFC;color:#0F172A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-tog{border-color:#E2E8F0;border-radius:999px;font-weight:600;color:#0F172A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-tog:hover{border-color:#CBD5E1;background:#F8FAFC}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-tog.on{border-color:#93C5FD;background:#EFF6FF;color:#1E3A8A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-tog.on i{background:#1E3A8A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn,body.rs-app.light.v2 .cu-mask .rs-btn{border-radius:8px;font-weight:600;color:#0F172A;border-color:#CBD5E1}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn:hover:not(:disabled),body.rs-app.light.v2 .cu-mask .rs-btn:hover:not(:disabled){background:#F8FAFC;border-color:#CBD5E1;color:#0F172A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn.pri,body.rs-app.light.v2 .cu-mask .rs-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn.pri:hover:not(:disabled),body.rs-app.light.v2 .cu-mask .rs-btn.pri:hover:not(:disabled){background:#1E40AF;border-color:#1E40AF;color:#FFFFFF;filter:none}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn.cu-sel,body.rs-app.light.v2 .cu-wrap .rs-btn.cu-sel:hover:not(:disabled){background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}"
+      + "body.rs-app.light.v2 .cu-wrap .rs-btn.cu-danger:hover:not(:disabled){background:#FEF2F2;border-color:#FCA5A5;color:#991B1B}"
+      + "body.rs-app.light.v2 .cu-wrap :focus-visible{outline-color:#2563EB}"
+      + "body.rs-app.light.v2 .cu-day{border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .cu-day:hover{border-color:#CBD5E1}"
+      + "body.rs-app.light.v2 .cu-day.on{border-color:#1E3A8A;box-shadow:0 0 0 1px #1E3A8A}"
+      + "body.rs-app.light.v2 .cu-day.today{background:#FFFFFF}"
+      + "body.rs-app.light.v2 .cu-day .dow{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-day.today .dow{color:#1E3A8A}"
+      + "body.rs-app.light.v2 .cu-day .dat{font-size:15px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-day .bar{background:#F1F5F9}"
+      + "body.rs-app.light.v2 .cu-day .fig{font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-day .fig b{font-weight:600}"
+      + "body.rs-app.light.v2 .cu-day .fig.neg,body.rs-app.light.v2 .cu-day .fig.warn{font-weight:600}"
+      + "body.rs-app.light.v2 .rs-hint.cu-verdict{font-size:14.5px}"
+      + "body.rs-app.light.v2 .cu-otitle{font-size:14px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-otitle .rs-pill.warn{background:#F1F5F9;color:#475569}"
+      + "body.rs-app.light.v2 .cu-owhy{font-size:13px;color:#475569}"
+      + "body.rs-app.light.v2 .cu-opt{border-top-color:#F1F5F9}"
+      + "body.rs-app.light.v2 .cu-ghd{border-bottom-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-ghd b{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+      + "body.rs-app.light.v2 .cu-ghd span{font-size:12.5px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-fmwarn{background:#FFFBEB;border-color:#FDE68A;color:#78350F;font-size:12.5px}"
+      + "body.rs-app.light.v2 .cu-fmwarn b{color:#92400E}"
+      + "body.rs-app.light.v2 .cu-msg{font-weight:600}"
+      + "body.rs-app.light.v2 .cu-led{background:#F8FAFC;border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .cu-led.flat{background:transparent}"
+      + "body.rs-app.light.v2 .cu-ledhd b{font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-ledhd span,body.rs-app.light.v2 .cu-lwarn,body.rs-app.light.v2 .cu-lnote{font-size:12.5px}"
+      + "body.rs-app.light.v2 .cu-lrow{font-size:13px;border-top-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-lrow b{font-weight:600}"
+      + "body.rs-app.light.v2 .cu-lrow i,body.rs-app.light.v2 .cu-lrow em,body.rs-app.light.v2 .cu-lrow u{font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-lrow.late u{color:#B91C1C;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-lwarn,body.rs-app.light.v2 .cu-lnote{border-top-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-tlax{border-bottom-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-tlax span{font-size:12px;color:#475569}"
+      + "body.rs-app.light.v2 .cu-bhd{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;border-bottom-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-bhd:hover{color:#0F172A}"
+      + "body.rs-app.light.v2 .cu-bhd em{font-size:12px;font-weight:500;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-row{border-radius:8px}"
+      + "body.rs-app.light.v2 .cu-row:hover{background:#F8FAFC}"
+      + "body.rs-app.light.v2 .cu-row.on{background:#F8FAFC;border-left-color:#1E3A8A}"
+      + "body.rs-app.light.v2 .cu-rlab{font-size:12.5px}"
+      + "body.rs-app.light.v2 .cu-rlab b{font-size:12.5px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-rlab b .ch{font-size:12px;color:#2563EB}"
+      + "body.rs-app.light.v2 .cu-rlab span{font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-rlab em{font-size:12px;color:#64748B;opacity:1}"
+      + "body.rs-app.light.v2 .cu-track{border-left-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-bar{border-radius:5px;font-size:12px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-gap.over{background:#B91C1C}"
+      + "body.rs-app.light.v2 .cu-mchip{font-size:12px;font-weight:600;border-radius:6px;border-color:#CBD5E1;box-shadow:0 1px 3px rgba(15,23,42,.15)}"
+      + "body.rs-app.light.v2 .cu-mchip.pick{border-color:#2563EB}"
+      + "body.rs-app.light.v2 .cu-mchip.drop{border-color:#0F766E}"
+      + "body.rs-app.light.v2 .cu-mchip.base{background:#1E3A8A;color:#FFFFFF;border-color:#1E3A8A}"
+      + "body.rs-app.light.v2 .leaflet-tooltip.cu-mtip{background:#0F172A;color:#FFFFFF;border:0;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.2);font-size:12px}"
+      + "body.rs-app.light.v2 .leaflet-tooltip.cu-mtip b{font-size:12.5px;font-weight:600}"
+      + "body.rs-app.light.v2 .leaflet-tooltip.cu-mtip span{color:#CBD5E1}"
+      + "body.rs-app.light.v2 .leaflet-tooltip.cu-mtip:before{border-top-color:#0F172A}"
+      + "body.rs-app.light.v2 .cu-drw{background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .cu-dhd{background:#FFFFFF;border-bottom-color:#E2E8F0;border-radius:10px 10px 0 0}"
+      + "body.rs-app.light.v2 .cu-dhd b{font-size:15px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-dhd span{font-size:12.5px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-x{color:#64748B}"
+      + "body.rs-app.light.v2 .cu-vit{border-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-vit b{font-size:13.5px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-vit span{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-vit .bad b{color:#B91C1C}"
+      + "body.rs-app.light.v2 .cu-who{font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .cu-who em{font-family:inherit;font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-step{border-left-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-step>div{font-size:12.5px}"
+      + "body.rs-app.light.v2 .cu-step>div::before{box-shadow:0 0 0 2px #FFFFFF}"
+      + "body.rs-app.light.v2 .cu-step>div.home::before{background:#0F172A}"
+      + "body.rs-app.light.v2 .cu-step>div.wait::before{background:#B45309}"
+      + "body.rs-app.light.v2 .cu-step i{font-size:12px;font-weight:600;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-step .wait span{font-weight:600}"
+      + "body.rs-app.light.v2 .cu-warn{font-size:12.5px;background:#FFFBEB;border-left-color:#B45309;color:#78350F}"
+      + "body.rs-app.light.v2 .cu-dfoot,body.rs-app.light.v2 .cu-dnote{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-map{border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .cu-mleg{font-size:12.5px;color:#475569}"
+      + "body.rs-app.light.v2 .cu-mask{background:rgba(15,23,42,.38)}"
+      + "body.rs-app.light.v2 .cu-modal{border-color:#E2E8F0;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16)}"
+      + "body.rs-app.light.v2 .cu-mhd{font-size:15px;font-weight:600;border-bottom-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-mft{border-top-color:#E2E8F0}"
+      + "body.rs-app.light.v2 .cu-mrow{font-size:13.5px;border-bottom-color:#F1F5F9}"
+      + "body.rs-app.light.v2 .cu-mrow div{font-size:13px;color:#475569}"
+      + "body.rs-app.light.v2 .cu-mday{font-size:12px;color:#64748B}"
+      + "body.rs-app.light.v2 .cu-mnote{font-size:13px;color:#475569}"
+      + "body.rs-app.light.v2 .cu-merr{background:#FEF2F2;border-color:#FECACA;color:#991B1B;border-radius:8px;font-size:13px}"
+      + "body.rs-app.light.v2 .cu-merr.warn{background:#FFFBEB;border-color:#FDE68A;color:#92400E}"
+      + "body.rs-app.light.v2 .cu-mstrict{font-size:12px;font-weight:600;color:#92400E;background:#FEF3C7;border-color:#FDE68A;border-radius:6px}"
       + "</style><div class='cu-wrap'><div id='cuBody'><div class='cu-empty'>Loading the horizon…</div></div></div>";
 
     var gen = (window.__CUGEN = (window.__CUGEN || 0) + 1);
@@ -676,9 +788,11 @@ registerPage({
         + (S.mapOn
            ? "<div class='cu-dmap'><div class='cu-map' id='cuMap'></div>"
              + "<div class='cu-mleg'>"
-             + "<span><i style='background:var(--blue)'></i>out to first pickup</span>"
+             + "<span><i style='background:" + (RS.isV2() ? RS.V2.accentL : "var(--blue)")
+             + "'></i>out to first pickup</span>"
              + "<span><i style='background:var(--job-local)'></i>loaded — job 1</span>"
-             + "<span><i style='background:var(--pos)'></i>loaded — job 2</span>"
+             + "<span><i style='background:" + (RS.isV2() ? RS.V2.cat[3] : "var(--pos)")
+             + "'></i>loaded — job 2</span>"
              + "<span><i style='background:var(--job-straight)'></i>between jobs</span>"
              + "<span><i style='background:var(--empty)'></i>run home</span>"
              + "<span><i style='background:var(--job-long)'></i>long distance</span>"
@@ -716,8 +830,11 @@ registerPage({
 
     // read the live token so a polyline, its legend swatch and the bar it belongs to can
     // never drift apart, and so both themes are handled in one place
+    // (read off .cu-wrap, not body: design v2 sets the job tokens on the board's wrapper,
+    // which inherits body's in every other look, so nothing changes outside v2)
     function tok(name) {
-      return getComputedStyle(document.body).getPropertyValue(name).trim() || "#888";
+      var el = document.querySelector(".cu-wrap") || document.body;
+      return getComputedStyle(el).getPropertyValue(name).trim() || "#888";
     }
 
     function drawMap(jobs) {
@@ -844,9 +961,13 @@ registerPage({
           // smudge, so long runs are drawn in full but do not get a vote on the bounds --
           // click their bar to follow one out.
           // one colour per kind of driving, one per job for the loaded legs
-          var KIND = { out: tok("--blue"), between: tok("--job-straight"),
+          // v2: green/amber/red are status colours, never "job 2" -- use the categorical set
+          var V2C = RS.isV2() ? RS.V2 : null;
+          var KIND = { out: V2C ? V2C.accentL : tok("--blue"), between: tok("--job-straight"),
                        home: tok("--empty"), far: tok("--job-long") };
-          var JOBCOL = [tok("--job-local"), tok("--pos"), tok("--warn"),
+          var JOBCOL = V2C
+            ? [tok("--job-local"), V2C.cat[3], V2C.cat[7], tok("--job-straight"), V2C.cat[2]]
+            : [tok("--job-local"), tok("--pos"), tok("--warn"),
                         tok("--job-straight"), tok("--neg")];
           var add = function (l) { box._lay.push(l.addTo(m)); return l; };
           var bearing = function (a, b) {

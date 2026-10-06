@@ -170,7 +170,11 @@ registerPage({
       + ".sm-sheet .dn{color:#C0392B;font-style:normal;font-weight:750}"
       + ".sm-sheet .fl{color:#7A7E88;font-style:normal;font-weight:700}"
       + ".sm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"
-      + "padding-top:8px;margin-top:4px}";
+      + "padding-top:8px;margin-top:4px}"
+      /* design v2: the sheet opens inside the v2 app, so its olive bar and "up" green become
+         navy and the v2 good-green -- chosen at render time, the dark look keeps the old ink */
+      + (RS.isV2() ? ".sm-sheet .bar>i{background:#1E3A8A}.sm-sheet .up{color:#15803D}"
+                     + ".sm-sheet .dn{color:#B91C1C}" : "");
 
     /* State survives leaving and re-entering the page, the way the assessment board does —
      * nothing from the warehouse is kept here, only what the reader chose. */
@@ -306,6 +310,51 @@ registerPage({
       + "@media(max-width:1180px){.sm-head{grid-template-columns:44px minmax(0,1fr) auto}"
       + ".sm-head .sm-scwrap{display:none}}"
       + "@media(max-width:820px){.sm-rep{display:none}.sm-stats{margin-left:0;margin-top:12px}}"
+      /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2.
+         The six topic hues become RS.V2.cat in order -- in v2 --brand and --blue are the SAME
+         blue and amber means a warning, so the old set could not tell topics apart. */
+      + "body.rs-app.light.v2 .sm-wrap{--sm-c1:#1E3A8A;--sm-c2:#2563EB;--sm-c3:#60A5FA;--sm-c4:#0F766E;--sm-c5:#7C3AED;--sm-c6:#94A3B8}"
+      + "body.rs-app.light.v2 .sm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
+      + "body.rs-app.light.v2 .sm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
+      + "body.rs-app.light.v2 .sm-mopt{font-weight:500;border-radius:8px}"
+      + "body.rs-app.light.v2 .sm-mopt.cur{background:var(--blue-bg);color:var(--brand-d);font-weight:600}"
+      + "body.rs-app.light.v2 .sm-mopt .tag{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
+      + "body.rs-app.light.v2 .sm-sub{font-size:14px;line-height:1.55}"
+      + "body.rs-app.light.v2 .sm-st span{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      + "body.rs-app.light.v2 .sm-st b{font-size:24px;font-weight:600;letter-spacing:-.3px}"
+      + "body.rs-app.light.v2 .sm-st small{font-size:12.5px}"
+      + "body.rs-app.light.v2 .sm-lg{font-size:12.5px;font-weight:500;color:var(--muted)}"
+      + "body.rs-app.light.v2 .sm-lg b{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-card{border-radius:10px}"
+      + "body.rs-app.light.v2 .sm-card.on{box-shadow:none}"
+      + "body.rs-app.light.v2 .sm-rk{border-radius:8px;font-weight:600}"
+      + "body.rs-app.light.v2 .sm-rk.top{background:#1E3A8A;color:#FFFFFF}"
+      + "body.rs-app.light.v2 .sm-nm{font-size:17px;font-weight:600;letter-spacing:-.2px}"
+      + "body.rs-app.light.v2 .sm-gone{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F1F5F9;border:0;border-radius:6px;padding:2px 8px}"
+      + "body.rs-app.light.v2 .sm-si{font-size:13px}"
+      + "body.rs-app.light.v2 .sm-si .oor{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-pv{font-size:12px;font-weight:500;border-radius:6px;background:#F1F5F9;font-variant-numeric:tabular-nums}"
+      + "body.rs-app.light.v2 .sm-pv i{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-barcap{font-size:12px;font-weight:500}"
+      + "body.rs-app.light.v2 .sm-tot b{font-size:26px;font-weight:600;letter-spacing:-.4px}"
+      + "body.rs-app.light.v2 .sm-tot i{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
+      + "body.rs-app.light.v2 .sm-vd{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;border-radius:6px;border:0}"
+      + "body.rs-app.light.v2 .sm-rep{border-radius:8px;border-color:var(--line-2);color:var(--ink);font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .sm-rep:hover{border-color:var(--line-2);background:var(--panel-2);color:var(--ink)}"
+      + "body.rs-app.light.v2 .sm-sec{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      + "body.rs-app.light.v2 .sm-tile{border-radius:10px;background:#FFFFFF}"
+      + "body.rs-app.light.v2 .sm-tl .l{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-tl .v{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-tl .v small{font-size:12px;font-weight:500}"
+      + "body.rs-app.light.v2 .sm-tr{font-size:12.5px}"
+      + "body.rs-app.light.v2 .sm-tw{font-size:12px}"
+      + "body.rs-app.light.v2 .sm-tw b{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-empty{border-radius:10px}"
+      + "body.rs-app.light.v2 .sm-note{font-size:12.5px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .sm-rdim{background:var(--scrim)}"
+      + "body.rs-app.light.v2 .sm-rbtn{border-radius:8px;font-weight:600}"
+      + "body.rs-app.light.v2 .sm-msbar .lbl{font-weight:600}"
+      + "body.rs-app.light.v2 .sm-msbar select{border-radius:8px}"
       + SHEET_CSS
       + "</style><div class='sm-wrap' id='smWrap'><div class='sm-empty'>Reading the record…</div></div>";
 

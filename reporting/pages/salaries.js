@@ -134,6 +134,15 @@ registerPage({
         ".sal-fold[open]>summary{margin-bottom:8px}",
         ".sal-fold[open]>summary .sal-more{display:none}",
         ".sal .panel{margin-bottom:14px}",
+        // DESIGN V2 ("Calm finance", 2026-10-06): green means only "good", so pay totals read in ink;
+        // white hairline cards; nothing under 12px. Dark is untouched.
+        "body.rs-app.light.v2 .sal .rs-kpis .kpi.pos .v{color:var(--ink)}",
+        "body.rs-app.light.v2 .sal-tie,body.rs-app.light.v2 .sal-fold>summary{background:#FFFFFF;border-radius:10px;font-size:13.5px}",
+        "body.rs-app.light.v2 .sal-nm{font-weight:600}",
+        "body.rs-app.light.v2 .sal-pills .rs-pill{font-size:12px}",
+        "body.rs-app.light.v2 .sal-sm{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .sal-th small{font-size:12px;font-weight:500}",
+        "body.rs-app.light.v2 .sal a.sal-link,body.rs-app.light.v2 .sal-fold>summary .sal-more{color:#1D4ED8;font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -594,7 +603,9 @@ registerPage({
       try {
         const data = boMonthly();
         const light = document.body.classList.contains("light");
-        const CTX = light ? "#c6d0db" : "#3a4658";
+        const CTX = RS.isV2() ? RS.V2.ctx : light ? "#c6d0db" : "#3a4658";
+        // v2: his cut is the series in focus (navy), the rate line the accent -- no lime/green as a category
+        const CUT = RS.isV2() ? RS.V2.navy : "#84cc16", RATE = RS.isV2() ? RS.V2.accent : "#2f6fd0";
         const pctCh = d => d.ly.cut ? (d.cut - d.ly.cut) / d.ly.cut : null;
         RSC.chartCard(mount, {
           title: "His cut, month by month — 12 months to " + mLabel(S.to || last),
@@ -603,10 +614,10 @@ registerPage({
             const ch = new Chart(canvas, {
               type: "bar",
               data: { labels: data.map(d => mLabel(d.mk)), datasets: [
-                { label: "His cut", data: data.map(d => d.cut), backgroundColor: "#84cc16", yAxisID: "y", order: 2 },
+                { label: "His cut", data: data.map(d => d.cut), backgroundColor: CUT, yAxisID: "y", order: 2 },
                 { label: "Same month last year", data: data.map(d => d.ly.cut), backgroundColor: CTX, yAxisID: "y", order: 3 },
                 { type: "line", label: "Cut % of revenue", data: data.map(d => d.rev ? +(100 * d.cut / d.rev).toFixed(2) : null),
-                  borderColor: "#2f6fd0", backgroundColor: "#2f6fd0", yAxisID: "y1", tension: .3, order: 1, spanGaps: true },
+                  borderColor: RATE, backgroundColor: RATE, yAxisID: "y1", tension: RS.isV2() ? .2 : .3, order: 1, spanGaps: true },
               ] },
               options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
                 plugins: { legend: { position: "bottom" },

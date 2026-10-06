@@ -36,7 +36,7 @@ registerPage({
     });
 
     // ---- 2-line legend in business words (shown on both tabs, above the table) ----
-    const legend = `<div style="color:var(--muted);font-size:11px;line-height:1.6;padding:2px 2px 10px">
+    const legend = `<div style="color:var(--muted);font-size:${RS.isV2() ? 12 : 11}px;line-height:1.6;padding:2px 2px 10px">
       Translator = our rename table mapping raw entries to standard names.<br>
       Post-Card split = postcard leads are split into one campaign per state · Google Local = matched by the phone number the customer called · Returned / Recommended jobs keep that as their source.</div>`;
 
@@ -68,7 +68,7 @@ registerPage({
           `<td>${nf(o.n)}</td><td>${(100 * o.n / total).toFixed(1)}%</td></tr>`;
       }).join("");
       const note = list.length > 400
-        ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 400 of ${nf(list.length)} distinct paths</div>` : "";
+        ? `<div style="color:var(--muted);font-size:${RS.isV2() ? 12 : 11}px;padding:6px 2px">showing 400 of ${nf(list.length)} distinct paths</div>` : "";
       return `<div class="tabwrap"><table class="tab si-tab"><thead>${head}</thead><tbody>${bodyRows}</tbody></table></div>${note}`;
     };
 
@@ -97,7 +97,7 @@ registerPage({
           { n: nf(raw(isPC)), l: "Post-Card split", s: "by state" },
         ]) + legend +
         `<div class="panel"><div class="panel-head"><span class="panel-title">Moveboard source — how it was decided</span>
-           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:11px">${nf(rows.length)} leads · raw → adjusted → connector</span></div>` +
+           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:${RS.isV2() ? 12 : 11}px">${nf(rows.length)} leads · raw → adjusted → connector</span></div>` +
         lineage(rows, ["Source Before Adjustment", "Source", "Source Connector"], how,
           ["Raw source", "After translate", "Source Connector (final)"]) + `</div>`;
     }
@@ -133,7 +133,7 @@ registerPage({
           { n: nf(new Set(rows.map(r => val(r["Source"]))).size), l: "Final sources", s: "after translate" },
         ]) + legend +
         `<div class="panel"><div class="panel-head"><span class="panel-title">Closing Sheet source — how it was decided</span>
-           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:11px">${nf(rows.length)} jobs · Booked From + lead → corrected → final</span></div>` +
+           <span class="pm" style="margin-left:auto;color:var(--faint);font-size:${RS.isV2() ? 12 : 11}px">${nf(rows.length)} jobs · Booked From + lead → corrected → final</span></div>` +
         lineage(rows, ["Booked From", "Source From Moveboard", "Corrected Source", "Source"], how,
           ["Booked From (raw)", "Source From Moveboard", "Corrected Source", "Final Source"]) + `</div>`;
     }

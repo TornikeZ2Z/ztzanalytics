@@ -464,8 +464,16 @@ async function renderMonthly(host, MRCFG) {
     }
 
     /* ---------- palette ---------- */
-    const INK = "#0e1621", INK2 = "#1b2a3f", SUB = "#5a6775", FAINT = "#93a0b2", LINE = "#e4e9f0";
-    const LIME = "#b7e23b", LIMED = "#7ba317";
+    /* DESIGN V2 ("Calm finance", 2026-10-06). Every constant below picks its hex at RENDER time:
+       the classic value, or -- when RS.isV2() -- the v2 one (no lime: LIME becomes the blue accent,
+       LIMED the navy; mono numbers become IBM Plex Sans). The theme button re-renders the page, so
+       it switches every JS-painted colour. The injected .mrx sheet is ALWAYS built from the classic
+       values (see MR_CLASSIC at the design-system block) and v2 rides on top as a body.v2 layer,
+       so dark stays pixel-identical. */
+    const MRV2 = RS.isV2(), PV = RS.V2;
+    const V = (classic, v2) => MRV2 ? v2 : classic;
+    const INK = V("#0e1621", PV.ink), INK2 = V("#1b2a3f", PV.ink2), SUB = V("#5a6775", PV.muted), FAINT = V("#93a0b2", PV.faint), LINE = V("#e4e9f0", PV.line);
+    const LIME = V("#b7e23b", PV.accent), LIMED = V("#7ba317", PV.navy);
     /* ---------- palette (Tornike 2026-07-15: "identify 4 core colors, negative and positive colors
        which goes well with our brand main color and use those") ----------
        FOUR CORE, and nothing else, for categorical data. Ordered DARK -> BRIGHT (Ink, Blue, Violet, Lime)
@@ -474,17 +482,18 @@ async function renderMonthly(host, MRCFG) {
        RETIRED as data colours: AMBER, TEAL, CORAL, PINK, SKY (Tailwind defaults that harmonised with
        nothing). CORAL/PINK/SKY were already dead — declared, never drawn. AMBER moved to the warning
        tier where it was really earning its keep; TEAL's storage series moved onto VIOLET. */
-    const BLUE = "#2f6fd0", VIOLET = "#8b5cf6";
+    const BLUE = V("#2f6fd0", PV.cat[1]), VIOLET = V("#8b5cf6", PV.cat[2]);
     // Donut slices 5-8 are TINTS of the same four, never new hues: donut() cycles CAT[i % CAT.length]
     // over up to 7 slices (+ "All others"), and click-to-expand shows every slice — so a 4-long CAT
     // would silently give two different slices the same colour.
-    const INK_L = "#4a6285", BLUE_L = "#84aef0", VIOLET_L = "#c4aef9";
-    const CAT = [INK, BLUE, VIOLET, LIME, INK_L, BLUE_L, VIOLET_L, LIMED];
+    const INK_L = V("#4a6285", PV.cat[4]), BLUE_L = V("#84aef0", PV.cat[6]), VIOLET_L = V("#c4aef9", PV.cat[5]);
+    // v2: the kit's categorical order, dark -> bright (RS.V2.cat); LIME as a category is its teal slot
+    const CAT = MRV2 ? PV.cat.slice() : [INK, BLUE, VIOLET, LIME, INK_L, BLUE_L, VIOLET_L, LIMED];
     /* Semantic — good / caution / bad. NEVER a category, and never the only cue: always paired with an
        arrow, word or score so the meaning survives without colour. WARN_A is the brighter amber used
        ONLY for warning-banner chrome (border + icon on its cream background), never for data. */
-    const POS = "#1c7a4a", WARN = "#7a5a12", NEG = "#b02a37", WARN_A = "#f5a524";
-    const CTX = "#c6d0db";   // "last year" / prior-month context — deliberately quiet
+    const POS = V("#1c7a4a", PV.pos), WARN = V("#7a5a12", "#92400E"), NEG = V("#b02a37", PV.neg), WARN_A = V("#f5a524", PV.warn);
+    const CTX = V("#c6d0db", PV.ctx);   // "last year" / prior-month context — deliberately quiet
     /* ---------- blessed chrome tiers (colour pass 2026-07-15) ----------
        These hexes were already painted all over the file — now they have names.
        OTHER = the "All others" aggregate (a DATA colour, but semantically a non-category;
@@ -492,17 +501,20 @@ async function renderMonthly(host, MRCFG) {
        DK_* = text/borders on INK surfaces (cover, exec panel, every chart tooltip).
        *_T* = semantic tint ramps for cell washes & delta chips. PAGE_BG must stay ONE
        token: the html2canvas PDF background and the .mrx CSS must never drift apart. */
-    const OTHER = "#aeb9c8", OTHER_H = "#98a5b6";
-    const INK_H = "#34465f", CTX_H = "#aab6c4", NEG_H = "#f0817e";
-    const DK_TXT = "#a9b6c6", DK_LINE = "#2c3e57", DK_LINE_H = "#46607f", DK_BODY = "#e8edf3";
-    const POS_T1 = "#e0f0e6", POS_T2 = "#bfe3ca";
-    const NEG_T1 = "#fbe6e7", NEG_T2 = "#f5cccc", NEG_T3 = "#efa3a3", NEG_BD = "#e5b6ba", NEG_TXT = "#7a1f28";
-    const WARN_BG = "#fff8ec", WARN_BD = "#f2d492";
-    const BLUE_BG = "#e7ecfb", LIME_BG = "#dcecab";
-    const PAGE_BG = "#f4f6fa", NOTE_BG = "#f6f8fb";
-    const AXIS = "#7b869a", GRID = "#eef1f6";
-    const MONO = "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace";
-    const HEAT = ["#eef2ee", "#dce7c4", "#c3dc8e", "#a6d22a", "#7ba317"];
+    const OTHER = V("#aeb9c8", PV.other), OTHER_H = V("#98a5b6", PV.faint);
+    const INK_H = V("#34465f", PV.ink2), CTX_H = V("#aab6c4", PV.other), NEG_H = V("#f0817e", "#F87171");
+    const DK_TXT = V("#a9b6c6", "#CBD5E1"), DK_LINE = V("#2c3e57", PV.ink), DK_LINE_H = V("#46607f", PV.muted), DK_BODY = V("#e8edf3", PV.line);
+    const POS_T1 = V("#e0f0e6", PV.posBg), POS_T2 = V("#bfe3ca", "#BBF7D0");
+    const NEG_T1 = V("#fbe6e7", PV.negBg), NEG_T2 = V("#f5cccc", "#FECACA"), NEG_T3 = V("#efa3a3", "#FCA5A5"), NEG_BD = V("#e5b6ba", "#FECACA"), NEG_TXT = V("#7a1f28", "#991B1B");
+    const WARN_BG = V("#fff8ec", "#FFFBEB"), WARN_BD = V("#f2d492", PV.warnBd);
+    const BLUE_BG = V("#e7ecfb", PV.accentBg), LIME_BG = V("#dcecab", "#DBEAFE");
+    // PAGE_BG feeds BOTH the .mrx background and the html2canvas PDF background -- one token, so
+    // in v2 the PDF is drawn on the same #F6F7F9 the page shows
+    const PAGE_BG = V("#f4f6fa", PV.bg), NOTE_BG = V("#f6f8fb", PV.panel2);
+    const AXIS = V("#7b869a", PV.muted), GRID = V("#eef1f6", PV.line);
+    const MONO = V("ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace", PV.font);
+    const SANS = V("Inter", PV.font);   // chart title / label face
+    const HEAT = MRV2 ? PV.heat.slice() : ["#eef2ee", "#dce7c4", "#c3dc8e", "#a6d22a", "#7ba317"];
     const seqBg = (v, min, max) => { if (v == null || max <= min) return "transparent"; const t = Math.max(0, Math.min(1, (v - min) / (max - min))); return HEAT[Math.max(0, Math.min(HEAT.length - 1, Math.floor(t * HEAT.length - 1e-9)))]; };
     const seqInk = (v, min, max) => { const t = max <= min ? 0 : (v - min) / (max - min); return t > 0.82 ? "#fff" : INK; };
     const divBg = t => { if (t == null) return "transparent"; const c = Math.max(-1, Math.min(1, t)); if (Math.abs(c) < 0.12) return "transparent"; return c >= 0 ? (c > .55 ? POS_T2 : POS_T1) : (c < -.55 ? NEG_T2 : NEG_T1); };
@@ -552,6 +564,16 @@ async function renderMonthly(host, MRCFG) {
 
     /* ---------- design system ---------- */
     if (!document.getElementById("mrx-css")) {
+      // The base sheet is injected ONCE and must stay the classic look whatever theme this first
+      // render runs in (dark must not inherit v2 hexes). These block-scoped names shadow the
+      // render-time palette above with the classic values; v2 is the body.v2 layer below.
+      const { INK, INK2, SUB, FAINT, LINE, LIME, LIMED, WARN, NEG, WARN_A, CTX, DK_TXT, DK_LINE, DK_LINE_H, DK_BODY,
+        NEG_T1, NEG_BD, NEG_TXT, WARN_BG, WARN_BD, BLUE_BG, PAGE_BG, NOTE_BG, GRID, MONO } = {
+        INK: "#0e1621", INK2: "#1b2a3f", SUB: "#5a6775", FAINT: "#93a0b2", LINE: "#e4e9f0", LIME: "#b7e23b", LIMED: "#7ba317",
+        WARN: "#7a5a12", NEG: "#b02a37", WARN_A: "#f5a524", CTX: "#c6d0db", DK_TXT: "#a9b6c6", DK_LINE: "#2c3e57",
+        DK_LINE_H: "#46607f", DK_BODY: "#e8edf3", NEG_T1: "#fbe6e7", NEG_BD: "#e5b6ba", NEG_TXT: "#7a1f28",
+        WARN_BG: "#fff8ec", WARN_BD: "#f2d492", BLUE_BG: "#e7ecfb", PAGE_BG: "#f4f6fa", NOTE_BG: "#f6f8fb", GRID: "#eef1f6",
+        MONO: "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace" };
       const s = document.createElement("style"); s.id = "mrx-css";
       s.textContent = `
       .mrx{background:${PAGE_BG};color:${INK};border-radius:16px;padding:24px 24px 46px;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
@@ -746,11 +768,130 @@ async function renderMonthly(host, MRCFG) {
       }`;
       document.head.appendChild(s);
     }
+    /* DESIGN V2 layer ("Calm finance", 2026-10-06) -- body.rs-app.light.v2 only, so dark keeps the
+       classic sheet untouched. The dark cover band becomes a white header (Main.dc.html), the lime
+       part bands become white cards with a navy part number, the mono face goes, labels are
+       sentence case, the delta chips are the one delta format (painted by chip()). */
+    if (!document.getElementById("mrx-css-v2")) {
+      const s2 = document.createElement("style"); s2.id = "mrx-css-v2";
+      const B = "body.rs-app.light.v2 ";
+      s2.textContent = [
+        `.mrx{background:#F6F7F9;color:#0F172A;font-family:${RS.V2.font};box-shadow:none;border-radius:10px;padding:8px 4px 40px}`,
+        `.mrx-info{border-color:#CBD5E1;color:#64748B}`,
+        `.mrx-info:hover{border-color:#1E3A8A;color:#1E3A8A}`,
+        `.mrx-info.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}`,
+        `.mrx-loaderr{border:1px solid #FECACA;border-radius:10px}`,
+        `.mrx-cover{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-radius:10px;padding:20px 22px}`,
+        `.mrx-cover .mrx-accent{display:none}`,
+        `.mrx-eyebrow{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
+        `.mrx-h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:#0F172A;margin:4px 0 6px}`,
+        `.mrx-cvsub{color:#64748B;font-size:13px;font-weight:400}`,
+        `.mrx-cvactions{top:18px;right:20px}`,
+        `.mrx-print{background:#1E3A8A;color:#FFFFFF;border-radius:8px;font-weight:600;padding:9px 16px}`,
+        `.mrx-print:hover{background:#1E40AF}`,
+        `.mrx-print2{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600}`,
+        `.mrx-print2:hover{color:#0F172A;border-color:#94A3B8;background:#F8FAFC}`,
+        `.mrx-cvpick .rs-slicer-btn .val{color:#0F172A}`,
+        `.mrx-cvpick .rs-slicer-btn .chev{color:#64748B}`,
+        `.mrx-lite-h{border-left:1px solid #E2E8F0;border-radius:10px;box-shadow:none}`,
+        `.mrx-lite-tt{font-weight:700}`,
+        `.mrx-lite-tt b{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
+        `.mrx-lite-ctl{font-weight:500;color:#475569}`,
+        `.mrx-banner{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;color:#78350F;font-weight:400;font-size:13.5px}`,
+        `.mrx-banner b{font-family:inherit;color:#92400E;font-weight:600}`,
+        `.mrx-banner .bic svg{stroke:#B45309}`,
+        `.mrx-btoggle{font-family:inherit;font-size:13px;font-weight:600;color:#92400E;border-bottom-color:#B45309}`,
+        `.mrx-bdetail{border-color:#FDE68A;border-radius:10px}`,
+        `.mrx-toc{box-shadow:0 1px 0 #E2E8F0;border-bottom-color:#E2E8F0}`,
+        `.mrx-tocrow.sub{border-top-color:#F1F5F9;background:#FFFFFF}`,
+        `.mrx-tocmain{font-weight:600;color:#0F172A;border-color:#E2E8F0;border-radius:999px;padding:7px 15px}`,
+        `.mrx-tocmain i{font-family:inherit;font-weight:500;color:#64748B}`,
+        `.mrx-tocmain:hover{border-color:#94A3B8;background:#F8FAFC}`,
+        `.mrx-tocmain.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}`,
+        `.mrx-tocmain.on i{color:#BFDBFE}`,
+        `.mrx-tocsublbl{font-family:inherit;font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
+        `.mrx-tocchip{font-family:inherit;font-size:13px;font-weight:500;color:#334155;border-radius:999px}`,
+        `.mrx-tocn{font-style:normal;font-weight:500;color:#64748B}`,
+        `.mrx-tocchip:hover{background:#F1F5F9;color:#0F172A}`,
+        `.mrx-tocchip:hover .mrx-tocn{color:#1E3A8A}`,
+        `.mrx-tocchip.on,.mrx-tocchip.on:hover{background:#EFF6FF;color:#1E3A8A;font-weight:600;border-color:#93C5FD;box-shadow:none}`,
+        `.mrx-tocchip.on .mrx-tocn{color:#1E3A8A}`,
+        `.mrx-tocstep{border-color:#E2E8F0;border-radius:8px}`,
+        `.mrx-tocstep b{font-family:inherit;font-weight:600;border-color:#E2E8F0}`,
+        `.mrx-tocstep button{color:#475569}`,
+        `.mrx-tocstep button:hover{background:#F1F5F9;color:#0F172A}`,
+        `.mrx-parth{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;box-shadow:none;padding:20px 24px;margin:40px 0 20px}`,
+        `.mrx-parth::before{display:none}`,
+        `.mrx-parth .pt{font-size:26px;font-weight:700;letter-spacing:-.4px;color:#0F172A}`,
+        `.mrx-parth .ps{font-size:14.5px;font-weight:400;color:#475569;opacity:1;letter-spacing:0}`,
+        `.mrx-parth .pnum{font-family:inherit;gap:4px}`,
+        `.mrx-parth .pn-n{font-weight:700;font-size:40px;letter-spacing:-1px;color:#1E3A8A;opacity:1;font-variant-numeric:tabular-nums}`,
+        `.mrx-parth .pn-s{font-weight:500;font-size:15px;color:#64748B;opacity:1}`,
+        `.mrx-badge{border-radius:8px;background:#1E3A8A;font-family:inherit;font-weight:600;font-size:14px;width:32px;height:32px;flex-basis:32px}`,
+        `.mrx-badge.mrx-hero{background:#2563EB;color:#FFFFFF}`,
+        `.mrx-sec-ic svg{stroke:#0F172A}`,
+        `.mrx-sec-t{font-size:18px;font-weight:600;letter-spacing:-.2px;color:#0F172A}`,
+        `.mrx-sec-s{font-size:12.5px;font-weight:400;color:#64748B}`,
+        `.mrx-code{font-family:inherit;font-size:12px;font-weight:500;letter-spacing:0;color:#64748B}`,
+        `.mrx-caret{color:#64748B}`,
+        `.mrx-rule{height:1px;background:#E2E8F0}`,
+        `.mrx-rule i{display:none}`,
+        `.mrx-card{border-color:#E2E8F0;border-radius:10px;box-shadow:none}`,
+        `.mrx-card:before{display:none}`,
+        `.mrx-subhead{border-bottom:1px solid #E2E8F0}`,
+        `.mrx-subhead .sh-t{font-size:15px;font-weight:600;letter-spacing:0;color:#0F172A}`,
+        `.mrx-subhead .sh-s{font-family:inherit;font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
+        `.mrx-chead{border-bottom-color:#F1F5F9}`,
+        `.mrx-chico svg{stroke:#475569}`,
+        `.mrx-ct{font-size:15px;font-weight:600;color:#0F172A}`,
+        `.mrx-cs{font-family:inherit;font-size:12.5px;font-weight:400;letter-spacing:0;text-transform:none;color:#64748B}`,
+        `.mrx-chval{font-family:inherit;font-size:20px;font-weight:600;letter-spacing:-.3px;color:#0F172A;font-variant-numeric:tabular-nums}`,
+        `.mrx-note{font-size:13.5px;color:#475569;background:#F8FAFC;border-left:3px solid #93C5FD;border-radius:0 8px 8px 0}`,
+        `.mrx-note.how{border-left-color:#CBD5E1;font-size:13px}`,
+        `.mrx-kpi{border-color:#E2E8F0;border-radius:10px;box-shadow:none;padding:14px 16px}`,
+        `.mrx-kpi:before{display:none}`,
+        `.mrx-kpi.mrx-hero{background:#EFF6FF;border-color:#BFDBFE}`,
+        `.mrx-kl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#475569}`,
+        `.mrx-ic svg{stroke:#64748B}`,
+        `.mrx-kv{font-family:inherit;font-size:26px;font-weight:600;letter-spacing:-.4px;color:#0F172A;margin:4px 0 6px}`,
+        `.mrx-uline{display:none}`,
+        `.mrx-chips{gap:4px 10px}`,
+        `.mrx-chip{font-family:inherit;font-size:12.5px;font-weight:600;padding:0;border-radius:0;background:none}`,
+        `.mrx-chip .vs{color:#64748B;font-weight:400}`,
+        `.mrx-exec{background:#EFF6FF;color:#0F172A;border:1px solid #BFDBFE;border-radius:10px;font-size:14px}`,
+        `.mrx-exec b{color:#1E3A8A}`,
+        `.mrx-tbl{font-family:inherit;font-size:13.5px}`,
+        `.mrx-tbl th{font-family:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F8FAFC;border-bottom:1px solid #E2E8F0}`,
+        `.mrx-tbl td{border-bottom-color:#F1F5F9;color:#0F172A}`,
+        `.mrx-tbl td:first-child{font-family:inherit;font-weight:500}`,
+        `.mrx-tbl tbody tr:hover td{background:#F8FAFC}`,
+        `.mrx-tbl tr.tot td{font-weight:600;border-top:1px solid #E2E8F0;background:#F8FAFC}`,
+        `.mrx-pgfoot{font-family:inherit;font-size:13px;font-weight:500;color:#475569}`,
+        `.mrx-pgnav b{font-weight:600}`,
+        `.mrx-pgbtn{font-family:inherit;font-size:13px;font-weight:600;border-color:#CBD5E1;border-radius:8px}`,
+        `.mrx-pgbtn:hover:not([disabled]){border-color:#94A3B8;background:#F8FAFC}`,
+        `.mrx-pgbtn.ghost{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;font-weight:600}`,
+        `.mrx-pgbtn.ghost:hover:not([disabled]){background:#1E40AF;border-color:#1E40AF;color:#FFFFFF}`,
+        `.mrx-xls{font-size:13px;font-weight:600;border-color:#CBD5E1;border-radius:8px}`,
+        `.mrx-xls:hover{border-color:#94A3B8;background:#F8FAFC}`,
+        `.mrx-xls:focus-visible{outline-color:#2563EB}`,
+        `.mrx-empty{color:#64748B;font-weight:500}`,
+      ].map(r => B + r.replace(/,(?=[^{}]*\{)/g, "," + B)).join("\n")
+        + `\n@media print{${B}.mrx{background:#fff;padding:0}${B}.mrx-parth{background:#fff;border-color:#E2E8F0}}`;
+      document.head.appendChild(s2);
+    }
     // global tooltip + hover (rich, index-mode) — once
+    // the tooltip chrome follows the look at every render (v2: #0F172A, white title, Plex), the
+    // interaction defaults are set once
+    if (window.Chart && Chart.__mrx && Chart.__mrxV2 !== MRV2) {
+      const T = Chart.defaults.plugins.tooltip; Chart.__mrxV2 = MRV2;
+      T.backgroundColor = INK; T.bodyColor = DK_BODY; T.borderColor = DK_LINE;
+      T.titleFont = { family: SANS, weight: MRV2 ? "600" : "700", size: 12 }; T.bodyFont = { family: MONO, size: 12 };
+    }
     if (window.Chart && !Chart.__mrx) {
-      Chart.__mrx = 1; const T = Chart.defaults.plugins.tooltip;
+      Chart.__mrx = 1; Chart.__mrxV2 = MRV2; const T = Chart.defaults.plugins.tooltip;
       T.backgroundColor = INK; T.titleColor = "#fff"; T.bodyColor = DK_BODY; T.borderColor = DK_LINE; T.borderWidth = 1;
-      T.cornerRadius = 7; T.padding = 9; T.titleFont = { family: "Inter", weight: "700", size: 12 }; T.bodyFont = { family: MONO, size: 12 };
+      T.cornerRadius = 7; T.padding = 9; T.titleFont = { family: SANS, weight: MRV2 ? "600" : "700", size: 12 }; T.bodyFont = { family: MONO, size: 12 };
       T.displayColors = true; T.boxWidth = 9; T.boxHeight = 9; T.usePointStyle = true;
       Chart.defaults.interaction = { mode: "index", intersect: false };
       Chart.defaults.hover = { mode: "index", intersect: false };
@@ -856,6 +997,13 @@ async function renderMonthly(host, MRCFG) {
       // C19/Q1: one title tooltip here explains YoY/MoM on every card at once
       const tt = label === "YoY" ? (SPAN === 1 ? "YoY = vs the same month last year" : "YoY = vs the same months last year") : label === MOM ? (SPAN === 1 ? "MoM = vs the previous month" : "vs prev = vs " + prevWord) : "";
       const ttA = tt ? ` title="${tt}"` : "";
+      // v2: the one delta format -- "▲ 38%" green / "▼ 4%" red, then "vs last year" muted, no chip fill
+      const vsL = label === "YoY" ? "vs last year" : label === MOM ? (SPAN === 1 ? "vs last month" : "vs " + prevWord) : label;
+      if (MRV2) {
+        if (cur == null || prev == null || !prev) return `<span class="mrx-chip"${ttA} style="color:${FAINT}">— <span class="vs">${esc(vsL)}</span></span>`;
+        const g2 = (cur - prev) / Math.abs(prev), good2 = inv ? g2 < 0 : g2 >= 0;
+        return `<span class="mrx-chip"${ttA} style="color:${good2 ? POS : NEG}">${g2 >= 0 ? "▲" : "▼"} ${Math.abs(g2 * 100).toFixed(0)}% <span class="vs">${esc(vsL)}</span></span>`;
+      }
       if (cur == null || prev == null || !prev) return `<span class="mrx-chip"${ttA} style="background:${GRID};color:${SUB}">${label} —</span>`;
       const g = (cur - prev) / Math.abs(prev); const up = g >= 0; const good = inv ? !up : up;
       const col = good ? POS : NEG; const bg = good ? POS_T1 : NEG_T1;
@@ -1555,7 +1703,7 @@ async function renderMonthly(host, MRCFG) {
       // C16: no false causality — jobs (by move date) and leads (by create date) are two
       // different cohorts, so they are stated as separate facts with a date-basis footnote.
       ex.innerHTML = `<b>${tone} ${monLbl} — ${scored.length ? `${ups} of ${scored.length} headline numbers improved vs last year.` : ""}</b> Revenue ${money(rev)} (${gpRev >= 0 ? "+" : ""}${(gpRev * 100).toFixed(0)}% YoY), gross profit ${money(op)} at ${pct(margin)} margin. ${fmtN(jobs)} jobs completed; ${fmtN(leadsN)} new leads came in, booking at ${pct(bk)}.${watch}${incomplete}${revTrip ? ` Standalone trips added ${money(revTrip)} (${(tripShare * 100).toFixed(1)}%).` : ""}
-        <div style="margin-top:8px;font-size:11.5px;color:${FAINT};font-weight:600">YoY = vs the same ${SPAN === 1 ? "month" : "months"} last year · ${MOM} = vs ${SPAN === 1 ? "the previous month" : prevWord} · money &amp; jobs count by move date · leads count by the date the lead came in.</div>`;
+        <div style="margin-top:8px;font-size:${MRV2 ? 12.5 : 11.5}px;color:${FAINT};font-weight:${MRV2 ? 400 : 600}">YoY = vs the same ${SPAN === 1 ? "month" : "months"} last year · ${MOM} = vs ${SPAN === 1 ? "the previous month" : prevWord} · money &amp; jobs count by move date · leads count by the date the lead came in.</div>`;
       g.appendChild(ex);
 
       /* ---- "What changed most in {Month}" — automatic movers panel (UX audit's #1 ask).

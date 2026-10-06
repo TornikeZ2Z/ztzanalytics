@@ -151,6 +151,62 @@ const dmgRows = t => Number(
       color:var(--muted);margin-bottom:6px}
     .dmg-req pre{font-family:ui-monospace,Consolas,monospace;font-size:12px;
       white-space:pre-wrap;word-break:break-all;margin:0;color:var(--ink)}
+
+    /* DESIGN V2 ("Calm finance"). Only the v2 light look; dark keeps every rule above.
+       MONOSPACE KEPT ONLY WHERE IT IS LITERAL CODE: the token, the request URLs, the curl
+       lines, inline code in the guide, and the two identifier lists (the table list on the
+       left of "What Giorgi sees" and the column chips). Card titles, the drawer title and
+       every number/label go to Plex with tabular figures. */
+    body.rs-app.light.v2 .dmg-tok{font-weight:600;letter-spacing:0;border-radius:8px}
+    body.rs-app.light.v2 .dmg-note{font-size:13px}
+    body.rs-app.light.v2 .dmg-off,body.rs-app.light.v2 .dmg-on{font-weight:600}
+    body.rs-app.light.v2 .dmg-x{font-size:12px;font-weight:500;color:var(--muted);background:#F8FAFC}
+    body.rs-app.light.v2 #dmgQ{text-align:left}
+    /* the sample table must scroll inside its box, not widen the 1fr column off-screen */
+    body.rs-app.light.v2 .dmg-split>*{min-width:0}
+    body.rs-app.light.v2 .dmg-list{border-radius:10px}
+    body.rs-app.light.v2 .dmg-row{border-bottom-color:#F1F5F9}
+    body.rs-app.light.v2 .dmg-row:hover{background:#F8FAFC}
+    body.rs-app.light.v2 .dmg-row.on{background:var(--blue-bg);box-shadow:inset 3px 0 0 var(--brand-d)}
+    body.rs-app.light.v2 .dmg-row .n{font-size:12px}
+    body.rs-app.light.v2 .dmg-row .star{font-size:12px}
+    body.rs-app.light.v2 .dmg-notebox{border-left:0;border:1px solid #FDE68A;background:#FFFBEB;
+      border-radius:10px;color:#78350F;font-size:13px}
+    body.rs-app.light.v2 .dmg-col{font-size:12px;border-radius:6px}
+    body.rs-app.light.v2 .dmg-col.dmg-fill{border-color:#BBF7D0}
+    body.rs-app.light.v2 .dmg-col.dmg-miss{background:#FEF2F2;border-color:#FECACA}
+    body.rs-app.light.v2 .dmg-miss-t,body.rs-app.light.v2 .dmg-full-t{font-weight:600}
+    body.rs-app.light.v2 .dmg-sample{border-radius:10px}
+    body.rs-app.light.v2 .dmg-sample table{font-size:12.5px;font-variant-numeric:tabular-nums}
+    body.rs-app.light.v2 .dmg-sample th{background:#F8FAFC;font-size:12.5px;font-weight:600;
+      letter-spacing:0;text-transform:none;color:var(--muted);border-bottom-color:var(--line)}
+    body.rs-app.light.v2 .dmg-sample th.miss{background:#FEF2F2;color:var(--neg)}
+    body.rs-app.light.v2 .dmg-sample td{border-bottom-color:#F1F5F9}
+    body.rs-app.light.v2 .dmg-sample tr:hover td{background:#F8FAFC}
+    body.rs-app.light.v2 .dmg-kpis{gap:12px}
+    body.rs-app.light.v2 .dmg-kpis .kpi{background:#FFFFFF;border-radius:10px;padding:14px 16px}
+    body.rs-app.light.v2 .dmg-kpis .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
+      color:var(--muted);margin-bottom:4px}
+    body.rs-app.light.v2 .dmg-kpis .v{font-size:25px;font-weight:600;letter-spacing:-.3px}
+    body.rs-app.light.v2 .dmg-kdim{font-weight:500}
+    body.rs-app.light.v2 .dmg-ghead{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
+      color:var(--ink);margin:20px 2px 10px}
+    body.rs-app.light.v2 .dmg-card{border-radius:10px;transition:border-color .12s}
+    body.rs-app.light.v2 .dmg-card:hover{border-color:var(--line-2);transform:none;box-shadow:none}
+    body.rs-app.light.v2 .dmg-card.on{border-color:var(--brand-d);box-shadow:0 0 0 1px var(--brand-d)}
+    body.rs-app.light.v2 .dmg-card .nm{font-family:inherit;font-size:13.5px;font-weight:600}
+    body.rs-app.light.v2 .dmg-card .mdl{font-family:inherit;font-size:12.5px;color:var(--muted)}
+    body.rs-app.light.v2 .dmg-card .big{font-size:22px;font-weight:600;letter-spacing:-.3px}
+    body.rs-app.light.v2 .dmg-card .big span{font-size:12.5px;font-weight:500}
+    body.rs-app.light.v2 .dmg-card .covbar{height:8px;border-radius:4px;background:#F1F5F9;border:0}
+    body.rs-app.light.v2 .dmg-card .covline{font-size:12.5px}
+    body.rs-app.light.v2 .dmg-ov{background:var(--scrim)}
+    body.rs-app.light.v2 .dmg-drawer .panel{border:0}
+    body.rs-app.light.v2 .dmg-drawer{box-shadow:-12px 0 32px rgba(15,23,42,.14)}
+    body.rs-app.light.v2 .dmg-doc code{border-radius:6px}
+    body.rs-app.light.v2 .dmg-doc th{font-weight:600;color:var(--muted)}
+    body.rs-app.light.v2 .dmg-req{border-radius:10px}
+    body.rs-app.light.v2 .dmg-req .t{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}
     `;
     document.head.appendChild(st);
   }
@@ -438,7 +494,7 @@ const dmgRows = t => Number(
         const cov = migCoverage(meta.table, meta.columns.map(c => c.name));
         const head = `
           <div class="panel">
-            <div class="panel-title" style="font-family:ui-monospace,Consolas,monospace">
+            <div class="panel-title"${RS.isV2() ? "" : ' style="font-family:ui-monospace,Consolas,monospace"'}>
               ${esc(meta.table)}
               <span class="rs-hint" style="margin-left:8px">
                 ~${dmgRows(meta).toLocaleString()} rows ·

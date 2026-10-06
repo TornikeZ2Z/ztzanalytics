@@ -294,7 +294,108 @@ function rlInjectStyle() {
   .rl-rstats .st.raw i{color:var(--blue)} .rl-rstats .st.cur i{color:var(--purple)}
   .rl-rbody{display:none;padding:2px 16px 16px;border-top:1px solid var(--line)}
   .rl-run.open .rl-rbody{display:block}
-  .rl-mini-t{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:14px 0 9px}`;
+  .rl-mini-t{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:14px 0 9px}
+  /* DESIGN V2 ("Calm finance"). Only the v2 light look; dark keeps every rule above.
+     Sentence-case labels at 12px+, flat 10px-radius surfaces, status pills in the kit's
+     ok/warn/bad/neutral/info palette, green only where it means good (the verdict, the
+     fresh feed, the ok dot), and the two pipeline PHASES drawn as categories (navy =
+     raw, light blue = curation) instead of blue/purple. No monospace: the health and
+     error details are one-line messages, not code. */
+  body.rs-app.light.v2 .rl-verdict{border-radius:10px;padding:16px 20px}
+  body.rs-app.light.v2 .rl-verdict .v{font-size:20px;font-weight:600;letter-spacing:-.2px}
+  body.rs-app.light.v2 .rl-verdict .s{font-size:13.5px}
+  body.rs-app.light.v2 .rl-verdict.ok{background:#F0FDF4;border-color:#BBF7D0}
+  body.rs-app.light.v2 .rl-verdict.ok .v{color:var(--pos)}
+  body.rs-app.light.v2 .rl-verdict.warn{background:#FFFBEB;border-color:#FDE68A}
+  body.rs-app.light.v2 .rl-verdict.warn .v{color:#92400E}
+  body.rs-app.light.v2 .rl-verdict.bad{background:#FEF2F2;border-color:#FECACA}
+  body.rs-app.light.v2 .rl-verdict.bad .v{color:var(--neg)}
+  body.rs-app.light.v2 .rl-todo{border-radius:10px;background:#FFFFFF}
+  body.rs-app.light.v2 .rl-todo .t{font-weight:600}
+  body.rs-app.light.v2 .rl-todo .d{font-size:12.5px}
+  body.rs-app.light.v2 .rl-todo .a{font-size:13px}
+  body.rs-app.light.v2 .rl-engine>summary{font-size:13px;font-weight:600}
+  body.rs-app.light.v2 .rl-org,body.rs-app.light.v2 .rl-org.sp,body.rs-app.light.v2 .rl-org.gs,
+  body.rs-app.light.v2 .rl-org.api,body.rs-app.light.v2 .rl-org.xl,body.rs-app.light.v2 .rl-org.portal,
+  body.rs-app.light.v2 .rl-org.cal,body.rs-app.light.v2 .rl-org.oth{font-size:12px;font-weight:600;
+    border-radius:6px;padding:2px 8px;border:0;background:#F1F5F9;color:#475569}
+  body.rs-app.light.v2 .rl-mode{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}
+  body.rs-app.light.v2 .rl-mode.live{color:var(--brand-d)}
+  body.rs-app.light.v2 .rl-mode.ref{color:var(--faint)}
+  body.rs-app.light.v2 .rl-used{font-size:12.5px}
+  body.rs-app.light.v2 .rl-runmsg{font-size:13px}
+  body.rs-app.light.v2 .rl-dot.ok{background:var(--pos)}
+  body.rs-app.light.v2 .rl-dot.warn{background:var(--warn)}
+  body.rs-app.light.v2 .rl-dot.bad{background:var(--neg)}
+  body.rs-app.light.v2 .rl-dot.run{background:var(--brand)}
+  body.rs-app.light.v2 .rl-alert{border-radius:10px;background:#FEF2F2;border-color:#FECACA}
+  body.rs-app.light.v2 .rl-alert-h{font-weight:600;color:var(--neg);font-size:14px}
+  body.rs-app.light.v2 .rl-alert-r{font-size:13px;border-top-color:#FECACA}
+  body.rs-app.light.v2 .rl-alert-d{font-family:inherit;font-size:12.5px;font-variant-numeric:tabular-nums}
+  body.rs-app.light.v2 .rl-alert-when{font-size:12px}
+  body.rs-app.light.v2 .rl-alert.rl-held{background:#FFFBEB;border-color:#FDE68A}
+  body.rs-app.light.v2 .rl-alert.rl-held .rl-alert-h{color:#92400E}
+  body.rs-app.light.v2 .rl-alert.rl-held .rl-alert-r{border-top-color:#FDE68A}
+  body.rs-app.light.v2 .rl-cov{background:#FFFFFF;border-radius:10px}
+  body.rs-app.light.v2 .rl-cov .lbl{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+  body.rs-app.light.v2 .rl-covsub{font-weight:400;color:var(--faint)}
+  body.rs-app.light.v2 .rl-cov .rng{font-size:15px;font-weight:600}
+  body.rs-app.light.v2 .rl-cov .meta{font-size:12.5px}
+  body.rs-app.light.v2 .panel.rl-live.on{border-color:#93C5FD}
+  body.rs-app.light.v2 .rl-lvsub,body.rs-app.light.v2 .rl-lvcount{font-size:12.5px}
+  body.rs-app.light.v2 .rl-lvpulse.on,body.rs-app.light.v2 .rl-lvfill{background:var(--brand)}
+  body.rs-app.light.v2 .rl-lvbar{background:#E2E8F0}
+  body.rs-app.light.v2 .rl-lvnow{font-size:13px}
+  body.rs-app.light.v2 .rl-lvcap{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}
+  body.rs-app.light.v2 .rl-lvrow{font-size:13px}
+  body.rs-app.light.v2 .rl-pgnav span{font-weight:600}
+  body.rs-app.light.v2 .rl-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:6px 0 12px}
+  body.rs-app.light.v2 .rl-hsub,body.rs-app.light.v2 .rl-htot{font-size:13px}
+  body.rs-app.light.v2 .rl-htot b{font-size:16px;font-weight:600}
+  body.rs-app.light.v2 .rl-leg .lk{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+  body.rs-app.light.v2 .rl-leg .lv{font-weight:600;margin-left:6px}
+  body.rs-app.light.v2 .rl-leg .ls{font-size:12.5px}
+  body.rs-app.light.v2 .rl-leg .rl-dot.raw,body.rs-app.light.v2 .rl-split .seg.raw,
+  body.rs-app.light.v2 .rl-gbar.raw{background:#1E3A8A}
+  body.rs-app.light.v2 .rl-leg .rl-dot.cur,body.rs-app.light.v2 .rl-split .seg.cur,
+  body.rs-app.light.v2 .rl-gbar.curation{background:#60A5FA}
+  body.rs-app.light.v2 .rl-split{border-radius:6px;background:#F1F5F9}
+  body.rs-app.light.v2 .rl-gtrack{background:#F1F5F9;border-radius:4px}
+  body.rs-app.light.v2 .rl-gbar{border-radius:4px}
+  body.rs-app.light.v2 .rl-glabel{font-weight:500}
+  body.rs-app.light.v2 .rl-gdur{font-weight:600}
+  body.rs-app.light.v2 .rl-scard{border-radius:10px;background:#FFFFFF}
+  body.rs-app.light.v2 .rl-sname{font-size:13px;font-weight:600}
+  body.rs-app.light.v2 .rl-smeta{font-size:12.5px}
+  body.rs-app.light.v2 .rl-smeta b{font-weight:600}
+  body.rs-app.light.v2 .rl-sghead b{font-size:14px;font-weight:600;letter-spacing:0}
+  body.rs-app.light.v2 .rl-sghead span{font-size:12.5px}
+  /* feed age = a status pill */
+  body.rs-app.light.v2 .rl-age{font-size:12px;font-weight:600;letter-spacing:0;padding:1px 7px;border-radius:6px;
+    border:0;background:#F1F5F9;color:#475569}
+  body.rs-app.light.v2 .rl-age.fresh{background:#DCFCE7;color:#166534}
+  body.rs-app.light.v2 .rl-age.warn{background:#FEF3C7;color:#92400E}
+  body.rs-app.light.v2 .rl-age.old{background:#FEE2E2;color:#991B1B;font-weight:600}
+  body.rs-app.light.v2 .rs-table.rl-ftab td{font-size:13.5px}
+  body.rs-app.light.v2 .rs-table.rl-ftab td b{font-weight:600}
+  body.rs-app.light.v2 .rl-flink{color:var(--brand);font-weight:600}
+  body.rs-app.light.v2 .rs-table tbody tr.rl-fr.old td{background:#FEF2F2}
+  body.rs-app.light.v2 .rs-table tbody tr.rl-fr.warn td{background:#FFFBEB}
+  body.rs-app.light.v2 .rl-fkind,body.rs-app.light.v2 .rl-fnote{font-size:12px}
+  body.rs-app.light.v2 .rl-fdet summary{font-size:13px;font-weight:600}
+  /* the reload switch: info pill when on, neutral when paused */
+  body.rs-app.light.v2 .rl-sw{font-size:12px;font-weight:600;letter-spacing:0;border-radius:6px;padding:2px 9px}
+  body.rs-app.light.v2 .rl-sw.on{background:#EFF6FF;color:#1D4ED8;border-color:#93C5FD}
+  body.rs-app.light.v2 .rl-sw.off{background:#F1F5F9;color:#475569;border-color:#CBD5E1}
+  body.rs-app.light.v2 .rl-sw:hover:not(:disabled){filter:none;border-color:#1E3A8A}
+  body.rs-app.light.v2 .rl-run{border-radius:10px;box-shadow:none}
+  body.rs-app.light.v2 .rl-rhead:hover{background:#F8FAFC}
+  body.rs-app.light.v2 .rl-rdate{font-weight:600}
+  body.rs-app.light.v2 .rl-rstats{font-size:12.5px}
+  body.rs-app.light.v2 .rl-rstats .st b{font-weight:600}
+  body.rs-app.light.v2 .rl-rstats .st i,body.rs-app.light.v2 .rl-rstats .st.raw i,
+  body.rs-app.light.v2 .rl-rstats .st.cur i{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+  body.rs-app.light.v2 .rl-mini-t{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}`;
   document.head.appendChild(st);
 }
 
@@ -306,7 +407,9 @@ function rlGantt(p) {
     const left = ((s.s0 - p.t0) / span) * 100;
     const w = Math.max(0.7, ((s.s1 - s.s0) / span) * 100);
     return `<div class="rl-grow">
-      <div class="rl-glabel"><span class="ph" style="background:var(--${s.phase === "curation" ? "purple" : "blue"})"></span>${RSC.esc(RL.stLabel(s))}</div>
+      <div class="rl-glabel"><span class="ph" style="background:${RS.isV2()
+        ? (s.phase === "curation" ? RS.V2.accentL : RS.V2.navy)
+        : "var(--" + (s.phase === "curation" ? "purple" : "blue") + ")"}"></span>${RSC.esc(RL.stLabel(s))}</div>
       <div class="rl-gtrack"><div class="rl-gbar ${s.phase}" style="left:${left.toFixed(2)}%;width:${w.toFixed(2)}%"></div></div>
       <div class="rl-gdur">${RL.fmtDur(s.duration_s)}</div>
     </div>`;
@@ -761,8 +864,10 @@ function rlRender(host, runs, cov, fresh) {
     </div>`;
   }
   if (skipped.length) {
-    alertHtml += `<div class="rl-alert" style="border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 8%,var(--panel))">
-      <div class="rl-alert-h" style="color:var(--amber)">✉ ${skipped.length} email${
+    // v2 paints the amber from the page CSS (.rl-held); the old look keeps its inline amber
+    const v2 = RS.isV2();
+    alertHtml += `<div class="rl-alert${v2 ? " rl-held" : ""}"${v2 ? "" : ` style="border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 8%,var(--panel))"`}>
+      <div class="rl-alert-h"${v2 ? "" : ` style="color:var(--amber)"`}>✉ ${skipped.length} email${
         skipped.length === 1 ? " was" : "s were"} held back on purpose</div>
       ${skipped.map(f => `<div class="rl-alert-r"><b>${RSC.esc(RL.stLabel({ step: f.step }))}</b>
         <span class="rl-alert-d">${RSC.esc(f.detail)}</span>

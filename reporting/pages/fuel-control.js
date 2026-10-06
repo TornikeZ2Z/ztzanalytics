@@ -162,6 +162,38 @@ registerPage({
       // the divider over the swipes somebody has already explained, at the kit's label scale
       + ".fu-h2{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 9px}"
       + "@media(max-width:820px){.fu-head{grid-template-columns:1fr;gap:6px}.fu-amt{text-align:left}}"
+      // ---- DESIGN V2 ("Calm finance"): the light look only; dark keeps every rule above ----
+      // the asking tile is a warning, so it wears the amber notice (no top rule: v2 hides it)
+      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert{border-color:#FDE68A;background:#FFFBEB}"
+      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert .v{color:#B45309}"
+      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert .l{color:#92400E}"
+      + "body.rs-app.light.v2 .fu-msg{font-size:13px;border-radius:8px}"
+      // the verdict edge stays (amber / quiet / green) -- it is meaning, not decoration
+      + "body.rs-app.light.v2 .fu-card{border-radius:10px}"
+      + "body.rs-app.light.v2 .fu-head:hover{background:#F8FAFC}"
+      + "body.rs-app.light.v2 .fu-who{font-size:14.5px;font-weight:600;letter-spacing:0}"
+      + "body.rs-app.light.v2 .fu-when,body.rs-app.light.v2 .fu-where span{font-size:12px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .fu-where{font-size:13px;font-weight:500;color:var(--muted)}"
+      + "body.rs-app.light.v2 .fu-why{font-size:13px;font-weight:600;color:#B45309}"
+      + "body.rs-app.light.v2 .fu-why.ok{color:var(--muted);font-weight:500}"
+      + "body.rs-app.light.v2 .fu-amt b{font-size:17px;font-weight:600;letter-spacing:-.2px}"
+      + "body.rs-app.light.v2 .fu-amt i{font-size:12px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .fu-f{background:#F8FAFC;border-radius:8px}"
+      + "body.rs-app.light.v2 .fu-f .l{font-size:12.5px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}"
+      + "body.rs-app.light.v2 .fu-f .v{font-size:13.5px;font-weight:600}"
+      + "body.rs-app.light.v2 .fu-f .s{font-size:12px;color:var(--faint)}"
+      // still chips that wrap (they carry sentences), in the warn / neutral status colours
+      + "body.rs-app.light.v2 .fu-flag{font-size:12px;font-weight:600;background:#FEF3C7;color:#92400E}"
+      + "body.rs-app.light.v2 .fu-flag.ctx{background:#F1F5F9;color:#475569;font-weight:500}"
+      + "body.rs-app.light.v2 .fu-done{font-size:13px;font-weight:600}"
+      + "body.rs-app.light.v2 .fu .fu-t td.bar i{background:#2563EB;opacity:.35}"
+      + "body.rs-app.light.v2 .fu .fu-t tr.tot td{font-weight:600;border-top:1px solid var(--line);background:#F8FAFC}"
+      + "body.rs-app.light.v2 .fu-neg{font-weight:600}"
+      + "body.rs-app.light.v2 .fu-empty{border-radius:10px;border-color:#CBD5E1;font-size:13.5px;color:var(--faint)}"
+      + "body.rs-app.light.v2 .fu-empty b{font-size:14px;font-weight:600}"
+      + "body.rs-app.light.v2 .fu-note{font-size:12.5px}"
+      // the divider over the explained swipes: a section title, not an uppercase micro-label
+      + "body.rs-app.light.v2 .fu-h2{font-size:15px;font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0}"
       + '</style><div class="fu"><div id="fuMain"></div></div>';
 
     const main = host.querySelector("#fuMain");
@@ -376,7 +408,8 @@ registerPage({
           + 'value="' + esc(S.draft[r["Line Key"]] || "") + '" maxlength="300">'
           + '<button class="rs-btn pri" data-resolve="' + key + '">Checked — nothing to worry about</button>'
           + (S.msgFor === r["Line Key"]
-              ? '<span style="font-size:11.5px;color:var(--neg);font-weight:650">'
+              ? '<span style="font-size:' + (RS.isV2() ? "12px" : "11.5px")
+                + ';color:var(--neg);font-weight:' + (RS.isV2() ? 600 : 650) + '">'
                 + esc(S.msg) + "</span>" : "")
           + "</div>";
       }
@@ -445,7 +478,8 @@ registerPage({
         + list.map(x => '<tr><td class="strong">' + esc(x.t)
             + (x.known ? (x.fuel ? ' <span style="font-weight:500;color:var(--faint)">· '
                                    + esc(x.fuel) + "</span>" : "")
-                       : ' <span class="fu-neg" style="font-size:10px">not in the register</span>')
+                       : ' <span class="fu-neg" style="font-size:' + (RS.isV2() ? "12px" : "10px")
+                         + '">not in the register</span>')
             + "</td><td>" + fmtN(x.n) + "</td><td>" + fmt1(x.gal)
             + '</td><td class="bar"><i style="width:' + (x.usd / mx * 100).toFixed(0)
             + '%"></i><span>' + money0(x.usd) + "</span></td><td>"

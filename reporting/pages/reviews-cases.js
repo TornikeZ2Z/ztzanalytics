@@ -95,6 +95,15 @@ registerPage({
         // 1fr grid columns default to min-width:auto — a table inside forces the column
         // wider than the viewport (the classic grid blowout; measured 2385px vs 2048).
         ".rvc-grid>.panel{min-width:0}",
+        // DESIGN V2 ("Calm finance"), light only: 12px floor, pill search, hairline rows,
+        // 4px bar ends. Dark keeps every rule above.
+        "body.rs-app.light.v2 .rvc-small{font-size:12px}",
+        "body.rs-app.light.v2 .rvc-in{border-radius:999px;border-color:var(--line-2);height:36px;padding:0 14px;background:#FFFFFF}",
+        "body.rs-app.light.v2 .rvc-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}",
+        "body.rs-app.light.v2 .rvc-share{border-bottom-color:#F1F5F9}",
+        "body.rs-app.light.v2 .rvc-share .n{font-weight:500;color:var(--ink)}",
+        "body.rs-app.light.v2 .rvc-share .t,body.rs-app.light.v2 .rvc-share .t i{border-radius:4px}",
+        "body.rs-app.light.v2 .rvc-note{font-size:12.5px}",
       ].join("");
       document.head.appendChild(st);
     }

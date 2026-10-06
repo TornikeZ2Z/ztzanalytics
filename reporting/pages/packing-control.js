@@ -370,6 +370,113 @@ registerPage({
       thin:     { lab: "Too few jobs",    cls: "v-thin" },
     };
 
+    /* DESIGN V2 ("Calm finance", 2026-10-06). Light theme only -- every selector carries
+     * body.rs-app.light.v2, so dark keeps every rule in the sheet below untouched.
+     *   - Severity keeps its hue (red / amber / green are exactly what v2 reserves them for);
+     *     the verdict pill becomes a radius-6 status pill in sentence case.
+     *   - CERTAINTY STAYS TEXTURE, without the hatching: v2 allows no gradients, so the
+     *     channel becomes the border -- solid ink (strong), solid grey (weak), dashed (thin).
+     *     The badge text is written in capitals in confLab(); it is lower-cased and given a
+     *     capital first letter here in CSS, so the wording itself is not touched.
+     *   - Uppercase micro-labels become sentence-case labels; no type below 12px.
+     *   - The kit's control bar (.rs-fld label / .rs-seg / .rs-tog / .rs-inp / .rs-btn) has no
+     *     v2 rules in rs.css yet, so its v2 pill shapes are restated here inside .pk. */
+    function v2Css() {
+      var V = "body.rs-app.light.v2 ";
+      return ""
+        + V + ".pk," + V + ".pk-draw{--t1:26px;--t4:12.5px;--t5:12px;--t6:12px}"
+        // tiles: label first, figure, sub -- the v2 card, by order, not by new markup
+        + V + ".pk-kpi{display:flex;flex-direction:column;border-radius:10px;padding:14px 16px}"
+        + V + ".pk-kpi span{order:-1;margin:0 0 4px;font-size:13px;font-weight:500;letter-spacing:0;"
+        + "text-transform:none;color:#475569}"
+        + V + ".pk-kpi b{font-weight:600;letter-spacing:-.3px}"
+        + V + ".pk-kpi small{font-size:12.5px;color:#64748B;margin-top:4px}"
+        // view tabs: pills, selected navy
+        + V + ".pk-tabs button{border-radius:999px;font-weight:600;font-size:13px;padding:8px 15px;color:#475569}"
+        + V + ".pk-tabs button:hover{background:#F1F5F9;color:var(--ink)}"
+        + V + ".pk-tabs button.on{background:#1E3A8A;color:#FFFFFF}"
+        // the foreman file header + sections
+        + V + ".pk-pcard{border-radius:10px;border-left-width:4px}"
+        + V + ".pk-av{background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+        + V + ".pk-pid h2{font-weight:700;font-size:24px}"
+        + V + ".pk-chip{font-weight:500;color:#475569;background:#F8FAFC;border-color:var(--line)}"
+        + V + ".pk-pscore b{font-weight:600;letter-spacing:-1px}"
+        + V + ".pk-pscore span{font-weight:600}"
+        + V + ".pk-pscore small{font-weight:500;letter-spacing:0;color:#64748B}"
+        + V + ".pk-sec{border-radius:10px}"
+        + V + ".pk-sec h4{font-size:15px;font-weight:600}"
+        + V + ".pk .rs-table td.pk-neg," + V + ".pk .rs-table td.pk-pos{font-weight:600}"
+        + V + ".pk .rs-table tr.pk-sig td{background:#FEF2F2}"
+        + V + ".pk-mhead{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+        + V + ".pk-mbar{height:8px;border-radius:4px;background:#F1F5F9}"
+        + V + ".pk-mbar i{border-radius:4px}"
+        + V + ".pk-tbl a," + V + ".pk-q a{color:#1D4ED8;font-weight:600}"
+        + V + "a.pk-fid{font-family:inherit;font-size:12px}"
+        // the board
+        + V + ".pk-card{border-radius:10px}"
+        + V + ".pk-card:hover{transform:none;border-color:#CBD5E1}"
+        + V + ".pk-card.sel{border-color:#2563EB;box-shadow:0 0 0 1px #2563EB}"
+        + V + ".pk-name{font-weight:600}"
+        + V + ".pk-sub{font-size:12.5px;color:#64748B}"
+        + V + ".pk-pill{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
+        + "padding:2px 8px;border-radius:6px;border:0}"
+        + V + ".v-review .pk-pill{background:#FEE2E2;color:#991B1B}"
+        + V + ".v-look .pk-pill{background:#FEF3C7;color:#92400E}"
+        + V + ".v-ok .pk-pill{background:#DCFCE7;color:#166534}"
+        + V + ".v-thin .pk-pill{background:#F1F5F9;color:#475569}"
+        + V + ".pk-conf{display:inline-block;font-size:12px;font-weight:600;letter-spacing:0;"
+        + "text-transform:lowercase;padding:1px 8px;border-radius:6px;background:#FFFFFF;"
+        + "border:1px solid #CBD5E1;color:#475569}"
+        + V + ".pk-conf::first-letter{text-transform:uppercase}"
+        + V + ".pk-conf.c-strong{background:#FFFFFF;border:1.5px solid var(--ink);color:var(--ink)}"
+        + V + ".pk-conf.c-weak{background:#FFFFFF;border:1px solid #94A3B8;color:#334155}"
+        + V + ".pk-conf.c-thin{background:#FFFFFF;border:1px dashed #94A3B8}"
+        + V + ".pk-b label{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+        + V + ".pk-b label b{color:var(--ink);font-weight:600}"
+        + V + ".pk-track{background:#F1F5F9;border-color:var(--line)}"
+        + V + ".pk-track i{background:#94A3B8}"
+        // side rail
+        + V + ".pk-rail{border-radius:10px}"
+        + V + ".pk-rail h4{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}"
+        + V + ".pk-row b{font-weight:600}"
+        + V + ".pk-q:hover{color:#1D4ED8}"
+        + V + ".pk-q em{color:#B91C1C}"
+        // drawer
+        + V + ".pk-scrim{background:rgba(15,23,42,.38)}"
+        + V + ".pk-draw{border-left-color:var(--line)}"
+        + V + ".pk-dh h3{font-weight:700}"
+        + V + ".pk-x{border-radius:8px;border-color:#CBD5E1}"
+        + V + ".pk-x:hover{background:#F8FAFC;color:var(--ink)}"
+        + V + ".pk-read{border-radius:10px}"
+        + V + ".pk-read h5{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+        + V + ".pk-cause b{background:#F1F5F9;color:#475569;font-size:12px}"
+        + V + ".pk-cause span i{font-weight:600}"
+        + V + ".pk-tbl th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
+        + "color:#475569;background:#F8FAFC;border-bottom-color:var(--line)}"
+        + V + ".pk-tbl td{border-bottom-color:#F1F5F9}"
+        + V + ".pk-tbl tr:hover td{background:#F8FAFC}"
+        + V + ".pk-tbl tr.f td{background:#FEF2F2}"
+        + V + ".pk-spark div{border-radius:4px 4px 0 0}"
+        + V + ".pk-sparkx{font-size:12px}"
+        + V + ".pk-empty{border-radius:10px;font-size:13.5px}"
+        // the kit control bar, in v2 shapes
+        + V + ".pk .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+        + V + ".pk .rs-inp{background:#FFFFFF;border-color:var(--line);border-radius:999px;height:36px;padding:0 14px}"
+        + V + ".pk .rs-inp:hover{border-color:#CBD5E1}"
+        + V + ".pk .rs-inp:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}"
+        + V + ".pk .rs-seg{background:#FFFFFF;border:1px solid var(--line);border-radius:999px;padding:3px}"
+        + V + ".pk .rs-seg button{border-radius:999px;font-weight:600;color:#475569;padding:6px 13px}"
+        + V + ".pk .rs-seg button:hover:not(.on){background:#F8FAFC;color:var(--ink)}"
+        + V + ".pk .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+        + V + ".pk .rs-tog{border-radius:999px;border-color:var(--line);font-weight:600;color:#475569}"
+        + V + ".pk .rs-tog:hover{border-color:#CBD5E1}"
+        + V + ".pk .rs-tog.on{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}"
+        + V + ".pk .rs-tog.on i{background:#1E3A8A}"
+        + V + ".pk .rs-btn," + V + ".pk-draw .rs-btn{border-radius:8px;font-weight:600;color:var(--ink);border-color:#CBD5E1}"
+        + V + ".pk .rs-btn:hover:not(:disabled)," + V + ".pk-draw .rs-btn:hover:not(:disabled){background:#F8FAFC;"
+        + "border-color:#CBD5E1;color:var(--ink)}";
+    }
+
     /* ================================================================ style
      * SEVERITY IS COLOUR, CERTAINTY IS TEXTURE. The two things a reader must not confuse are
      * "how far out of line" and "how sure are we" — so they use different channels entirely:
@@ -562,6 +669,7 @@ registerPage({
       + ".pk-sparkx span{flex:1;text-align:center}"
       + ".pk-empty{padding:34px;text-align:center;color:var(--faint);font-size:var(--t3);"
       + "background:var(--panel);border:1px solid var(--line);border-radius:14px}"
+      + v2Css()
       + "</style>"
       + '<div class="pk"><div id="pkMain"></div></div>'
       + '<div class="pk-scrim" id="pkScrim"></div>'

@@ -42,6 +42,9 @@ registerPage({
       + ".gt-wrap .rs-table td.gt-none{color:var(--neg);font-weight:700}"
       // the save/remove status line, with its height reserved so a message never shifts the card
       + ".gt-msg{font-size:12.5px;font-weight:650;margin-top:10px;min-height:17px}"
+      // DESIGN V2 ("Calm finance"), v2 light only: the card is all kit; just the weights
+      + "body.rs-app.light.v2 .gt-wrap .rs-table td.gt-none{font-weight:600}"
+      + "body.rs-app.light.v2 .gt-msg{font-size:13px;font-weight:500;color:var(--muted)}"
       + "</style><div class='gt-wrap'><div id='gtBody'></div></div>";
 
     function paint() {

@@ -109,7 +109,19 @@
       + ".csd .csd-src{font-size:12px;font-weight:700;white-space:nowrap}"
       + ".csd th.csd-sort{cursor:pointer;user-select:none}"
       + ".csd th.csd-sort:hover{color:var(--ink)}"
-      + ".csd th.csd-sort.on{color:var(--ink)}";
+      + ".csd th.csd-sort.on{color:var(--ink)}"
+      // DESIGN V2 "Calm finance" (2026-10-06), light only: white provenance strip, sentence-case
+      // labels at readable sizes, 600 weights, the standard warning box
+      + "body.rs-app.light.v2 .csd .csd-prov{background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}"
+      + "body.rs-app.light.v2 .csd .csd-prov b{font-weight:600}"
+      + "body.rs-app.light.v2 .csd .csd-prov .csd-k{text-transform:none;letter-spacing:0;"
+      + "font-size:12.5px;font-weight:500;color:#475569}"
+      + "body.rs-app.light.v2 .csd .csd-isnot h4{text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:#0F172A}"
+      + "body.rs-app.light.v2 .csd .csd-cell .rs-pill{font-size:12px}"
+      + "body.rs-app.light.v2 .csd :is(.csd-zip,.csd-gap){font-weight:600;letter-spacing:0}"
+      + "body.rs-app.light.v2 .csd .csd-warnbox{background:#FFFBEB;border-color:#FDE68A;color:#78350F;border-radius:10px}"
+      + "body.rs-app.light.v2 .csd .csd-legend{font-size:12.5px;color:#475569}"
+      + "body.rs-app.light.v2 .csd .csd-tot td{font-weight:600;border-top:1px solid #E2E8F0;background:#F8FAFC}";
     document.head.appendChild(st);
   }
 
