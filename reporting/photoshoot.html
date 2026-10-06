@@ -154,7 +154,7 @@ function jobByKey(k){for(var i=0;i<JOBS.length;i++)if(JOBS[i].code+'|'+JOBS[i].d
 function load(quiet){
   return fetch(API,{cache:'no-store'}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
     .then(function(j){JOBS=j.jobs||[];CONFIRMED=j.confirmed||{};TODAY=j.today||'';
-      if(!loadedOnce){loadedOnce=true;buildStateTiles();buildToggles();}render();})
+      if(!loadedOnce){loadedOnce=true;buildStateTiles();}render();})
     .catch(function(){if(!quiet||!loadedOnce)$('#out').innerHTML='<div class="empty"><b>Couldn&rsquo;t load photoshoots</b>Please refresh the page to try again.</div>';});
 }
 
@@ -260,6 +260,7 @@ document.addEventListener('click',function(e){
 // someone else may take a day while this tab sits open: refresh when it comes back into view
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&loadedOnce)load(true);});
 setInterval(function(){if(!document.hidden)load(true);},180000);
+buildToggles();   // live before the jobs arrive: a tap during loading must not be lost
 load(false);
 </script>
 </body>
