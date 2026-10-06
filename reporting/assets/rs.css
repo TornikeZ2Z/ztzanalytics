@@ -696,3 +696,126 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
 .rs-slicer.rs-form .rs-slicer-btn{width:100%;justify-content:space-between;height:auto;padding:8px 11px;font-size:13px;border-radius:9px}
 .rs-slicer.rs-form .rs-slicer-btn .val{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rs-slicer.rs-form .rs-slicer-pop{left:0;right:0;width:100%;min-width:0}
+
+/* ================= DESIGN V2 · "Calm finance" (body.rs-app.light.v2) =================
+   Picked by Tornike 2026-10-06 (direction B) and approved on the design canvas as the
+   STANDARD look. It rides on the light theme -- every .light rule above still applies --
+   and changes the tokens plus the shell: navy sidebar, blue accent, neutral white
+   surfaces, IBM Plex Sans, sentence-case labels at readable sizes. Green now means only
+   "good"; it is no longer the brand colour, so --pos is its own token here. The dark
+   theme is untouched and stays one click away on the theme button. */
+body.rs-app.light.v2{
+  --bg:#F6F7F9; --panel:#FFFFFF; --panel-2:#F8FAFC; --line:#E2E8F0; --line-2:#CBD5E1;
+  --ink:#0F172A; --muted:#475569; --faint:#64748B;
+  --brand:#2563EB; --brand-d:#1E3A8A; --brand-ink:#FFFFFF; --brand-glow:rgba(37,99,235,.09);
+  --blue:#2563EB; --purple:#6D28D9; --amber:#B45309; --red:#B91C1C;
+  --pos:#15803D; --pos-bg:#DCFCE7; --warn:#B45309; --warn-bg:#FEF3C7; --neg:#B91C1C; --neg-bg:#FEE2E2;
+  --blue-bg:#EFF6FF;
+  --shadow:0 1px 2px rgba(15,23,42,.04);
+  --scrim:rgba(15,23,42,.38);
+  font-family:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+body.rs-app.light.v2 ::selection{background:#BFDBFE;color:var(--ink)}
+
+/* header */
+body.rs-app.light.v2 header.top{background:#FFFFFF;backdrop-filter:none;border-bottom:1px solid var(--line)}
+body.rs-app.light.v2 nav.hubs a.active{background:var(--blue-bg);color:var(--brand-d)}
+body.rs-app.light.v2 .who .av{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .rs-theme,body.rs-app.light.v2 .rs-sidetog,body.rs-app.light.v2 .rs-burger{border-radius:8px}
+body.rs-app.light.v2 .rs-sidetog.on{color:var(--brand-d);border-color:var(--brand)}
+
+/* sidebar: navy */
+body.rs-app.light.v2 .rs-side{background:#0F172A;border-right:0;color:#CBD5E1}
+body.rs-app.light.v2 .rs-side .search input{background:#1E293B;border-color:#334155;color:#F1F5F9;border-radius:8px}
+body.rs-app.light.v2 .rs-side .search input::placeholder{color:#94A3B8}
+body.rs-app.light.v2 .rs-side .search input:focus{border-color:#3B82F6;box-shadow:0 0 0 3px rgba(59,130,246,.25)}
+body.rs-app.light.v2 .rs-group .g-title{color:#94A3B8;font-size:11px;font-weight:600;letter-spacing:.08em}
+body.rs-app.light.v2 .rs-nav-item{color:#CBD5E1;font-weight:500;font-size:13.5px;border-radius:8px}
+body.rs-app.light.v2 .rs-nav-item:hover{background:#1E293B;color:#FFFFFF}
+body.rs-app.light.v2 .rs-nav-item.active{background:#1E293B;color:#FFFFFF;font-weight:600}
+body.rs-app.light.v2 .rs-nav-item.active::before{background:#3B82F6;box-shadow:none;left:0;top:7px;bottom:7px}
+body.rs-app.light.v2 .rs-nav-item .soon{background:#1E293B;border-color:#334155;color:#94A3B8}
+body.rs-app.light.v2 .rs-nav-item.disabled:hover{background:none;color:#CBD5E1}
+body.rs-app.light.v2 .rs-side .foot{border-top-color:#1E293B;color:#94A3B8}
+body.rs-app.light.v2 .rs-side .foot b{color:#E2E8F0}
+body.rs-app.light.v2 .rs-side .foot #footRefresh{background:#1E293B;border-color:#334155;color:#E2E8F0}
+body.rs-app.light.v2 .rs-side .foot #footRefresh:hover{background:#334155;color:#FFFFFF}
+body.rs-app.light.v2 .rs-side::-webkit-scrollbar-thumb{background:#334155;border-color:#0F172A}
+
+/* filter bar: pills */
+body.rs-app.light.v2 .rs-filters{background:#FFFFFF;backdrop-filter:none}
+body.rs-app.light.v2 .rs-slicer-btn,body.rs-app.light.v2 .rs-daterange,body.rs-app.light.v2 .rs-clear{border-radius:999px;height:36px}
+body.rs-app.light.v2 .rs-slicer-btn .lbl,body.rs-app.light.v2 .rs-daterange .lbl,body.rs-app.light.v2 .rs-ctl .lbl{
+  text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:var(--faint)}
+body.rs-app.light.v2 .rs-slicer-btn .val{color:var(--ink);font-weight:600}
+body.rs-app.light.v2 .rs-slicer-btn.on{background:var(--blue-bg);border-color:#93C5FD}
+body.rs-app.light.v2 .rs-slicer-btn.on .lbl,body.rs-app.light.v2 .rs-slicer-btn.on .val{color:var(--brand-d)}
+body.rs-app.light.v2 .rs-slicer.rs-form .rs-slicer-btn{border-radius:8px;height:auto}
+body.rs-app.light.v2 .rs-slicer-pop{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
+body.rs-app.light.v2 .rs-slicer-pop .opt{color:var(--ink)}
+body.rs-app.light.v2 .rs-slicer-pop .opt.sel{background:var(--blue-bg);color:var(--brand-d)}
+body.rs-app.light.v2 .rs-slicer-pop .opt input{accent-color:var(--brand)}
+body.rs-app.light.v2 .rs-daterange input[type=date]{background:var(--panel-2)}
+body.rs-app.light.v2 .rs-daterange input[type=date]:hover,body.rs-app.light.v2 .rs-daterange input[type=date]:focus{background:var(--blue-bg)}
+body.rs-app.light.v2 .rs-daterange:focus-within{box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+body.rs-app.light.v2 .rs-chips{background:#FFFFFF}
+body.rs-app.light.v2 .rs-chip,body.rs-app.light.v2 .rs-cpill{background:var(--blue-bg);border-color:#93C5FD;color:var(--brand-d)}
+body.rs-app.light.v2 .rs-chip button{color:var(--brand-d)}
+body.rs-app.light.v2 .rs-chip button:hover{background:#DBEAFE}
+body.rs-app.light.v2 .rs-cpill.none{background:transparent;border-color:var(--line);color:var(--faint)}
+body.rs-app.light.v2 .rs-ctog{border-radius:999px;font-weight:600}
+body.rs-app.light.v2 .rs-ctog:hover{color:var(--brand-d);border-color:#93C5FD;background:var(--blue-bg)}
+body.rs-app.light.v2 .rs-datebasis{font-size:12px;color:var(--faint)}
+body.rs-app.light.v2 .rs-banner{background:#FFFBEB;border-bottom-color:#FDE68A;color:#78350F;font-size:13px}
+body.rs-app.light.v2 .rs-banner b{color:#92400E}
+body.rs-app.light.v2 .rs-banner-btn{border-radius:8px;border-color:#B45309;color:#92400E}
+
+/* page head */
+body.rs-app.light.v2 .rs-page-head{margin:4px 0 18px}
+body.rs-app.light.v2 .rs-page-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:var(--ink);margin-bottom:6px}
+body.rs-app.light.v2 .rs-page-head p{font-size:14.5px;color:var(--muted);line-height:1.55;max-width:var(--rs-prose)}
+body.rs-app.light.v2 .rs-page-head .freshness{font-size:12.5px;color:var(--faint)}
+body.rs-app.light.v2 .rs-hint{font-size:13.5px}
+
+/* KPI cards: white, sentence-case label, one delta format (span.up / span.down) */
+body.rs-app.light.v2 .rs-kpis{gap:12px}
+body.rs-app.light.v2 .rs-kpis .kpi{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-height:0;box-shadow:none}
+body.rs-app.light.v2 .rs-kpis .kpi::before{display:none}
+body.rs-app.light.v2 .rs-kpis .kpi:hover{transform:none;border-color:var(--line-2)}
+body.rs-app.light.v2 .rs-kpis .kpi .l{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:var(--muted)}
+body.rs-app.light.v2 .rs-kpis .kpi .v{font-size:clamp(20px,1.25vw,26px);font-weight:600;letter-spacing:-.3px;margin-top:4px}
+body.rs-app.light.v2 .rs-kpis .kpi .s{font-size:12.5px;color:var(--faint);margin-top:4px}
+body.rs-app.light.v2 .rs-kpis .kpi .s b{color:var(--muted)}
+body.rs-app.light.v2 span.up{color:var(--pos);font-weight:600}
+body.rs-app.light.v2 span.down{color:var(--neg);font-weight:600}
+
+/* panels, buttons, tabs */
+body.rs-app.light.v2 .panel{background:#FFFFFF;border:1px solid var(--line);border-radius:10px;box-shadow:none;padding:16px 18px;margin-bottom:16px}
+body.rs-app.light.v2 .panel-title{font-size:15px;font-weight:600;letter-spacing:0}
+body.rs-app.light.v2 .btn{border-radius:8px;height:34px;padding:0 13px;font-size:13px;font-weight:600;color:var(--ink);border-color:var(--line-2)}
+body.rs-app.light.v2 .btn:hover{background:var(--panel-2);color:var(--ink)}
+body.rs-app.light.v2 .btn.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .btn.brand{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .btn.brand:hover{background:#1E40AF;border-color:#1E40AF}
+body.rs-app.light.v2 .rs-tab{border-radius:999px;height:34px;font-weight:600;font-size:13px;color:var(--ink)}
+body.rs-app.light.v2 .rs-tab.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .rs-ctl select{border-radius:8px;height:34px;font-size:13px}
+
+/* tables: sentence-case headers, ink body text, neutral hover (his rule: no coloured hover) */
+body.rs-app.light.v2 table.tab th,body.rs-app.light.v2 table.tab td{color:var(--ink);border-bottom-color:#F1F5F9;font-size:13.5px}
+body.rs-app.light.v2 table.tab td:first-child,body.rs-app.light.v2 table.tab th:first-child{background:#FFFFFF}
+body.rs-app.light.v2 table.tab thead th,body.rs-app.light.v2 table.tab thead th:first-child{background:#F8FAFC;color:var(--muted);text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;border-bottom-color:var(--line)}
+body.rs-app.light.v2 table.tab tbody tr:hover td,body.rs-app.light.v2 table.tab tbody tr:hover td:first-child{background:#F8FAFC}
+body.rs-app.light.v2 table.tab tfoot td{background:#F8FAFC;font-weight:600}
+body.rs-app.light.v2 .tabwrap,body.rs-app.light.v2 .rs-tablewrap{border-radius:10px}
+body.rs-app.light.v2 .rs-table th{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;background:#F8FAFC;border-bottom-color:var(--line)}
+body.rs-app.light.v2 .rs-table td{border-bottom-color:#F1F5F9}
+body.rs-app.light.v2 .rs-table td.strong{font-weight:600}
+
+/* status pills */
+body.rs-app.light.v2 .rs-pill{border-radius:6px;font-weight:600;letter-spacing:0;font-size:12px}
+
+/* states */
+body.rs-app.light.v2 .rs-loading .bar{background:#E2E8F0}
+body.rs-app.light.v2 .rs-loading .bar i{background:var(--brand);box-shadow:none}
+body.rs-app.light.v2 .rs-group.on .rs-caret,body.rs-app.light.v2 .rs-group2.on .rs-caret{color:var(--brand-d)}
