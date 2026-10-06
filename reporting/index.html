@@ -212,7 +212,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "month-outlook": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "day-closing": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "month-outlook": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "crew-pay-compare": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "day-closing": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "storage-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -240,7 +240,7 @@ const NAV_ORDER = {
   "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "storage-control": 5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
-  "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4,
+  "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
@@ -294,7 +294,7 @@ const PAGE_ICONS = {
   "ads-analysis": "megaphone", "callrail": "phone", "forman": "tool",
   "packing": "box", "claims": "shield", "insights": "spark",
   "source-identification": "compass",
-  "financial-overview": "trend", "month-outlook": "calendar", "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
+  "financial-overview": "trend", "month-outlook": "calendar", "salaries": "dollar", "branch-owner": "user", "bo-salary": "trend", "crew-pay-compare": "dollar", "cl-analysis": "trend", "postcard-purchases": "trend", "postcard-expenditure": "calendar", "customer-experience": "user",
   "money-flow": "dollar",
   "day-closing": "archive",
   "ld-planning": "truck",
@@ -764,6 +764,7 @@ const PAGE_DATASETS = {
   "month-outlook": [],
   "branch-owner": ["closing", "mart_branch_owner_jobs"],
   "bo-salary": ["closing", "mart_branch_owner_jobs"],
+  "crew-pay-compare": [],
   "postcard-purchases": [],     // Post Card Purchases (Financial): reads its marts + /api/_pcpurchase + /api/_pcstock directly
   "postcard-expenditure": [],   // Post Card Expenditure (Logistics): the weekly grid + /api/_pcweek, /api/_pcstock, /api/_pccount
   "cl-analysis": ["closing", "mart_cl_analysis"],
@@ -1107,7 +1108,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration", "admin-activity"]);
+  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1218,6 +1219,7 @@ const NAV_TITLES = {
   "salaries": "Salaries",
   "branch-owner": "Branch Owner",
   "bo-salary": "Branch Owner Salary Comparison",
+  "crew-pay-compare": "Crew Salary Comparison",
   "postcard-purchases": "Post Card Purchases",
   "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis",
@@ -1287,6 +1289,7 @@ const SEARCH_ALIASES = {
   "salaries": "salaries salary payroll pay paid commission commissions estimator estimators sales person salesperson rep reps branch owner kolbaia cut slot pay period cl partner yelp financial",
   "branch-owner": "branch owner giorgi kolbaia cut payout sales person financial ct",
   "bo-salary": "branch owner salary comparison analysis giorgi kolbaia estimator stairs bulky junk share of bill alternative 35% crew break-even projection 2027 straight regular local",
+  "crew-pay-compare": "crew salary comparison compensation plan pay model wage rates helper driver foreman senior bonus stairs bulky packing long distance day pay what if",
   "postcard-purchases": "post card postcard purchases quantity unit cost cogs roi shelf stock lost financial",
   "postcard-expenditure": "post card postcard expenditure sent mailed week friday state logistics shelf count lost",
   "cl-analysis": "cl analysis peter montanaro partner deposit cut craigslist source jobs referral partner financial",
@@ -1833,6 +1836,7 @@ const REPORT_LABELS = {
   "salaries": "Salaries (estimator, sales person, branch owner)",
   "branch-owner": "Branch Owner (Giorgi)",
   "bo-salary": "Branch Owner Salary Comparison",
+  "crew-pay-compare": "Crew Salary Comparison",
   "postcard-purchases": "Post Card Purchases",
   "postcard-expenditure": "Post Card Expenditure",
   "cl-analysis": "CL Analysis (Peter)",
@@ -1899,7 +1903,7 @@ const ACL_DEPTS = [
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
-  { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary"] },
+  { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary", "crew-pay-compare"] },
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
@@ -2181,6 +2185,7 @@ registerPage({
 <script src="pages/salaries.js?v=7"></script>
 <script src="pages/branch-owner.js?v=13"></script>
 <script src="pages/bo-salary.js?v=4"></script>
+<script src="pages/crew-pay-compare.js?v=1"></script>
 <script src="pages/day-closing.js?v=4"></script>
 <script src="pages/money-flow.js?v=65"></script>
 <script src="pages/ld-planning.js?v=84"></script>
