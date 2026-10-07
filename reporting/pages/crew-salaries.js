@@ -123,26 +123,26 @@ registerPage({
       const V = "body.rs-app.light.v2 ";
       return [
         V + ".crw-in{border-radius:999px;border-color:var(--line);padding:0 14px;height:36px;font-size:13px}",
-        V + ".crw-in:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}",
+        V + ".crw-in:focus{border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}",
         V + ".crw-count{font-size:12.5px;font-weight:500}",
         V + ".crw-role{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
           + "border-radius:6px;padding:2px 8px}",
-        V + ".crw-role.foreman{background:#EFF6FF;color:#1D4ED8}",
+        V + ".crw-role.foreman{background:#F4FAE6;color:#2F6316}",
         V + ".crw-role.driver{background:#F0FDFA;color:#0F766E}",
         V + ".crw-role.helper{background:#F1F5F9;color:#475569}",
         V + ".crw-mix{height:8px;border-radius:4px;background:#F1F5F9}",
-        V + ".crw-mix i.s," + V + ".crw-legend .s b{background:#1E3A8A}",
-        V + ".crw-mix i.t," + V + ".crw-legend .t b{background:#60A5FA}",
+        V + ".crw-mix i.s," + V + ".crw-legend .s b{background:#14301F}",
+        V + ".crw-mix i.t," + V + ".crw-legend .t b{background:#A3CF3A}",
         V + ".crw-legend{font-size:12.5px;color:#64748B}",
         V + ".crw-bar~.rs-kpis .kpi.pos .v," + V + ".crw-bar~.rs-kpis .kpi.warn .v{color:var(--ink)}",
         V + ".crw-mx tbody tr:hover{background:#F8FAFC}",
         V + ".crw-nm{font-weight:600}",
-        V + ".crw-nm:hover{color:#1D4ED8}",
-        V + ".crw-trip{font-size:12px;font-weight:600;color:#1D4ED8}",
+        V + ".crw-nm:hover{color:#2F6316}",
+        V + ".crw-trip{font-size:12px;font-weight:600;color:#2F6316}",
         V + ".crw-dr{box-shadow:-12px 0 32px -20px rgba(15,23,42,.28)}",
         V + ".crw-back{background:rgba(15,23,42,.38)}",
         V + ".crw-drh h2{font-size:22px;font-weight:700}",
-        V + ".crw-spark i{background:#2563EB;border-radius:4px 4px 0 0}",
+        V + ".crw-spark i{background:#3F7D20;border-radius:4px 4px 0 0}",
         V + ".crw-spark i.dim{background:#CBD5E1}",
         V + ".crw-pager{font-size:12.5px;color:#64748B}",
         // the kit control bar, in v2 shapes
@@ -151,7 +151,7 @@ registerPage({
         V + ".crw-bar .rs-seg{background:#FFFFFF;border:1px solid var(--line);border-radius:999px;padding:3px}",
         V + ".crw-bar .rs-seg button{border-radius:999px;font-weight:600;color:#475569;padding:6px 13px}",
         V + ".crw-bar .rs-seg button:hover:not(.on){background:#F8FAFC;color:var(--ink)}",
-        V + ".crw-bar .rs-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}",
+        V + ".crw-bar .rs-seg button.on{background:#14301F;color:#FFFFFF;font-weight:600}",
         V + ".crw-pager .rs-btn," + V + "#crwCsv{border-radius:8px;font-weight:600;color:var(--ink);"
           + "border-color:#CBD5E1}",
         V + ".crw-pager .rs-btn:hover:not(:disabled)," + V + "#crwCsv:hover{background:#F8FAFC;"

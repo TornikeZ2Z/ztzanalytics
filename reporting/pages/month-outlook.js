@@ -78,13 +78,13 @@ registerPage({
       body.rs-app.light.v2 .mo-bar{gap:8px;margin:4px 0 18px}
       body.rs-app.light.v2 .mo-seg{border-color:var(--line);border-radius:999px}
       body.rs-app.light.v2 .mo-seg button{font-size:13.5px;font-weight:500;color:var(--muted);padding:8px 16px;min-height:36px}
-      body.rs-app.light.v2 .mo-seg button.on{background:#1E3A8A;color:#FFFFFF;font-weight:600}
+      body.rs-app.light.v2 .mo-seg button.on{background:#14301F;color:#FFFFFF;font-weight:600}
       body.rs-app.light.v2 .mo-card{border-color:var(--line);border-radius:10px;box-shadow:none;padding:16px 18px}
-      body.rs-app.light.v2 .mo-card.total{border:1px solid #BFDBFE;background:#EFF6FF}
+      body.rs-app.light.v2 .mo-card.total{border:1px solid #DCEFB0;background:#F4FAE6}
       body.rs-app.light.v2 .mo-card .k{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
-      body.rs-app.light.v2 .mo-card.total .k{color:#1E3A8A;font-weight:600}
+      body.rs-app.light.v2 .mo-card.total .k{color:#14301F;font-weight:600}
       body.rs-app.light.v2 .mo-card .v{font-size:30px;font-weight:700;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
-      body.rs-app.light.v2 .mo-card.total .v,body.rs-app.light.v2 .mo-card.total .s,body.rs-app.light.v2 .mo-card.total .s b{color:#1E3A8A}
+      body.rs-app.light.v2 .mo-card.total .v,body.rs-app.light.v2 .mo-card.total .s,body.rs-app.light.v2 .mo-card.total .s b{color:#14301F}
       body.rs-app.light.v2 .mo-card .s{font-size:13px}
       body.rs-app.light.v2 .mo-card .s.m{font-size:12.5px;color:var(--faint)}
       body.rs-app.light.v2 .mo-card.total .s .mo-vs{color:var(--muted)}
@@ -92,7 +92,7 @@ registerPage({
       body.rs-app.light.v2 .mo-dn{color:var(--neg);font-weight:600}
       body.rs-app.light.v2 .mo-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:24px 0 10px}
       body.rs-app.light.v2 .mo-day .n{font-size:12px;font-weight:500;top:-17px}
-      body.rs-app.light.v2 .mo-day.today{outline-color:#2563EB}
+      body.rs-app.light.v2 .mo-day.today{outline-color:#3F7D20}
       body.rs-app.light.v2 .mo-days{border-bottom-color:var(--line);padding-top:20px}
       body.rs-app.light.v2 .mo-dlab span{font-size:12px;color:var(--faint)}
       body.rs-app.light.v2 .mo-leg{font-size:13px;gap:18px;margin-top:10px}
@@ -106,7 +106,7 @@ registerPage({
     </style>`;
     // bar colours: v2 = navy done / light blue still on the calendar (the canvas spec); read at render
     // time so the theme button, which re-renders the page, switches them
-    const C = RS.isV2() ? { done: RS.V2.navy, est: RS.V2.accentL, ahead: "#93C5FD" }
+    const C = RS.isV2() ? { done: RS.V2.navy, est: RS.V2.accentL, ahead: "#C9E68A" }
       : { done: "var(--brand-d, #6a8f12)", est: "color-mix(in srgb,var(--brand) 55%,transparent)", ahead: "color-mix(in srgb,var(--blue) 55%,transparent)" };
 
     const paint = () => {

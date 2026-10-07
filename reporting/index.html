@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="b67a68ddb757004186aad805cf02b67ce9bfba13">
+<meta name="ztz-ref" content="4ae7006b6f35a0d44c9c1fa42bfb9566ab8422e0">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -67,7 +67,7 @@
         + 'background:#0F172A;color:#F8FAFC;border-radius:12px;padding:12px 14px 12px 16px;font:500 13.5px/1.4 "IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;'
         + 'box-shadow:0 10px 30px rgba(15,23,42,.28);max-width:calc(100vw - 36px)';
       b.innerHTML = '<span>A new version of the portal is live.</span>'
-        + '<button type="button" data-a="go" style="font:inherit;font-weight:600;border:0;border-radius:8px;padding:7px 14px;background:#2563EB;color:#fff;cursor:pointer">Refresh</button>'
+        + '<button type="button" data-a="go" style="font:inherit;font-weight:600;border:0;border-radius:8px;padding:7px 14px;background:#3F7D20;color:#fff;cursor:pointer">Refresh</button>'
         + '<button type="button" data-a="later" style="font:inherit;border:0;background:none;color:#CBD5E1;cursor:pointer;padding:6px">Later</button>';
       b.addEventListener('click', function (e) {
         var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');
@@ -87,7 +87,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=35">
+<link rel="stylesheet" href="assets/rs.css?v=37">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -184,8 +184,8 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 </div>
 
 <script src="assets/portal.js?v=12"></script>
-<script src="assets/rs-core.js?v=57"></script>
-<script src="assets/rs-components.js?v=34"></script>
+<script src="assets/rs-core.js?v=59"></script>
+<script src="assets/rs-components.js?v=36"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -674,8 +674,8 @@ Chart.defaults.datasets.bar.maxBarThickness = 44;
 
 /* ---- beautifier: solid 100%-opaque fills only (no gradients, no alpha) + crisp hovers,
    applied by wrapping the Chart constructor so page modules stay untouched. ---- */
-const V2_LIME = { "#b7e23b": "#2563EB", "#7fa32b": "#2563EB", "#9aba3c": "#2563EB", "#8fb427": "#1E3A8A", "#5f7c20": "#1E3A8A",
-                  "#84cc16": "#2563EB", "#65a30d": "#1E3A8A", "rgba(132,204,22,.78)": "rgba(37,99,235,.78)", "rgba(132,204,22,.85)": "rgba(37,99,235,.85)" };
+const V2_LIME = { "#b7e23b": "#3F7D20", "#7fa32b": "#3F7D20", "#9aba3c": "#3F7D20", "#8fb427": "#14301F", "#5f7c20": "#14301F",
+                  "#84cc16": "#3F7D20", "#65a30d": "#14301F", "rgba(132,204,22,.78)": "rgba(63,125,32,.78)", "rgba(132,204,22,.85)": "rgba(63,125,32,.85)" };
 function _beautify(config) {
   try {
     const datasets = (config.data && config.data.datasets) || [];
@@ -2202,7 +2202,7 @@ registerPage({
 <script src="pages/insights.js?v=8"></script> -->
 <script src="pages/source-identification.js?v=4"></script>
 <script src="pages/jobs-vs-hours.js?v=8"></script>
-<script src="pages/analysis-by-category.js?v=22"></script>
+<script src="pages/analysis-by-category.js?v=23"></script>
 <script src="pages/yoy-diff.js?v=8"></script>
 <script src="pages/leads-analysis.js?v=8"></script>
 <script src="pages/leads-by-state.js?v=6"></script>
@@ -2219,71 +2219,71 @@ registerPage({
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=5"></script>
-<script src="pages/monthly-report.js?v=119"></script>
-<script src="pages/seasonal-report.js?v=21"></script>
-<script src="pages/leads-vs-moveboard.js?v=8"></script>
+<script src="pages/monthly-report.js?v=120"></script>
+<script src="pages/seasonal-report.js?v=22"></script>
+<script src="pages/leads-vs-moveboard.js?v=9"></script>
 <script src="pages/source-analysis.js?v=6"></script>
 <script src="pages/data-quality.js?v=16"></script>
-<script src="pages/refresh-log.js?v=30"></script>
-<script src="pages/sales-team.js?v=57"></script>
-<script src="pages/sales-comms.js?v=6"></script>
-<script src="pages/sales-trackers.js?v=9"></script>
-<script src="pages/estimate-accuracy.js?v=8"></script>
-<script src="pages/things-to-do.js?v=3"></script>
-<script src="pages/conversations.js?v=12"></script>
-<script src="pages/source-trace.js?v=29"></script>
-<script src="pages/source-report.js?v=5"></script>
-<script src="pages/meta-referrals.js?v=3"></script>
-<script src="pages/jobs-by-area.js?v=5"></script>
-<script src="pages/packing-sales.js?v=6"></script>
-<script src="pages/relocation-trends.js?v=6"></script>
+<script src="pages/refresh-log.js?v=31"></script>
+<script src="pages/sales-team.js?v=58"></script>
+<script src="pages/sales-comms.js?v=7"></script>
+<script src="pages/sales-trackers.js?v=10"></script>
+<script src="pages/estimate-accuracy.js?v=9"></script>
+<script src="pages/things-to-do.js?v=4"></script>
+<script src="pages/conversations.js?v=13"></script>
+<script src="pages/source-trace.js?v=30"></script>
+<script src="pages/source-report.js?v=6"></script>
+<script src="pages/meta-referrals.js?v=4"></script>
+<script src="pages/jobs-by-area.js?v=6"></script>
+<script src="pages/packing-sales.js?v=7"></script>
+<script src="pages/relocation-trends.js?v=7"></script>
 <script src="pages/census-data.js?v=5"></script>
 <script src="pages/organic-search.js?v=2"></script>
 <script src="pages/utm-campaigns.js?v=4"></script>
 <script src="pages/angi-funnel.js?v=10"></script>
-<script src="pages/promised-reviews.js?v=14"></script>
-<script src="pages/birdeye-sends.js?v=3"></script>
+<script src="pages/promised-reviews.js?v=15"></script>
+<script src="pages/birdeye-sends.js?v=4"></script>
 <script src="pages/photoshoot.js?v=2"></script>
-<script src="pages/foreman-late.js?v=15"></script>
+<script src="pages/foreman-late.js?v=16"></script>
 <script src="pages/referral-candidates.js?v=14"></script>
-<script src="pages/calendar-coverage.js?v=9"></script>
-<script src="pages/request-consistency.js?v=5"></script>
-<script src="pages/cl-analysis.js?v=41"></script>
-<script src="pages/financial-overview.js?v=6"></script>
-<script src="pages/month-outlook.js?v=2"></script>
-<script src="pages/salaries.js?v=7"></script>
+<script src="pages/calendar-coverage.js?v=10"></script>
+<script src="pages/request-consistency.js?v=6"></script>
+<script src="pages/cl-analysis.js?v=42"></script>
+<script src="pages/financial-overview.js?v=7"></script>
+<script src="pages/month-outlook.js?v=3"></script>
+<script src="pages/salaries.js?v=8"></script>
 <script src="pages/branch-owner.js?v=13"></script>
-<script src="pages/bo-salary.js?v=4"></script>
+<script src="pages/bo-salary.js?v=5"></script>
 <script src="pages/crew-pay-compare.js?v=1"></script>
-<script src="pages/day-closing.js?v=4"></script>
-<script src="pages/money-flow.js?v=65"></script>
-<script src="pages/ld-planning.js?v=84"></script>
-<script src="pages/cleanup.js?v=39"></script>
-<script src="pages/packing-control.js?v=22"></script>
-<script src="pages/storage-control.js?v=12"></script>
-<script src="pages/foreman-assessment.js?v=42"></script>
-<script src="pages/crew-salaries.js?v=9"></script>
-<script src="pages/hr-questionnaire.js?v=50"></script>
-<script src="pages/hr-directory.js?v=17"></script>
-<script src="pages/fuel-control.js?v=12"></script>
-<script src="pages/demand-analysis.js?v=15"></script>
-<script src="pages/straight-vs-local.js?v=7"></script>
+<script src="pages/day-closing.js?v=5"></script>
+<script src="pages/money-flow.js?v=66"></script>
+<script src="pages/ld-planning.js?v=85"></script>
+<script src="pages/cleanup.js?v=40"></script>
+<script src="pages/packing-control.js?v=23"></script>
+<script src="pages/storage-control.js?v=13"></script>
+<script src="pages/foreman-assessment.js?v=43"></script>
+<script src="pages/crew-salaries.js?v=10"></script>
+<script src="pages/hr-questionnaire.js?v=51"></script>
+<script src="pages/hr-directory.js?v=18"></script>
+<script src="pages/fuel-control.js?v=13"></script>
+<script src="pages/demand-analysis.js?v=16"></script>
+<script src="pages/straight-vs-local.js?v=8"></script>
 <script src="pages/storage-plan.js?v=2"></script>
-<script src="pages/area-plan.js?v=94"></script>
-<script src="pages/postcard-purchases.js?v=3"></script>
-<script src="pages/postcard-expenditure.js?v=12"></script>
-<script src="pages/truck-economics.js?v=6"></script>
+<script src="pages/area-plan.js?v=95"></script>
+<script src="pages/postcard-purchases.js?v=4"></script>
+<script src="pages/postcard-expenditure.js?v=13"></script>
+<script src="pages/truck-economics.js?v=7"></script>
 <script src="pages/data-migration.js?v=25"></script>
 <script src="pages/general-tables.js?v=7"></script>
 <script src="pages/money-flow-issues.js?v=4"></script>
-<script src="pages/foreman-closings.js?v=21"></script>
+<script src="pages/foreman-closings.js?v=22"></script>
 <script src="pages/general-settings.js?v=7"></script>
-<script src="pages/admin-activity.js?v=4"></script>
-<script src="pages/review-performance.js?v=31"></script>
-<script src="pages/reminders.js?v=52"></script>
-<script src="pages/reviews-cases.js?v=16"></script>
-<script src="pages/claims-analysis.js?v=31"></script>
-<script src="pages/sales-of-the-month.js?v=5"></script>
-<script src="pages/support-of-the-month.js?v=2"></script>
+<script src="pages/admin-activity.js?v=5"></script>
+<script src="pages/review-performance.js?v=32"></script>
+<script src="pages/reminders.js?v=53"></script>
+<script src="pages/reviews-cases.js?v=17"></script>
+<script src="pages/claims-analysis.js?v=32"></script>
+<script src="pages/sales-of-the-month.js?v=6"></script>
+<script src="pages/support-of-the-month.js?v=3"></script>
 </body>
 </html>

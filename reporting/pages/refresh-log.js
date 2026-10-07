@@ -341,7 +341,7 @@ function rlInjectStyle() {
   body.rs-app.light.v2 .rl-covsub{font-weight:400;color:var(--faint)}
   body.rs-app.light.v2 .rl-cov .rng{font-size:15px;font-weight:600}
   body.rs-app.light.v2 .rl-cov .meta{font-size:12.5px}
-  body.rs-app.light.v2 .panel.rl-live.on{border-color:#93C5FD}
+  body.rs-app.light.v2 .panel.rl-live.on{border-color:#C9E68A}
   body.rs-app.light.v2 .rl-lvsub,body.rs-app.light.v2 .rl-lvcount{font-size:12.5px}
   body.rs-app.light.v2 .rl-lvpulse.on,body.rs-app.light.v2 .rl-lvfill{background:var(--brand)}
   body.rs-app.light.v2 .rl-lvbar{background:#E2E8F0}
@@ -356,9 +356,9 @@ function rlInjectStyle() {
   body.rs-app.light.v2 .rl-leg .lv{font-weight:600;margin-left:6px}
   body.rs-app.light.v2 .rl-leg .ls{font-size:12.5px}
   body.rs-app.light.v2 .rl-leg .rl-dot.raw,body.rs-app.light.v2 .rl-split .seg.raw,
-  body.rs-app.light.v2 .rl-gbar.raw{background:#1E3A8A}
+  body.rs-app.light.v2 .rl-gbar.raw{background:#14301F}
   body.rs-app.light.v2 .rl-leg .rl-dot.cur,body.rs-app.light.v2 .rl-split .seg.cur,
-  body.rs-app.light.v2 .rl-gbar.curation{background:#60A5FA}
+  body.rs-app.light.v2 .rl-gbar.curation{background:#A3CF3A}
   body.rs-app.light.v2 .rl-split{border-radius:6px;background:#F1F5F9}
   body.rs-app.light.v2 .rl-gtrack{background:#F1F5F9;border-radius:4px}
   body.rs-app.light.v2 .rl-gbar{border-radius:4px}
@@ -385,9 +385,9 @@ function rlInjectStyle() {
   body.rs-app.light.v2 .rl-fdet summary{font-size:13px;font-weight:600}
   /* the reload switch: info pill when on, neutral when paused */
   body.rs-app.light.v2 .rl-sw{font-size:12px;font-weight:600;letter-spacing:0;border-radius:6px;padding:2px 9px}
-  body.rs-app.light.v2 .rl-sw.on{background:#EFF6FF;color:#1D4ED8;border-color:#93C5FD}
+  body.rs-app.light.v2 .rl-sw.on{background:#F4FAE6;color:#2F6316;border-color:#C9E68A}
   body.rs-app.light.v2 .rl-sw.off{background:#F1F5F9;color:#475569;border-color:#CBD5E1}
-  body.rs-app.light.v2 .rl-sw:hover:not(:disabled){filter:none;border-color:#1E3A8A}
+  body.rs-app.light.v2 .rl-sw:hover:not(:disabled){filter:none;border-color:#14301F}
   body.rs-app.light.v2 .rl-run{border-radius:10px;box-shadow:none}
   body.rs-app.light.v2 .rl-rhead:hover{background:#F8FAFC}
   body.rs-app.light.v2 .rl-rdate{font-weight:600}

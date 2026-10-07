@@ -495,7 +495,7 @@ registerPage({
         "body.rs-app.light.v2 .hq-tabs button{font-size:13px;font-weight:600;color:var(--ink);background:#FFFFFF;"
           + "border:1px solid var(--line-2);border-radius:999px;height:34px;padding:0 14px}",
         "body.rs-app.light.v2 .hq-tabs button:hover{background:var(--panel-2);color:var(--ink)}",
-        "body.rs-app.light.v2 .hq-tabs button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-tabs button.on{background:#14301F;border-color:#14301F;color:#FFFFFF}",
         // cards and section titles
         "body.rs-app.light.v2 .hq-card{border-radius:10px;box-shadow:none}",
         "body.rs-app.light.v2 .hq-card h4,body.rs-app.light.v2 .hq-card h4.eyebrow{font-size:15px;font-weight:600;"
@@ -503,12 +503,12 @@ registerPage({
         "body.rs-app.light.v2 .hq-secdiv{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}",
         "body.rs-app.light.v2 .hq-lab{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
         "body.rs-app.light.v2 .hq-grid .h{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}",
-        "body.rs-app.light.v2 .hq-grid .h.ka{color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-grid .h.ka{color:#14301F}",
         "body.rs-app.light.v2 .hq-msg{font-weight:600}",
         // buttons: radius 8, secondary white + slate border, primary = navy fill
         "body.rs-app.light.v2 .hq-btn{border-radius:8px;font-size:13.5px;font-weight:600;color:var(--ink);border-color:var(--line-2)}",
         "body.rs-app.light.v2 .hq-btn:hover{background:var(--panel-2);border-color:var(--line-2);color:var(--ink)}",
-        "body.rs-app.light.v2 .hq-btn.go,body.rs-app.light.v2 .hq-btn.send{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-btn.go,body.rs-app.light.v2 .hq-btn.send{background:#14301F;border-color:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .hq-btn.go:hover,body.rs-app.light.v2 .hq-btn.send:hover{background:#1E40AF;border-color:#1E40AF;"
           + "color:#FFFFFF;filter:none}",
         "body.rs-app.light.v2 .hq-btn.warn:hover{border-color:var(--neg);color:var(--neg);background:#FFFFFF}",
@@ -522,7 +522,7 @@ registerPage({
           + "body.rs-app.light.v2 .hq-st.n{background:#F1F5F9;color:#475569}",
         "body.rs-app.light.v2 .hq-pill.published,body.rs-app.light.v2 .hq-st.g{background:#DCFCE7;color:#166534}",
         "body.rs-app.light.v2 .hq-pill.closed,body.rs-app.light.v2 .hq-st.a{background:#FEF3C7;color:#92400E}",
-        "body.rs-app.light.v2 .hq-st.b{background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .hq-st.b{background:#F4FAE6;color:#2F6316}",
         "body.rs-app.light.v2 .hq-st.r{background:#FEE2E2;color:#991B1B}",
         "body.rs-app.light.v2 .hq-read .prov{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
           + "background:#FEF3C7;color:#92400E;border-radius:6px;padding:1px 7px}",
@@ -530,7 +530,7 @@ registerPage({
           + "background:#FEF3C7;color:#92400E;border:0;border-radius:6px;padding:1px 7px}",
         // the questionnaire list
         "body.rs-app.light.v2 .hq-qitem{border-radius:10px}",
-        "body.rs-app.light.v2 .hq-qitem:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .hq-qitem:hover{border-color:#C9E68A}",
         "body.rs-app.light.v2 .hq-qitem b{font-size:15px;font-weight:600}",
         // tables: #F8FAFC sentence-case header, hairline rows, neutral hover
         "body.rs-app.light.v2 .hq-tbl th{background:#F8FAFC;font-size:12.5px;font-weight:600;letter-spacing:0;"
@@ -552,23 +552,23 @@ registerPage({
         "body.rs-app.light.v2 .hq-orwho b{font-weight:600}",
         "body.rs-app.light.v2 .hq-orprog b{font-weight:600}",
         "body.rs-app.light.v2 .hq-orbody{border-radius:10px}",
-        "body.rs-app.light.v2 .hq-orsec{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-orsec{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#14301F}",
         "body.rs-app.light.v2 .hq-orqn{font-size:12px;font-weight:600}",
         "body.rs-app.light.v2 .hq-orql{font-size:13.5px;font-weight:500}",
         "body.rs-app.light.v2 .hq-orqd{font-size:12px}",
         "body.rs-app.light.v2 .hq-orpick{font-weight:600;border-radius:8px}",
         "body.rs-app.light.v2 .hq-orpick.other i{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}",
         // stars are a rating, not a warning: navy, never amber
-        "body.rs-app.light.v2 .hq-orstars .on{color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-orstars .on{color:#14301F}",
         "body.rs-app.light.v2 .hq-orstars b{font-weight:600}",
         "body.rs-app.light.v2 .hq-orsnum b{font-weight:600}",
         "body.rs-app.light.v2 .hq-orsends{font-size:12px}",
         // the builder: settings cards, audience options, team chips, question rows
         "body.rs-app.light.v2 .hq-audopt{border-width:1px;border-radius:10px}",
-        "body.rs-app.light.v2 .hq-audopt:hover,body.rs-app.light.v2 .hq-chip:hover{border-color:#93C5FD}",
-        "body.rs-app.light.v2 .hq-audopt.on,body.rs-app.light.v2 .hq-chip.on{border-color:var(--brand);background:#EFF6FF}",
+        "body.rs-app.light.v2 .hq-audopt:hover,body.rs-app.light.v2 .hq-chip:hover{border-color:#C9E68A}",
+        "body.rs-app.light.v2 .hq-audopt.on,body.rs-app.light.v2 .hq-chip.on{border-color:var(--brand);background:#F4FAE6}",
         "body.rs-app.light.v2 .hq-audopt b{font-weight:600}",
-        "body.rs-app.light.v2 .hq-audopt .tick,body.rs-app.light.v2 .hq-chip .tick{background:#1E3A8A;color:#FFFFFF;font-weight:700}",
+        "body.rs-app.light.v2 .hq-audopt .tick,body.rs-app.light.v2 .hq-chip .tick{background:#14301F;color:#FFFFFF;font-weight:700}",
         "body.rs-app.light.v2 .hq-chip{border-width:1px;border-radius:10px}",
         "body.rs-app.light.v2 .hq-chip b{font-weight:600}",
         "body.rs-app.light.v2 .hq-diradd input{border-width:1px;border-radius:8px}",
@@ -579,7 +579,7 @@ registerPage({
         "body.rs-app.light.v2 .hq-ed .mv button{font-size:12px}",
         "body.rs-app.light.v2 .hq-x:hover{background:#FEE2E2;color:var(--neg)}",
         "body.rs-app.light.v2 .hq-qr{border-radius:10px}",
-        "body.rs-app.light.v2 .hq-qr:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .hq-qr:hover{border-color:#C9E68A}",
         "body.rs-app.light.v2 .hq-qr .lb{font-weight:600}",
         "body.rs-app.light.v2 .hq-qr .ty{font-size:12px;font-weight:500}",
         "body.rs-app.light.v2 .hq-ins span{font-size:12px;font-weight:600}",
@@ -587,16 +587,16 @@ registerPage({
         "body.rs-app.light.v2 .hq-ddm{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}",
         "body.rs-app.light.v2 .hq-ddi{border-radius:8px}",
         "body.rs-app.light.v2 .hq-ddi:hover{background:#F8FAFC}",
-        "body.rs-app.light.v2 .hq-ddi.on{background:#EFF6FF}",
-        "body.rs-app.light.v2 .hq-ddi.on .ic{background:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .hq-ddi.on{background:#F4FAE6}",
+        "body.rs-app.light.v2 .hq-ddi.on .ic{background:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .hq-ddi b{font-weight:600}",
         "body.rs-app.light.v2 .hq-ddi em{font-size:12px}",
         "body.rs-app.light.v2 .hq-sel{font-weight:600}",
         "body.rs-app.light.v2 .hq-reqt .rt{font-weight:600}",
         "body.rs-app.light.v2 .hq-opt .n.end{font-size:12px;font-weight:600}",
-        "body.rs-app.light.v2 .hq-ka .kah{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#1E3A8A}",
+        "body.rs-app.light.v2 .hq-ka .kah{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#14301F}",
         "body.rs-app.light.v2 .hq-stickybar{border-radius:10px;border-color:var(--line);box-shadow:0 8px 24px rgba(15,23,42,.10)}",
-        "body.rs-app.light.v2 .hq-tag{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A;font-weight:600}",
+        "body.rs-app.light.v2 .hq-tag{background:#F4FAE6;border-color:#C9E68A;color:#14301F;font-weight:600}",
         "body.rs-app.light.v2 .hq-tag em{font-size:12px}",
         "body.rs-app.light.v2 .hq-tag button:hover{background:#FEE2E2;color:var(--neg)}",
         "body.rs-app.light.v2 .hq-ppl{border-radius:10px}",
@@ -658,20 +658,20 @@ registerPage({
     // reopened hours later must not resurrect whatever was open last time
     S.view = "home"; S.qid = null; S.qtab = "setup"; S.subOpen = null;
 
-    var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#2563eb", Marketing: "#9333ea",
+    var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#3F7D20", Marketing: "#9333ea",
                        "Customer Service": "#0d9488", "Data & Control": "#16a34a",
                        Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
                        Operations: "#059669", Foremen: "#b45309",
                        Drivers: "#0e7490", Helpers: "#64748b" };
     /* DESIGN V2: departments are categories, so they take RS.V2.cat in order -- green and
-       red mean good/bad there and may not name a team. The pale #BFDBFE step is skipped:
+       red mean good/bad there and may not name a team. The pale #DCEFB0 step is skipped:
        it disappears as a dot or an avatar tint. Picked per CALL, so the theme button
        (which re-renders the page) switches it. */
     var DEPT_ORDER_V2 = ["Executive", "Operations", "Sales", "Customer Service", "Marketing",
                          "Finance", "Systems", "Data & Control", "HR", "Foremen", "Drivers", "Helpers"];
     var deptColor = function (d) {
       if (window.RS && RS.isV2 && RS.isV2()) {
-        var pal = RS.V2.cat.filter(function (c) { return c !== "#BFDBFE"; });
+        var pal = RS.V2.cat.filter(function (c) { return c !== "#DCEFB0"; });
         var i = DEPT_ORDER_V2.indexOf(d);
         return i < 0 ? RS.V2.other : pal[i % pal.length];
       }
@@ -2313,7 +2313,7 @@ registerPage({
       if (!win) { toast("Allow pop-ups for this site to print.", true); return; }
       // DESIGN V2: the old brand green was the accent here, not "good" -- navy/blue in v2
       var v2p = !!(window.RS && RS.isV2 && RS.isV2());
-      var pAcc = v2p ? "#1E3A8A" : "#3d6b2f", pBar = v2p ? "#2563EB" : "#4a7c3a";
+      var pAcc = v2p ? "#14301F" : "#3d6b2f", pBar = v2p ? "#3F7D20" : "#4a7c3a";
 
       var n = 0;
       var rows = (qs || []).map(function (qq) {

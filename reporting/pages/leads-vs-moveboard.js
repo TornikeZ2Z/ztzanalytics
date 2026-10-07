@@ -40,7 +40,7 @@ registerPage({
       /* DESIGN V2: the dark-pill controls become the v2 filter pills -- white, hairline,
          muted sentence-case label + ink value, a white pop-over, accent instead of lime */
       body.rs-app.light.v2 .lvm-ctl{color:var(--ink);background:#FFFFFF;border-color:#CBD5E1;border-radius:8px;font-weight:600;font-size:13px;color-scheme:light}
-      body.rs-app.light.v2 .lvm-ctl:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+      body.rs-app.light.v2 .lvm-ctl:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}
       body.rs-app.light.v2 .lvm-ctl option{color:var(--ink);background:#FFFFFF}
       body.rs-app.light.v2 input.lvm-ctl::placeholder{color:var(--faint)}
       body.rs-app.light.v2 .lvm-grp{background:#FFFFFF;border-color:#E2E8F0;border-radius:999px;padding:4px 6px 4px 12px}
@@ -50,7 +50,7 @@ registerPage({
       body.rs-app.light.v2 .lvm-msrow{color:var(--ink);font-size:13px;font-weight:500}
       body.rs-app.light.v2 .lvm-msrow:hover{background:#F8FAFC}
       body.rs-app.light.v2 .lvm-msrow input{accent-color:var(--brand)}
-      body.rs-app.light.v2 .lvm-msops .op{font-size:12.5px;font-weight:600;color:#1D4ED8;text-transform:none;letter-spacing:0}
+      body.rs-app.light.v2 .lvm-msops .op{font-size:12.5px;font-weight:600;color:#2F6316;text-transform:none;letter-spacing:0}
       body.rs-app.light.v2 .lvm-mss{background:#FFFFFF;border-color:#CBD5E1;color:var(--ink);border-radius:8px;font-size:13px}`;
       document.head.appendChild(s);
     }
@@ -170,7 +170,7 @@ registerPage({
     /* ---------- helpers ---------- */
     const CHIP = { "Arrived same day": ["#e4f3ea", "#1c7a4a"], "Arrived 1–3 days off": ["#e7f0fb", "#1d4f91"], "Never arrived — customer exists from another lead": ["#fdf3d7", "#7a5a12"], "Matched (Angi file has no date)": ["#eef1f5", "#5a6775"], "Never arrived — customer unknown": ["#fbe6e7", "#b02a37"] };
     // v2: the same verdicts on the v2 status-pill palette (ok / info / warn / neutral / bad), radius 6
-    const CHIP_V2 = { "Arrived same day": ["#DCFCE7", "#166534"], "Arrived 1–3 days off": ["#EFF6FF", "#1D4ED8"], "Never arrived — customer exists from another lead": ["#FEF3C7", "#92400E"], "Matched (Angi file has no date)": ["#F1F5F9", "#475569"], "Never arrived — customer unknown": ["#FEE2E2", "#991B1B"] };
+    const CHIP_V2 = { "Arrived same day": ["#DCFCE7", "#166534"], "Arrived 1–3 days off": ["#F4FAE6", "#2F6316"], "Never arrived — customer exists from another lead": ["#FEF3C7", "#92400E"], "Matched (Angi file has no date)": ["#F1F5F9", "#475569"], "Never arrived — customer unknown": ["#FEE2E2", "#991B1B"] };
     const chip = s => {
       if (RS.isV2()) { const c = CHIP_V2[s] || CHIP_V2["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap">${esc(s)}</span>`; }
       const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };

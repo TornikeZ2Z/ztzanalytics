@@ -1082,11 +1082,11 @@ window.RS = (function () {
   const V2 = {
     ink: "#0F172A", ink2: "#334155", muted: "#475569", faint: "#64748B", line: "#E2E8F0", line2: "#CBD5E1",
     bg: "#F6F7F9", panel: "#FFFFFF", panel2: "#F8FAFC",
-    navy: "#1E3A8A", accent: "#2563EB", accentL: "#60A5FA", accentBg: "#EFF6FF", accentBd: "#93C5FD",
+    navy: "#14301F", accent: "#3F7D20", accentL: "#A3CF3A", accentBg: "#F4FAE6", accentBd: "#C9E68A",
     pos: "#15803D", posBg: "#DCFCE7", warn: "#B45309", warnBg: "#FEF3C7", warnBd: "#FDE68A",
     neg: "#B91C1C", negBg: "#FEE2E2", ctx: "#CBD5E1", other: "#94A3B8",
-    cat: ["#1E3A8A", "#2563EB", "#60A5FA", "#0F766E", "#7C3AED", "#94A3B8", "#BFDBFE", "#334155"],
-    heat: ["#EFF6FF", "#DBEAFE", "#93C5FD", "#3B82F6", "#1E3A8A"],
+    cat: ["#14301F", "#3F7D20", "#A3CF3A", "#0F766E", "#7C3AED", "#94A3B8", "#DCEFB0", "#334155"],
+    heat: ["#F4FAE6", "#E8F5C8", "#C9E68A", "#65A30D", "#14301F"],
     font: "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif",
   };
   const isV2 = () => document.body.classList.contains("v2");

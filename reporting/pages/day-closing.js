@@ -104,15 +104,15 @@
       body.rs-app.light.v2 .dcl-strip .lbl{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#475569}
       body.rs-app.light.v2 .dcl-strip .sub{font-size:13px;color:#64748B}
       body.rs-app.light.v2 .dcl-srow .who{font-size:13px;font-weight:600;color:#475569}
-      body.rs-app.light.v2 .dcl-srow.mine .who{color:#1E3A8A}
+      body.rs-app.light.v2 .dcl-srow.mine .who{color:#14301F}
       body.rs-app.light.v2 .dcl-srow + .dcl-srow{border-top:1px solid #F1F5F9}
       body.rs-app.light.v2 .dcl-btn{border-radius:8px;border-color:#CBD5E1;font-size:13px;font-weight:600}
       body.rs-app.light.v2 .dcl-btn:hover{background:#F8FAFC}
-      body.rs-app.light.v2 .dcl-btn.pri{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+      body.rs-app.light.v2 .dcl-btn.pri{background:#14301F;border-color:#14301F;color:#FFFFFF}
       body.rs-app.light.v2 .dcl-btn.pri:hover{filter:none;background:#1E40AF}
       body.rs-app.light.v2 .dcl-btn.sm{font-size:12.5px;padding:5px 10px}
-      body.rs-app.light.v2 .dcl-link{font-size:13.5px;font-weight:600;color:#1D4ED8}
-      body.rs-app.light.v2 .dcl-link:hover{color:#1E3A8A}
+      body.rs-app.light.v2 .dcl-link{font-size:13.5px;font-weight:600;color:#2F6316}
+      body.rs-app.light.v2 .dcl-link:hover{color:#14301F}
       body.rs-app.light.v2 .dcl-back{background:rgba(15,23,42,.38)}
       body.rs-app.light.v2 .dcl-modal{border-radius:12px;border-color:#E2E8F0;box-shadow:0 20px 50px rgba(15,23,42,.22)}
       body.rs-app.light.v2 .dcl-modal h3{font-size:16px;font-weight:600}
@@ -132,15 +132,15 @@
       body.rs-app.light.v2 .dcl-seg{background:transparent;border:0;padding:0;gap:6px}
       body.rs-app.light.v2 .dcl-seg button{border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;border-radius:999px;font-size:13.5px;font-weight:600;padding:7px 14px;min-height:36px}
       body.rs-app.light.v2 .dcl-seg button:hover{background:#F8FAFC}
-      body.rs-app.light.v2 .dcl-seg button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+      body.rs-app.light.v2 .dcl-seg button.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
       body.rs-app.light.v2 .dcl-q{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;padding:8px 14px;min-height:38px;box-sizing:border-box}
-      body.rs-app.light.v2 .dcl-q:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+      body.rs-app.light.v2 .dcl-q:focus{outline:0;border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}
       body.rs-app.light.v2 .dcl-card{border-radius:10px;border-color:#E2E8F0}
       body.rs-app.light.v2 .dcl-tbl th{background:#F8FAFC;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569;border-bottom-color:#E2E8F0}
       body.rs-app.light.v2 .dcl-tbl td{border-top-color:#F1F5F9}
       body.rs-app.light.v2 .dcl-tbl tr.day td{font-weight:600}
       body.rs-app.light.v2 .dcl-tbl tr.day:hover td{background:#F8FAFC}
-      body.rs-app.light.v2 .dcl-tbl tr.open td{background:#EFF6FF}
+      body.rs-app.light.v2 .dcl-tbl tr.open td{background:#F4FAE6}
       body.rs-app.light.v2 .dcl-tbl tr.ps td{background:#F8FAFC}
       body.rs-app.light.v2 .dcl-tbl tr.ps td.nm{font-weight:600}
       body.rs-app.light.v2 .dcl-tbl tr.fm td.nm{font-weight:600}
@@ -149,7 +149,7 @@
       body.rs-app.light.v2 .dcl-pill{border-radius:6px;font-size:12px;font-weight:600;padding:2px 8px}
       body.rs-app.light.v2 .dcl-pill.rec{background:#FEF3C7;color:#92400E}
       body.rs-app.light.v2 .dcl-pill.lock{background:#F1F5F9;color:#475569}
-      body.rs-app.light.v2 .dcl-pill.open,body.rs-app.light.v2 .dcl-pill.card{background:#EFF6FF;color:#1D4ED8}
+      body.rs-app.light.v2 .dcl-pill.open,body.rs-app.light.v2 .dcl-pill.card{background:#F4FAE6;color:#2F6316}
       body.rs-app.light.v2 .dcl-meta{font-size:12.5px;font-weight:400;color:#64748B}
       body.rs-app.light.v2 .dcl-pos{color:#15803D} body.rs-app.light.v2 .dcl-neg{color:#B91C1C}
       body.rs-app.light.v2 .dcl-note{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}`;

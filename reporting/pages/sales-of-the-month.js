@@ -173,7 +173,7 @@ registerPage({
       + "padding-top:8px;margin-top:4px}"
       /* design v2: the sheet opens inside the v2 app, so its olive bar and "up" green become
          navy and the v2 good-green -- chosen at render time, the dark look keeps the old ink */
-      + (RS.isV2() ? ".sm-sheet .bar>i{background:#1E3A8A}.sm-sheet .up{color:#15803D}"
+      + (RS.isV2() ? ".sm-sheet .bar>i{background:#14301F}.sm-sheet .up{color:#15803D}"
                      + ".sm-sheet .dn{color:#B91C1C}" : "");
 
     /* State survives leaving and re-entering the page, the way the assessment board does —
@@ -313,7 +313,7 @@ registerPage({
       /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2.
          The six topic hues become RS.V2.cat in order -- in v2 --brand and --blue are the SAME
          blue and amber means a warning, so the old set could not tell topics apart. */
-      + "body.rs-app.light.v2 .sm-wrap{--sm-c1:#1E3A8A;--sm-c2:#2563EB;--sm-c3:#60A5FA;--sm-c4:#0F766E;--sm-c5:#7C3AED;--sm-c6:#94A3B8}"
+      + "body.rs-app.light.v2 .sm-wrap{--sm-c1:#14301F;--sm-c2:#3F7D20;--sm-c3:#A3CF3A;--sm-c4:#0F766E;--sm-c5:#7C3AED;--sm-c6:#94A3B8}"
       + "body.rs-app.light.v2 .sm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
       + "body.rs-app.light.v2 .sm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
       + "body.rs-app.light.v2 .sm-mopt{font-weight:500;border-radius:8px}"
@@ -328,7 +328,7 @@ registerPage({
       + "body.rs-app.light.v2 .sm-card{border-radius:10px}"
       + "body.rs-app.light.v2 .sm-card.on{box-shadow:none}"
       + "body.rs-app.light.v2 .sm-rk{border-radius:8px;font-weight:600}"
-      + "body.rs-app.light.v2 .sm-rk.top{background:#1E3A8A;color:#FFFFFF}"
+      + "body.rs-app.light.v2 .sm-rk.top{background:#14301F;color:#FFFFFF}"
       + "body.rs-app.light.v2 .sm-nm{font-size:17px;font-weight:600;letter-spacing:-.2px}"
       + "body.rs-app.light.v2 .sm-gone{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569;background:#F1F5F9;border:0;border-radius:6px;padding:2px 8px}"
       + "body.rs-app.light.v2 .sm-si{font-size:13px}"

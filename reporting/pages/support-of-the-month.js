@@ -140,7 +140,7 @@ registerPage({
       + ".spm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"
       + "padding-top:8px;margin-top:4px}"
       // design v2: the sheet opens inside the v2 app, so its olive bar turns navy (render time)
-      + (RS.isV2() ? ".spm-sheet .bar>i{background:#1E3A8A}" : "");
+      + (RS.isV2() ? ".spm-sheet .bar>i{background:#14301F}" : "");
 
     const S = window.__SUPOTM || (window.__SUPOTM = { month: null, line: null, work: null,
                                                       score: null, err: {} });
@@ -270,7 +270,7 @@ registerPage({
       /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2.
          The two score hues become RS.V2.cat[0..1] (the old --brand green no longer exists, and
          purple is not in the v2 set); status tags become the kit's radius-6 pills. */
-      + "body.rs-app.light.v2 .spm-wrap{--spm-c1:#1E3A8A;--spm-c2:#2563EB}"
+      + "body.rs-app.light.v2 .spm-wrap{--spm-c1:#14301F;--spm-c2:#3F7D20}"
       + "body.rs-app.light.v2 .spm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
       + "body.rs-app.light.v2 .spm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
       + "body.rs-app.light.v2 .spm-mopt{font-weight:500;border-radius:8px}"
@@ -281,7 +281,7 @@ registerPage({
       + "body.rs-app.light.v2 .spm-st b{font-size:24px;font-weight:600;letter-spacing:-.3px}"
       + "body.rs-app.light.v2 .spm-st small{font-size:12.5px}"
       + "body.rs-app.light.v2 .spm-win{border-radius:10px;border-color:var(--line);box-shadow:none}"
-      + "body.rs-app.light.v2 .spm-win .medal{border-radius:10px;background:#1E3A8A;color:#FFFFFF;font-weight:600}"
+      + "body.rs-app.light.v2 .spm-win .medal{border-radius:10px;background:#14301F;color:#FFFFFF;font-weight:600}"
       + "body.rs-app.light.v2 .spm-win .medal.dim{background:var(--panel-2);color:var(--faint)}"
       + "body.rs-app.light.v2 .spm-win .k{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
       + "body.rs-app.light.v2 .spm-win .nm{font-weight:700;letter-spacing:-.3px}"
@@ -300,7 +300,7 @@ registerPage({
       + "body.rs-app.light.v2 .spm-cmp .v{font-size:16px;font-weight:600}"
       + "body.rs-app.light.v2 .spm-cmp tbody tr:not(.grp):hover td{background:#F8FAFC}"
       + "body.rs-app.light.v2 .spm-rk{border-radius:8px;font-weight:600}"
-      + "body.rs-app.light.v2 .spm-rk.top{background:#1E3A8A;color:#FFFFFF}"
+      + "body.rs-app.light.v2 .spm-rk.top{background:#14301F;color:#FFFFFF}"
       + "body.rs-app.light.v2 .spm-ph .nm{font-weight:600}"
       + "body.rs-app.light.v2 .spm-ph .scr{font-size:24px;font-weight:600;letter-spacing:-.4px}"
       + "body.rs-app.light.v2 .spm-ph .scr small{font-size:12px;font-weight:500}"

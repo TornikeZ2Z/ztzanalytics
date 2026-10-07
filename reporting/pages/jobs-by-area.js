@@ -50,7 +50,7 @@
       + ".jba-part{color:var(--warn);font-weight:700}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: share bars in the accent, 600 weights
       + "body.rs-app.light.v2 .jba-bar{background:#F1F5F9}"
-      + "body.rs-app.light.v2 .jba-bar i{background:#2563EB}"
+      + "body.rs-app.light.v2 .jba-bar i{background:#3F7D20}"
       + "body.rs-app.light.v2 .jba-grp td{border-top:1px solid #CBD5E1}"
       + "body.rs-app.light.v2 :is(.jba-st,.jba-rank,.jba-part){font-weight:600}";
     document.head.appendChild(st);

@@ -376,7 +376,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         // head + identity marks
         "body.rs-app.light.v2 .rrp-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}",
         "body.rs-app.light.v2 .rrp-head p{font-size:14.5px;line-height:1.55;margin-top:6px}",
-        "body.rs-app.light.v2 .rrp-star,body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{background:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .rrp-star,body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{background:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{font-weight:600}",
         "body.rs-app.light.v2 .rrp-clock{font-size:12.5px;font-weight:500;border-radius:8px}",
         // surfaces
@@ -394,14 +394,14 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-filters select,body.rs-app.light.v2 .rrp-filters input{border-radius:999px;height:36px;padding:0 14px;font-size:13px;background:#FFFFFF}",
         // pills: radius 6, 12px 600, the status palette
         "body.rs-app.light.v2 .rrp .pill{font-size:12px;font-weight:600;letter-spacing:0;border-radius:6px}",
-        "body.rs-app.light.v2 .rrp .t-blue{background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .rrp .t-blue{background:#F4FAE6;color:#2F6316}",
         "body.rs-app.light.v2 .rrp .t-amber{background:#F1F5F9;color:#475569}",
-        "body.rs-app.light.v2 .rrp .t-green{background:#DBEAFE;color:#1E3A8A}",
+        "body.rs-app.light.v2 .rrp .t-green{background:#E8F5C8;color:#14301F}",
         "body.rs-app.light.v2 .rrp .t-red{background:#FEF3C7;color:#92400E}",
         "body.rs-app.light.v2 .rrp .s-sent,body.rs-app.light.v2 .rrp-stage.st-sent{background:#DCFCE7;color:#166534}",
         "body.rs-app.light.v2 .rrp .s-skip,body.rs-app.light.v2 .rrp .s-wait,body.rs-app.light.v2 .rrp-stage.st-skip,body.rs-app.light.v2 .rrp-stage.st-due{background:#FEF3C7;color:#92400E}",
         "body.rs-app.light.v2 .rrp .s-err,body.rs-app.light.v2 .rrp-stage.st-err{background:#FEE2E2;color:#991B1B}",
-        "body.rs-app.light.v2 .rrp .pill.s-sched,body.rs-app.light.v2 .rrp-stage.st-sched{background:#EFF6FF;color:#1D4ED8}",
+        "body.rs-app.light.v2 .rrp .pill.s-sched,body.rs-app.light.v2 .rrp-stage.st-sched{background:#F4FAE6;color:#2F6316}",
         "body.rs-app.light.v2 .rrp-stage{font-size:12px;font-weight:600;letter-spacing:0;border-radius:6px}",
         "body.rs-app.light.v2 .rrp-stage b{font-weight:700}",
         "body.rs-app.light.v2 .rrp-noid{font-size:12px;font-weight:600;background:#FEF3C7;color:#92400E}",
@@ -420,7 +420,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-msg summary{font-size:12.5px;font-weight:600;color:var(--brand-d)}",
         "body.rs-app.light.v2 .rrp-msgnote{font-size:12.5px}",
         "body.rs-app.light.v2 .rrp-linkchip{font-size:12.5px;font-weight:600;background:#FFFFFF}",
-        "body.rs-app.light.v2 .rrp-linkchip:hover{border-color:#93C5FD}",
+        "body.rs-app.light.v2 .rrp-linkchip:hover{border-color:#C9E68A}",
         "body.rs-app.light.v2 .rrp-pager{font-size:12.5px;font-weight:500}",
         "body.rs-app.light.v2 .rrp-pager b{font-weight:600}",
         "body.rs-app.light.v2 .rrp-exerr{font-size:12px!important;font-weight:600!important}",
@@ -430,25 +430,25 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-bar>span:first-child{font-weight:500;color:var(--ink)}",
         "body.rs-app.light.v2 .rrp-bar .track,body.rs-app.light.v2 .rrp-bar .track i{border-radius:4px}",
         // settings
-        "body.rs-app.light.v2 .rrp-secn{background:#EFF6FF;color:#1E3A8A;font-size:12px;font-weight:600;border-radius:6px}",
+        "body.rs-app.light.v2 .rrp-secn{background:#F4FAE6;color:#14301F;font-size:12px;font-weight:600;border-radius:6px}",
         "body.rs-app.light.v2 .rrp-sect h4{font-size:15px;font-weight:600;letter-spacing:0}",
         "body.rs-app.light.v2 .rrp-sect p{font-size:13px}",
         "body.rs-app.light.v2 .rrp-stchip{font-size:12.5px;font-weight:600;letter-spacing:0;border-radius:6px}",
         "body.rs-app.light.v2 .rrp-goalbar{border:0;background:#E2E8F0;height:6px}",
         "body.rs-app.light.v2 .rrp-goaltx{font-size:12px;font-weight:500}",
-        "body.rs-app.light.v2 .rrp-loc.on{background:#EFF6FF;border-color:#93C5FD}",
+        "body.rs-app.light.v2 .rrp-loc.on{background:#F4FAE6;border-color:#C9E68A}",
         "body.rs-app.light.v2 .rrp-loc input[type=text],body.rs-app.light.v2 .rrp-plat input[type=text],body.rs-app.light.v2 .rrp-reason input{font-size:13px}",
         "body.rs-app.light.v2 .rrp-loc input.url,body.rs-app.light.v2 .rrp-plat .url{font-size:12.5px}",
         "body.rs-app.light.v2 .rrp-addloc{font-size:12.5px;font-weight:600;border-radius:8px}",
-        "body.rs-app.light.v2 .rrp-addloc:hover{border-color:#93C5FD;color:var(--brand-d)}",
+        "body.rs-app.light.v2 .rrp-addloc:hover{border-color:#C9E68A;color:var(--brand-d)}",
         "body.rs-app.light.v2 .rrp-lockpill{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0}",
         // live preview
         "body.rs-app.light.v2 .rrp-pvh h4{font-size:15px;font-weight:600}",
-        "body.rs-app.light.v2 .rrp-pvh h4 em{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;background:#EFF6FF;color:#1D4ED8;border-radius:6px}",
+        "body.rs-app.light.v2 .rrp-pvh h4 em{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;background:#F4FAE6;color:#2F6316;border-radius:6px}",
         "body.rs-app.light.v2 .rrp-pvh p{font-size:12.5px}",
         "body.rs-app.light.v2 .rrp-pvseg{background:#FFFFFF;border-radius:999px}",
         "body.rs-app.light.v2 .rrp-pvseg button{font-size:12.5px;font-weight:600;border-radius:999px;color:var(--ink)}",
-        "body.rs-app.light.v2 .rrp-pvseg button.on{background:#1E3A8A;color:#FFFFFF}",
+        "body.rs-app.light.v2 .rrp-pvseg button.on{background:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .rrp-msgn{font-size:13px;font-weight:600}",
         "body.rs-app.light.v2 .rrp-msgn span{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0}",
         "body.rs-app.light.v2 .rrp-bub{font-size:13px}",
@@ -457,7 +457,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-pvfoot{font-size:12px}",
         // save bar: a plain white bar with a hairline, no blur, no glow
         "body.rs-app.light.v2 .rrp-savebar{background:#FFFFFF;backdrop-filter:none;-webkit-backdrop-filter:none;border-color:var(--line);border-radius:10px;box-shadow:0 4px 16px rgba(15,23,42,.08)}",
-        "body.rs-app.light.v2 .rrp-savebar.dirty{border-color:#93C5FD;box-shadow:0 4px 16px rgba(15,23,42,.08)}",
+        "body.rs-app.light.v2 .rrp-savebar.dirty{border-color:#C9E68A;box-shadow:0 4px 16px rgba(15,23,42,.08)}",
         "body.rs-app.light.v2 .rrp-savemsg.bad{color:#B45309}",
         // response analysis hero
         "body.rs-app.light.v2 .rx-big b,body.rs-app.light.v2 .rx-rate b{font-size:30px;font-weight:600;letter-spacing:-.4px}",
@@ -469,7 +469,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rx-hero .rrp-fresh{border-top-color:#F1F5F9}",
         "body.rs-app.light.v2 .rx-frow{border-bottom-color:#F1F5F9}",
         "body.rs-app.light.v2 .rx-frow:hover{background:#F8FAFC}",
-        "body.rs-app.light.v2 .rx-frow.on{background:#EFF6FF}",
+        "body.rs-app.light.v2 .rx-frow.on{background:#F4FAE6}",
         "body.rs-app.light.v2 .rx-frow .n{font-weight:500;color:var(--ink)}",
         "body.rs-app.light.v2 .rx-frow .t,body.rs-app.light.v2 .rx-frow .t i{border-radius:4px}",
         "body.rs-app.light.v2 .rx-age{font-size:12px;font-weight:600}",
@@ -480,9 +480,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .ra-cardhd h4{font-weight:600;letter-spacing:0}",
         "body.rs-app.light.v2 .ra-hint{font-size:12.5px}",
         "body.rs-app.light.v2 .ra-pct{font-size:12px;font-weight:500}",
-        "body.rs-app.light.v2 .ra-ftbl tr.on td{font-weight:600;background:#EFF6FF}",
+        "body.rs-app.light.v2 .ra-ftbl tr.on td{font-weight:600;background:#F4FAE6}",
         "body.rs-app.light.v2 .ra-chev{font-weight:600}",
-        "body.rs-app.light.v2 .ra-drill{border-color:#93C5FD}"
+        "body.rs-app.light.v2 .ra-drill{border-color:#C9E68A}"
       ].join("\n");
       document.head.appendChild(st);
     }

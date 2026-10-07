@@ -72,7 +72,7 @@
       + "body.rs-app.light.v2 .bes tr.bes-day span{font-size:12.5px;color:var(--faint)}"
       + "body.rs-app.light.v2 .bes .rs-pill.bes-c-survey{background:#F5F3FF;color:#6D28D9}"
       + "body.rs-app.light.v2 .bes .rs-pill.bes-c-referral-ask{background:#F0FDFA;color:#0F766E}"
-      + "body.rs-app.light.v2 .bes .rs-pill.bes-c-review-request{background:#EFF6FF;color:#1D4ED8}";
+      + "body.rs-app.light.v2 .bes .rs-pill.bes-c-review-request{background:#F4FAE6;color:#2F6316}";
     document.head.appendChild(st);
   }
 

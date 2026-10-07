@@ -40,19 +40,19 @@
       var post = function (body) { return api("/api/_hrqadmin", { method: "POST", body: JSON.stringify(body) }); };
 
       // the org chart's palette — accents only, readable on both themes
-      var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#2563eb", Marketing: "#9333ea",
+      var DEPT_COLOR = { Executive: "#4f46e5", Sales: "#3F7D20", Marketing: "#9333ea",
                          "Customer Service": "#0d9488", "Data & Control": "#16a34a",
                          Finance: "#d97706", Systems: "#0891b2", HR: "#e11d48",
                          Operations: "#059669" };
       var FALLBACK = ["#7c3aed", "#0ea5e9", "#db2777", "#65a30d", "#0f766e", "#b45309"];
       var _extra = {}, _extraV2 = {};
       /* DESIGN V2: a department is a category, so it takes RS.V2.cat in DEPT_ORDER order --
-         green and red only ever mean good/bad there. The pale #BFDBFE step is skipped: white
+         green and red only ever mean good/bad there. The pale #DCEFB0 step is skipped: white
          initials on it cannot be read. Chosen per call, so the theme button switches it. */
       function deptColor(d) {
         if (window.RS && RS.isV2 && RS.isV2()) {
           if (!d) return RS.V2.other;
-          var pal = RS.V2.cat.filter(function (c) { return c !== "#BFDBFE"; });
+          var pal = RS.V2.cat.filter(function (c) { return c !== "#DCEFB0"; });
           var r = DEPT_ORDER.indexOf(d);
           if (r < 0) {           // an unlisted department continues the order, stably
             if (_extraV2[d] == null) _extraV2[d] = Object.keys(_extraV2).length;
@@ -229,7 +229,7 @@
           "body.rs-app.light.v2 .hd-pane .foot{border-radius:0 0 11px 11px}",
           // organization chart: flat cards, a sentence-case department tag
           "body.rs-app.light.v2 .hd-tc{border-radius:10px;box-shadow:none}",
-          "body.rs-app.light.v2 .hd-tc:hover{border-color:#93C5FD}",
+          "body.rs-app.light.v2 .hd-tc:hover{border-color:#C9E68A}",
           "body.rs-app.light.v2 .hd-tc:not(.lead){border-left-color:var(--c,#94A3B8)}",
           "body.rs-app.light.v2 .hd-tc b{font-weight:600}",
           "body.rs-app.light.v2 .hd-tc b small{font-size:12px;font-weight:500}",
@@ -245,7 +245,7 @@
           // the field flank
           "body.rs-app.light.v2 .hd-base{border-radius:10px}",
           "body.rs-app.light.v2 .hd-bhd b{font-size:13px;font-weight:600}",
-          "body.rs-app.light.v2 .hd-bhd em{font-size:12px;font-weight:600;background:#EFF6FF;color:#1D4ED8;"
+          "body.rs-app.light.v2 .hd-bhd em{font-size:12px;font-weight:600;background:#F4FAE6;color:#2F6316;"
             + "border-radius:6px;padding:0 7px}",
           "body.rs-app.light.v2 .hd-bsub,body.rs-app.light.v2 .hd-crew i{font-size:12px}",
           "body.rs-app.light.v2 .hd-crew b{font-weight:600}",

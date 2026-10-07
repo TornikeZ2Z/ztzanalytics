@@ -219,7 +219,7 @@ registerPage({
         "body.rs-app.light.v2 .cla-led-g>.l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
         "body.rs-app.light.v2 .cla-led-g>.v{font-size:clamp(22px,1.7vw,28px);font-weight:600;letter-spacing:-.4px}",
         "body.rs-app.light.v2 .cla-led-g>.v.warn{color:var(--ink)}",
-        "body.rs-app.light.v2 .cla-led-g>.v.pos{color:#1E3A8A}",
+        "body.rs-app.light.v2 .cla-led-g>.v.pos{color:#14301F}",
         "body.rs-app.light.v2 .cla-led-g li{font-size:12.5px}",
         "body.rs-app.light.v2 .cla-led-g li b{font-weight:600}",
         "body.rs-app.light.v2 .cla-eyebrow{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}",

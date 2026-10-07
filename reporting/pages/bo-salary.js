@@ -89,7 +89,7 @@
           "body.rs-app.light.v2 .bos-fld{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}",
           "body.rs-app.light.v2 .bos-fld small{font-size:12px}",
           "body.rs-app.light.v2 .bos-in{border-radius:8px;background:#FFFFFF;font-weight:600}",
-          "body.rs-app.light.v2 .bos-in:focus{outline-color:#2563EB;border-color:#2563EB}",
+          "body.rs-app.light.v2 .bos-in:focus{outline-color:#3F7D20;border-color:#3F7D20}",
           "body.rs-app.light.v2 .bos-big b{font-weight:600}",
           "body.rs-app.light.v2 .bos-big.his b,body.rs-app.light.v2 .bos-m .his{color:#0F766E}",
           "body.rs-app.light.v2 .bos-key{font-size:13px}",

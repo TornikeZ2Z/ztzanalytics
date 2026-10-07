@@ -619,8 +619,8 @@ async function cbRender(host) {
            nothing under 12px. Dark is untouched. */
         body.rs-app.light.v2 .cb-word{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
         body.rs-app.light.v2 .cb-preset{font-size:13px;font-weight:600;color:var(--ink)}
-        body.rs-app.light.v2 .cb-preset.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
-        body.rs-app.light.v2 .cb-preset.on .x{color:#BFDBFE}
+        body.rs-app.light.v2 .cb-preset.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
+        body.rs-app.light.v2 .cb-preset.on .x{color:#DCEFB0}
         body.rs-app.light.v2 .cb-q,body.rs-app.light.v2 .cb-savebox input{border-radius:8px;font-size:13px}
         body.rs-app.light.v2 .rs-hint.cb-note{background:#FFFBEB;border-color:#FDE68A;color:#78350F}
         body.rs-app.light.v2 .rs-table.cb-piv td .b{font-size:12px}

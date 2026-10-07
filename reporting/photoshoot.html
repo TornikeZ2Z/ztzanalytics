@@ -15,7 +15,7 @@
    everything, including the "why the list is short" funnel and who booked a day. Data and the
    one-shoot-per-day rule are the bridge's (/api/_photo, bridge/photoshoot.py). */
 :root{--bg:#F6F7F9;--panel:#FFFFFF;--panel-2:#F8FAFC;--line:#E2E8F0;--line-2:#CBD5E1;--ink:#0F172A;--muted:#475569;--faint:#64748B;
-  --brand:#2563EB;--brand-d:#1E3A8A;--blue-bg:#EFF6FF;--pos:#15803D;--pos-bg:#DCFCE7;--warn:#B45309;--warn-bg:#FEF3C7;--neg:#B91C1C;--neg-bg:#FEE2E2}
+  --brand:#3F7D20;--brand-d:#14301F;--blue-bg:#F4FAE6;--pos:#15803D;--pos-bg:#DCFCE7;--warn:#B45309;--warn-bg:#FEF3C7;--neg:#B91C1C;--neg-bg:#FEE2E2}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 body.embed{background:transparent}
@@ -39,7 +39,7 @@ body.embed .wrap{padding:0 0 30px;max-width:none}
 .ph .rt{margin-left:auto;font-size:12px;color:var(--faint)}
 .fun{display:grid;grid-template-columns:150px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:13px;padding:4px 0}
 .fun .t{height:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;overflow:hidden}
-.fun .t i{display:block;height:100%;background:#93C5FD}
+.fun .t i{display:block;height:100%;background:#C9E68A}
 .fun .n{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 .fun.last .t i{background:var(--brand)}.fun.zero .n{color:var(--neg)}
 .fun.off{color:var(--faint)}.fun.off .t i{background:var(--line)}
@@ -47,7 +47,7 @@ body.embed .wrap{padding:0 0 30px;max-width:none}
 .days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .day{border:1px solid var(--line);border-radius:9px;padding:6px 4px;text-align:center;font-size:11.5px;color:var(--faint);background:#fff;min-height:58px;cursor:default}
 .day b{display:block;font-size:15px;color:var(--ink);font-weight:600}
-.day.has{background:var(--blue-bg);border-color:#BFDBFE;color:var(--brand-d);cursor:pointer}
+.day.has{background:var(--blue-bg);border-color:#DCEFB0;color:var(--brand-d);cursor:pointer}
 .day.ok{background:var(--pos-bg);border-color:#86EFAC;color:var(--pos)}
 .day.today{box-shadow:inset 0 0 0 2px var(--ink)}
 .day .w{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
@@ -55,10 +55,10 @@ body.embed .wrap{padding:0 0 30px;max-width:none}
 .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .bar .lab{font-size:12px;color:var(--faint);margin-left:6px}
 .chip{font:inherit;font-size:12.5px;font-weight:500;border:1px solid var(--line-2);background:#fff;color:var(--muted);border-radius:999px;padding:5px 12px;cursor:pointer}
-.chip.on{background:var(--blue-bg);border-color:#93C5FD;color:var(--brand-d)}
+.chip.on{background:var(--blue-bg);border-color:#C9E68A;color:var(--brand-d)}
 .dh{display:flex;align-items:center;gap:8px;padding:14px 2px 6px;font-weight:600;font-size:13px}
 .dh .bd{font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
-.dh .bd.today{background:var(--blue-bg);border-color:#BFDBFE;color:var(--brand-d)}
+.dh .bd.today{background:var(--blue-bg);border-color:#DCEFB0;color:var(--brand-d)}
 .dh .cnt{margin-left:auto;font-size:12px;color:var(--faint);font-weight:500}
 .dh .bk{font-size:12px;color:var(--pos);font-weight:500}
 .row{display:grid;grid-template-columns:70px minmax(0,1fr) 150px 210px;gap:14px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px}
@@ -68,7 +68,7 @@ body.embed .wrap{padding:0 0 30px;max-width:none}
 .row .cu a{color:var(--ink);text-decoration:none}.row .cu a:hover{color:var(--brand);text-decoration:underline}
 .tag{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
 .tag.yes{background:var(--pos-bg);border-color:#86EFAC;color:var(--pos)}
-.tag.cl{background:var(--blue-bg);border-color:#BFDBFE;color:var(--brand-d)}
+.tag.cl{background:var(--blue-bg);border-color:#DCEFB0;color:var(--brand-d)}
 .row .ad{display:block;font-size:12.5px;color:var(--muted);text-decoration:none;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .ad:hover{color:var(--brand)}
 .row .fo{font-size:12px;color:var(--pos);margin-top:3px}
@@ -95,7 +95,7 @@ body.embed .wrap{padding:0 0 30px;max-width:none}
 .dlg p{font-size:12.5px;color:var(--muted);margin:12px 0}
 .dlg label{font-size:12px;color:var(--faint);display:block;margin-bottom:4px}
 .dlg input{font:inherit;width:100%;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px}
-.dlg input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.dlg input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}
 .dlg .act{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 .btn.neg{background:var(--neg);border-color:var(--neg);color:#fff}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;max-width:92vw}

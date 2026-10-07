@@ -103,11 +103,11 @@ registerPage({
         body.rs-app.light.v2 .fnc-seg{background:transparent;border:0;padding:0;gap:6px}
         body.rs-app.light.v2 .fnc-seg button{border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;border-radius:999px;font-size:13.5px;font-weight:600;padding:7px 14px;min-height:36px}
         body.rs-app.light.v2 .fnc-seg button:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .fnc-seg button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+        body.rs-app.light.v2 .fnc-seg button.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
         body.rs-app.light.v2 .fnc-seg button i{font-weight:600;font-size:12px;opacity:.7}
         body.rs-app.light.v2 .fnc-dseg button{font-size:13px;padding:6px 13px;min-height:34px}
         body.rs-app.light.v2 .fnc-q{border-radius:999px;border-color:#E2E8F0;font-size:13.5px;padding:8px 14px;min-height:38px;box-sizing:border-box}
-        body.rs-app.light.v2 .fnc-q:focus{outline:0;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 .fnc-q:focus{outline:0;border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}
         body.rs-app.light.v2 .fnc-card{border-radius:10px;border-color:#E2E8F0}
         body.rs-app.light.v2 .fnc-tbl th{background:#F8FAFC;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:#475569;border-bottom-color:#E2E8F0}
         body.rs-app.light.v2 .fnc-tbl td{border-top-color:#F1F5F9}
@@ -117,20 +117,20 @@ registerPage({
         body.rs-app.light.v2 .fnc-caret{color:#64748B}
         body.rs-app.light.v2 .fnc-meta{font-size:13px;font-weight:400;color:#64748B}
         body.rs-app.light.v2 .fnc-neg{color:#B91C1C} body.rs-app.light.v2 .fnc-pos{color:#15803D}
-        body.rs-app.light.v2 .fnc-doc{color:#1D4ED8;font-size:13px;font-weight:600}
-        body.rs-app.light.v2 .fnc-doc:hover{color:#1E3A8A}
+        body.rs-app.light.v2 .fnc-doc{color:#2F6316;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .fnc-doc:hover{color:#14301F}
         body.rs-app.light.v2 .fnc-pill{border-radius:6px;font-size:12px;font-weight:600;padding:3px 8px;background:#F1F5F9;color:#475569}
         body.rs-app.light.v2 .fnc-pill.auto,body.rs-app.light.v2 .fnc-pill.conf{background:#DCFCE7;color:#166534}
-        body.rs-app.light.v2 .fnc-pill.imp{background:#EFF6FF;color:#1D4ED8}
+        body.rs-app.light.v2 .fnc-pill.imp{background:#F4FAE6;color:#2F6316}
         body.rs-app.light.v2 .fnc-pill.queued{background:#FEF3C7;color:#92400E}
         body.rs-app.light.v2 .fnc-note{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}
-        body.rs-app.light.v2 .fnc-run{background:#1E3A8A;border-radius:8px;font-size:13px;font-weight:600}
+        body.rs-app.light.v2 .fnc-run{background:#14301F;border-radius:8px;font-size:13px;font-weight:600}
         body.rs-app.light.v2 .fnc-run:hover{filter:none;background:#1E40AF}
         body.rs-app.light.v2 .fnc-auto{font-size:13px;color:#475569}
         body.rs-app.light.v2 .fnc-mini{border-radius:8px;border-color:#CBD5E1;font-size:12.5px;font-weight:600;color:#0F172A}
         body.rs-app.light.v2 .fnc-mini:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .fnc-mini.go{border-color:#1E3A8A;color:#1E3A8A}
-        body.rs-app.light.v2 .fnc-mini.go:hover{background:#EFF6FF}
+        body.rs-app.light.v2 .fnc-mini.go{border-color:#14301F;color:#14301F}
+        body.rs-app.light.v2 .fnc-mini.go:hover{background:#F4FAE6}
         body.rs-app.light.v2 .fnc-back{background:rgba(15,23,42,.38)}
       `;
       document.head.appendChild(st);

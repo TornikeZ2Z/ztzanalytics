@@ -206,9 +206,9 @@
       + ".sra .sra-list .rs-tablewrap.rs-fit{--pg-chrome:150px}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: the funnel steps light -> navy so
       // leads, qualified and confirmed stay apart now that --blue and --brand are one accent
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-lead{background:#BFDBFE}"
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-qual{background:#60A5FA;filter:none}"
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-conf{background:#1E3A8A}"
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-lead{background:#DCEFB0}"
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-qual{background:#A3CF3A;filter:none}"
+      + "body.rs-app.light.v2 .sra .sra-fb i.c-conf{background:#14301F}"
       + "body.rs-app.light.v2 .sra .sra-fb{background:#F1F5F9}"
       + "body.rs-app.light.v2 .sra .sra-h h2{font-weight:600}"
       + "body.rs-app.light.v2 .sra :is(.sra-h .sra-sub,.sra-fl small,.sra-fv em,.sra-rate .sra-ss){font-size:12px}"

@@ -191,7 +191,7 @@ const UA = (() => {
       "body.rs-app.light.v2 .ua-who b{font-weight:600}",
       "body.rs-app.light.v2 .ua-who span{font-size:12.5px}",
       "body.rs-app.light.v2 .ua-tag{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;",
-      "border-radius:6px;padding:1px 7px;background:#EFF6FF;color:#1D4ED8}",
+      "border-radius:6px;padding:1px 7px;background:#F4FAE6;color:#2F6316}",
       "body.rs-app.light.v2 .ua-chip{font-size:12px;font-weight:500}",
       "body.rs-app.light.v2 .ua-bar{background:#F1F5F9}",
       "body.rs-app.light.v2 .ua-bar i.gh{background:#CBD5E1;opacity:1}",

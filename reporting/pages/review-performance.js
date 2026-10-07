@@ -127,7 +127,7 @@ registerPage({
     // chip ink: white on the dark categories, ink on the pale v2 ones (old look: always white)
     var platFg = function (src) {
       var c = platColor(src);
-      return RS.isV2() && ["#60A5FA", "#94A3B8", "#BFDBFE"].indexOf(c) >= 0 ? RS.V2.ink : "#fff";
+      return RS.isV2() && ["#A3CF3A", "#94A3B8", "#DCEFB0"].indexOf(c) >= 0 ? RS.V2.ink : "#fff";
     };
     var parseBk = function (s) {
       if (!s) return [];
@@ -359,16 +359,16 @@ registerPage({
         body.rs-app.light.v2 .rp-bdwk button{font-weight:600}
         body.rs-app.light.v2 .rp-bdwk b{font-weight:600}
         body.rs-app.light.v2 .rp-ms{border-radius:999px;background:#FFFFFF;height:36px;padding:0 14px;font-size:13px}
-        body.rs-app.light.v2 .rp-ms:hover{border-color:#93C5FD}
-        body.rs-app.light.v2 .rp-ms.on{background:var(--blue-bg);border-color:#93C5FD}
+        body.rs-app.light.v2 .rp-ms:hover{border-color:#C9E68A}
+        body.rs-app.light.v2 .rp-ms.on{background:var(--blue-bg);border-color:#C9E68A}
         body.rs-app.light.v2 .rp-ms .lb{font-weight:500;color:var(--faint)}
         body.rs-app.light.v2 .rp-ms .all{font-size:13px;font-weight:600;color:var(--ink)}
-        body.rs-app.light.v2 .rp-ms .ct{background:#1E3A8A;color:#FFFFFF;font-size:12px;font-weight:600}
+        body.rs-app.light.v2 .rp-ms .ct{background:#14301F;color:#FFFFFF;font-size:12px;font-weight:600}
         body.rs-app.light.v2 .rp-ms .cv{font-size:12px}
         body.rs-app.light.v2 .rp-pop{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
         body.rs-app.light.v2 .rp-pop-s{background:#FFFFFF;font-size:13px}
         body.rs-app.light.v2 .rp-pop-act button{font-size:12px;font-weight:600;background:#FFFFFF;border-radius:8px}
-        body.rs-app.light.v2 .rp-pop-act button:hover{border-color:#93C5FD}
+        body.rs-app.light.v2 .rp-pop-act button:hover{border-color:#C9E68A}
         body.rs-app.light.v2 .rp-pop-i{font-size:13px}
         body.rs-app.light.v2 .rp-pop-none{font-size:12.5px}
         /* the matrix */

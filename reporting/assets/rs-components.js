@@ -795,7 +795,7 @@ window.RSC = (function () {
       ".rs-dlg-b{font-size:13px;line-height:1.6;color:var(--muted,#5b6b7c);white-space:pre-line}",
       ".rs-dlg-in{width:100%;margin-top:12px;border:1px solid var(--line,#d8dee8);border-radius:10px;",
       "padding:9px 12px;font-size:13px;background:var(--panel-2,#f4f6fa);color:var(--ink,#16202c);outline:0}",
-      ".rs-dlg-in:focus{border-color:var(--brand,#2563EB)}",
+      ".rs-dlg-in:focus{border-color:var(--brand,#3F7D20)}",
       ".rs-dlg-a{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}",
       ".rs-dlg .rs-btn.danger{background:var(--neg,#c2413f);border-color:var(--neg,#c2413f);color:#fff}",
     ].join("");
@@ -926,11 +926,11 @@ window.RSC = (function () {
        in no colour at all. These are the design v2 values (rs.css light.v2, 2026-10-06), because
        paper always prints in the standard look whichever theme the screen is in. */
     const PAPER_TOKENS = ":root{--bg:#fff;--panel:#fff;--panel-2:#F8FAFC;--line:#E2E8F0;"
-      + "--line-2:#CBD5E1;--ink:#0F172A;--muted:#475569;--faint:#64748B;--brand:#2563EB;"
-      + "--brand-d:#1E3A8A;--brand-ink:#fff;--brand-glow:rgba(37,99,235,.09);--blue:#2563EB;"
+      + "--line-2:#CBD5E1;--ink:#0F172A;--muted:#475569;--faint:#64748B;--brand:#3F7D20;"
+      + "--brand-d:#14301F;--brand-ink:#fff;--brand-glow:rgba(63,125,32,.09);--blue:#3F7D20;"
       + "--purple:#6D28D9;--amber:#B45309;--red:#B91C1C;--shadow:none;--pos:#15803D;"
       + "--pos-bg:#DCFCE7;--warn:#B45309;--warn-bg:#FEF3C7;"
-      + "--neg:#B91C1C;--neg-bg:#FEE2E2;--blue-bg:#EFF6FF;"
+      + "--neg:#B91C1C;--neg-bg:#FEE2E2;--blue-bg:#F4FAE6;"
       + "--job-ink:#fff}";
 
     // the page's own stylesheet, by element id or as raw text
@@ -955,7 +955,7 @@ window.RSC = (function () {
         body{margin:0;background:#fff;color:#0F172A;
           font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
           font-size:11px;line-height:1.45}
-        .pv-head{border-bottom:2px solid #1E3A8A;padding-bottom:10px;margin-bottom:16px}
+        .pv-head{border-bottom:2px solid #14301F;padding-bottom:10px;margin-bottom:16px}
         .pv-head h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
         .pv-head .sub{font-size:11.5px;color:#5B5F6B}
         .pv-head .note{font-size:10.5px;color:#7A7E88;margin-top:4px}

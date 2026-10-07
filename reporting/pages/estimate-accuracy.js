@@ -79,7 +79,7 @@ registerPage({
         ".eav-t th:first-child,.eav-t td:first-child{text-align:left}",
         ".eav-t td{text-align:right;padding:8px;border-bottom:1px solid var(--line-2);font-variant-numeric:tabular-nums;white-space:nowrap}",
         ".eav-t tr.pp{cursor:pointer}.eav-t tr.pp:hover td{background:var(--panel-2)}",
-        ".eav-t tr.on td{background:var(--blue-bg,rgba(37,99,235,.08))}",
+        ".eav-t tr.on td{background:var(--blue-bg,rgba(63,125,32,.08))}",
         ".eav-t tr.faint td{color:var(--faint)}",
         ".eav-t td.nm{font-weight:600}",
         ".eav-rv td{text-align:left}.eav-rv td:nth-child(6),.eav-rv td:nth-child(7),.eav-rv td:last-child{text-align:right}",
@@ -222,7 +222,7 @@ registerPage({
       const steps = [["Quote", H.avgQ, "base"], ["More hours", H.avgT, "d"], ["Packing", H.avgP, "d"], ["Discounts, fees", H.avgO, "d"], ["Bill", H.avgB, "base"]];
       const top = Math.max(H.avgB, H.avgQ + Math.max(0, H.avgT) + Math.max(0, H.avgP)) * 1.08;
       let run = 0;
-      const COL = { base: "#93C5FD", hours: "#F87171", pack: "#FBBF24", other: "#86EFAC" };
+      const COL = { base: "#C9E68A", hours: "#F87171", pack: "#FBBF24", other: "#86EFAC" };
       const cols = steps.map(([lab, v, kind], i) => {
         let bottom, hgt, color;
         if (kind === "base") { bottom = 0; hgt = v; color = i === 0 ? COL.base : "var(--brand)"; run = i === 0 ? v : run; }

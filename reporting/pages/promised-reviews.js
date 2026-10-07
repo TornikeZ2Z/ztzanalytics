@@ -61,7 +61,7 @@
       + ".prv-pen:hover{color:var(--blue)}"
       // DESIGN V2: no text under 12px; meta lines in the v2 meta grey
       + "body.rs-app.light.v2 .prv-sub{font-size:12px;color:var(--faint)}"
-      + "body.rs-app.light.v2 .prv-c a{color:#1D4ED8}"
+      + "body.rs-app.light.v2 .prv-c a{color:#2F6316}"
       + "body.rs-app.light.v2 .prv-em,body.rs-app.light.v2 .prv-save{font-size:12.5px}";
     document.head.appendChild(st);
   }

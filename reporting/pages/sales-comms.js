@@ -233,7 +233,7 @@
       + V2 + ".scx-shared td:first-child::after{font-size:12px;font-weight:500}"
       + V2 + ".scx-who{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
       + "color:var(--muted)}"
-      + V2 + ".scx-utt.hit{background:#EFF6FF}"
+      + V2 + ".scx-utt.hit{background:#F4FAE6}"
       + V2 + ".scx-note{font-size:13.5px;color:var(--muted)}"
       + V2 + ".scx-chg{font-size:13.5px}"
       + V2 + ".scx-chg th,"  + V2 + ".scx-chg td{padding:7px 16px 7px 0;border-bottom-color:#F1F5F9}"

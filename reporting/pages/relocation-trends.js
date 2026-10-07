@@ -91,12 +91,12 @@
       + ".rlc-two>div{min-width:150px}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: last year in a pale blue, this year
       // navy, readable labels, 600 weights, the standard warning box
-      + "body.rs-app.light.v2 .rlc-mon .pair i.a{background:#BFDBFE}"
-      + "body.rs-app.light.v2 .rlc-mon .pair i.b{background:#1E3A8A}"
+      + "body.rs-app.light.v2 .rlc-mon .pair i.a{background:#DCEFB0}"
+      + "body.rs-app.light.v2 .rlc-mon .pair i.b{background:#14301F}"
       + "body.rs-app.light.v2 .rlc-mon .lbl{font-size:12px;font-weight:500;color:#475569}"
       + "body.rs-app.light.v2 .rlc-key{font-size:12.5px;color:#475569}"
       + "body.rs-app.light.v2 .rlc-bar{background:#F1F5F9}"
-      + "body.rs-app.light.v2 .rlc-bar i{background:#2563EB}"
+      + "body.rs-app.light.v2 .rlc-bar i{background:#3F7D20}"
       + "body.rs-app.light.v2 .rlc-d{font-size:12px;font-weight:600}"
       + "body.rs-app.light.v2 .rlc-warn{background:#FFFBEB;border-color:#FDE68A;border-radius:10px}"
       + "body.rs-app.light.v2 .rlc-warn h3{font-weight:600;color:#92400E}"
@@ -286,8 +286,8 @@
           // the key matches the bars, which the v2 sheet repaints pale blue / navy
           const v2 = RS.isV2 && RS.isV2();
           h += '<div class="rlc-key"><span><b style="background:'
-            + (v2 ? "#BFDBFE" : "color-mix(in srgb,var(--ink) 22%,transparent)") + '"></b>' + S.base + "</span>"
-            + '<span><b style="background:' + (v2 ? "#1E3A8A" : "var(--brand)") + '"></b>' + S.year + "</span>"
+            + (v2 ? "#DCEFB0" : "color-mix(in srgb,var(--ink) 22%,transparent)") + '"></b>' + S.base + "</span>"
+            + '<span><b style="background:' + (v2 ? "#14301F" : "var(--brand)") + '"></b>' + S.year + "</span>"
             + '<span class="muted">' + (S.window === "match"
                 ? "both years cut at " + cutoff().replace("-", "/")
                 : "full years") + "</span></div>";

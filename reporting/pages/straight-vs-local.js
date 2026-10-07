@@ -73,7 +73,7 @@
     /* DESIGN V2 ("Calm finance", 2026-10-06): a hairline card like every other (no thick edge),
        body text at reading size, nothing under 12px. Dark is untouched. */
     body.rs-app.light.v2 .panel.svl-chain{border-left:1px solid var(--line)}
-    body.rs-app.light.v2 .svl-arrow{font-weight:600;color:#2563EB}
+    body.rs-app.light.v2 .svl-arrow{font-weight:600;color:#3F7D20}
     body.rs-app.light.v2 .svl-because,body.rs-app.light.v2 .svl-list{font-size:13.5px}
     body.rs-app.light.v2 .svl-fact{font-size:12.5px;color:var(--faint)}
     body.rs-app.light.v2 .svl-inputs td.src{font-size:12px}

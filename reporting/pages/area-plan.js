@@ -147,10 +147,10 @@
     /* THE MARYLAND BLOCK (2026-09-24): the clock + the Montgomery test. Series colours are tokens on
        the block's own root -- light/paper is the base, dark states itself (the page's convention) --
        so the SVG never carries a literal colour. Each hue was checked against --panel in both themes. */
-    .ap2-gt{--gt-t:#1d4ed8;--gt-c:#6b7280;--gt-pos:#047857;--gt-md:#1d4ed8;--gt-ref:#b45309;--gt-lvl:#7c3aed;
+    .ap2-gt{--gt-t:#2F6316;--gt-c:#6b7280;--gt-pos:#047857;--gt-md:#2F6316;--gt-ref:#b45309;--gt-lvl:#7c3aed;
       --gt-grid:color-mix(in srgb,var(--ink) 10%,transparent);--gt-axis:var(--muted);--gt-mark:var(--faint);
       --gt-band:color-mix(in srgb,#7c3aed 9%,transparent)}
-    body.rs-app:not(.light) .ap2-gt{--gt-t:#60a5fa;--gt-c:#a3a3a3;--gt-pos:#34d399;--gt-md:#60a5fa;--gt-ref:#fbbf24;--gt-lvl:#c4b5fd;
+    body.rs-app:not(.light) .ap2-gt{--gt-t:#A3CF3A;--gt-c:#a3a3a3;--gt-pos:#34d399;--gt-md:#A3CF3A;--gt-ref:#fbbf24;--gt-lvl:#c4b5fd;
       --gt-band:color-mix(in srgb,#c4b5fd 12%,transparent)}
     .ap2-gt-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 6px}
     .ap2-gt-chart{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 4px}
@@ -637,7 +637,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-fleet em.buy{background:var(--warn-bg);color:var(--warn)}
 .ap3-fleet em.spare{background:var(--panel-2);color:var(--muted)}
 .ap3-store{font:inherit;font-size:12px;font-weight:600;border-radius:6px;padding:2px 8px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink)}
-.ap3-store.ps{background:var(--blue-bg,#eff6ff);color:var(--brand-d);border-color:transparent}
+.ap3-store.ps{background:var(--blue-bg,#F4FAE6);color:var(--brand-d);border-color:transparent}
 .ap3-step .ap3-fleet .r.st span.ap3-store{cursor:default}
 .ap3-fleetnote{margin:4px 0 10px;line-height:1.55}
 .ap3-fleetsens,.ap3-fleetin{font-size:12.5px;color:var(--muted)}
@@ -1218,7 +1218,7 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
 body.rs-app.light.v2 :is(.ap2-tabs,.ap2-pane,.ap2-assume,.ap2-clockline){
   --ap-mono:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
   --ap-r1:10px; --ap-r2:8px; --ap-r3:6px;
-  --ap-live:#1E3A8A; --ap-fill:#1E3A8A; --ap-live-soft:#EFF6FF;
+  --ap-live:#14301F; --ap-fill:#14301F; --ap-live-soft:#F4FAE6;
   --ap-sink:none;
   --ap-pos-ink:#15803D; --ap-warn-ink:#B45309; --ap-neg-ink:#B91C1C}
 body.rs-app.light.v2 :is(.ap2-step .v,.ap2-led-g>.v,.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,.ap2-meas,
@@ -1243,7 +1243,7 @@ body.rs-app.light.v2 #apTabs .rs-tab{border-radius:999px;border:1px solid #CBD5E
   font-size:13px;font-weight:600;box-shadow:none}
 body.rs-app.light.v2 #apTabs .rs-tab::before{content:none}
 body.rs-app.light.v2 #apTabs .rs-tab:hover{background:#F8FAFC;border-color:#94A3B8;color:#0F172A}
-body.rs-app.light.v2 #apTabs .rs-tab.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 #apTabs .rs-tab.on{background:#14301F;border-color:#14301F;color:#FFFFFF;box-shadow:none}
 body.rs-app.light.v2 .ap2-tabs .rs-btn{border-radius:8px;font-size:13px;font-weight:600}
 /* no decoration: brackets, stubs and lit edges go; hairlines and white surfaces carry the page */
 body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::before,body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::after,
@@ -1254,9 +1254,9 @@ body.rs-app.light.v2 .ap2-band h2{font-size:17px;font-weight:600;letter-spacing:
 body.rs-app.light.v2 .ap2-sech{font-size:15px;font-weight:600;letter-spacing:0}
 body.rs-app.light.v2 .ap2-d .dq{background:#FFFFFF;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:#0F172A}
 body.rs-app.light.v2 .ap2-d .dh b{font-weight:700}
-body.rs-app.light.v2 .ap2-xps{border-left-color:#93C5FD}
+body.rs-app.light.v2 .ap2-xps{border-left-color:#C9E68A}
 body.rs-app.light.v2 .ap2-card.hot{border-color:#FDE68A;box-shadow:inset 3px 0 0 #B45309}
-body.rs-app.light.v2 .ap2-callout{background:#EFF6FF;border-color:#BFDBFE;border-left-color:#2563EB}
+body.rs-app.light.v2 .ap2-callout{background:#F4FAE6;border-color:#DCEFB0;border-left-color:#3F7D20}
 /* KPI-like readouts: ~26px / 600, ink */
 body.rs-app.light.v2 .ap2-step .v{font-size:26px;font-weight:600;letter-spacing:-.3px}
 body.rs-app.light.v2 .ap2-led-g>.v{font-size:clamp(22px,1.6vw,26px);font-weight:600;letter-spacing:-.3px}
@@ -1281,54 +1281,54 @@ body.rs-app.light.v2 .ap2-q .qq{font-weight:600}
 /* controls: toggle groups are pills, the selected one navy */
 body.rs-app.light.v2 button.ap2-chip{border-radius:999px;font-size:12.5px;font-weight:600;letter-spacing:0;background:#FFFFFF;
   border-color:#CBD5E1;color:#0F172A}
-body.rs-app.light.v2 button.ap2-chip.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 button.ap2-chip.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
 body.rs-app.light.v2 .ap2-mbtn{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-weight:600}
-body.rs-app.light.v2 .ap2-mbtn.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF;box-shadow:none}
-body.rs-app.light.v2 .ap2-mbtn.on small{color:#DBEAFE}
+body.rs-app.light.v2 .ap2-mbtn.on{background:#14301F;border-color:#14301F;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 .ap2-mbtn.on small{color:#E8F5C8}
 body.rs-app.light.v2 .ap3-seg{border-radius:999px;border-color:#CBD5E1;background:#FFFFFF}
 body.rs-app.light.v2 .ap3-seg button{font-weight:600;color:#0F172A;border-right-color:#E2E8F0}
-body.rs-app.light.v2 .ap3-seg button.on{background:#1E3A8A;color:#FFFFFF;box-shadow:none}
+body.rs-app.light.v2 .ap3-seg button.on{background:#14301F;color:#FFFFFF;box-shadow:none}
 body.rs-app.light.v2 .ap3-yn button{font-weight:600;color:#475569}
 body.rs-app.light.v2 .ap3-yn button.on{background:#F1F5F9;color:#0F172A}
-body.rs-app.light.v2 .ap3-yn button.on.yes{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap3-yn button.on.yes{background:#14301F;color:#FFFFFF}
 body.rs-app.light.v2 .ap3-list .tt button{border-radius:999px;border-color:#CBD5E1;color:#0F172A;font-weight:600}
-body.rs-app.light.v2 .ap3-list .tt button.on{background:#1E3A8A;border-color:#1E3A8A;color:#FFFFFF}
-body.rs-app.light.v2 .ap3-list .tt button.on small{color:#DBEAFE}
+body.rs-app.light.v2 .ap3-list .tt button.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
+body.rs-app.light.v2 .ap3-list .tt button.on small{color:#E8F5C8}
 body.rs-app.light.v2 .ap3-list .tt button.on i{box-shadow:0 0 0 1.5px #FFFFFF}
 body.rs-app.light.v2 .ap3-list .r:hover{background:#F8FAFC}
-body.rs-app.light.v2 .ap3-list .r.on{background:#EFF6FF}
-body.rs-app.light.v2 :is(.ap3-step.drv,.ap3-nb.on){border-color:#1E3A8A;box-shadow:0 0 0 1px #1E3A8A}
+body.rs-app.light.v2 .ap3-list .r.on{background:#F4FAE6}
+body.rs-app.light.v2 :is(.ap3-step.drv,.ap3-nb.on){border-color:#14301F;box-shadow:0 0 0 1px #14301F}
 body.rs-app.light.v2 .ap3-printbtn{border-radius:8px;font-weight:600}
 body.rs-app.light.v2 :is(.ap3-step .ctl button,.ap3-step.plan .site button,.ap3-step .trk button){border-radius:8px;border-color:#CBD5E1;font-weight:600}
 body.rs-app.light.v2 :is(.ap2-in,.ap2-growth input,.ap3-nb .dials input){border-radius:8px;border-color:#CBD5E1}
 body.rs-app.light.v2 .ap2-assume .rs-num,body.rs-app.light.v2 .ap2-pane .rs-num{background:#FFFFFF;border-color:#CBD5E1;
   border-radius:8px;box-shadow:none;font-weight:600}
-body.rs-app.light.v2 .ap2-assume .rs-num:focus,body.rs-app.light.v2 .ap2-pane .rs-num:focus{box-shadow:0 0 0 3px rgba(37,99,235,.14)}
-body.rs-app.light.v2 .ap2-pane .rs-seg button.on{background:#1E3A8A;color:#FFFFFF}
+body.rs-app.light.v2 .ap2-assume .rs-num:focus,body.rs-app.light.v2 .ap2-pane .rs-num:focus{box-shadow:0 0 0 3px rgba(63,125,32,.14)}
+body.rs-app.light.v2 .ap2-pane .rs-seg button.on{background:#14301F;color:#FFFFFF}
 body.rs-app.light.v2 .ap2-tt .rs-btn{font-family:inherit;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;border-radius:8px}
 /* tables: the total is a plain #F8FAFC row, no lit edge; selections are the neutral-blue tint */
 body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:600;background:#F8FAFC;box-shadow:inset 0 1px 0 #E2E8F0}
 body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td.ap2-sh{box-shadow:inset 0 1px 0 #E2E8F0,inset 1px 0 0 #CBD5E1,inset -1px 0 0 #CBD5E1}
 body.rs-app.light.v2 .ap2-dt td:first-child{font-weight:600}
-body.rs-app.light.v2 .ap2-th:hover,body.rs-app.light.v2 .ap2-th.on{color:#1E3A8A}
+body.rs-app.light.v2 .ap2-th:hover,body.rs-app.light.v2 .ap2-th.on{color:#14301F}
 /* the map: readable tier key, calm controls, a tier chip whose text always reads on its fill */
 body.rs-app.light.v2 .ap2-mapkey{font-size:12.5px;color:#475569;gap:10px 16px}
 body.rs-app.light.v2 .ap2-mk b{font-weight:600}
 body.rs-app.light.v2 .ap2-sw{width:13px;height:13px;border-radius:3px;border-color:rgba(15,23,42,.18)}
 body.rs-app.light.v2 .ap2-sw.cover{border-radius:50%}
-body.rs-app.light.v2 .ap2-headline{border-left-color:#2563EB;background:#FFFFFF}
+body.rs-app.light.v2 .ap2-headline{border-left-color:#3F7D20;background:#FFFFFF}
 body.rs-app.light.v2 .ap2-headline .n{font-weight:600}
 body.rs-app.light.v2 :is(.ap3-findres .tchip,.ap3-nb .tchip){font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px}
 body.rs-app.light.v2 :is(.ap3-findres,.ap3-nb) .tchip.t2{color:#0F172A}
 body.rs-app.light.v2 .ap3-list .r .tb{border-radius:6px;font-weight:600}
 body.rs-app.light.v2 .ap2-flag b{font-weight:600;border-radius:6px;background:#FFFFFF;border-color:#CBD5E1;box-shadow:0 1px 2px rgba(15,23,42,.12)}
 body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn{border-radius:8px;box-shadow:0 1px 3px rgba(15,23,42,.18)}
-body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn.on{background:#1E3A8A}
+body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn.on{background:#14301F}
 body.rs-app.light.v2 .leaflet-tooltip.ap2-tipwrap{border-color:#E2E8F0;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
-body.rs-app.light.v2 .ap2-tip .t{letter-spacing:0;color:#1E3A8A;font-weight:600}
+body.rs-app.light.v2 .ap2-tip .t{letter-spacing:0;color:#14301F;font-weight:600}
 body.rs-app.light.v2 .ap2-tip .big{font-weight:600}
 /* the Maryland clock: categorical series from the v2 order, the target a slate dash (amber means warning now) */
-body.rs-app.light.v2 .ap2-gt{--gt-t:#2563EB;--gt-c:#94A3B8;--gt-pos:#0F766E;--gt-md:#1E3A8A;--gt-ref:#334155;--gt-lvl:#7C3AED;
+body.rs-app.light.v2 .ap2-gt{--gt-t:#3F7D20;--gt-c:#94A3B8;--gt-pos:#0F766E;--gt-md:#14301F;--gt-ref:#334155;--gt-lvl:#7C3AED;
   --gt-grid:#E2E8F0;--gt-axis:#475569;--gt-band:#F1F5F9}
 body.rs-app.light.v2 .ap2-gt-svg text{font-size:12px}
 body.rs-app.light.v2 .ap2-gt-leg{font-size:12.5px}
@@ -2009,8 +2009,8 @@ registerPage({
          squares"; the label text stays): a parking sign, a warehouse for parking + storage, a box
          for storage with no base */
       const BASE_ICO = {
-        P: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#2563eb"/><path d="M5.6 12.6V3.6h3.1a2.7 2.7 0 0 1 0 5.4H5.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"/></svg>',
-        PS: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M.8 6.4 8 1.6l7.2 4.8V15H.8z" fill="#1e3a8a"/><rect x="4" y="8" width="8" height="7" fill="#fff"/><path d="M4 10.3h8M4 12.6h8" stroke="#1e3a8a" stroke-width="1.1"/></svg>',
+        P: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#3F7D20"/><path d="M5.6 12.6V3.6h3.1a2.7 2.7 0 0 1 0 5.4H5.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"/></svg>',
+        PS: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M.8 6.4 8 1.6l7.2 4.8V15H.8z" fill="#14301F"/><rect x="4" y="8" width="8" height="7" fill="#fff"/><path d="M4 10.3h8M4 12.6h8" stroke="#14301F" stroke-width="1.1"/></svg>',
         S: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2 14.8 4.4v7.2L8 14.8 1.2 11.6V4.4z" fill="#b45309"/><path d="M1.6 4.6 8 7.6l6.4-3M8 7.6v7" stroke="#fff" stroke-width="1.2" fill="none"/></svg>' };
       const icoHtml = k => BASE_ICO[k] ? '<i class="ico ico-' + k.toLowerCase() + '">' + BASE_ICO[k] + "</i>" : "<i></i>";
       /* " · P+S · 3 own + 2–4 rent" -- the flag's and the card's one line */

@@ -50,13 +50,13 @@
         .cc-reason-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
         /* DESIGN V2: sentence-case table header, neutral hover, navy-tint chips, flat cards */
         body.rs-app.light.v2 #ccSearch{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}
-        body.rs-app.light.v2 #ccSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+        body.rs-app.light.v2 #ccSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}
         body.rs-app.light.v2 .cc-tbl th,body.rs-app.light.v2 .cc-tbl td{font-size:13.5px;color:var(--ink);border-bottom-color:#F1F5F9}
         body.rs-app.light.v2 .cc-tbl th{background:#F8FAFC;color:var(--muted);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom-color:var(--line)}
         body.rs-app.light.v2 .cc-tbl tr:hover td{background:#F8FAFC}
         body.rs-app.light.v2 .cc-chip{background:#FFFFFF;border-color:#E2E8F0;font-size:13px}
-        body.rs-app.light.v2 .cc-chip:hover{border-color:#93C5FD;background:var(--blue-bg)}
-        body.rs-app.light.v2 .cc-chip.on{border-color:#93C5FD;background:var(--blue-bg);color:var(--brand-d)}
+        body.rs-app.light.v2 .cc-chip:hover{border-color:#C9E68A;background:var(--blue-bg)}
+        body.rs-app.light.v2 .cc-chip.on{border-color:#C9E68A;background:var(--blue-bg);color:var(--brand-d)}
         body.rs-app.light.v2 .cc-reason-pill{border-radius:6px;font-size:12px;font-weight:600}
         body.rs-app.light.v2 .cc-mcard{background:#FFFFFF !important;border-radius:10px !important}
         body.rs-app.light.v2 .cc-mcard>div:first-child{font-weight:600 !important;font-size:24px !important}

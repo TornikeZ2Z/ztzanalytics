@@ -142,7 +142,7 @@ registerPage({
         "body.rs-app.light.v2 .sal-pills .rs-pill{font-size:12px}",
         "body.rs-app.light.v2 .sal-sm{font-size:12px;font-weight:500}",
         "body.rs-app.light.v2 .sal-th small{font-size:12px;font-weight:500}",
-        "body.rs-app.light.v2 .sal a.sal-link,body.rs-app.light.v2 .sal-fold>summary .sal-more{color:#1D4ED8;font-weight:600}",
+        "body.rs-app.light.v2 .sal a.sal-link,body.rs-app.light.v2 .sal-fold>summary .sal-more{color:#2F6316;font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }

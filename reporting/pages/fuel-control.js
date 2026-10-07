@@ -186,7 +186,7 @@ registerPage({
       + "body.rs-app.light.v2 .fu-flag{font-size:12px;font-weight:600;background:#FEF3C7;color:#92400E}"
       + "body.rs-app.light.v2 .fu-flag.ctx{background:#F1F5F9;color:#475569;font-weight:500}"
       + "body.rs-app.light.v2 .fu-done{font-size:13px;font-weight:600}"
-      + "body.rs-app.light.v2 .fu .fu-t td.bar i{background:#2563EB;opacity:.35}"
+      + "body.rs-app.light.v2 .fu .fu-t td.bar i{background:#3F7D20;opacity:.35}"
       + "body.rs-app.light.v2 .fu .fu-t tr.tot td{font-weight:600;border-top:1px solid var(--line);background:#F8FAFC}"
       + "body.rs-app.light.v2 .fu-neg{font-weight:600}"
       + "body.rs-app.light.v2 .fu-empty{border-radius:10px;border-color:#CBD5E1;font-size:13.5px;color:var(--faint)}"
