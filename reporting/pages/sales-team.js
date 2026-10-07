@@ -174,6 +174,13 @@
     .st-flag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;border:1px solid;border-radius:999px;padding:1px 8px;margin-right:4px}
     .st-flag.r{color:var(--red);border-color:color-mix(in srgb,var(--red) 55%,transparent)} .st-flag.a{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 55%,transparent)}
     .st-flag.b{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 55%,transparent)} .st-flag.p{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 55%,transparent)}
+    .st-flag.g{color:var(--pos,#15803d);border-color:color-mix(in srgb,var(--pos,#15803d) 55%,transparent)} .st-flag.x{color:var(--muted);border-color:var(--line-2)}
+    .st-decrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+    .st-decbtn{appearance:none;font:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:5px 11px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink)}
+    .st-decbtn.cls{background:var(--pos,#15803d);border-color:transparent;color:#fff} .st-decbtn.dis{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
+    .st-decbtn.ghost{color:var(--muted)} .st-decbtn:disabled{opacity:.5;cursor:default}
+    .st-decedit textarea{width:100%;min-width:220px;box-sizing:border-box;font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;background:var(--panel);color:var(--ink);resize:vertical}
+    .st-deccmt{margin-top:5px;font-size:12.5px;color:var(--ink)} .st-decmeta{font-size:11px;color:var(--faint);margin-top:2px} .st-decerr{font-size:11.5px;color:var(--red)}
     /* toolbar */
     .st-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);margin-bottom:12px}
     .st-search{position:relative;flex:1;min-width:240px}
@@ -1448,68 +1455,84 @@
   const ANS_KIND = i => /^bad lead reason$/i.test(i || "") ? "bad"
     : (/^not confirmed update$/i.test(i || "") ? "recall" : "not_called");
   const ANS_LBL = { bad: "Bad lead", not_called: "Not called", recall: "Not Confirmed" };
+  /* THE LOOP CLOSES HERE (his ask 2026-10-07): an answer stays Open until the sales manager
+     acts on it -- Close (her comment, optional) or Dismiss (a reason, required) -- and either
+     can be reopened. The decision is written by the bridge to `sales_answer_review` and the
+     Monthly Report reads it back through mart_sales_answers. The counts and the bad-leads-by-
+     source table that used to open this tab moved to the Monthly Report (his call). */
+  const ansKey = a => String(a["Timestamp"] || "").slice(0, 19).replace("T", " ") + "|" + String(a["Request #"] || "").trim();
+  const DEC_LBL = { open: "Open", closed: "Closed", dismissed: "Dismissed" };
   async function loadAnswers(ctx) {
     if (ctx.answers) return;
-    try {
-      const d = await fetch(ZTZ.API + "/api/sales_lead_feedback?limit=20000",
-        { headers: { Authorization: "Bearer " + ZTZ.getToken() } }).then(r => r.json());
-      ctx.answers = (d.rows || []).slice().sort((a, b) => String(b["Timestamp"]).localeCompare(String(a["Timestamp"])));
-    } catch (e) { ctx.answers = []; }
+    const H = { headers: { Authorization: "Bearer " + ZTZ.getToken() } };
+    const [d, r] = await Promise.all([
+      fetch(ZTZ.API + "/api/sales_lead_feedback?limit=20000", H).then(x => x.json()).catch(() => ({})),
+      fetch(ZTZ.API + "/api/_salesans", H).then(x => x.json()).catch(() => ({}))]);
+    ctx.answers = (d.rows || []).filter(a => !/^TEST/i.test(String(a["Request #"] || "")))
+      .sort((a, b) => String(b["Timestamp"]).localeCompare(String(a["Timestamp"])));
+    ctx.ansDec = {}; (r.rows || []).forEach(x => { ctx.ansDec[x.key] = x; });
+    ctx.ansCan = !!r.can_decide;
   }
   async function renderAnswers(host, ctx) {
     await loadAnswers(ctx);
     const byReq = {};
     (ctx.allRows || ctx.rows).forEach(r => { const k = String(r["Job No"] || "").trim(); if (k && !byReq[k]) byReq[k] = r; });
-    const st = { kind: "", rep: "", src: "", q: "" };
+    const st = ctx.ansSt || (ctx.ansSt = { kind: "", rep: "", src: "", q: "", dec: "open", edit: null });
     const rows0 = ctx.answers.map(a => {
       const L = byReq[String(a["Request #"] || "").trim()] || {};
-      return { a, L, kind: ANS_KIND(a["Issue"]), rep: (a["Lead Owner"] || L["Assigned"] || "").trim(),
+      return { a, L, key: ansKey(a), kind: ANS_KIND(a["Issue"]), rep: (a["Lead Owner"] || L["Assigned"] || "").trim(),
                src: (L["Source"] || "").trim() };
     });
-    // bad leads by provider: the period's Bad Leads (journey, global filters apply) and the reasons given
-    const bad = {};
-    ctx.rows.filter(r => isDead(r)).forEach(r => {
-      const k = (r["Source"] || "—").trim() || "—";
-      (bad[k] = bad[k] || { n: 0, answered: 0, notes: [] }).n++;
-    });
-    rows0.filter(x => x.kind === "bad").forEach(x => {
-      const k = x.src || "—";
-      const b = bad[k] = bad[k] || { n: 0, answered: 0, notes: [] };
-      b.answered++;
-      if (x.a["Note"] && b.notes.length < 4) b.notes.push(x.a["Note"]);
-    });
-    const badRows = Object.entries(bad).sort((p, q) => q[1].n - p[1].n);
+    const decOf = x => (ctx.ansDec[x.key] || {}).action || "open";
     const reps = [...new Set(rows0.map(x => x.rep).filter(Boolean))].sort();
     const srcs = [...new Set(rows0.map(x => x.src).filter(Boolean))].sort();
-    const n = k => rows0.filter(x => x.kind === k).length;
     host.innerHTML = `
-      <div class="st-lfv" style="margin:4px 0 14px">
-        <div class="c"><div class="l">Answers</div><div class="v">${RS.fmtN(rows0.length)}</div></div>
-        <div class="c"><div class="l">Bad-lead reasons</div><div class="v">${RS.fmtN(n("bad"))}</div></div>
-        <div class="c"><div class="l">Not called, explained</div><div class="v">${RS.fmtN(n("not_called"))}</div></div>
-        <div class="c"><div class="l">Not Confirmed updates</div><div class="v">${RS.fmtN(n("recall"))}</div></div>
-      </div>
-      <div class="st-sec" style="margin-top:0">Bad leads by lead source &middot; this period</div>
-      <div class="st-grid" style="margin-bottom:16px"><div class="st-gridscroll"><table class="st-tbl">
-        <thead><tr><th>Source</th><th style="text-align:right">Bad leads</th><th style="text-align:right">Reasons given</th><th>Latest reasons</th></tr></thead>
-        <tbody>${badRows.slice(0, 25).map(([k, b]) => `<tr><td><b>${esc(k)}</b></td>
-          <td style="text-align:right">${RS.fmtN(b.n)}</td><td style="text-align:right">${RS.fmtN(b.answered)}</td>
-          <td style="white-space:normal;color:var(--muted)">${b.notes.map(t => "&ldquo;" + esc(String(t).slice(0, 90)) + "&rdquo;").join(" &middot; ") || "&mdash;"}</td></tr>`).join("")
-          || `<tr><td colspan="4" class="st-dim">No bad leads in this period.</td></tr>`}</tbody></table></div></div>
+      <div class="st-note" style="margin:2px 0 12px">Every answer stays <b>Open</b> until the sales manager closes it (with her comment) or dismisses it (with a reason). Decisions go into the Monthly Report.${ctx.ansCan ? "" : " You can read the answers; closing them is the manager's."}</div>
       <div class="st-toolbar">
-        <div class="st-search"><input type="text" id="saQ" placeholder="Search customer, request #, or answer…"></div>
+        <div class="st-search"><input type="text" id="saQ" placeholder="Search customer, request #, answer or comment…" value="${esc(st.q)}"></div>
         <div id="saRep"></div><div id="saSrc"></div>
       </div>
-      <div class="st-chips">${[["", "All"], ["bad", "Bad lead"], ["not_called", "Not called"], ["recall", "Not Confirmed"]]
-        .map(([k, l]) => `<button class="st-chip${k === "" ? " on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
+      <div class="st-chips" id="saDec"></div>
+      <div class="st-chips" id="saKind">${[["", "All types"], ["bad", "Bad lead"], ["not_called", "Not called"], ["recall", "Not Confirmed"]]
+        .map(([k, l]) => `<button class="st-chip${k === st.kind ? " on" : ""}" data-k="${k}">${l}</button>`).join("")}</div>
       <div class="st-grid"><div class="st-gridscroll" id="saTbl"></div></div>`;
+    const decCell = x => {
+      const d = ctx.ansDec[x.key], dec = decOf(x);
+      if (st.edit && st.edit.key === x.key) {
+        const dis = st.edit.action === "dismissed";
+        return `<div class="st-decedit" data-stop>
+          <textarea id="saCmt" rows="3" maxlength="600" placeholder="${dis ? "Why it is dismissed (required)" : "Your comment: what you decided or did (optional)"}">${esc(st.edit.text || "")}</textarea>
+          <div class="st-decrow"><button class="st-decbtn ${dis ? "dis" : "cls"}" data-save>${dis ? "Dismiss" : "Close"}</button>
+          <button class="st-decbtn ghost" data-cancel>Cancel</button><span class="st-decerr" id="saErr"></span></div></div>`;
+      }
+      const meta = d && d.by ? `<div class="st-decmeta">${esc(String(d.by).split("@")[0])} · ${esc(String(d.at || "").slice(0, 16))}</div>` : "";
+      const pill = `<span class="st-flag ${dec === "closed" ? "g" : dec === "dismissed" ? "x" : "a"}">${DEC_LBL[dec]}</span>`;
+      const cmt = d && d.comment ? `<div class="st-deccmt">${esc(d.comment)}</div>` : "";
+      const acts = !ctx.ansCan ? "" : dec === "open"
+        ? `<div class="st-decrow" data-stop><button class="st-decbtn cls" data-act="closed" data-key="${esc(x.key)}">✓ Close</button><button class="st-decbtn dis" data-act="dismissed" data-key="${esc(x.key)}">✕ Dismiss</button></div>`
+        : `<div class="st-decrow" data-stop><button class="st-decbtn ghost" data-act="open" data-key="${esc(x.key)}">Reopen</button><button class="st-decbtn ghost" data-act="${dec}" data-key="${esc(x.key)}" data-editonly>Edit comment</button></div>`;
+      return pill + cmt + meta + acts;
+    };
+    const post = async (key, action, comment) => {
+      const res = await fetch(ZTZ.API + "/api/_salesans", { method: "POST",
+        headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+        body: JSON.stringify({ key, action, comment }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || ("HTTP " + res.status));
+      if (action === "open") delete ctx.ansDec[key];
+      else ctx.ansDec[key] = { key, action, comment: j.comment, by: j.by, at: new Date().toISOString().slice(0, 16).replace("T", " ") };
+    };
     const paint = () => {
       const q = st.q.toLowerCase();
-      const rows = rows0.filter(x => (!st.kind || x.kind === st.kind) && (!st.rep || x.rep === st.rep)
-        && (!st.src || x.src === st.src)
-        && (!q || [x.a["Request #"], x.a["Note"], x.a["Issue"], x.L["Customer"]].join(" ").toLowerCase().includes(q)));
+      const base = rows0.filter(x => (!st.kind || x.kind === st.kind) && (!st.rep || x.rep === st.rep) && (!st.src || x.src === st.src)
+        && (!q || [x.a["Request #"], x.a["Note"], x.a["Issue"], x.L["Customer"], (ctx.ansDec[x.key] || {}).comment].join(" ").toLowerCase().includes(q)));
+      const cnt = k => base.filter(x => !k || decOf(x) === k).length;
+      host.querySelector("#saDec").innerHTML = [["open", "Open"], ["closed", "Closed"], ["dismissed", "Dismissed"], ["", "All"]]
+        .map(([k, l]) => `<button class="st-chip${k === st.dec ? " on" : ""}" data-d="${k}">${l} <small>${RS.fmtN(cnt(k))}</small></button>`).join("");
+      host.querySelectorAll("#saDec .st-chip").forEach(b => b.onclick = () => { st.dec = b.dataset.d; st.edit = null; paint(); });
+      const rows = base.filter(x => !st.dec || decOf(x) === st.dec);
       host.querySelector("#saTbl").innerHTML = rows.length ? `<table class="st-tbl"><thead><tr>
-          <th>When</th><th>Rep</th><th>Lead</th><th>Source</th><th>Type</th><th>Answer</th><th>Status now</th></tr></thead>
+          <th>When</th><th>Rep</th><th>Lead</th><th>Source</th><th>Type</th><th>Answer</th><th>Status now</th><th style="min-width:230px">Manager</th></tr></thead>
         <tbody>${rows.slice(0, 500).map(x => `<tr class="click" data-jk="${esc(x.L["Request Joinkey"] || "")}">
           <td>${esc(String(x.a["Timestamp"] || "").slice(0, 16).replace("T", " "))}</td>
           <td>${esc(x.rep || "—")}</td>
@@ -1517,18 +1540,41 @@
           <td>${esc(x.src || "—")}</td>
           <td><span class="st-flag ${x.kind === "bad" ? "r" : x.kind === "recall" ? "a" : "b"}">${ANS_LBL[x.kind]}</span></td>
           <td style="white-space:normal;min-width:260px">${x.kind === "not_called" ? "<b>" + esc(x.a["Issue"] || "") + "</b>" + (x.a["Note"] ? " &mdash; " : "") : ""}${esc(x.a["Note"] || "")}</td>
-          <td>${esc(x.L["Status"] || "—")}</td></tr>`).join("")}</tbody></table>`
-        : `<div class="st-note" style="padding:16px">No answers match. Reps answer from the links in their daily email; the answers arrive here within the hour.</div>`;
-      host.querySelectorAll("#saTbl tr.click").forEach(tr => tr.onclick = () => { if (tr.dataset.jk) openDrawer(tr.dataset.jk); });
+          <td>${esc(x.L["Status"] || "—")}</td>
+          <td style="white-space:normal">${decCell(x)}</td></tr>`).join("")}</tbody></table>`
+        : `<div class="st-note" style="padding:16px">${st.dec === "open" ? "Nothing open: every answer has been closed or dismissed." : "No answers match. Reps answer from the links in their daily email; the answers arrive here within the hour."}</div>`;
+      host.querySelectorAll("#saTbl tr.click").forEach(tr => tr.onclick = e => {
+        if (e.target.closest("[data-stop]")) return;
+        if (tr.dataset.jk) openDrawer(tr.dataset.jk); });
+      host.querySelectorAll("#saTbl [data-act]").forEach(b => b.onclick = async e => {
+        e.stopPropagation();
+        const key = b.dataset.key, act = b.dataset.act;
+        if (act === "open") { b.disabled = true; try { await post(key, "open", null); } catch (err) { alert(err.message); } paint(); return; }
+        st.edit = { key, action: act, text: (ctx.ansDec[key] || {}).comment || "" }; paint();
+        const t = host.querySelector("#saCmt"); if (t) t.focus();
+      });
+      const ed = host.querySelector(".st-decedit");
+      if (ed) {
+        ed.onclick = e => e.stopPropagation();
+        ed.querySelector("#saCmt").oninput = e => { st.edit.text = e.target.value; };
+        ed.querySelector("[data-cancel]").onclick = () => { st.edit = null; paint(); };
+        ed.querySelector("[data-save]").onclick = async ev => {
+          const txt = (st.edit.text || "").trim(), err = ed.querySelector("#saErr");
+          if (st.edit.action === "dismissed" && !txt) { err.textContent = "Write the reason first."; return; }
+          ev.target.disabled = true;
+          try { await post(st.edit.key, st.edit.action, txt || null); st.edit = null; paint(); }
+          catch (e2) { err.textContent = e2.message; ev.target.disabled = false; }
+        };
+      }
     };
     RSC.localSelect(host.querySelector("#saRep"), { label: "Rep", allLabel: "All reps",
-      values: reps.map(v => ({ v, l: v })), value: "", onChange: v => { st.rep = v; paint(); } });
+      values: reps.map(v => ({ v, l: v })), value: st.rep, onChange: v => { st.rep = v; paint(); } });
     RSC.localSelect(host.querySelector("#saSrc"), { label: "Source", allLabel: "All sources",
-      values: srcs.map(v => ({ v, l: v })), value: "", onChange: v => { st.src = v; paint(); } });
+      values: srcs.map(v => ({ v, l: v })), value: st.src, onChange: v => { st.src = v; paint(); } });
     host.querySelector("#saQ").oninput = e => { st.q = e.target.value; paint(); };
-    host.querySelectorAll(".st-chip").forEach(b => b.onclick = () => {
+    host.querySelectorAll("#saKind .st-chip").forEach(b => b.onclick = () => {
       st.kind = b.dataset.k;
-      host.querySelectorAll(".st-chip").forEach(x => x.classList.toggle("on", x === b));
+      host.querySelectorAll("#saKind .st-chip").forEach(x => x.classList.toggle("on", x === b));
       paint();
     });
     paint();

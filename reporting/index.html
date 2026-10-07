@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="0571935f0a71115f73ec8004bab226a21ab59447">
+<meta name="ztz-ref" content="bbeb1f661db9d37cb95248efecd9e4edd1ad0da6">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -2015,6 +2015,8 @@ registerPage({
     const EXTRA_GRANTS = [
       { id: "foreman-assessment-rubric", label: "Assessment questionnaire",
         note: "Set the questions logistics scores foremen on, and how the 40 points are split." },
+      { id: "sales-answers-manager", label: "Close rep answers",
+        note: "Close or dismiss the reps' answers on Sales Team Command › Rep answers (the sales manager). Admins can always." },
       // the "meta-referrals" lone-grant tile left with its page (RETIRED 2026-08-19): the
       // grant bought only the upload UI, and a grantee would now land on Source Trace
       // holding no tables for it. Existing grants keep working at the API; none are offered.
@@ -2219,13 +2221,13 @@ registerPage({
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=5"></script>
-<script src="pages/monthly-report.js?v=120"></script>
+<script src="pages/monthly-report.js?v=121"></script>
 <script src="pages/seasonal-report.js?v=22"></script>
 <script src="pages/leads-vs-moveboard.js?v=9"></script>
 <script src="pages/source-analysis.js?v=6"></script>
 <script src="pages/data-quality.js?v=16"></script>
 <script src="pages/refresh-log.js?v=31"></script>
-<script src="pages/sales-team.js?v=58"></script>
+<script src="pages/sales-team.js?v=59"></script>
 <script src="pages/sales-comms.js?v=7"></script>
 <script src="pages/sales-trackers.js?v=10"></script>
 <script src="pages/estimate-accuracy.js?v=9"></script>

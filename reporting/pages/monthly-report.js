@@ -119,7 +119,7 @@ async function renderMonthly(host, MRCFG) {
     const grabIf = (ds, on) => on ? grab(ds) : Promise.resolve([]);
     const [closing, moveboard, storage, claims, refunds, cardEx,
            reviews, negrev, callrail, scorecard, rcounts, rgoals,
-           helperSalDs, salesSalDs, headcount, pcm, fuelCard] = await Promise.all([
+           helperSalDs, salesSalDs, headcount, pcm, fuelCard, salesAns] = await Promise.all([
       grab("closing"), grab("moveboard"), grabIf("storage", SEC("Packing & Storage")),
       grab("claims"), grab("refunds"), grab("card_expenses"),
       grab("reviews_breakdown"), grabIf("negative_reviews", SEC("Reviews Production")),
@@ -131,7 +131,9 @@ async function renderMonthly(host, MRCFG) {
       // post cards by month and state (2026-09-16): cards mailed, usage-based cost and the return
       SEC("Marketing ROI") ? pooled("Post cards", () => ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || [])) : Promise.resolve([]),
       // the fleet card as fuel (2026-09-25): feeds "Fuel Expense" and gross profit; never fatal
-      pooled("fuel_card", () => RS.load("fuel_card").catch(() => []))]);
+      pooled("fuel_card", () => RS.load("fuel_card").catch(() => [])),
+      // the reps' answers and the sales manager's decisions on them (2026-10-07); never fatal
+      SEC("Sales Team Performance") ? pooled("Rep answers", () => ZTZ.api("/api/mart_sales_answers?limit=20000").then(j => j.rows || []).catch(() => [])) : Promise.resolve([])]);
     // Derive the cost flags from the shared rows. Amount is ALREADY positive here (RS.load
     // negates the bank convention once) — `amt: num(r.Amount)`, never a second negation.
     const cardCost = !needPack ? [] : cardEx.filter(coRow).map(r => {
@@ -2255,6 +2257,45 @@ async function renderMonthly(host, MRCFG) {
       // red below (same convention as the scorecard above). NOTE: the % is r.book (canonical
       // RS.bookingRate — dual date basis, capped at 100%), NEVER r.c/r.q, so it can legitimately differ
       // from dividing the two bars by eye. bullet() itself stays: "Booking rate by salesperson" still uses it.
+      /* THE REPS' ANSWERS, AND WHAT THE MANAGER DID WITH THEM (his ask 2026-10-07: "this
+         information should be gathered in the end for our monthly report"). Reps answer from
+         their daily email (why a lead was bad, why nobody called it, where a Not Confirmed
+         stands); the sales manager closes each with her comment or dismisses it on Sales Team
+         Command > Rep answers. Answers count in the month they were given (New York time); the
+         decision shown is the current one. The bad-leads-by-source table moved here from that tab. */
+      {
+        const ans = (salesAns || []).filter(r => spanYMs.includes(String(r.Month || ""))
+          && (!r["Request Joinkey"] || String(r["Request Joinkey"]).indexOf(CO) === 0));
+        const dl = { open: "Open", closed: "Closed", dismissed: "Dismissed" };
+        const kinds = ["Bad lead", "Not called", "Not Confirmed"];
+        const cntK = (k, d) => ans.filter(r => (!k || r.Kind === k) && (!d || r.Decision === d)).length;
+        const openN = cntK(null, "open");
+        const sumRows = kinds.concat([null]).map(k => `<tr${k ? "" : ' style="font-weight:800"'}><td>${k ? esc(k) : "All answers"}</td>${td(fmtN(cntK(k)))}${td(fmtN(cntK(k, "closed")))}${td(fmtN(cntK(k, "dismissed")))}${td(fmtN(cntK(k, "open")), cntK(k, "open") ? `color:${NEG};font-weight:800` : "")}</tr>`).join("");
+        const listRows = ans.slice().sort((a, b) => String(b["Answered At UTC"]).localeCompare(String(a["Answered At UTC"]))).map(r => `<tr>
+          <td>${esc(String(r["Answered At UTC"] || "").slice(0, 10))}</td><td>${esc(r.Rep || "—")}</td>
+          <td>${esc(r.Customer || "—")} <span style="color:${FAINT}">#${esc(r["Request #"] || "")}</span></td><td>${esc(r.Source || "—")}</td>
+          <td>${esc(r.Kind)}</td><td style="white-space:normal;min-width:220px">${esc(r.Answer || r.Issue || "")}</td>
+          <td style="${r.Decision === "open" ? `color:${NEG};font-weight:800` : "font-weight:700"}">${dl[r.Decision] || esc(r.Decision)}</td>
+          <td style="white-space:normal;min-width:200px">${esc(r["Manager Comment"] || "")}</td></tr>`).join("");
+        tableCard(g, "Rep answers and the manager's decisions", monLbl + " · from the daily sales email",
+          ans.length ? `<table class="mrx-tbl"><thead><tr><th>Type</th><th>Answers</th><th>Closed</th><th>Dismissed</th><th>Still open</th></tr></thead><tbody>${sumRows}</tbody></table>
+            <table class="mrx-tbl" style="margin-top:12px"><thead><tr><th>Date</th><th>Rep</th><th>Lead</th><th>Source</th><th>Type</th><th>Answer</th><th>Decision</th><th>Manager's comment</th></tr></thead><tbody>${listRows}</tbody></table>`
+            : `<div style="padding:10px 2px;color:${FAINT}">No rep answers in ${esc(perName)}.</div>`,
+          { icon: KIC.grid, headVal: fmtN(ans.length) + " answers" + (openN ? " · " + fmtN(openN) + " open" : ""), noteKind: "how",
+            note: `Reps answer from the links in their daily email: why a lead was bad, why a lead was never called, and where a Not Confirmed lead stands. The sales manager closes each answer with her comment or dismisses it with a reason, on Sales Team Command › Rep answers. Answers count in the ${perWord} they were given (New York time); the decision is the current one. "Still open" in red means it has not been reviewed yet.` });
+        // bad leads by lead source: the period's Bad Leads (Moveboard, by create date) and the reasons reps gave
+        const badBy = segReduce("moveboard", "Source", rs => rs.filter(x => x["Status Category"] === "Bad Lead").length, curY, mo)
+          .filter(r => r.v > 0 && !isBlankKey(r.k)).sort((a, b) => b.v - a.v).slice(0, 20);
+        if (badBy.length) {
+          const why = {}; ans.filter(r => r.Kind === "Bad lead").forEach(r => { const k = String(r.Source || "").trim(); (why[k] = why[k] || []).push(r.Answer || ""); });
+          tableCard(g, "Bad leads by lead source", monLbl + " · with the reasons reps gave",
+            `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Bad leads</th><th>Reasons given</th><th>Latest reasons</th></tr></thead><tbody>${badBy.map(r => {
+              const w = why[String(r.k).trim()] || [];
+              return `<tr><td>${esc(r.k)}</td>${td(fmtN(r.v))}${td(fmtN(w.length))}<td style="white-space:normal;color:${FAINT}">${w.slice(0, 3).map(t => "&ldquo;" + esc(String(t).slice(0, 90)) + "&rdquo;").join(" · ") || "—"}</td></tr>`; }).join("")}</tbody></table>`,
+            { icon: KIC.grid, headVal: fmtN(badBy.reduce((a, r) => a + r.v, 0)) + " bad leads", noteKind: "how",
+              note: `Leads marked Bad Lead in Moveboard, by the ${perWord} they were created, per lead source, with the reasons reps gave from their daily email. For taking back to marketing and the lead providers.` });
+        }
+      }
       if (bigMb.length) groupedBars(g, "Large moves (Big Job flag) — Qualified vs Confirmed", bigMb.map(r => r.k), bigMb.map(r => r.q), "Qualified", bigMb.map(r => r.c), "Confirmed", fmtN, {
         sub: monLbl + " · % = booking rate" + (bk == null ? "" : " · team avg " + pct(bk)),
         catLab: bigMb.map(r => r.book == null ? null : { txt: pct(r.book), color: r.book >= (bk || 0) ? POS : NEG }),
