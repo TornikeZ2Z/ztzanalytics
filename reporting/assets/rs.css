@@ -174,7 +174,13 @@ body.rs-app .gate p{color:var(--muted)}
    #content is never re-created, so animating IT gives the entrance exactly once per
    navigation, and nothing a page does to its own contents can replay it. renderPage() in
    index.html re-arms the class; that is the single chokepoint every page change goes through. */
-.rs-content.rs-enter{animation:rsfade .28s ease-out both}
+/* BACKWARDS, NOT BOTH (2026-10-07). With `both` the finished fade kept its last frame on #content
+   -- translateY(0), i.e. a transform -- and any transform turns an element into the containing
+   block for position:fixed descendants. Every page drawer/dialog built as `position:fixed;top:0`
+   inside #content was then laid out against #content (55px down, scrolling with it) instead of
+   the window: Money Flow's Settle panel had its Confirm button pushed off the bottom edge.
+   `backwards` plays the same fade and then lets go, so #content ends with no transform. */
+.rs-content.rs-enter{animation:rsfade .28s ease-out backwards}
 @keyframes rsfade{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.rs-content.rs-enter{animation:none}}
 

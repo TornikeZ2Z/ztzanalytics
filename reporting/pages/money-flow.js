@@ -1233,7 +1233,7 @@ registerPage({
         if (l.echoLeg) tl(l.date + " 00", "ring", fmtD(l.date), '<span class="mf-b">No money of its own</span><span class="mf-mut">Its cash is counted on the job’s other calendar day.</span>');
         else if (l.expected != null) {
           var v = l.expected - (l.adv || 0) + (l.ded || 0);
-          tl(l.dcTs || l.date + " 00", "ring", (l.dcTs ? fmtWhen(l.dcTs) : fmtD(l.date)) + lt,
+          tl(l.dcTs || l.date + " 00", "ring", l.dcTs ? fmtWhen(l.dcTs) + lt : fmtD(l.date),   // the leg date only beside a submission time, never twice
             '<span class="mf-b">Closing filed: net cash ' + money2(l.expected) + "</span>"
             + '<span class="mf-mut">' + (v > MF_TOL ? "Positive net cash: " + esc(fm) + " is holding money that belongs to the base."
               : v < -MF_TOL ? "Negative net cash: the base owes " + esc(fm) + " on this job." : "Nothing to hand over either way.") + "</span>");
