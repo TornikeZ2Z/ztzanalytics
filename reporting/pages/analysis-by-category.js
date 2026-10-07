@@ -47,6 +47,24 @@
   }
 })();
 
+/* ---- what the customer was CHARGED for, per closing (src/job_charges.py, 2026-10-07: "add
+   more measures. for example - total stairs fee, total packing fee and etc."). The closing
+   sheet has the bill and the expense lines; the itemised charges live only in the Digital
+   Contract, so this joins by Unique Key -- and only exists where a contract does (Oct 2025 on,
+   ~3 closings in 4). */
+(function () {
+  if (window.RS && RS.DATASETS && !RS.DATASETS.job_charges) {
+    RS.DATASETS.job_charges = {
+      table: "mart_job_charges",
+      cols: ["Unique Key", "Has Contract", "Labor Charge", "Service Fee", "Packing Materials Charged",
+             "Stairs Fee", "Bulky Items Fee", "Hoisting Fee", "Overnight Fee", "Storage Fee",
+             "Waiting Time Fee", "Junk Removal Fee", "Other Fees", "Long Carry Charge", "Floor Charge",
+             "Discounts", "Cash Payment Discount", "Additional Discount", "Contract Total",
+             "Contract Tip", "Paid by Cash", "Paid by Card"],
+    };
+  }
+})();
+
 /* ---------------------------------------------------------------------------------------
    MODULE-LEVEL STATE — survives a re-render caused by a global filter change.
    --------------------------------------------------------------------------------------- */
@@ -126,6 +144,9 @@ async function cbRender(host) {
     if (needsPnl) loads.push(RS.load("refunds"), RS.load("sales_salaries"), RS.load("helper_salaries"),
       RS.load("fuel_card").catch(() => []));
     const [closingAll, moveboardAll, packingAll] = await Promise.all(loads);
+    // the contract charge lines ride with the Jobs universe; small (one row per closing since
+    // Oct 2025), and a failed load just leaves the charge measures empty rather than the page
+    const chargesAll = (!isLeads && !isPacking) ? await RS.load("job_charges").catch(() => []) : [];
     const M = RS.M;
     const esc = RSC.esc;
     const nz = fmt => v => (v == null || (typeof v === "number" && isNaN(v))) ? "—" : fmt(v);
@@ -287,6 +308,23 @@ async function cbRender(host) {
       return q > 0 ? { q, bill: num(r["Total Bill"]) + num(r["Extra Bill From Trips"]) } : null;
     }).filter(Boolean);
 
+    // contract charges by closing, and the closing-sheet line items, as plain column sums
+    const CHG = new Map(); (chargesAll || []).forEach(c => CHG.set(c["Unique Key"], c));
+    const chgSum = col => rows => { let s = 0; rows.forEach(r => { const c = CHG.get(r["Unique Key"]); if (c) s += num(c[col]); }); return s; };
+    const colSum = col => rows => rows.reduce((a, r) => a + num(r[col]), 0);
+    const withContract = rows => rows.filter(r => { const c = CHG.get(r["Unique Key"]); return c && +c["Has Contract"] === 1; });
+    const CHARGE_LINES = [["Stairs Fee", "Stairs Fee"], ["Packing Materials (contract)", "Packing Materials Charged"],
+      ["Bulky Items Fee", "Bulky Items Fee"], ["Hoisting Fee", "Hoisting Fee"], ["Long Carry Charge", "Long Carry Charge"],
+      ["Floor Charge", "Floor Charge"], ["Labor Charge", "Labor Charge"], ["Service Fee", "Service Fee"],
+      ["Overnight Fee", "Overnight Fee"], ["Storage Fee (contract)", "Storage Fee"], ["Waiting Time Fee", "Waiting Time Fee"],
+      ["Junk Removal Fee", "Junk Removal Fee"], ["Other Fees", "Other Fees"], ["Discounts (contract)", "Discounts"],
+      ["Cash Payment Discount", "Cash Payment Discount"], ["Additional Discount", "Additional Discount"],
+      ["Contract Total", "Contract Total"], ["Paid by Cash (contract)", "Paid by Cash"], ["Paid by Card (contract)", "Paid by Card"]];
+    const SHEET_LINES = [["Fuel", "Fuel"], ["Tolls", "Tolls"], ["Hotel", "Hotel"], ["Car", "Car"], ["Truck Rent", "Truck"],
+      ["Other Expenses", "Other Expenses"], ["Driver Pay", "Driver $"], ["Foreman Pay", "Forman Total $"],
+      ["Packing Commission", "Material $"], ["Tips Kept by Foreman", "Tip for Forman"], ["Company Tip Share", "Tip from Company Part"],
+      ["Sales Person 1 Pay", "Sales 1 Salary"], ["Branch Owner Cut", "Branch Owner Cut"], ["Estimator Cut", "Estimator Cut"],
+      ["Deposits", "Deposit"], ["Balance Due", "Balance Due"]];
     const JOB_MEAS = {
       "Total Jobs":       { group: "Volume", reg: true },
       "Foreman Hours":    { group: "Volume", reg: "Hours Worked by Forman" },
@@ -315,6 +353,19 @@ async function cbRender(host) {
           const s = rows.map(r => RS.num(r["Satisfaction Score"])).filter(x => x > 0);
           return s.length ? s.reduce((a, b) => a + b, 0) / s.length : null; } },
     };
+    // CHARGED ON THE CONTRACT -- sums over the jobs that have one; "Jobs with a Contract" and
+    // the coverage % sit with them so nobody reads a missing contract as a $0 charge
+    JOB_MEAS["Jobs with a Contract"] = { group: "Charged on the contract", fmt: RS.fmtN, fn: rows => withContract(rows).length };
+    JOB_MEAS["Contract Coverage %"] = { group: "Charged on the contract", fmt: RS.fmtPct, nonAdd: true,
+      fn: rows => rows.length ? withContract(rows).length / rows.length : null };
+    CHARGE_LINES.forEach(([label, col]) => { JOB_MEAS[label] = { group: "Charged on the contract", fmt: RS.money, fn: chgSum(col) }; });
+    [["Avg Stairs Fee / Contract Job", "Stairs Fee"], ["Avg Packing Charged / Contract Job", "Packing Materials Charged"],
+     ["Avg Bulky Fee / Contract Job", "Bulky Items Fee"], ["Avg Labor Charge / Contract Job", "Labor Charge"]].forEach(([label, col]) => {
+      JOB_MEAS[label] = { group: "Charged on the contract", fmt: RS.money, nonAdd: true,
+        fn: rows => { const w = withContract(rows); return w.length ? chgSum(col)(w) / w.length : null; } };
+    });
+    // CLOSING-SHEET LINE ITEMS -- the pieces behind Total Expenses / salaries, one by one
+    SHEET_LINES.forEach(([label, col]) => { JOB_MEAS[label] = { group: "Closing sheet lines", fmt: RS.money, fn: colSum(col) }; });
     const LEAD_MEAS = {
       "Total Leads":      { group: "Funnel", reg: true },
       "Qualified Leads":  { group: "Funnel", reg: true },
