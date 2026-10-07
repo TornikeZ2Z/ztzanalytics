@@ -1914,40 +1914,89 @@ registerPage({
         return { own, std, hi: crews, rentStd: Math.max(0, std - own), rentHi: Math.max(0, crews - own), slots,
                  cost: own * ownYear() + rentUsd, allRent: slots.reduce((a, s) => a + s.usd, 0) };
       }
-      const ZONE_OF_GROUP = { NJ: "NJ", NY: "NJ", PA: "PA", MD: "PA", CT: "CT", MA: "CT" };
-      /* the storage label of a plan group's existing base: his pick, else the data's */
+      const ZONE_OF_GROUP = { NJ: "NJ", NY: "NJ", PA: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT", RI: "CT", DE: "DE" };
+      const zoneOf = st => ZONE_OF_GROUP[st] || st;
+      const storeCut = () => num(inputs.storeCF || 2000);
+      const STORE_FAR = 25;            // miles: farther than this from every base, the units get a site of their own
+      /* WHERE A ZONE'S STORAGE LIVES (his answers 2026-10-07): at the base nearest the units the zone
+         rents today -- an existing base or a new one switched on -- unless every base in the zone is
+         more than STORE_FAR miles from them; then the storage is proposed where the units are
+         ("Storage only" on the map) and the base stays parking. */
+      function storeFar(z) {
+        const pos = STORE.pos[z]; if (!pos) return null;
+        let mi = Infinity, who = null;
+        ((model.depots || {}).bases || []).forEach(b => { if (!b.lat || zoneOf(b.name) !== z) return;
+          const d = miBetween(pos.la, pos.lo, b.lat, b.lon); if (d < mi) { mi = d; who = b.name; } });
+        NB_CANDS.forEach(c => { if (!NB_ON[c.label] || zoneOf(c.st) !== z) return;
+          const d = miBetween(pos.la, pos.lo, c.la, c.lo); if (d < mi) { mi = d; who = c.label; } });
+        return { mi, who, far: mi > STORE_FAR };
+      }
+      /* the storage label of an existing base: his pick, else the data's */
       function storeLabel(g) {
         const set = (inputs.storeSet || {})[g.base];
         if (set) return set;
-        const z = ZONE_OF_GROUP[g.base] || g.base;
+        const z = zoneOf(g.base);
         // one storage base per zone: the group that IS the zone's state carries it (NY and MD do not)
         if (z !== g.base) return "P";
-        return (STORE.need[z] || 0) >= num(inputs.storeCF || 2000) ? "PS" : "P";
+        if ((STORE.need[z] || 0) < storeCut()) return "P";
+        const f = storeFar(z);
+        return f && (f.far || (f.who && f.who !== g.base)) ? "P" : "PS";
+      }
+      /* storage per job: what the zone rents on a typical day for every job a year it does */
+      function storeRate(N, z) {
+        if (!N) return 0;
+        const jobs = N.rows.filter(r => zoneOf(r.st) === z).reduce((a, r) => a + (r.jobs || 0) - (r.nbJobs || 0), 0);
+        return jobs > 0 ? (STORE.need[z] || 0) / jobs : 0;
+      }
+      /* A NEW BASE has no storage history: it needs its zone's storage per job times its own jobs,
+         and is Parking + Storage when that reaches storeCF -- or when it is the base nearest the
+         units its zone rents today. home = it holds the zone's storage, not only its own. */
+      function newStore(label, N, fm) {
+        const o = N && (N.nb || []).find(x => x.label === label);
+        const c = NB_CANDS.find(x => x.label === label);
+        const st = o ? o.st : c ? c.st : null, z = st ? zoneOf(st) : null;
+        /* its share: the larger of its new ground's jobs at the zone's storage per job, and its crews'
+           share of what the zone rents today (a base that takes over existing work takes its storage) */
+        const zfm = N && z ? N.rows.filter(r => zoneOf(r.st) === z).reduce((a, r) => a + (r.fmPeak || 0), 0) : 0;
+        const cf = o && z ? Math.max((o.jobs || 0) * storeRate(N, z), zfm > 0 ? (STORE.need[z] || 0) * (fm != null ? fm : o.fm || 0) / zfm : 0) : 0;
+        const f = z && (STORE.need[z] || 0) >= storeCut() ? storeFar(z) : null;
+        const home = !!(f && !f.far && f.who === label);
+        const set = (inputs.storeSet || {})[label];
+        return { store: set || (cf >= storeCut() || home ? "PS" : "P"), cf, home, zone: z };
       }
       const STORE_TXT = { P: "Parking", PS: "Parking + Storage", S: "Storage only" };
       /* every plan group: per site and summed */
-      function planFleet() {
+      function planFleet(N) {
         if (!PLAN) return null;
+        if (N === undefined) N = FC.year ? nextCalc() : null;
         return PLAN.groups.map(g => {
-          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm)));
+          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm),
+            x.cand ? { ns: newStore(x.cand, N, x.fm) } : {}));
           const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b).own, 0);
           const sum = k => sites.reduce((a, s) => a + (s[k] || 0), 0);
+          const old = g.sites.some(x => !x.cand && !x.la);
+          const ns = old ? null : (sites.find(s => s.ns) || {}).ns;
           return { g, sites, ownAt, own: sum("own"), std: sum("std"), hi: sum("hi"), rentStd: sum("rentStd"), rentHi: sum("rentHi"),
-                   cost: sum("cost"), allRent: sum("allRent"), store: storeLabel(g), zone: ZONE_OF_GROUP[g.base] || g.base };
+                   cost: sum("cost"), allRent: sum("allRent"), store: ns ? ns.store : storeLabel(g),
+                   storeKey: ns ? (sites.find(s => s.ns) || {}).x.cand : g.base, cf: ns ? ns.cf : null,
+                   zone: ns ? ns.zone : zoneOf(g.base), zoneHome: ns ? ns.home : true };
         });
       }
       /* zones that need storage with no storage base in the plan: the map's "Storage only" */
       function storageOnly(PF) {
         if (!PF) return [];
-        return Object.keys(STORE.need).filter(z => STORE.pos[z] && (STORE.need[z] || 0) >= num(inputs.storeCF || 2000)
-          && !PF.some(f => f.zone === z && f.store === "PS")).map(z => ({ z, cf: STORE.need[z], pos: STORE.pos[z] }));
+        const home = z => PF.some(f => f.zone === z && f.store === "PS" && f.zoneHome !== false) ||
+          PF.some(f => (f.sites || []).some(x => x.ns && x.ns.zone === z && x.ns.store === "PS" && x.ns.home));
+        return Object.keys(STORE.need).filter(z => STORE.pos[z] && (STORE.need[z] || 0) >= storeCut() && !home(z))
+          .map(z => ({ z, cf: STORE.need[z], pos: STORE.pos[z], far: storeFar(z) }));
       }
       /* THE FORECAST TOO (his ask 2026-10-07: "I don't see the trucks and storage on the map"): with
          no named plan, each pool card and each Yes base is sized from the forecast's own crews */
       function forecastFleet(N) {
         if (PLAN || !N || !FLEET.has) return null;
-        const one = (base, pool, fm, isNew) => Object.assign({ base, fm, isNew, zone: ZONE_OF_GROUP[base] || base,
-          store: isNew ? "P" : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b).own }, siteFleet(pool, fm));
+        const one = (base, pool, fm, isNew) => { const ns = isNew ? newStore(base, N) : null;
+          return Object.assign({ base, fm, isNew, zone: ns ? ns.zone : zoneOf(base), zoneHome: ns ? ns.home : true, cf: ns ? ns.cf : null,
+            store: ns ? ns.store : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b).own }, siteFleet(pool, fm)); };
         return baseList(N).filter(b => b.fm > 0).map(b => one(b.key, b.key, b.fm))
           .concat((N.nb || []).filter(o => o.fm > 0).map(o => one(o.label, POOL_OF[o.st] || o.st, o.fm, true)));
       }
@@ -5098,8 +5147,9 @@ registerPage({
           '</i><i class="' + (o.rent ? "rent" : "") + '">rent <b>' + fmtN(o.rent) + "</b></i></div>";
         const FF = forecastFleet(N);
         const fl = key => { const f = FF && FF.find(x => x.base === key); if (!f) return "";
-          return '<div class="ap3-fleet"><div class="r st">' + (f.isNew ? '<span class="ap3-store p">Parking</span>' :
-            '<button type="button" class="ap3-store ' + f.store.toLowerCase() + '" data-store="' + esc(f.base) + '" title="Click to switch Parking / Parking + Storage">' + STORE_TXT[f.store] + "</button>") +
+          return '<div class="ap3-fleet"><div class="r st">' +
+            '<button type="button" class="ap3-store ' + f.store.toLowerCase() + '" data-store="' + esc(f.base) + '" title="' +
+              (f.isNew ? "its jobs need ~" + fmtN(Math.round(f.cf || 0)) + " CF of storage on a typical day · " : "") + 'Click to switch Parking / Parking + Storage">' + STORE_TXT[f.store] + "</button>" +
             "<span title=\"what the year's truck-days say to own, and to rent on a standard season day – the busiest (see All bases below)\">suggested <b>" + fmtN(f.own) + " own</b> · rent " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</span></div></div>"; };
         const step = (kind, pool, label, shown, plan, cls, extra) => {
           const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
@@ -5151,9 +5201,13 @@ registerPage({
           '<div class="r sub"><span>' + f.sites.map(x => esc(x.x.name.split(" ·")[0]) + " " + fmtN(x.own)).join(" · ") + " owned</span>" +
             "<span>standard day " + fmtN(f.std) + " out · busiest " + fmtN(f.hi) + "</span></div>" +
           '<div class="r sub"><span>' + money0(f.cost) + "/yr own + rent</span><span>all rented " + money0(f.allRent) + "</span></div>" +
-          '<div class="r st"><button type="button" class="ap3-store ' + s.toLowerCase() + '" data-store="' + esc(f.g.base) + '" title="Click to switch Parking / Parking + Storage">' +
+          '<div class="r st"><button type="button" class="ap3-store ' + s.toLowerCase() + '" data-store="' + esc(f.storeKey || f.g.base) + '" title="Click to switch Parking / Parking + Storage">' +
             STORE_TXT[s] + "</button>" +
-            (s === "PS" ? "<span>~" + fmtN(Math.round(STORE.need[f.zone] || 0)) + " CF rented on a typical day</span>" : "") + "</div></div>";
+            (s === "PS" ? "<span>~" + fmtN(Math.round(f.cf != null ? f.cf : STORE.need[f.zone] || 0)) + (f.cf != null ? " CF its jobs need on a typical day" : " CF rented on a typical day") + "</span>" :
+             f.cf != null ? "<span>its jobs need ~" + fmtN(Math.round(f.cf)) + " CF</span>" :
+             (STORE.need[f.zone] || 0) >= storeCut() && f.zone === f.g.base ? "<span>storage goes where the units are — see Storage only</span>" : "") + "</div>" +
+            f.sites.filter(x => x.ns && x.x.cand !== f.storeKey).map(x => '<div class="r st"><button type="button" class="ap3-store ' + x.ns.store.toLowerCase() + '" data-store="' + esc(x.x.cand) +
+              '" title="Click to switch Parking / Parking + Storage">' + esc(x.x.name.split(" ·")[0]) + ": " + STORE_TXT[x.ns.store] + "</button><span>its jobs need ~" + fmtN(Math.round(x.ns.cf)) + " CF</span></div>").join("") + "</div>";
       }
       function fleetNote(PF) {
         if (!PF) return "";
@@ -5180,11 +5234,13 @@ registerPage({
           " for every collect-and-return trip (<b>an assumption</b>), or " + money0(monthlyRate()) + " for the whole month. " +
           "The #1 · #2 · #3 line is how many days each truck at that base worked over the last year, scaled to the plan's crews. " +
           "<b>Rent</b> = trucks rented on a standard season day – on the busiest day. " +
-          "<b>Parking + Storage</b> where the zone typically needs more than " + fmtN(num(inputs.storeCF || 2000)) + " CF of rented space (Storage tab); click a label to change it." +
+          "<b>Parking + Storage</b> where the zone typically needs more than " + fmtN(storeCut()) + " CF of rented space (Storage tab), at the base nearest the units it rents today; " +
+          "a new base gets storage when its own jobs need that much (its zone's storage per job × its jobs). When every base is more than " + STORE_FAR +
+          " miles from the zone's units, the storage is proposed where they are (<b>Storage only</b>) and the base stays parking. Click a label to change it." +
           (so.length ? " <b>Storage only:</b> " + so.map(x => esc(x.z) + " (~" + fmtN(Math.round(x.cf)) + " CF)").join(", ") + " — needs room and has no storage base; shown on the map." : "") + "</div>";
       }
       function namedPlanHtml(N) {
-        const PF = planFleet();
+        const PF = planFleet(N);
         const ownBy = N.perBase ? ((model.fleet || {}).active_by_state || {}) : null;
         const all = PLAN.groups.reduce((a, g) => a + g.sites.reduce((b, x) => b + x.fm, 0), 0);
         const short = N.tot.peak < all;
@@ -5710,10 +5766,11 @@ registerPage({
           inputs[inp.dataset.fk] = inp.value === "" ? null : +inp.value; save(); repaintPlan();
           const mb = host.querySelector("#apMapBox"); if (mb && mb._flags) mb._flags(); }; });
         host.querySelectorAll("#apScn [data-store]").forEach(b => { b.onclick = () => {
-          const g = PLAN && PLAN.groups.find(x => x.base === b.dataset.store); if (!g) return;
-          const cur = storeLabel(g);
-          inputs.storeSet = Object.assign({}, inputs.storeSet || {}, { [g.base]: cur === "PS" ? "P" : "PS" });
-          save(); repaintPlan(); if (host.querySelector("#apMapBox") && host.querySelector("#apMapBox")._flags) host.querySelector("#apMapBox")._flags();
+          const key = b.dataset.store; if (!key) return;
+          const cur = NB_CANDS.some(c => c.label === key) ? newStore(key, nextCalc(), (planSite(key) || {}).fm).store : storeLabel({ base: key });
+          inputs.storeSet = Object.assign({}, inputs.storeSet || {}, { [key]: cur === "PS" ? "P" : "PS" });
+          save(); repaintPlan(); const mb = host.querySelector("#apMapBox");
+          if (mb && mb._flags) mb._flags(); if (mb && mb._nbRings) mb._nbRings();
         }; });
         host.querySelectorAll("#apScn [data-tro]").forEach(b => { b.onclick = () => {
           const key = b.dataset.tro, N = nextCalc();
@@ -6268,19 +6325,19 @@ registerPage({
               const pc = planCrew(b, N); if (!pc) return "";
               if (b.kind === "have") return fleetLine(siteFleet(POOL_OF[b.name] || b.name, pc), storeLabel({ base: b.name }));
               const o = (N.nb || []).find(x => x.label === b.label);
-              return o ? fleetLine(siteFleet(POOL_OF[o.st] || o.st, pc), "P") : ""; }
-            const PF = planFleet(); if (!PF) return "";
+              return o ? fleetLine(siteFleet(POOL_OF[o.st] || o.st, pc), newStore(b.label, N, pc).store) : ""; }
+            const PF = planFleet(N); if (!PF) return "";
             if (b.kind === "have") { const f = PF.find(x => x.g.base === b.name); if (!f) return "";
               const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
               return " · " + (f.store === "PS" ? "P+S" : "P") + " · " + fmtN(s0.own) + " own" + (s0.rentHi ? " + " + fmtN(s0.rentStd) + (s0.rentHi !== s0.rentStd ? "–" + fmtN(s0.rentHi) : "") + " rent" : ""); }
             // a candidate base by its label; a placed site (Oakland, Middlesex) by its name
             let hit = null; PF.forEach(f => f.sites.forEach(x => { if (x.x.cand === b.label ||
               (x.x.la && b.label && b.label.indexOf(x.x.name.split(" ·")[0]) === 0)) hit = x; }));
-            return hit ? " · P · " + fmtN(hit.own) + " own" + (hit.rentHi ? " + " + fmtN(hit.rentStd) + (hit.rentHi !== hit.rentStd ? "–" + fmtN(hit.rentHi) : "") + " rent" : "") : "";
+            return hit ? fleetLine(hit, hit.ns ? hit.ns.store : "P") : "";
           };
           const flagIco = (b, N) => { if (!flagFleet(b, N)) return null;
-            if (b.kind !== "have") return "P";
-            if (PLAN) { const f = (planFleet() || []).find(x => x.g.base === b.name); return f ? f.store : null; }
+            if (b.kind !== "have") return newStore(b.label, N, planCrew(b, N)).store;
+            if (PLAN) { const f = (planFleet(N) || []).find(x => x.g.base === b.name); return f ? f.store : null; }
             return storeLabel({ base: b.name }); };
           const flagText = (b, N) => { const pc = planCrew(b, N);
             return (b.kind === "have" ? b.name + " · " + fmtN(b.foremen) + (pc != null ? " → " + fmtN(pc) : "")
@@ -6290,10 +6347,12 @@ registerPage({
              plan, drawn where its units sit today */
           const soLayer = L.layerGroup().addTo(m);
           const paintSO = N => { soLayer.clearLayers();
-            storageOnly(planFleet() || forecastFleet(N)).forEach(x => L.marker([x.pos.la, x.pos.lo], {
+            storageOnly(planFleet(N) || forecastFleet(N)).forEach(x => L.marker([x.pos.la, x.pos.lo], {
                 icon: flag("cover", "Storage only · ~" + fmtN(Math.round(x.cf)) + " CF", "S"), zIndexOffset: 450 })
-              .bindTooltip('<div class="ap2-tip"><b>Storage needed, no storage base</b><div class="t">' + esc(x.z) + " zone rents ~" +
-                fmtN(Math.round(x.cf)) + " CF on a typical day (" + money0(x.pos.rent) + " paid in 12 months). Make a base here Parking + Storage, or rent one facility.</div></div>",
+              .bindTooltip('<div class="ap2-tip"><b>Storage only — proposed</b><div class="t">' + esc(x.z) + " zone rents ~" +
+                fmtN(Math.round(x.cf)) + " CF on a typical day (" + money0(x.pos.rent) + " paid in 12 months), centred here" +
+                (x.far && isFinite(x.far.mi) ? " — " + fmtN(Math.round(x.far.mi)) + " mi from the nearest base (" + esc(x.far.who) + "), more than " + STORE_FAR + " mi" : "") +
+                ". Rent one facility here, or click a base's label to make it Parking + Storage instead.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
             flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N)))); paintSO(N); };
@@ -6529,8 +6588,8 @@ registerPage({
               interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
             const PF = planFleet();
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
-              const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null;
-              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, "P"), sf ? "P" : null), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+              const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null, st = sf && sf.ns ? sf.ns.store : "P";
+              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, st), sf ? st : null), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
