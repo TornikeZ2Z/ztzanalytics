@@ -471,6 +471,9 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap2-flag i{width:11px;height:11px;flex:none;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
 .ap2-flag.cover i{background:var(--bg);border:2px dashed var(--ap-pos-ink);border-radius:50%;box-shadow:0 0 0 2px var(--bg)}
 .ap2-flag.cover b{color:var(--ap-pos-ink)}
+.ap2-flag i.ico,.ap2-flag.cover i.ico{width:17px;height:17px;margin-left:-3px;background:none;border:0;border-radius:0;box-shadow:none;filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 1px rgba(15,23,42,.35))}
+.ap2-flag i.ico svg,.ap2-mk i.ico svg{display:block;width:100%;height:100%}
+.ap2-mk i.ico{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:4px}
 .ap2-flag b{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 .ap2-flag:hover b{border-color:var(--ink)}
 .leaflet-control a.ap2-mapbtn{width:30px;height:30px;line-height:30px;text-align:center;font-size:15px;
@@ -1948,6 +1951,14 @@ registerPage({
         return baseList(N).filter(b => b.fm > 0).map(b => one(b.key, b.key, b.fm))
           .concat((N.nb || []).filter(o => o.fm > 0).map(o => one(o.label, POOL_OF[o.st] || o.st, o.fm, true)));
       }
+      /* WHAT A BASE IS, AS AN ICON (his ask 2026-10-07: "P + S is kinda odd -- icons instead of dark
+         squares"; the label text stays): a parking sign, a warehouse for parking + storage, a box
+         for storage with no base */
+      const BASE_ICO = {
+        P: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#2563eb"/><path d="M5.6 12.6V3.6h3.1a2.7 2.7 0 0 1 0 5.4H5.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"/></svg>',
+        PS: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M.8 6.4 8 1.6l7.2 4.8V15H.8z" fill="#1e3a8a"/><rect x="4" y="8" width="8" height="7" fill="#fff"/><path d="M4 10.3h8M4 12.6h8" stroke="#1e3a8a" stroke-width="1.1"/></svg>',
+        S: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2 14.8 4.4v7.2L8 14.8 1.2 11.6V4.4z" fill="#b45309"/><path d="M1.6 4.6 8 7.6l6.4-3M8 7.6v7" stroke="#fff" stroke-width="1.2" fill="none"/></svg>' };
+      const icoHtml = k => BASE_ICO[k] ? '<i class="ico ico-' + k.toLowerCase() + '">' + BASE_ICO[k] + "</i>" : "<i></i>";
       /* " · P+S · 3 own + 2–4 rent" -- the flag's and the card's one line */
       const fleetLine = (f, store) => !f ? "" : " · " + (store === "PS" ? "P+S" : "P") + " · " + fmtN(f.own) + " own" +
         (f.rentHi ? " + " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + " rent" : "");
@@ -5399,9 +5410,9 @@ registerPage({
               "&nbsp;<b>" + r1(v[0]) + "</b> to <b>" + r1(v[v.length - 1]) + "</b></span>" : ""; }
         }
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
-          '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
+          (FLEET.has ? "" : '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>') +
           (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
-          (FLEET.has ? '<span class="ap2-mk ap2-mkfleet"><b>P</b> parking · <b>P+S</b> parking + storage · <b>Storage only</b> room needed, no base · ' +
+          (FLEET.has ? '<span class="ap2-mk ap2-mkfleet">' + icoHtml("P") + "<b>P</b> parking &nbsp; " + icoHtml("PS") + "<b>P+S</b> parking + storage &nbsp; " + icoHtml("S") + "<b>Storage only</b> room needed, no base · " +
             "<b>3 own + 2–4 rent</b> trucks owned + rented on a standard–busiest day</span>" : "") +
           "</div>";
       }
@@ -6145,9 +6156,9 @@ registerPage({
           }
 
           /* ---- the bases, over the counties ---------------------------------------------- */
-          const flag = (kind, txt) => L.divIcon({
+          const flag = (kind, txt, ico) => L.divIcon({
             className: "", iconSize: [0, 0],
-            html: '<span class="ap2-flag ' + kind + '"><i></i><b>' + esc(txt) + "</b></span>" });
+            html: '<span class="ap2-flag ' + kind + '">' + icoHtml(ico) + "<b>" + esc(txt) + "</b></span>" });
           let hoverRing = null;
           const ring = (la, lo, kind) => L.circle([la, lo], {
             radius: B.work * MI_PER_M, interactive: false,
@@ -6267,6 +6278,10 @@ registerPage({
               (x.x.la && b.label && b.label.indexOf(x.x.name.split(" ·")[0]) === 0)) hit = x; }));
             return hit ? " · P · " + fmtN(hit.own) + " own" + (hit.rentHi ? " + " + fmtN(hit.rentStd) + (hit.rentHi !== hit.rentStd ? "–" + fmtN(hit.rentHi) : "") + " rent" : "") : "";
           };
+          const flagIco = (b, N) => { if (!flagFleet(b, N)) return null;
+            if (b.kind !== "have") return "P";
+            if (PLAN) { const f = (planFleet() || []).find(x => x.g.base === b.name); return f ? f.store : null; }
+            return storeLabel({ base: b.name }); };
           const flagText = (b, N) => { const pc = planCrew(b, N);
             return (b.kind === "have" ? b.name + " · " + fmtN(b.foremen) + (pc != null ? " → " + fmtN(pc) : "")
                                       : b.label.replace(/ [A-Z]{2}$/, "") + (pc != null ? " · " + fmtN(pc) : "")) + flagFleet(b, N); };
@@ -6276,18 +6291,18 @@ registerPage({
           const soLayer = L.layerGroup().addTo(m);
           const paintSO = N => { soLayer.clearLayers();
             storageOnly(planFleet() || forecastFleet(N)).forEach(x => L.marker([x.pos.la, x.pos.lo], {
-                icon: flag("cover", "Storage only · ~" + fmtN(Math.round(x.cf)) + " CF"), zIndexOffset: 450 })
+                icon: flag("cover", "Storage only · ~" + fmtN(Math.round(x.cf)) + " CF", "S"), zIndexOffset: 450 })
               .bindTooltip('<div class="ap2-tip"><b>Storage needed, no storage base</b><div class="t">' + esc(x.z) + " zone rents ~" +
                 fmtN(Math.round(x.cf)) + " CF on a typical day (" + money0(x.pos.rent) + " paid in 12 months). Make a base here Parking + Storage, or rent one facility.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
-            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N)))); paintSO(N); };
+            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N)))); paintSO(N); };
           const N_FLAG = FC.year ? nextCalc() : null;
           paintSO(N_FLAG);
           B.have.concat(B.coverage).forEach(b => {
             const flagCls = b.kind + offsetFor(b);
             const mk = L.marker([b.la, b.lo], {
-              icon: flag(flagCls, flagText(b, N_FLAG)),
+              icon: flag(flagCls, flagText(b, N_FLAG), flagIco(b, N_FLAG)),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
@@ -6515,7 +6530,7 @@ registerPage({
             const PF = planFleet();
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
               const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null;
-              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, "P")), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, "P"), sf ? "P" : null), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
