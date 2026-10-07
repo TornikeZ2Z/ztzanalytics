@@ -296,7 +296,8 @@ registerPage({
         const worst = Object.entries(cells).filter(([, v]) => v.length >= 5).map(([k, v]) => [k, Math.exp(median(v.map(Math.log))), v.length]).sort((a, b) => b[1] - a[1])[0];
         const reasons = {}; xs.filter(r => r.claim && r.reason).forEach(r => { reasons[r.reason] = (reasons[r.reason] || 0) + 1; });
         const topR = Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => esc(k) + " " + v).join(" · ");
-        facts = `Lists <b>${p.items ? sgn(p.items) : "—"}</b> fewer items than the crew counts on a typical job${team ? " (team " + sgn(team) + ")" : ""}<br>`
+        const moreLess = x => x == null ? "—" : Math.round(Math.abs(x - 1) * 100) + "% " + (x >= 1 ? "more" : "fewer");
+        facts = `The crew counts <b>${moreLess(p.items)}</b> items than were listed on a typical job${team ? " (team: " + moreLess(team) + ")" : ""}<br>`
           + (worst ? `Misses most on <b>${esc(worst[0])}</b>: ${sgn(worst[1])} (${worst[2]} jobs)<br>` : "")
           + `Customers paid <b>${usdS(p.extra)}</b> over the quote a job: ${usdS(p.avgT)} hours, ${usdS(p.avgP)} packing, ${usdS(p.avgO)} other<br>`
           + `<b>${int(p.claims)}</b> claims on ${int(p.n)} jobs${topR ? " — " + topR : ""}`;
