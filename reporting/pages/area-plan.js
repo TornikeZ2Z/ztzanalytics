@@ -367,6 +367,7 @@
     .ap4-jump button{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--ap-rule);background:var(--panel);color:var(--ink);cursor:pointer}
     .ap4-jump button:hover{border-color:var(--ink)}
     .ap4-sec{border:1px solid var(--ap-rule);border-radius:12px;background:var(--panel);margin:0 0 10px}
+    .ap4-msec{margin-top:12px}
     .ap4-sec>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:15px}
     .ap4-sec>summary::-webkit-details-marker{display:none}
     .ap4-sec>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;flex:none}
@@ -520,7 +521,15 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 /* ---------- THE MAP TAB, FOR THE ROOM (2026-09-29) ------------------------------
    The plan in four numbers, what to do per crew pool, the map beside its ranked list, and the
    working in one closed section. ap3- so nothing collides with the ap2- blocks above. */
-.ap3-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
+.ap3-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 12px}
+.ap3-kpi{position:relative}
+.ap3-kpi.drv{box-shadow:inset 0 0 0 2px var(--brand)}
+.ap4-kctl{position:absolute;top:10px;right:10px;display:flex;gap:4px}
+.ap4-kctl button{font:inherit;font-weight:700;line-height:1;width:26px;height:26px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;padding:0}
+.ap4-kctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+.ap4-planbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.ap4-planbar>b{font-size:13px}
+.ap4-planbar>span{font-size:12px;color:var(--muted)}
 .ap3-kpi{padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
 .ap3-kpi b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
 .ap3-kpi span{display:block;margin-top:5px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -598,6 +607,8 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
    hover off the mouse only moves the map -- no tooltips, no outlines, no reach rings -- and a click
    still opens the full sheet on the right */
 .ap3-mapgrid.ap3-fs{position:fixed;inset:0;z-index:9000;background:var(--bg);padding:12px;margin:0}
+.ap3-mapgrid:fullscreen{background:var(--bg);padding:12px;width:100vw;height:100vh;box-sizing:border-box}
+.rs-content.ap-fsfix{animation:none !important;transform:none !important}
 .ap3-mapgrid.ap3-fs .ap2-mapbox{height:calc(100vh - 24px);min-height:0}
 .ap3-mapgrid.ap3-fs>:not(.ap2-mapbox){max-height:calc(100vh - 24px);overflow:auto}
 html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
@@ -673,6 +684,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap4-chip.old{color:var(--muted);box-shadow:inset 0 0 0 1px var(--ap-rule)}
 .ap4-stp{display:inline-flex;align-items:center;gap:6px}
 .ap4-stp b{min-width:18px;text-align:center;font-weight:700}
+.ap4-pstore{font-size:11px;font-weight:600}
 .ap4-stp button{font:inherit;font-weight:700;line-height:1;width:24px;height:24px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;padding:0}
 .ap4-stp button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap3-step.plan .site i u.old{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--ap-rule)}
@@ -3132,15 +3144,45 @@ registerPage({
         const bm = host.querySelector("#apPdfMap");
         if (bm) bm.onclick = () => { showPane("map"); setTimeout(printMap, 700); };
         const b = host.querySelector("#apPdf"); if (!b) return;
+        /* THE PLAN AS A DOCUMENT (2026-10-07, live review: "download / print stuff is not doing its
+           job"). It used to clone the whole page -- 73,000 characters, 28 tables, the Map tab's tiles
+           with no map, closed sections printed as bare headings, Settings and all of Statistics. Now it
+           is built for paper from the same functions the screen uses, four themed pages: the decisions;
+           the plan by base with its trucks and storage; the season budget; crews, desk and marketing by
+           month. The map is its own download (Map PDF). */
         b.onclick = () => {
-          const snap = host.cloneNode(true);
-          snap.querySelectorAll(".ap2-pane").forEach(n => n.removeAttribute("hidden"));
-          snap.querySelectorAll("details.ap4-sec").forEach(n => { n.open = true; });
-          snap.querySelectorAll('[data-ap-sec="cities"],[data-ap-sec="capacity"],[data-ap-sec="ref"],#apTabs,#apAssume,.ap4-jump,.ap4-dl').forEach(n => n.remove());
-          RSC.printView({ host: snap, pageCss: "ap-style",
-            title: "Seasonal Planning — Season " + (FC.year || ""),
-            subtitle: fmtN((nextCalc().tot || {}).jobs || 0) + " jobs forecast · " + (SEASON.next && SEASON.next[0] ? ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : ""),
-            drop: [".ap2-tt", ".ap2-pager", ".ap2-goto", ".ap2-golink", ".ap2-mpick"] });
+          const N = FC.year ? nextCalc() : null;
+          const label = PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "Scenario" : "Forecast";
+          const basesTbl = () => {
+            if (!N) return "";
+            if (PLAN) return namedPlanHtml(N);
+            const FF = forecastFleet(N) || [];
+            return '<table class="rs-table"><thead><tr><th>Base</th><th class="num">Foremen</th><th class="num">Own</th><th class="num">Rent std–busiest</th><th>Storage</th><th class="num">Trucks $/yr</th></tr></thead><tbody>' +
+              FF.map(f => "<tr><td>" + esc(f.base) + (f.isNew ? " (new)" : "") + '</td><td class="num">' + fmtN(f.fm) + '</td><td class="num">' + fmtN(f.own) +
+                '</td><td class="num">' + (f.rentHi ? fmtN(f.rentStd) + "–" + fmtN(f.rentHi) : "—") + "</td><td>" + esc(STORE_TXT[f.store] || "") + '</td><td class="num">' + money0(f.cost) + "</td></tr>").join("") +
+              "</tbody></table>" + fleetNote(FF);
+          };
+          const doc = document.createElement("div");
+          doc.innerHTML = '<div id="ppDecide">' + decisionsHtml() + "</div>" +
+            '<div id="ppBases">' + basesTbl() + "</div>" +
+            '<div id="ppBudget">' + budgetHtml() + "</div>" +
+            '<div id="ppMonths">' + fullPlanHtml() + "</div>";
+          /* paper has no buttons: a storage switch prints as its word, a stepper as its number, and the
+             truck working that opens on click prints open */
+          doc.querySelectorAll("button.ap3-store").forEach(x => { const sp = document.createElement("span"); sp.className = "ap4-pstore"; sp.textContent = x.textContent; x.replaceWith(sp); });
+          doc.querySelectorAll("tr.ap4-det").forEach(t => { t.hidden = false; t.removeAttribute("hidden"); });
+          doc.querySelectorAll("details").forEach(d => { d.open = true; d.setAttribute("open", ""); });
+          RSC.printView({ host: doc, pageCss: "ap-style",
+            title: "Seasonal Planning — Season " + (FC.year || "") + " · " + label,
+            subtitle: (N ? fmtN(N.tot.jobs) + " jobs · " + fmtN(N.tot.peak) + " foremen · " + fmtN(N.sales.peak) + " salespeople · " + money0(N.tot.mkt) + " marketing · " : "") +
+              (SEASON.next && SEASON.next[0] ? ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : ""),
+            pages: [
+              { title: "The decisions — crews, the sales desk, marketing", sel: "#ppDecide" },
+              { title: label + " — bases, trucks and storage", sel: "#ppBases" },
+              { title: "Season budget", sel: "#ppBudget" },
+              { title: "Crews, the desk and marketing, month by month", sel: "#ppMonths" },
+            ],
+            drop: [".ap2-tt", ".ap2-pager", ".ap2-goto", ".ap2-golink", ".ap2-mpick", ".ap3-fleetin", ".ap4-tg", ".ap4-stp button", "summary"] });
         };
       }
       function wireTabs() {
@@ -5244,16 +5286,40 @@ registerPage({
           if (v == null || !(v > 0) || A[k] == null) return "";
           const d0 = A[k] - v; if (Math.abs(d0) < (k === "sales" && st ? 0.05 : 0.5)) return "";
           return '<em class="d' + (d0 < 0 ? " dn" : "") + '">' + f(d0) + " vs today</em>"; };
-        const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
+        /* THE LEVERS LIVE ON THE TILES (map-first, his pick 2026-10-07): the Salespeople, Marketing and
+           Foremen steppers repeated the three tiles beside them. Company-wide, so only on the whole
+           market. The value stays the tile's own <b> -- the map sheet reads it from there. */
+        const ctl = kind => st || !N ? "" : '<div class="ap4-kctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="" data-d="-1">−</button>' +
+          '<button type="button" aria-label="more" data-sc="' + kind + '" data-pool="" data-d="1">+</button></div>';
+        const tile = (v, k, sub, d, w, kind) => '<div class="ap3-kpi' + (kind && SC.kind === kind ? " drv" : "") + '"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + (kind ? ctl(kind) : "") + "</div>";
+        /* the fifth tile: trucks, owned by his counts and rented the rest, against what we pay for today */
+        const truckTile = () => { if (st || !N || !N.perBase) return "";
+          const PF = planFleet(N) || forecastFleet(N); if (!PF) return "";
+          const T = k => PF.reduce((a, f) => a + (f[k] || 0), 0), C = FLEET.cost || {};
+          const paid = num(C["Units Active"]) + num(C["Units Damaged"]), own = T("own"), d0 = own - paid;
+          return tile(fmtN(own) + " own", "Trucks", "+ " + fmtN(T("rentStd")) + "–" + fmtN(T("rentHi")) + " rented · standard–busiest day",
+            paid ? '<em class="d' + (d0 < 0 ? " dn" : "") + '">' + (d0 > 0 ? "buy " + fmtN(d0) : d0 < 0 ? fmtN(-d0) + " fewer" : "same as today") + "</em>" : "",
+            paid ? '<div class="was">Today <b>' + fmtN(paid) + " trucks</b></div>" : ""); };
         return '<div class="ap3-kpis">' +
           /* FOUR TILES (his pick 2026-10-07, "compact header"): jobs and the three decisions -- crews,
              the desk, marketing. Income and the average job ride on the jobs tile instead of two more. */
           tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), (st ? esc(st) + " forecast" : "whole market forecast") +
                (A.rev != null ? " · " + money0(A.rev) + " income at " + money0(A.avg) + " a job" : ""), dl("jobs", sgN), was("jobs", fmtN)) +
-          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
-          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
-          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
+          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs"), "fmAll") +
+          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk"), "sales") +
+          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : "")), "mkt") +
+          truckTile() +
           "</div>";
+      }
+
+      /* the plan switch: its own bar, first thing on the Map tab (map-first, 2026-10-07) */
+      function planBarHtml() {
+        return '<div class="ap4-planbar"><b>Plan</b>' +
+          '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
+            '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
+            Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
+          "<span>− / + on a tile tests a change; a refresh puts it back</span>" +
+          (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>";
       }
 
       /* ---- what if: one driver, the rest follows ---- */
@@ -5282,13 +5348,8 @@ registerPage({
         /* ONE RESET, NO BANNERS (his call 2026-09-30: both "Scenario on ..." strips were "extra" --
            the four numbers already say "vs the plan", and a base flips back on its own card). It shows
            only while something is changed, and puts the levers AND the bases back. */
-        return '<div class="ap3-sc"><div class="ap3-nbh"><b>Plan</b>' +
-            '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
-              '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
-              Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
-            "<span>or change one number and the rest follows — a test scenario, a refresh puts it back</span>" +
-            (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
-          '<div class="ap3-steps">' +
+        return '<div class="ap3-sc">' +
+          '<div class="ap3-steps" style="display:none">' +
             step("sales", null, "Salespeople", fmtN(N.sales.peak), "plan " + fmtN(P.sales.peak)) +
             step("mkt", null, "Marketing budget", money0(N.tot.mkt), "plan " + money0(P.tot.mkt)) +
             step("fmAll", null, "Foremen · all bases", fmtN(N.tot.peak), "plan " + fmtN(P.tot.peak) + " · " + fmtN(N.tot.have) + " today", "tot",
@@ -5787,14 +5848,21 @@ registerPage({
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
         const N = FC.year ? nextCalc() : null;
         const N0 = FC.year && (nbAny() || scAny()) ? nextCalc({ nb: "none", mult: {} }) : null;
-        return '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
-          '<div id="apScn">' + scHtml(N, N0) + "</div>" +
-          '<div id="apNewBases">' + nbHtml(N) + "</div>" +
-          '<div id="apTodos">' + todoHtml(N) + "</div>" +
+        /* MAP FIRST (his pick 2026-10-07, after the live critique: the map began 2,836px down, under
+           the tiles, three steppers that repeated them, the plan table and the new-bases panel). Now:
+           the plan switch, five tiles carrying the levers, the toolbar and the map -- then the working,
+           each part a section that opens on demand (the plan table open). */
+        const msec = (id, title, body, open) => '<details class="ap4-sec ap4-msec"' + (open ? " open" : "") + ' id="' + id + '"><summary><b>' + title + "</b></summary>" +
+          '<div class="ap4-secb">' + body + "</div></details>";
+        return '<div id="apPlanBar">' + planBarHtml() + "</div>" +
+          '<div id="apKpis">' + planStripHtml(N, N0) + "</div>" +
           '<div id="apMapBar">' + mapBarHtml() + "</div>" +
           '<div id="apMapKeyWrap">' + mapKeyHtml(N) + "</div>" +
           '<div class="ap3-mapgrid"><div id="apMapBox" class="ap2-mapbox"></div>' +
             '<div id="apAreaList" class="ap3-side">' + sideHtml(N) + "</div></div>" +
+          msec("apMsPlan", "Plan by base — foremen, trucks and storage", '<div id="apScn">' + scHtml(N, N0) + "</div>", true) +
+          msec("apMsNew", "New bases to try", '<div id="apNewBases">' + nbHtml(N) + "</div>") +
+          msec("apMsTodo", "What to do next", '<div id="apTodos">' + todoHtml(N) + "</div>") +
           howHtml();
       }
 
@@ -5804,6 +5872,7 @@ registerPage({
         const N = FC.year ? nextCalc() : null;
         const N0 = FC.year && (nbAny() || scAny()) ? nextCalc({ nb: "none", mult: {} }) : null;
         const put = (id, html) => { const el = host.querySelector(id); if (el) el.innerHTML = html; };
+        put("#apPlanBar", planBarHtml());
         put("#apKpis", planStripHtml(N, N0));
         put("#apScn", scHtml(N, N0));
         if (!opts || opts.bases !== false) put("#apNewBases", nbHtml(N));
@@ -5902,7 +5971,7 @@ registerPage({
             if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; delete TR_OWN[label]; }
             nbRepaint(); }; });
         });
-        host.querySelectorAll("#apScn [data-plan]").forEach(b => { b.onclick = () => {
+        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis) [data-plan]").forEach(b => { b.onclick = () => {
           const k = b.dataset.plan;
           if (!k) { if (!PLAN) return; planEnd(); planCandsClear(); SC.kind = null; SC.targets = null;
             [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); nbRepaint(); return; }
@@ -5919,7 +5988,7 @@ registerPage({
           x.fm = Math.max(0, x.fm + (+b.dataset.d));
           planApply(); nbRepaint();
         }; });
-        host.querySelectorAll("#apScn [data-sc]").forEach(b => { b.onclick = () => {
+        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis) [data-sc]").forEach(b => { b.onclick = () => {
           const kind = b.dataset.sc, pool = b.dataset.pool || null, dd = +b.dataset.d;
           if (PLAN) planEnd();               // another driver takes over: the bases stay, the plan's crews no longer hold
           const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
@@ -6004,7 +6073,7 @@ registerPage({
           const wNum = was ? firstNum((was.querySelector("b") || {}).textContent) : "", wPc = was ? ((was.querySelector("i") || {}).textContent || "") : "";
           const up = was && was.querySelector("i") && !was.querySelector("i").classList.contains("dn");
           const note = i === 0 ? (PLAN ? PLAN.label + " plan" : "whole market") : i === 1 ? sub.replace(/\s+/g, " ").trim()
-                     : i === 2 ? sub.replace(/^.*·\s*/, "") : i === 3 ? sub.split("·")[0].trim() : i === 4 ? "per job" : "jobs × average job";
+                     : i === 2 ? sub.replace(/^.*·\s*/, "") : i === 3 ? sub.split("·")[0].trim() : sub.replace(/\s+/g, " ").trim();
           /* the change against the forecast rides beside the value, so the note line never has to carry it */
           return '<div class="ap3-ptile"><b>' + esc(val) + (d ? '<em class="' + (/^[−-]/.test(d.textContent) ? "dn" : "") + '">' + esc(shortDelta(d.textContent.replace(" vs today", ""))) + "</em>" : "") +
             "</b><span>" + esc(lab) + "</span><small>" + esc(note) + "</small>" +
@@ -6026,10 +6095,14 @@ registerPage({
         const frame = () => { m.invalidateSize(false);
           const st = mapStOf(), pts = [];
           AREA.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
-            if (st ? a.State === st : (SERVICE_AREAS.includes(a.State) && num(a["Miles To Base"]) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
+            /* a county with NO distance on file read as 0 miles and pulled all of western PA into the
+               frame (live print, 2026-10-07): only a measured distance counts */
+            const mi = a["Miles To Base"];
+            if (st ? a.State === st : (SERVICE_AREAS.includes(a.State) && mi != null && mi !== "" && num(mi) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
           if (!st) { NB_CANDS.forEach(c => { if (NB_ON[c.label]) pts.push([c.la, c.lo]); });
             if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la) pts.push([x.la, x.lo]); })); }
-          if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [34, 34], animate: false }); else fitMap(); };
+          /* a label runs right of its base, so the frame leaves room on the right for it */
+          if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [30, 30], paddingBottomRight: [210, 30], animate: false }); else fitMap(); };
         frame();
         let ended = false;
         const done = () => { if (ended) return; ended = true;
@@ -6121,16 +6194,36 @@ registerPage({
               hv.textContent = quiet ? "Hover off" : "Hover on"; hv.classList.toggle("on", !quiet);
               hv.title = quiet ? "Moving the mouse only moves the map. Click an area or base for its details. Click here to show details on hover again."
                                : "Details show on hover. Click here to just move the map."; };
-            const setFs = on => { if (!grid) return; grid.classList.toggle("ap3-fs", on);
-              document.documentElement.classList.toggle("ap3-fs-on", on); paint();
-              setTimeout(() => { m.invalidateSize(); if (box._declutter) box._declutter(); }, 60); };
-            if (grid) grid._fsOff = () => setFs(false);
+            /* THE BROWSER'S OWN FULL SCREEN (2026-10-07, live bug: "full screen is also not working").
+               The CSS overlay was position:fixed, and the portal's #content keeps the transform of its
+               entrance animation (rsfade, fill-mode both) -- which makes #content, not the window, the
+               box a fixed element fills: the map landed 2,000px above the screen. requestFullscreen puts
+               the grid in the top layer, which no ancestor can contain. The class stays for the sizing
+               rules; a browser without the API falls back to the overlay. */
+            /* TWO LAYERS, so it works whether or not the browser grants real full screen (an embedded
+               view can refuse it silently): the overlay fills the window -- with #content's leftover
+               animation transform switched off while it is up, so "fixed" means the window again --
+               and requestFullscreen is asked for on top. Esc, the button, or leaving browser full
+               screen all close both. */
+            const setFs = on => { if (!grid) return;
+              const c = grid.closest(".rs-content");
+              if (c) c.classList.toggle("ap-fsfix", on);
+              grid.classList.toggle("ap3-fs", on); document.documentElement.classList.toggle("ap3-fs-on", on);
+              if (on && grid.requestFullscreen && document.fullscreenElement !== grid) grid.requestFullscreen().catch(() => {});
+              if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+              paint(); setTimeout(() => { m.invalidateSize(); if (box._declutter) box._declutter(); }, 80); };
+            /* the browser's own full screen ended (Esc, F11): close the overlay too */
+            const fsSync = () => { if (grid && !document.fullscreenElement && grid.classList.contains("ap3-fs")) setFs(false);
+              else setTimeout(() => { m.invalidateSize(); if (box._declutter) box._declutter(); }, 80); };
+            if (grid) { grid._fsOff = () => setFs(false); grid._fsSync = fsSync; }
             fs.onclick = () => setFs(!(grid && grid.classList.contains("ap3-fs")));
             hv.onclick = () => { quiet = !quiet; box.classList.toggle("ap-quiet", quiet);
               try { localStorage.setItem("ap_map_hover", quiet ? "off" : "on"); } catch (e) { /* not remembered */ }
               m.eachLayer(l => { if (l.closeTooltip) l.closeTooltip(); }); paint(); };
             paint(); return d; } });
           new MapCtl().addTo(m);
+          if (!window.__apFsChg) { window.__apFsChg = 1;   // ONE listener for the life of the tab, whatever re-renders
+            document.addEventListener("fullscreenchange", () => { const g = document.querySelector(".ap3-mapgrid"); if (g && g._fsSync) g._fsSync(); }); }
           if (!window.__apFsEsc) { window.__apFsEsc = 1;   // ONE listener for the life of the tab, whatever re-renders
             document.addEventListener("keydown", e => { if (e.key !== "Escape") return;
               const g = document.querySelector(".ap3-mapgrid.ap3-fs"); if (g && g._fsOff) g._fsOff(); }); }
