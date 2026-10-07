@@ -358,7 +358,29 @@
     .ap2-assume>.h{flex:1 1 210px;min-width:180px;font-size:12px;color:var(--muted);line-height:1.5}
     .ap2-assume .ap2-dial{margin:0}
     .ap2-assume .ap2-dials{margin-top:0;padding-top:0;border-top:0}          /* any display rule of our own would defeat the bare attribute */
-    .ap2-pane>.ap2-lede{color:var(--muted);font-size:13px;margin:0 0 14px;max-width:104ch}
+    .ap2-pane>.ap2-lede,.ap4-secb>.ap2-lede{color:var(--muted);font-size:13px;margin:0 0 14px;max-width:104ch}
+    /* STATISTICS = SEVEN SECTIONS (2026-10-07) and one Download menu */
+    .ap4-jump{position:sticky;top:var(--ap4-jt,38px);z-index:27;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+      padding:8px 0 10px;margin:0 0 6px;background:var(--bg)}
+    .ap4-jump>span{font-size:12px;color:var(--muted);margin-right:2px}
+    .ap4-jump>.sp{flex:1}
+    .ap4-jump button{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--ap-rule);background:var(--panel);color:var(--ink);cursor:pointer}
+    .ap4-jump button:hover{border-color:var(--ink)}
+    .ap4-sec{border:1px solid var(--ap-rule);border-radius:12px;background:var(--panel);margin:0 0 10px}
+    .ap4-sec>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:15px}
+    .ap4-sec>summary::-webkit-details-marker{display:none}
+    .ap4-sec>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;flex:none}
+    .ap4-sec[open]>summary::before{transform:rotate(45deg)}
+    .ap4-sec>summary b{font-weight:700;color:var(--ink)}
+    .ap4-secb{padding:0 16px 16px}
+    .ap4-sec table.ap2-below-tabs th{top:96px}
+    .ap4-dl{position:relative}
+    .ap4-dl>summary{list-style:none;cursor:pointer}
+    .ap4-dl>summary::-webkit-details-marker{display:none}
+    .ap4-dlm{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:flex;flex-direction:column;min-width:200px;padding:4px;
+      background:var(--bg);border:1px solid var(--ap-rule);border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.12)}
+    .ap4-dlm button{font:inherit;font-size:13px;text-align:left;padding:8px 10px;border:0;background:none;border-radius:6px;cursor:pointer;color:var(--ink)}
+    .ap4-dlm button:hover{background:var(--ap-bay)}
     .ap2-tt{position:sticky;left:0;z-index:1;display:flex;align-items:center;gap:8px;justify-content:flex-end;margin:0 0 6px}
     .ap2-tt .n{font-size:11.5px;color:var(--faint);margin-right:auto}
     .ap2-tt .rs-btn{padding:3px 10px;font-size:11.5px}
@@ -471,6 +493,21 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap2-flag i{width:11px;height:11px;flex:none;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
 .ap2-flag.cover i{background:var(--bg);border:2px dashed var(--ap-pos-ink);border-radius:50%;box-shadow:0 0 0 2px var(--bg)}
 .ap2-flag.cover b{color:var(--ap-pos-ink)}
+.ap2-flag b{display:flex;flex-direction:column;gap:1px;padding:3px 7px 4px;line-height:1.2}
+.ap2-flag b{position:relative}
+.ap2-flag b[data-ld]::after{content:"";position:absolute;left:-14px;width:0;border-left:1.5px solid var(--ink);opacity:.55;height:var(--ld,0)}
+.ap2-flag b[data-ld="up"]::after{top:100%}
+.ap2-flag b[data-ld="down"]::after{bottom:100%}
+.ap2-flag.flip b[data-ld]::after{left:auto;right:-14px}
+.ap2-flag b .l1{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink)}
+.ap2-flag.cover b .l1{color:var(--ap-pos-ink)}
+.ap2-flag b .l2{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0}
+.ap2-mapbox.ap-nomv .leaflet-apNames-pane,.ap2-mapbox.ap-nopl .leaflet-apLabels-pane{display:none}
+.ap3-mapctl .ap3-lblp{display:none;padding:6px 10px 8px;border-top:1px solid var(--ap-rule);background:var(--bg)}
+.ap3-mapctl.open .ap3-lblp{display:block}
+.ap3-mapctl .ap3-lblp label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0;cursor:pointer;white-space:nowrap}
+.ap3-mapctl .ap3-lblp hr{border:0;border-top:1px solid var(--ap-rule);margin:6px 0}
+.ap2-flag em.ap2-new{font-style:normal;font-size:9px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:3px 6px;box-shadow:0 0 0 2px var(--bg)}
 .ap2-flag i.ico,.ap2-flag.cover i.ico{width:17px;height:17px;margin-left:-3px;background:none;border:0;border-radius:0;box-shadow:none;filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 1px rgba(15,23,42,.35))}
 .ap2-flag i.ico svg,.ap2-mk i.ico svg{display:block;width:100%;height:100%}
 .ap2-mk i.ico{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:4px}
@@ -483,7 +520,7 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 /* ---------- THE MAP TAB, FOR THE ROOM (2026-09-29) ------------------------------
    The plan in four numbers, what to do per crew pool, the map beside its ranked list, and the
    working in one closed section. ap3- so nothing collides with the ap2- blocks above. */
-.ap3-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:0 0 14px}
+.ap3-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 14px}
 .ap3-kpi{padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
 .ap3-kpi b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
 .ap3-kpi span{display:block;margin-top:5px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -557,6 +594,19 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 .ap2-mk small.far{display:inline;margin-left:5px;color:var(--faint);font-size:11.5px}
 .ap3-mapgrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:stretch}
 .ap3-mapgrid .ap2-mapbox{height:min(78vh,860px);min-height:560px}
+/* FULL SCREEN + MOVE ONLY (his ask 2026-10-07): the map and its side panel fill the window; with
+   hover off the mouse only moves the map -- no tooltips, no outlines, no reach rings -- and a click
+   still opens the full sheet on the right */
+.ap3-mapgrid.ap3-fs{position:fixed;inset:0;z-index:9000;background:var(--bg);padding:12px;margin:0}
+.ap3-mapgrid.ap3-fs .ap2-mapbox{height:calc(100vh - 24px);min-height:0}
+.ap3-mapgrid.ap3-fs>:not(.ap2-mapbox){max-height:calc(100vh - 24px);overflow:auto}
+html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
+.ap2-mapbox.ap-quiet:not(.ap-showtip) .leaflet-tooltip-pane{display:none}
+.ap3-mapctl{display:flex;flex-direction:column;background:var(--bg)}
+.ap3-mapctl button{font:inherit;font-size:12px;font-weight:700;line-height:1;min-width:30px;height:30px;padding:0 9px;border:0;border-bottom:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap}
+.ap3-mapctl button:last-child{border-bottom:0}
+.ap3-mapctl button:hover{background:var(--ap-bay)}
+.ap3-mapctl button.on{background:var(--brand);color:var(--brand-ink)}
 .ap3-busy{opacity:.72;transition:opacity .2s}
 .ap3-list{display:flex;flex-direction:column;height:min(78vh,860px);min-height:560px;border:1px solid var(--ap-rule);
   border-radius:var(--ap-r1);background:var(--ap-bay);overflow:hidden;min-width:0}
@@ -608,7 +658,24 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-step.plan span em{font-weight:800}
 .ap3-step.plan .site{display:flex;align-items:center;gap:6px;margin-top:8px}
 .ap3-step.plan .site i{font-style:normal;font-size:13px;color:var(--ink);margin-right:auto;min-width:0}
-.ap3-step.plan .site i u{text-decoration:none;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--brand-d);margin-left:6px}
+.ap3-step.plan .site i u{display:inline-block;vertical-align:1px;text-decoration:none;font-size:9.5px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:3px 7px;margin-left:7px}
+.ap4-plantbl{margin:4px 0 10px}
+.ap4-plantbl td small{display:block;font-size:11.5px;color:var(--muted)}
+.ap4-plantbl td small.w{color:var(--ap-warn-ink)}
+.ap4-plantbl tr.ap4-grp td{background:var(--ap-sub);border-top:1px solid var(--ap-rule)}
+.ap4-plantbl tr.ap4-grp td b{font-weight:700}
+.ap4-plantbl tr.ap4-site td:first-child{padding-left:34px}
+.ap4-plantbl tr.ap4-det td{font-size:12px;color:var(--muted);padding-left:34px;background:var(--panel);line-height:1.6}
+.ap4-tg{font:inherit;width:22px;height:22px;margin-right:6px;border:1px solid var(--ap-rule);border-radius:6px;background:var(--bg);color:var(--muted);cursor:pointer;line-height:1;padding:0;transition:transform .15s}
+.ap4-tg.on{transform:rotate(90deg)}
+.ap4-chip{display:inline-block;font-size:9.5px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;border-radius:999px;padding:3px 7px}
+.ap4-chip.new{color:var(--brand-ink);background:var(--brand)}
+.ap4-chip.old{color:var(--muted);box-shadow:inset 0 0 0 1px var(--ap-rule)}
+.ap4-stp{display:inline-flex;align-items:center;gap:6px}
+.ap4-stp b{min-width:18px;text-align:center;font-weight:700}
+.ap4-stp button{font:inherit;font-weight:700;line-height:1;width:24px;height:24px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;padding:0}
+.ap4-stp button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+.ap3-step.plan .site i u.old{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--ap-rule)}
 .ap3-step.plan .site i small{display:block;font-size:11px;color:var(--ap-warn-ink)}
 .ap3-step.plan .site b{font-size:17px;font-weight:800;color:var(--ink);min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
 .ap3-step.plan .site button{font:inherit;font-weight:800;line-height:1;width:26px;height:26px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
@@ -1228,7 +1295,7 @@ body.rs-app.light.v2 #apKwList{font-family:inherit !important}
 /* sentence case, readable sizes: every micro-label on the page */
 body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-d .dn,.ap2-dt th,.ap2-band .k,.ap2-step .l,.ap2-dial .l,
   .ap2-led-g>.l,.ap2-eyebrow,.ap3-kpi span,.ap3-todo li i,.ap3-bar label,.ap3-yrs th,.ap3-list .cols,
-  .ap3-step.plan .site i u,.ap3-step span,.ap2-growth label,.ap3-nb .stp,.ap3-nb .dials label,.ap3-market label,
+  .ap3-step span,.ap2-growth label,.ap3-nb .stp,.ap3-nb .dials label,.ap3-market label,
   .ap3-nb .if,.ap3-nb li i,.ap3-det .sec,.ap2-chips3 .ap2-chip3 span,.ap2-tip .hd,.ap2-tt .n,.ap2-modes .l){
   text-transform:none;letter-spacing:0;font-family:inherit;font-size:12.5px;font-weight:500;color:#475569}
 body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-band .k,.ap3-det .sec,.ap2-eyebrow){font-size:13px;font-weight:600}
@@ -1657,7 +1724,7 @@ registerPage({
         seed: "measured",            // "measured" | "his" | "aim" | "custom"
         bases: applyOverrides(measuredSeed()),
         utilization: null, leadsPerRep: null, dollarsPerLead: null,
-        tab: "decide",               // which pane is open (additive key: never bump LS_KEY for it)
+        tab: "map",                  // which pane is open (additive key: never bump LS_KEY for it)
         method: null,                // forecast method: growth | avg3 | flat (null = the model's)
         focus: "",                   // the state focus; "" = all
         city: { minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true, page: 0, pageSize: 30 },
@@ -1902,16 +1969,23 @@ registerPage({
         return { usd, days: daysTot, runs: runsTot, monthsMonthly, ownNet: ownYear() - (benefit == null ? ownBenefit() : benefit) };
       }
       /* one site: its daily need, the owned count, the rentals and the year's cost both ways */
-      function siteFleet(pool, crews, benefit) {
+      /* OWNED TRUCKS ARE HIS NUMBERS (2026-10-07): "1 truck on EACH state - 2 truck in total in CT
+         main base - 3 in PA and NJ Main bases". Every base owns 1 -- new ones and NY included -- the
+         CT main base 2, the NJ and PA main bases 3. Everything above that is rented. The breakeven
+         rule that used to pick the count is gone; renting is still priced the cheaper way per slot. */
+      const OWN_MAIN = { NJ: 3, PA: 3, CT: 2 };
+      const ownFor = (base, isMain) => isMain ? (OWN_MAIN[base] || 1) : 1;
+      function siteFleet(pool, crews, benefit, ownFix) {
         const H = FLEET.hist[pool] || [];
         const peak = H.reduce((a, x) => Math.max(a, x.n), 0);
-        if (!crews || !peak) return { own: crews ? 1 : 0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - 1), cost: crews ? ownYear() : 0, allRent: 0, slots: [] };
+        const own0 = crews ? (ownFix != null ? ownFix : 1) : 0;
+        if (!crews || !peak) return { own: own0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - own0), cost: own0 * ownYear(), allRent: 0, slots: [] };
         const need = H.map(x => ({ d: x.d, n: Math.round(x.n * crews / peak) }));
         const slots = [];
         for (let k = 1; k <= crews; k++) slots.push(Object.assign({ k }, slotRent(need, k, benefit)));
-        // the first truck is owned whatever it costs (his rule); each further one while owning beats renting
-        let own = 1;
-        for (let i = 1; i < slots.length; i++) { if (slots[i].usd > slots[i].ownNet) own = i + 1; else break; }
+        // his count when given; otherwise the first truck is owned and each further one while owning beats renting
+        let own = ownFix != null ? ownFix : 1;
+        if (ownFix == null) for (let i = 1; i < slots.length; i++) { if (slots[i].usd > slots[i].ownNet) own = i + 1; else break; }
         slots.forEach((s, i) => { s.owned = i < own; });
         const season = need.filter(x => { const m = +x.d.slice(5, 7); return m >= 5 && m <= 9 && x.n > 0; }).map(x => x.n).sort((a, b) => a - b);
         const std = season.length ? season[Math.floor(season.length / 2)] : 0;
@@ -1970,14 +2044,17 @@ registerPage({
         return { store: set || (cf >= storeCut() || home ? "PS" : "P"), cf, home, zone: z };
       }
       const STORE_TXT = { P: "Parking", PS: "Parking + Storage", S: "Storage only" };
+      /* what the map's labels show (his picker, 2026-10-07); kept in the saved inputs like the map's other switches */
+      const mapLbl = () => Object.assign({ n: 1, f: 1, t: 1, st: 0, nw: 1, mv: 0, pl: 1 }, inputs.mapLabels || {});
       /* every plan group: per site and summed */
       function planFleet(N) {
         if (!PLAN) return null;
         if (N === undefined) N = FC.year ? nextCalc() : null;
         return PLAN.groups.map(g => {
-          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm),
+          const main = x => !x.cand && !x.la;
+          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm, undefined, ownFor(g.base, main(x))),
             x.cand ? { ns: newStore(x.cand, N, x.fm) } : {}));
-          const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b).own, 0);
+          const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b, ownFor(g.base, main(x))).own, 0);
           const sum = k => sites.reduce((a, s) => a + (s[k] || 0), 0);
           const old = g.sites.some(x => !x.cand && !x.la);
           const ns = old ? null : (sites.find(s => s.ns) || {}).ns;
@@ -2001,7 +2078,7 @@ registerPage({
         if (PLAN || !N || !FLEET.has) return null;
         const one = (base, pool, fm, isNew) => { const ns = isNew ? newStore(base, N) : null;
           return Object.assign({ base, fm, isNew, zone: ns ? ns.zone : zoneOf(base), zoneHome: ns ? ns.home : true, cf: ns ? ns.cf : null,
-            store: ns ? ns.store : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b).own }, siteFleet(pool, fm)); };
+            store: ns ? ns.store : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b, ownFor(base, !isNew)).own }, siteFleet(pool, fm, undefined, ownFor(base, !isNew))); };
         return baseList(N).filter(b => b.fm > 0).map(b => one(b.key, b.key, b.fm))
           .concat((N.nb || []).filter(o => o.fm > 0).map(o => one(o.label, POOL_OF[o.st] || o.st, o.fm, true)));
       }
@@ -2951,9 +3028,17 @@ registerPage({
          a missing target. */
       /* HIS ORDER (2026-09-30): "1) Main Variables // the information that controls this analysis
          2) Map 3) the rest of the pages - i dont care about them, group em as you like" */
+      /* THREE TABS (his call 2026-10-07: "1 settings for general variables, and the rest of the
+         statistics combined in 1 thing" -> Map · Statistics · Settings). The seven old tabs are now
+         SECTIONS of Statistics, each its own <details> with a jump bar on top. Their content and ids
+         are untouched -- still rendered once, eagerly -- so every repaint, goto and deep link keeps
+         working: an old key (tab=cities, showPane("whatif")) opens Statistics at that section. */
       const PANES = [
-        { k: "vars", label: "Main variables" },
         { k: "map", label: "Map" },
+        { k: "stats", label: "Statistics" },
+        { k: "vars", label: "Settings" },
+      ];
+      const SECS = [
         { k: "decide", label: "Decisions" },
         { k: "plan", label: null },              // named at render time: FC is declared below this block
         { k: "cities", label: "Cities" },
@@ -2963,7 +3048,22 @@ registerPage({
         { k: "storage", label: "Storage" },
         { k: "ref", label: "Reference" },
       ];
-      const paneOf = key => PANES.some(x => x.k === key) ? key : "map";
+      const secLabel = x => x.label || ("The " + (FC.year || "next season") + " plan");
+      const isSec = key => SECS.some(x => x.k === key);
+      const paneOf = key => isSec(key) ? "stats" : PANES.some(x => x.k === key) ? key : "map";
+      /* A SAVED OLD TAB (decide, cities...) would reopen on Statistics; the page now opens on the Map.
+         One-time: what is saved from here on is "map" / "stats" / "vars". A deep link still wins. */
+      if (isSec(inputs.tab)) inputs.tab = "map";
+      /* open a Statistics section and bring it to the top of the scroller */
+      function openSec(key, scroll) {
+        const det = host.querySelector("#apSec-" + key); if (!det) return;
+        det.open = true;
+        if (!scroll) return;
+        const sc = det.closest(".rs-content") || document.scrollingElement;
+        const bar = host.querySelector(".ap4-jump");
+        const off = (bar ? bar.getBoundingClientRect().height : 0) + 70;
+        if (sc) sc.scrollTop = Math.max(0, det.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - off);
+      }
       /* THE ASSUMPTIONS SIT ABOVE THE PANES (2026-09-20), because two of the three move the 2027
          answer — utilization sets how many jobs a foreman does in a month, and leads-per-salesperson
          sizes the desk. They used to live inside the hero of the past-period what-if, three thousand
@@ -2994,16 +3094,22 @@ registerPage({
       function tabsHtml() {
         return '<div class="ap2-tabs"><div id="apTabs" role="tablist" aria-label="Seasonal Planning sections" style="display:flex;gap:6px;flex-wrap:wrap">' +
           PANES.map(x => { const on = paneOf(inputs.tab) === x.k;
-            const label = x.label || ("The " + (FC.year || "next season") + " plan");
+            const label = x.label;
             return '<button type="button" class="rs-tab' + (on ? " on" : "") + '" id="apTab-' + x.k + '" role="tab" data-k="' + x.k +
               '" aria-selected="' + (on ? "true" : "false") + '" aria-controls="apPane-' + x.k + '" tabindex="' + (on ? "0" : "-1") + '">' +
               esc(label) + "</button>"; }).join("") +
           "</div><span class=\"sp\"></span>" +
-          '<button type="button" class="rs-btn" id="apPdfMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Download map</button>' +
-          '<button type="button" class="rs-btn" id="apPdf" title="The whole plan as a document">Download plan</button></div>';
+          /* ONE DOWNLOAD MENU (2026-10-07): it replaces the three "Download map" buttons (tab bar, plan
+             row, map toolbar), "Download plan" and the toolbar's target-zips button */
+          '<details class="ap4-dl"><summary class="rs-btn">Download ▾</summary><div class="ap4-dlm">' +
+            '<button type="button" id="apPdfMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Map (PDF)</button>' +
+            '<button type="button" id="apPdf" title="The whole plan as a document">Plan (PDF)</button>' +
+            '<button type="button" id="apZipDl" title="The Tier 1 and Tier 2 zip codes of the market picked on the map, under the plan on screen (a new base&#39;s zips count while it is on) -- one zip per line, ready to paste into Google Ads or Meta">Target zips (Tier 1–2)</button>' +
+          "</div></details></div>";
       }
       /* `quiet` is passed by a data-goto jump, which does its own scrolling */
       function showPane(key, quiet) {
+        const sec = isSec(key) ? key : null;
         key = paneOf(key);
         host.querySelectorAll(".ap2-pane").forEach(pn => { pn.hidden = pn.dataset.apPane !== key; });
         host.querySelectorAll("#apTabs .rs-tab").forEach(b => { const on = b.dataset.k === key;
@@ -3017,6 +3123,7 @@ registerPage({
            the map draws one grey tile, AND fitBounds clamps to maxZoom, until it is told to
            measure again. Both have to be redone, not just the first. */
         if (key === "map") setTimeout(fitMap, 40);
+        if (sec) openSec(sec, !quiet);
       }
       /* THE PLAN ON PAPER (2026-09-20). He presents this; a deck needs the decisions and the working,
          not the city evidence or a what-if. printView clones again and never touches the live DOM, so
@@ -3028,7 +3135,8 @@ registerPage({
         b.onclick = () => {
           const snap = host.cloneNode(true);
           snap.querySelectorAll(".ap2-pane").forEach(n => n.removeAttribute("hidden"));
-          snap.querySelectorAll('[data-ap-pane="cities"],[data-ap-pane="capacity"],[data-ap-pane="ref"],#apTabs,#apAssume').forEach(n => n.remove());
+          snap.querySelectorAll("details.ap4-sec").forEach(n => { n.open = true; });
+          snap.querySelectorAll('[data-ap-sec="cities"],[data-ap-sec="capacity"],[data-ap-sec="ref"],#apTabs,#apAssume,.ap4-jump,.ap4-dl').forEach(n => n.remove());
           RSC.printView({ host: snap, pageCss: "ap-style",
             title: "Seasonal Planning — Season " + (FC.year || ""),
             subtitle: fmtN((nextCalc().tot || {}).jobs || 0) + " jobs forecast · " + (SEASON.next && SEASON.next[0] ? ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : ""),
@@ -3039,6 +3147,9 @@ registerPage({
         const bar = host.querySelector("#apTabs"); if (!bar) return;
         const keys = PANES.map(x => x.k);
         bar.querySelectorAll(".rs-tab").forEach(b => { b.onclick = () => showPane(b.dataset.k); });
+        host.querySelectorAll("[data-sec]").forEach(b => { b.onclick = () => openSec(b.dataset.sec, true); });
+        host.querySelectorAll("[data-secall]").forEach(b => { b.onclick = () => host.querySelectorAll("details.ap4-sec").forEach(d => { d.open = false; }); });
+        host.querySelectorAll(".ap4-dlm button").forEach(b => b.addEventListener("click", () => { const d = b.closest("details"); if (d) d.open = false; }));
         bar.onkeydown = ev => {
           if (!ev.target.classList || !ev.target.classList.contains("rs-tab")) return;   // the PDF button keeps its own keys
           const i = keys.indexOf(paneOf(inputs.tab)); let n = -1;
@@ -3313,10 +3424,13 @@ registerPage({
            of the owned count keeps the old company-wide sum. */
         const ownBy = (model.fleet || {}).active_by_state;
         const perBase = !!ownBy && T.owned_source !== "override";
-        const regOf = pk => Object.keys(ownBy || {}).reduce((a, st) => a + ((POOL_OF[st] || st) === pk ? num(ownBy[st]) : 0), 0);
+        /* HIS OWNED COUNTS (2026-10-07), the same rule as the plan cards: a pool owns its main base's
+           trucks (NJ 3, PA 3, CT 2) plus 1 for every other existing base it holds (NY); a new base
+           owns 1. So the budget rents exactly what the cards rent, not "peak minus the register". */
+        const mainOwn = pk => ["NJ", "NY", "PA", "CT"].reduce((a, b) => a + ((POOL_OF[b] || b) === pk ? ownFor(b, true) : 0), 0);
         if (perBase) {
-          pools.forEach(q => { q.owned = Math.max(0, TR_OWN[q.pk] != null ? TR_OWN[q.pk] : regOf(q.pk)); q.rent = Math.max(0, q.trucks - q.owned); });
-          nbOut.forEach(o => { o.trucks = Math.ceil(o.fm * (crew.trucks || 0)); o.owned = Math.max(0, TR_OWN[o.label] || 0); o.rent = Math.max(0, o.trucks - o.owned); });
+          pools.forEach(q => { q.owned = Math.max(0, TR_OWN[q.pk] != null ? TR_OWN[q.pk] : mainOwn(q.pk)); q.rent = Math.max(0, q.trucks - q.owned); });
+          nbOut.forEach(o => { o.trucks = Math.ceil(o.fm * (crew.trucks || 0)); o.owned = Math.max(0, TR_OWN[o.label] != null ? TR_OWN[o.label] : (o.fm > 0 ? 1 : 0)); o.rent = Math.max(0, o.trucks - o.owned); });
         }
         const owned = perBase ? pools.reduce((a, q) => a + q.owned, 0) + nbOut.reduce((a, o) => a + o.owned, 0)
           : T.owned_working != null ? T.owned_working : ((model.fleet || {}).owned_trucks || 0);
@@ -3926,12 +4040,14 @@ registerPage({
         return "#" + A.map((v, i) => Math.round(v * (1 - t) + B[i] * t).toString(16).padStart(2, "0")).join(""); };
       function tierColors() {
         const dark = !document.body.classList.contains("light");
-        const pos = tok("--pos") || "#5f7c20", warn = tok("--warn") || "#b97b0a", neg = tok("--neg") || "#d43d55";
+        const pos = tok("--pos") || "#5f7c20", neg = tok("--neg") || "#d43d55";
         return { t1: dark ? mixHex(pos, "#000000", 0.05) : mixHex(pos, "#0b2a10", 0.30),
                  /* Tier 2 is the SAME green, quieter: paler on white, darker on the dark canvas --
                     in dark a paler green read brighter than Tier 1, i.e. better */
                  t2: dark ? mixHex(pos, "#0a0e14", 0.48) : mixHex(pos, "#ffffff", 0.45),
-                 t3: warn, t4: neg, grey: tok("--faint") || "#8a97a6", none: tok("--line") || "#c9d2dc" };
+                 /* TIER 3 IS GOLDEN YELLOW (his pick 2026-10-07): the burnt-orange warn token sat too
+                    close to Tier 4's red. Green - pale green - yellow - red still reads as a traffic light. */
+                 t3: dark ? "#E8B23A" : "#E0A21B", t4: neg, grey: tok("--faint") || "#8a97a6", none: tok("--line") || "#c9d2dc" };
       }
       /* the company's MEASURED jobs-a-foreman-day, chaining included (see CHAIN below);
          1.24 only as a floor if the model has no chaining block yet */
@@ -4141,11 +4257,11 @@ registerPage({
                "Drivers are counted on the closing sheet like foremen, not assumed.") +
           chip("trucks", fmtN(N.tot.trucks), "one per foreman at peak",
                "One truck per foreman working the peak month. " + fmtN(N.owned) +
-               " are active on the vehicles register today.") +
+               (N.perBase ? " of them owned (his count per base), the rest rented." : " are active on the vehicles register today.")) +
           chip("vehicles owned", fmtN((model.fleet || {}).owned_trucks || 0),
-               fmtN(N.owned) + (N.perBase ? " active" : " working the season"),
+               fmtN(N.owned) + (N.perBase ? " planned" : " working the season"),
                "The vehicle register holds " + fmtN((model.fleet || {}).owned_trucks || 0) + " trucks; " + fmtN(N.owned) +
-               " of them are " + (N.perBase ? "active trucks (sold, damaged and potential ones, vans and trailers are left out)" : "counted as working") + ". Insurance runs " + money0((model.fleet || {}).insurance_yearly_total || 0) +
+               (N.perBase ? " are owned in this plan: 1 at every base, 2 at the CT main base, 3 each at the NJ and PA main bases" : " of them are counted as working") + ". Insurance runs " + money0((model.fleet || {}).insurance_yearly_total || 0) +
                " a year and parking " + money0((model.fleet || {}).parking_monthly_total || 0) + " a month, company-wide.") +
           chip("rental, last season", fmtN(T.rental_days_last_season || 0) + " days",
                money0(T.rental_usd_last_season || 0) + " at " + money0(T.rental_per_day || 0) + " a day",
@@ -5130,12 +5246,13 @@ registerPage({
           return '<em class="d' + (d0 < 0 ? " dn" : "") + '">' + f(d0) + " vs today</em>"; };
         const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
         return '<div class="ap3-kpis">' +
-          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), st ? esc(st) + " forecast" : "whole market forecast", dl("jobs", sgN), was("jobs", fmtN)) +
+          /* FOUR TILES (his pick 2026-10-07, "compact header"): jobs and the three decisions -- crews,
+             the desk, marketing. Income and the average job ride on the jobs tile instead of two more. */
+          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), (st ? esc(st) + " forecast" : "whole market forecast") +
+               (A.rev != null ? " · " + money0(A.rev) + " income at " + money0(A.avg) + " a job" : ""), dl("jobs", sgN), was("jobs", fmtN)) +
           tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
           tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
           tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
-          (A.rev != null ? tile(money0(A.avg), "Average job", "what one job bills", dl("avg", sgM), was("avg", money0)) +
-            tile(money0(A.rev), "Total income", "jobs × the average job", dl("rev", sgM), was("rev", money0)) : "") +
           "</div>";
       }
 
@@ -5169,7 +5286,6 @@ registerPage({
             '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
               '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
               Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
-            '<button type="button" class="rs-btn ap3-printbtn" data-dlmap title="The totals and the map at zip-code level, on one landscape page">⬇ Download map (PDF)</button>' +
             "<span>or change one number and the rest follows — a test scenario, a refresh puts it back</span>" +
             (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>" +
           '<div class="ap3-steps">' +
@@ -5219,22 +5335,22 @@ registerPage({
         const so = storageOnly(PF);
         const T = k => PF.reduce((a, f) => a + (f[k] || 0), 0);
         const C = FLEET.cost || {};
-        const paid = Math.round(num(C["Fleet Paid"])), act = num(C["Units Active"]), dmg = num(C["Units Damaged"]);
-        const own = T("own"), at = b => PF.reduce((a, f) => a + f.ownAt(b), 0);
+        /* WE PAY FOR = the register's active + damaged TRUCKS (2026-10-07: the cost table's average
+           fleet size, 14, counted the van and the trailer too). Fleet Paid still prices a truck-year. */
+        const act = num(C["Units Active"]), dmg = num(C["Units Damaged"]);
+        const paid = act + dmg || Math.round(num(C["Fleet Paid"]));
+        const own = T("own");
         const diff = own - paid;
         const inp = (k, v, w) => '<input type="number" class="ap3-fin" data-fk="' + k + '" value="' + esc(String(v)) + '" style="width:' + (w || 70) + 'px">';
         return '<div class="ap3-fleettot"><b>All bases</b><span><b>' + fmtN(own) + " owned trucks</b> · we pay for " + fmtN(paid) +
-          " today (" + fmtN(act) + " active + " + fmtN(dmg) + " marked damaged" + (C["Damaged List"] ? ": " + esc(C["Damaged List"]) : "") + ")" +
+          " trucks today (" + fmtN(act) + " active + " + fmtN(dmg) + " marked damaged" + (C["Damaged List"] ? ": " + esc(C["Damaged List"]) : "") + ")" +
           (paid ? " → " + (diff > 0 ? "<b>add " + fmtN(diff) + "</b>" : diff < 0 ? "<b>" + fmtN(-diff) + " fewer</b>" : "<b>the same number</b>") : "") +
           "</span><span>rent " + fmtN(T("rentStd")) + " on a standard day – " + fmtN(T("rentHi")) + " on the busiest</span><span><b>" + money0(T("cost")) +
           "/yr</b> own + rent · all rented " + money0(T("allRent")) + "</span></div>" +
-          '<div class="ap3-fleettot ap3-fleetsens"><b>If owning is worth</b><span>$0 a year → own ' + fmtN(at(0)) + "</span><span>$3,000 → " + fmtN(at(3000)) +
-          "</span><span>$6,000 → " + fmtN(at(6000)) + "</span><span>today's setting " + money0(ownBenefit()) + " → " + fmtN(own) + "</span></div>" +
-          '<div class="ap3-fleettot ap3-fleetin"><b>Settings</b><span>rental trip $' + inp("trkTrip", tripCost()) + " per rental</span><span>owning worth $" +
-          inp("trkBenefit", ownBenefit(), 80) + " a truck a year</span><span>monthly rental $" + inp("trkMonthly", monthlyRate(), 80) + "</span></div>" +
-          '<div class="ap2-note ap3-fleetnote">Every base owns at least one truck (parking, packing materials, a sign on the road). ' +
-          "A further truck is owned when renting it for the year would cost more than owning it: an owned truck costs " +
-          money0(ownYear()) + " a year (what we paid) less what owning is worth (" + money0(ownBenefit()) + " — branding, GPS, cameras, security, the right size; <b>an assumption</b>). " +
+          '<div class="ap3-fleettot ap3-fleetin"><b>Settings</b><span>rental trip $' + inp("trkTrip", tripCost()) + " per rental</span><span>monthly rental $" +
+          inp("trkMonthly", monthlyRate(), 80) + "</span></div>" +
+          '<div class="ap2-note ap3-fleetnote"><b>Owned trucks are set per base:</b> one at every base, new ones included; two at the CT main base; three each at the NJ and PA main bases. ' +
+          "Every other truck a day needs is rented. An owned truck costs " + money0(ownYear()) + " a year (what we paid). " +
           "Renting is priced month by month the cheaper way: " + money0(rentDay()) + " a day (what we paid) plus " + money0(tripCost()) +
           " for every collect-and-return trip (<b>an assumption</b>), or " + money0(monthlyRate()) + " for the whole month. " +
           "The #1 · #2 · #3 line is how many days each truck at that base worked over the last year, scaled to the plan's crews. " +
@@ -5249,12 +5365,52 @@ registerPage({
         const ownBy = N.perBase ? ((model.fleet || {}).active_by_state || {}) : null;
         const all = PLAN.groups.reduce((a, g) => a + g.sites.reduce((b, x) => b + x.fm, 0), 0);
         const short = N.tot.peak < all;
+        const shortNote = short ? '<div class="ap2-note" style="margin:0 0 10px">The table holds ' + fmtN(all) + " foremen; the plan above works " + fmtN(N.tot.peak) +
+            " of them — a pool's crews move in steps, and the rest have no work in this forecast.</div>" : "";
+        /* THE PLAN AS ONE TABLE (his pick 2026-10-07, replacing a card per base): a row per base group
+           with its totals, a row per site with its EXISTING / NEW chip, the foremen stepper, owned and
+           rented trucks, storage and the year's truck cost. The truck-slot working opens under the
+           group on demand. Same data-plansite / data-store buttons, so the wiring is unchanged. */
+        if (PF) {
+          const rentTxt = f => f.rentHi ? fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") : "—";
+          const storeBtn = (key, st) => '<button type="button" class="ap3-store ' + st.toLowerCase() + '" data-store="' + esc(key) +
+            '" title="Click to switch Parking / Parking + Storage">' + STORE_TXT[st] + "</button>";
+          const T = k => PF.reduce((a, f) => a + (f[k] || 0), 0);
+          const td = (v, c) => '<td class="' + (c == null ? "num" : c) + '">' + v + "</td>";
+          const body = PLAN.groups.map((g, gi) => {
+            const f = PF[gi], crew = g.sites.reduce((a, x) => a + x.fm, 0);
+            const today = ownBy ? g.states.reduce((a, st) => a + num(ownBy[st]), 0) : null;
+            const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
+            const slots = (s0 && s0.slots || []).map(q => "#" + q.k + " " + fmtN(q.days) + "d" + (q.owned ? " own" : "")).join(" · ");
+            const cf = f.store === "PS" ? "~" + fmtN(Math.round(f.cf != null ? f.cf : STORE.need[f.zone] || 0)) + " CF of storage on a typical day" : "";
+            return '<tr class="ap4-grp"><td colspan="2"><button type="button" class="ap4-tg" data-grptg="' + gi + '" aria-expanded="false" title="Show the truck working">▸</button>' +
+                "<b>" + esc(g.base) + " base</b><small>covers " + esc(g.states.join(" + ")) + (today != null ? " · " + fmtN(today) + " truck" + (today === 1 ? "" : "s") + " here today" : "") + "</small></td>" +
+                td(fmtN(crew)) + td(fmtN(f.own)) + td(rentTxt(f)) + td("", "") + td(money0(f.cost)) + "</tr>" +
+              g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null, sf = f.sites[si] || {};
+                const st = sf.ns ? storeBtn(x.cand, sf.ns.store) : (!x.cand && !x.la ? storeBtn(f.storeKey || g.base, f.store) : STORE_TXT.P);
+                return '<tr class="ap4-site"><td><span class="nm">' + esc(x.name) + "</span>" +
+                    (x.pin ? "<small>inside ground we cover</small>" : "") +
+                    (o && o.cap < 1 ? '<small class="w">its ground wants ' + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</td>" +
+                  td(x.cand || x.la ? '<span class="ap4-chip new">New</span>' : '<span class="ap4-chip old">Existing</span>', "") +
+                  td('<span class="ap4-stp"><button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
+                     '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></span>') +
+                  td(fmtN(sf.own || 0)) + td(rentTxt(sf)) + td(st, "") + td(money0(sf.cost || 0)) + "</tr>"; }).join("") +
+              '<tr class="ap4-det" data-grpd="' + gi + '" hidden><td colspan="7">' +
+                (slots ? "<b>Days each truck works a year</b> (scaled to the plan's crews): " + slots + "<br>" : "") +
+                "Standard season day " + fmtN(f.std) + " out · busiest " + fmtN(f.hi) + " · all rented would cost " + money0(f.allRent) + " a year" +
+                (cf ? " · " + cf : "") + "</td></tr>"; }).join("");
+          return '<div class="rs-tablewrap ap4-plantbl"><table class="rs-table" data-name="Plan by base"><thead><tr>' +
+              '<th>Base</th><th></th><th class="num">Foremen</th><th class="num">Own</th><th class="num" title="rented on a standard season day – on the busiest">Rent std–busiest</th><th>Storage</th><th class="num">Trucks $/yr</th>' +
+            '</tr></thead><tbody>' + body + '</tbody><tfoot><tr class="ap2-tot"><td colspan="2"><b>All bases</b></td>' +
+              td("<b>" + fmtN(all) + "</b>") + td("<b>" + fmtN(T("own")) + "</b>") + td("<b>" + fmtN(T("rentStd")) + "–" + fmtN(T("rentHi")) + "</b>") + td("", "") + td("<b>" + money0(T("cost")) + "</b>") +
+            "</tr></tfoot></table></div>" + fleetNote(PF) + shortNote;
+        }
         return '<div class="ap3-plan">' + PLAN.groups.map((g, gi) => {
           const crew = g.sites.reduce((a, x) => a + x.fm, 0);
           const own = ownBy ? g.states.reduce((a, st) => a + num(ownBy[st]), 0) : null;
           return '<div class="ap3-step plan"><span>' + esc(g.base) + " base<em>" + fmtN(crew) + (crew === 1 ? " foreman" : " foremen") + "</em></span>" +
             g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null;
-              return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? "<u>new</u>" : "") +
+              return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? "<u>new</u>" : "<u class=\"old\">existing</u>") +
                 (x.pin ? "<small style=\"color:var(--faint)\">inside ground we cover</small>" : "") +
                 (o && o.cap < 1 ? "<small>its ground wants " + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</i>" +
                 '<button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
@@ -5262,9 +5418,7 @@ registerPage({
             "<small>covers " + esc(g.states.join(" + ")) + "</small>" +
             (PF && PF[gi] ? fleetCard(PF[gi], own) :
              own != null ? '<div class="trk"><i>Trucks <b>' + fmtN(crew) + "</b></i><i>owned <b>" + fmtN(own) + '</b></i><i class="' + (crew > own ? "rent" : "") + '">rent <b>' + fmtN(Math.max(0, crew - own)) + "</b></i></div>" : "") +
-            "</div>"; }).join("") + "</div>" + fleetNote(PF) +
-          (short ? '<div class="ap2-note" style="margin:0 0 10px">The table holds ' + fmtN(all) + " foremen; the plan above works " + fmtN(N.tot.peak) +
-            " of them — a pool's crews move in steps, and the rest have no work in this forecast.</div>" : "");
+            "</div>"; }).join("") + "</div>" + fleetNote(PF) + shortNote;
       }
 
       /* ---- new bases ---- */
@@ -5392,9 +5546,7 @@ registerPage({
         /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
            of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
         return '<div class="ap3-bar">' +
-          '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page">⬇ Download map (PDF)</button>' +
           "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
-          '<button type="button" class="rs-btn" id="apZipDl" title="The Tier 1 and Tier 2 zip codes of the market picked, under the plan on screen (a new base\'s zips count while it is on) -- one zip per line, ready to paste into Google Ads or Meta">⬇ Target zips (Tier 1–2)</button>' +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
           (lvl === "County" && !inputs.mapYear ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
           (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
@@ -5758,6 +5910,9 @@ registerPage({
           PLAN = JSON.parse(JSON.stringify(PLANS[k])); PLAN.key = k;
           planApply(); nbRepaint();
         }; });
+        host.querySelectorAll("#apScn [data-grptg]").forEach(b => { b.onclick = () => {
+          const d = host.querySelector('#apScn [data-grpd="' + b.dataset.grptg + '"]'); if (!d) return;
+          d.hidden = !d.hidden; b.setAttribute("aria-expanded", String(!d.hidden)); b.classList.toggle("on", !d.hidden); }; });
         host.querySelectorAll("#apScn [data-plansite]").forEach(b => { b.onclick = () => {
           if (!PLAN) return;
           const [gi, si] = b.dataset.plansite.split(":").map(Number), x = PLAN.groups[gi].sites[si];
@@ -5937,6 +6092,48 @@ registerPage({
                                  wheelPxPerZoomLevel: 110, zoomControl: true,
                                  attributionControl: false });
           m.setView([40.3, -75.6], 7);          // must precede any layer: polygons project on add
+          /* FULL SCREEN + MOVE ONLY (his ask 2026-10-07: "full screen map ... only moving without
+             hover doing anything, its kinda hard to observe"). Hover is OFF by default and the choice
+             is remembered in this browser; a real mouse-over is ignored, the search's own highlight
+             is not (it fires mouseover with no originalEvent). */
+          const grid = box.closest(".ap3-mapgrid");
+          let quiet = true; try { quiet = localStorage.getItem("ap_map_hover") !== "on"; } catch (e) { /* storage blocked: keep the default */ }
+          box.classList.toggle("ap-quiet", quiet);
+          const hush = e => quiet && !!(e && e.originalEvent);
+          const applyLbl = () => { const on = mapLbl(); box.classList.toggle("ap-nomv", !on.mv); box.classList.toggle("ap-nopl", !on.pl); };
+          applyLbl();
+          const MapCtl = L.Control.extend({ options: { position: "topright" }, onAdd() {
+            const d = L.DomUtil.create("div", "leaflet-bar ap3-mapctl");
+            const LBL_ITEMS = [["n", "Base name"], ["f", "Foremen"], ["t", "Trucks"], ["st", "Storage"], ["nw", "New chip"], null,
+                               ["mv", "County movers"], ["pl", "Place names"]];
+            const on0 = mapLbl();
+            d.innerHTML = '<button type="button" data-mc="fs"></button><button type="button" data-mc="hv"></button>' +
+              '<button type="button" data-mc="lb" title="Pick what the labels on the map show">Labels ▾</button>' +
+              '<div class="ap3-lblp">' + LBL_ITEMS.map(x => x ? '<label><input type="checkbox" data-lbl="' + x[0] + '"' + (on0[x[0]] ? " checked" : "") + ">" + x[1] + "</label>" : "<hr>").join("") + "</div>";
+            d.querySelector('[data-mc="lb"]').onclick = () => d.classList.toggle("open");
+            d.querySelectorAll("[data-lbl]").forEach(cb => { cb.onchange = () => {
+              inputs.mapLabels = Object.assign(mapLbl(), { [cb.dataset.lbl]: cb.checked ? 1 : 0 }); save();
+              applyLbl(); if (box._flags) box._flags(); if (box._nbRings) box._nbRings(); }; });
+            L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+            const fs = d.querySelector('[data-mc="fs"]'), hv = d.querySelector('[data-mc="hv"]');
+            const paint = () => { const on = !!(grid && grid.classList.contains("ap3-fs"));
+              fs.textContent = on ? "✕ Exit full screen" : "⛶ Full screen"; fs.title = on ? "Back to the page (Esc)" : "The map and its side panel fill the window";
+              hv.textContent = quiet ? "Hover off" : "Hover on"; hv.classList.toggle("on", !quiet);
+              hv.title = quiet ? "Moving the mouse only moves the map. Click an area or base for its details. Click here to show details on hover again."
+                               : "Details show on hover. Click here to just move the map."; };
+            const setFs = on => { if (!grid) return; grid.classList.toggle("ap3-fs", on);
+              document.documentElement.classList.toggle("ap3-fs-on", on); paint();
+              setTimeout(() => { m.invalidateSize(); if (box._declutter) box._declutter(); }, 60); };
+            if (grid) grid._fsOff = () => setFs(false);
+            fs.onclick = () => setFs(!(grid && grid.classList.contains("ap3-fs")));
+            hv.onclick = () => { quiet = !quiet; box.classList.toggle("ap-quiet", quiet);
+              try { localStorage.setItem("ap_map_hover", quiet ? "off" : "on"); } catch (e) { /* not remembered */ }
+              m.eachLayer(l => { if (l.closeTooltip) l.closeTooltip(); }); paint(); };
+            paint(); return d; } });
+          new MapCtl().addTo(m);
+          if (!window.__apFsEsc) { window.__apFsEsc = 1;   // ONE listener for the life of the tab, whatever re-renders
+            document.addEventListener("keydown", e => { if (e.key !== "Escape") return;
+              const g = document.querySelector(".ap3-mapgrid.ap3-fs"); if (g && g._fsOff) g._fsOff(); }); }
           /* CARTO NOW KEYS EVERY BASEMAP (2026-09-20) — voyager, light_all and dark_all all come
              back stamped "API KEY REQUIRED" across the tile. OpenStreetMap's own tiles need no key.
              They are busier than a data map wants, so the layer is dimmed and, in the dark theme,
@@ -6119,7 +6316,7 @@ registerPage({
                     '</b><div class="t">Not in the lead directory</div></div>'; },
                   { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 /* the fill is flat, so the hover needs its own signal */
-                lyr.on("mouseover", () => lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }));
+                lyr.on("mouseover", e => { if (!hush(e)) lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }); });
                 lyr.on("mouseout", () => layer.resetStyle(lyr));
                 lyr.on("click", () => { const rr = byKey[f.properties.st + "|" + f.properties.key];
                   if (rr && rr.area) showSide({ kind: "area", level: "County", key: rr.area["Area Key"] }); });
@@ -6240,9 +6437,22 @@ registerPage({
           }
 
           /* ---- the bases, over the counties ---------------------------------------------- */
-          const flag = (kind, txt, ico) => L.divIcon({
-            className: "", iconSize: [0, 0],
-            html: '<span class="ap2-flag ' + kind + '">' + icoHtml(ico) + "<b>" + esc(txt) + "</b></span>" });
+          /* TWO-LINE LABELS, PARTS PICKED BY HIM (2026-10-07: "display that labels a little better ...
+             add a selector so i can select what labels i want to show"). Line 1 = the base's name and
+             its NEW chip; line 2 = foremen · trucks · storage, each part only when it is ticked in the
+             map's Labels panel. A plain string (Storage only) is always shown whole. */
+          const flag = (kind, txt, ico, isNew) => {
+            const o = txt && typeof txt === "object" ? txt : { name: String(txt || ""), always: true };
+            const on = mapLbl();
+            const l1 = ((o.always || on.n) && o.name ? esc(o.name) : "") + (isNew && on.nw ? '<em class="ap2-new">New</em>' : "");
+            const l2 = (o.parts || []).filter(x => x.v && on[x.k]).map(x => esc(x.v)).join(" · ");
+            const body = (l1 ? '<span class="l1">' + l1 + "</span>" : "") + (l2 ? '<span class="l2">' + l2 + "</span>" : "");
+            return L.divIcon({ className: "", iconSize: [0, 0],
+              html: '<span class="ap2-flag ' + kind + '">' + icoHtml(ico) + (body ? "<b>" + body + "</b>" : "") + "</span>" }); };
+          const trkTxt = f => !f ? "" : fmtN(f.own) + " own" + (f.rentHi ? " + " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + " rent" : "");
+          const storeTxt = st => st === "PS" ? "Parking + Storage" : st === "S" ? "Storage only" : st ? "Parking" : "";
+          /* a planned new base under MID / MAX wears the NEW chip, as on the plan cards */
+          const flagNew = (b, N) => !!PLAN && b.kind !== "have" && planCrew(b, N) != null;
           let hoverRing = null;
           const ring = (la, lo, kind) => L.circle([la, lo], {
             radius: B.work * MI_PER_M, interactive: false,
@@ -6257,6 +6467,12 @@ registerPage({
                 B.work + " miles</small>"
               : "nothing within " + B.work + " miles";
             const gRow2 = (l, v, sub) => "<i>" + l + (sub ? "<small>" + sub + "</small>" : "") + "</i><u>" + v + "</u>";
+            /* TRUCKS = the plan cards' count: owned + rented on a standard season day - the busiest */
+            const bf = baseFleetOf(b, FC.year ? nextCalc() : null);
+            const trkRow = bf
+              ? gRow2("Trucks · " + (PLAN ? esc(PLAN.label) + " plan" : "forecast"), fmtN(bf.own) + " own" + (bf.rentHi ? " + " + fmtN(bf.rentStd) + (bf.rentHi !== bf.rentStd ? "–" + fmtN(bf.rentHi) : "") + " rent" : ""),
+                      "rent on a standard season day – the busiest · " + fmtN(bf.std) + "–" + fmtN(bf.hi) + " out")
+              : "";
             if (b.kind === "cover") {
               return '<div class="ap2-tip"><b>' + esc(b.label) + '</b><div class="t">' +
                 '<b>opens new ground</b> — nothing we have can reach it</div>' +
@@ -6272,7 +6488,7 @@ registerPage({
                 '<div class="hd">Foremen it should have</div><div class="grid">' +
                   gRow2("The crew aim for " + esc(b.st), b.need != null ? fmtN(b.need) : EM, "the standing target for the state") +
                   (b.xpFm != null ? gRow2("The expansion implies, at its target", r1(b.xpFm), fmtN(b.xpJobs) + " season jobs at " + r2(b.rate || 1.27) + " a foreman-day — a ceiling, $0 of it counted for next season") : "") +
-                  gRow2("Trucks", b.need != null ? fmtN(b.need) : EM, "one per foreman") +
+                  (trkRow || '<i>Trucks<small>switch the base on (Yes) to size its trucks</small></i><u>' + EM + "</u>") +
                   gRow2("Jobs a day", b.perDay != null ? r1(b.perDay) : EM, "once it is staffed") +
                 "</div>" +
                 '<div class="c">Opens <b>' + fmtN(b.opens) + "</b> counties no base covers today</div>" +
@@ -6289,7 +6505,8 @@ registerPage({
                 '<div class="hd">The crew here</div><div class="grid">' +
                   gRow2("Foremen", fmtN(b.foremen)) + gRow2("Helpers", fmtN(b.helpers)) +
                   gRow2("Drivers", fmtN(b.drivers)) +
-                  gRow2("Trucks stationed", fmtN(b.foremen), "one per foreman") +
+                  gRow2("Trucks owned today", fmtN(num(((model.fleet || {}).active_by_state || {})[b.name])), "active on the vehicles register") +
+                  trkRow +
                 "</div>" +
                 (h ? '<div class="' + (h.hire ? "w" : "c") + '">' + (h.hire
                       ? "<b>Hire " + h.hire + "</b> more into the " + esc(h.label) + " pool"
@@ -6347,28 +6564,34 @@ registerPage({
           };
           /* under a named plan the flag also says what the base IS (P / P+S) and its trucks:
              owned + rented on a standard day – the busiest (2026-10-07) */
-          const flagFleet = (b, N) => {
-            if (!PLAN) { const FF = forecastFleet(N); if (!FF) return "";
-              const pc = planCrew(b, N); if (!pc) return "";
-              if (b.kind === "have") return fleetLine(siteFleet(POOL_OF[b.name] || b.name, pc), storeLabel({ base: b.name }));
+          /* ONE ANSWER FOR A BASE'S TRUCKS -- the site's own + rented, as the plan cards count them.
+             The flag and the base sheet both read this (2026-10-07: the sheet still said "one truck
+             per foreman" while the flag and the cards said 3 own + 2-4 rent). */
+          const baseFleetOf = (b, N) => {
+            if (!N) return null;
+            if (!PLAN) { if (!forecastFleet(N)) return null;
+              const pc = planCrew(b, N); if (!pc) return null;
+              if (b.kind === "have") return Object.assign({ store: storeLabel({ base: b.name }) }, siteFleet(POOL_OF[b.name] || b.name, pc, undefined, ownFor(b.name, true)));
               const o = (N.nb || []).find(x => x.label === b.label);
-              return o ? fleetLine(siteFleet(POOL_OF[o.st] || o.st, pc), newStore(b.label, N, pc).store) : ""; }
-            const PF = planFleet(N); if (!PF) return "";
-            if (b.kind === "have") { const f = PF.find(x => x.g.base === b.name); if (!f) return "";
-              const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
-              return " · " + (f.store === "PS" ? "P+S" : "P") + " · " + fmtN(s0.own) + " own" + (s0.rentHi ? " + " + fmtN(s0.rentStd) + (s0.rentHi !== s0.rentStd ? "–" + fmtN(s0.rentHi) : "") + " rent" : ""); }
+              return o ? Object.assign({ store: newStore(b.label, N, pc).store }, siteFleet(POOL_OF[o.st] || o.st, pc, undefined, 1)) : null; }
+            const PF = planFleet(N); if (!PF) return null;
+            if (b.kind === "have") { const f = PF.find(x => x.g.base === b.name); if (!f) return null;
+              return Object.assign({}, f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0], { store: f.store }); }
             // a candidate base by its label; a placed site (Oakland, Middlesex) by its name
             let hit = null; PF.forEach(f => f.sites.forEach(x => { if (x.x.cand === b.label ||
               (x.x.la && b.label && b.label.indexOf(x.x.name.split(" ·")[0]) === 0)) hit = x; }));
-            return hit ? fleetLine(hit, hit.ns ? hit.ns.store : "P") : "";
+            return hit ? Object.assign({}, hit, { store: hit.ns ? hit.ns.store : "P" }) : null;
           };
+          const flagFleet = (b, N) => { const f = baseFleetOf(b, N); return f ? fleetLine(f, f.store) : ""; };
           const flagIco = (b, N) => { if (!flagFleet(b, N)) return null;
             if (b.kind !== "have") return newStore(b.label, N, planCrew(b, N)).store;
             if (PLAN) { const f = (planFleet(N) || []).find(x => x.g.base === b.name); return f ? f.store : null; }
             return storeLabel({ base: b.name }); };
-          const flagText = (b, N) => { const pc = planCrew(b, N);
-            return (b.kind === "have" ? b.name + " · " + fmtN(b.foremen) + (pc != null ? " → " + fmtN(pc) : "")
-                                      : b.label.replace(/ [A-Z]{2}$/, "") + (pc != null ? " · " + fmtN(pc) : "")) + flagFleet(b, N); };
+          const flagText = (b, N) => { const pc = planCrew(b, N), f = baseFleetOf(b, N);
+            const fm = b.kind === "have" ? fmtN(b.foremen) + (pc != null && pc !== b.foremen ? " → " + fmtN(pc) : "") + " foremen"
+                                         : pc != null ? fmtN(pc) + (pc === 1 ? " foreman" : " foremen") : "";
+            return { name: b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""),
+                     parts: [{ k: "f", v: fm }, { k: "t", v: trkTxt(f) }, { k: "st", v: f ? storeTxt(f.store) : "" }] }; };
           const flagMks = [];
           /* "STORAGE ONLY" (2026-10-07): a zone that needs rented room with no storage base in the
              plan, drawn where its units sit today */
@@ -6382,13 +6605,13 @@ registerPage({
                 ". Rent one facility here, or click a base's label to make it Parking + Storage instead.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
-            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N)))); paintSO(N); };
+            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N), flagNew(x.b, N)))); paintSO(N); };
           const N_FLAG = FC.year ? nextCalc() : null;
           paintSO(N_FLAG);
           B.have.concat(B.coverage).forEach(b => {
             const flagCls = b.kind + offsetFor(b);
             const mk = L.marker([b.la, b.lo], {
-              icon: flag(flagCls, flagText(b, N_FLAG), flagIco(b, N_FLAG)),
+              icon: flag(flagCls, flagText(b, N_FLAG), flagIco(b, N_FLAG), flagNew(b, N_FLAG)),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
@@ -6397,27 +6620,11 @@ registerPage({
                                  : "possible new base · " + (NB_ON[b.label] ? "YES in this scenario" : "No in this scenario")) +
               '</div><div class="hint">Click for the full sheet</div></div>',
               { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
-            /* HIS ASK: the reach appears on hover. It is removed on mouseout unless the flag was
-               clicked, so he can pin one open and compare it against the counties underneath. */
+            /* ONE CIRCLE PER BASE (his call 2026-10-07: "i see 2 circles when i hover over a base ... i
+               dont need 2 areas"). The always-on 35-mile working radius is the only circle; hover and
+               click no longer draw a second, brighter one on top. A click opens the base's sheet. */
             flagMks.push({ b, cls: flagCls, mk });
-            mk.on("mouseover", () => {
-              if (baseLayer._pinned && baseLayer._pinned.b === b) return;
-              if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
-              hoverRing = ring(b.la, b.lo, b.kind).addTo(m);
-            });
-            mk.on("mouseout", () => {
-              if (baseLayer._pinned && baseLayer._pinned.b === b) return;
-              if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
-            });
-            mk.on("click", () => {
-              showSide({ kind: "base", label: b.kind === "have" ? b.name : b.label });
-              const pin = baseLayer._pinned;
-              if (pin) { m.removeLayer(pin.ring); baseLayer._pinned = null; }
-              if (!pin || pin.b !== b) {
-                if (hoverRing) { m.removeLayer(hoverRing); hoverRing = null; }
-                baseLayer._pinned = { b, ring: ring(b.la, b.lo, b.kind).addTo(m) };
-              }
-            });
+            mk.on("click", () => showSide({ kind: "base", label: b.kind === "have" ? b.name : b.label }));
             mk.addTo(baseLayer);
           });
 
@@ -6535,7 +6742,7 @@ registerPage({
                             : areaTip(null, lvl, f.properties.z); }, { sticky: true, className: "ap2-tipwrap", opacity: 1 });
                 lyr.on("click", () => { const az = zipArea(f.properties.z, lvl);
                   if (az) showSide({ kind: "area", level: lvl, key: az["Area Key"] }); });
-                lyr.on("mouseover", () => byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })));
+                lyr.on("mouseover", e => { if (!hush(e)) byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })); });
                 lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
               } }).addTo(m);
               zipLayer._byKey = byKey; zipSt = st;
@@ -6599,7 +6806,8 @@ registerPage({
             lyrs.forEach(l => { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); });
             m.fitBounds(b, { padding: [40, 40], maxZoom: lvl === "Zip" ? 12 : 10, animate: false });
             lyrs.forEach(l => l.fire("mouseover"));
-            setTimeout(() => lyrs.forEach(l => l.fire("mouseout")), 2600);
+            box.classList.add("ap-showtip");           // a search result shows its card even with hover off
+            setTimeout(() => { lyrs.forEach(l => l.fire("mouseout")); box.classList.remove("ap-showtip"); }, 2600);
             lyrs[0].openTooltip(b.getCenter());
           };
           if (inputs.mapLevel !== "County") box._applyLevel(true);
@@ -6611,15 +6819,46 @@ registerPage({
           /* A YES BASE SHOWS ITS REACH: the 50-mile ring inside which it brings counties into reach */
           const nbRings = L.layerGroup().addTo(m);
           box._nbRings = () => { nbRings.clearLayers();
-            NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
-              interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
+            /* a Yes base gets the SAME circle as a base we have: the 35-mile working radius the coverage
+               numbers use (it used to be a green 50-mile ring, so a new base showed two circles) */
+            NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: B.work * MI_PER_M,
+              interactive: false, color: tok("--ink") || "#22303f", weight: 1, opacity: .28,
+              dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 }).addTo(nbRings));
             const PF = planFleet();
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
               const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null, st = sf && sf.ns ? sf.ns.store : "P";
-              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, st), sf ? st : null), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+              L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
+                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf ? st : null, true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
+          /* LABELS THAT DO NOT SIT ON EACH OTHER (2026-10-07, with the two-line labels). Bases a few
+             miles apart (NJ / NY, CT / Oakland) printed one label over another. After every redraw and
+             zoom, each label's text box -- never its icon, which stays on the base -- is slid up or down
+             by its own height until it clears the labels and icons already placed: bases we have first,
+             new ones after. If nothing clears, it stays where it was. */
+          const declutter = () => {
+            const els = [...box.querySelectorAll(".ap2-flag")].filter(e => e.offsetParent && e.querySelector("b"));
+            els.forEach(e => { const lb = e.querySelector("b"); lb.style.transform = ""; lb.removeAttribute("data-ld"); lb.style.removeProperty("--ld"); });
+            const placed = [...box.querySelectorAll(".ap2-flag i")].map(i => i.getBoundingClientRect());
+            const hit = r => placed.some(q => r.left < q.right + 3 && r.right > q.left - 3 && r.top < q.bottom + 2 && r.bottom > q.top - 2);
+            els.sort((a, b) => (a.classList.contains("cover") ? 1 : 0) - (b.classList.contains("cover") ? 1 : 0));
+            els.forEach(e => { const lb = e.querySelector("b"), h = lb.getBoundingClientRect().height + 3;
+              let ok = false;
+              for (const dy of [0, -h, h, -2 * h, 2 * h, -3 * h, 3 * h]) {
+                lb.style.transform = dy ? "translateY(" + Math.round(dy) + "px)" : "";
+                if (!hit(lb.getBoundingClientRect())) { ok = true; break; } }
+              if (!ok) lb.style.transform = "";
+              /* a moved label keeps a thin leader back to its own base */
+              const dy = ok ? parseFloat((lb.style.transform.match(/-?[\d.]+/) || ["0"])[0]) : 0;
+              if (dy) { lb.dataset.ld = dy < 0 ? "up" : "down"; lb.style.setProperty("--ld", Math.abs(dy) - h / 2 + 4 + "px"); }
+              placed.push(lb.getBoundingClientRect()); });
+          };
+          box._declutter = declutter;
+          { const f0 = box._flags, n0 = box._nbRings;
+            box._flags = () => { f0(); declutter(); };
+            box._nbRings = () => { n0(); declutter(); }; }
+          m.on("zoomend resize", () => setTimeout(declutter, 30));
           /* THE FOUND PLACE, LIT UP: framed, ringed until the next search, and -- when the map is
              showing that level -- its own outline flashed by the list's focus */
           const hlLayer = L.layerGroup().addTo(m);
@@ -6907,7 +7146,7 @@ registerPage({
         host.querySelectorAll("button[data-goto]").forEach(b => {
           b.onclick = () => { const el = host.querySelector("#" + b.dataset.goto);
             if (!el) return;
-            const det = el.closest("details"); if (det) det.open = true;      // a reference block is closed until asked for
+            for (let det = el.closest("details"); det; det = det.parentElement && det.parentElement.closest("details")) det.open = true;   // a section and a reference block inside it are closed until asked for
             /* THE TARGET MAY LIVE IN ANOTHER PANE (2026-09-20). getBoundingClientRect() on a hidden
                element is all zeroes, so the pane is shown BEFORE anything is measured. */
             const pn = el.closest("[data-ap-pane]");
@@ -7110,6 +7349,14 @@ registerPage({
         const pane = (key, lede, body) =>
           '<div class="ap2-pane" id="apPane-' + key + '" data-ap-pane="' + key + '" role="tabpanel" aria-labelledby="apTab-' + key + '" hidden>' +
           (lede ? '<div class="ap2-lede">' + lede + "</div>" : "") + body + "</div>";
+        /* a Statistics section: closed except Decisions, its old tab lede inside it */
+        const sec = (key, lede, body) => { const x = SECS.find(q => q.k === key) || { k: key };
+          return '<details class="ap4-sec" id="apSec-' + key + '" data-ap-sec="' + key + '"' + (key === "decide" ? " open" : "") + ">" +
+            "<summary><b>" + esc(secLabel(x)) + "</b></summary>" +
+            '<div class="ap4-secb">' + (lede ? '<div class="ap2-lede">' + lede + "</div>" : "") + body + "</div></details>"; };
+        const jump = '<nav class="ap4-jump" aria-label="Statistics sections"><span>Go to</span>' +
+          SECS.map(x => '<button type="button" data-sec="' + x.k + '">' + esc(secLabel(x)) + "</button>").join("") +
+          '<span class="sp"></span><button type="button" data-secall="0">Close all</button></nav>';
         host.innerHTML =
           '<div class="rs-page-head"><h1>Seasonal Planning</h1>' +
           '<p style="max-width:104ch">How many crews, how many salespeople and what marketing budget Season ' + esc(String(FC.year || "next")) +
@@ -7117,6 +7364,9 @@ registerPage({
           '<div class="ap2-clockline">Season ' + esc(String(FC.year || "")) + (SEASON.next && SEASON.next[0] ? " · " + esc(ymLabel(SEASON.next[0])) + " – " + esc(ymLabel(SEASON.next[1])) : "") +
             '</div></div>' +
           tabsHtml() +
+          /* THE MAP TAB IS THE ONE THAT GETS PRESENTED (2026-09-29): no lede, no cards of prose -- the
+             plan, what to do, the map and its list; the working sits in one closed section inside. */
+          pane("map", "", '<div id="apMap" class="ap3-map">' + mapHtml() + "</div>") +
           /* MAIN VARIABLES: what the analysis runs on -- the three dials and the forecast that every
              crew, desk and budget number is sized from. They used to sit above every tab and at the
              bottom of the plan tab; he asked for them first, in one place. */
@@ -7125,7 +7375,8 @@ registerPage({
             card("The jobs forecast — " + (FC.year || "the coming one"), "Jobs by state and month, and the method behind them",
                "Where the season's work is forecast to fall. The crew, the desk and the budget are all sized from these jobs — change the method here and they follow.",
                '<div id="apNext" style="overflow-x:auto">' + nextHtml() + "</div>")) +
-          pane("decide", "The three answers for Season " + esc(String(FC.year || "")) + ", and Giga's nine questions with what the data says today.",
+          pane("stats", "", jump +
+          sec("decide", "The three answers for Season " + esc(String(FC.year || "")) + ", and Giga's nine questions with what the data says today.",
             '<div id="apDecide">' + decisionsHtml() + "</div>" +
             (model.expansion ? card("Beside the plan \u2014 the expansion we decided",
                "Maryland and Pennsylvania: what it adds, what it needs, and what it is worth",
@@ -7137,7 +7388,7 @@ registerPage({
                "Maryland’s capture already rose without a yard, in steps. This is where it stands, and the pre-registered test that decides the Montgomery yard.",
                '<div id="apMd">' + mdHtml() + "</div>", "apMdCard") : "") +
             asksHtml().replace('style="margin-top:6px;border-top:0;padding-top:0"', "")) +
-          pane("plan", "Crews, the sales desk and the marketing budget: every state, every month. Season " + esc(String(FC.year || "")) + " — the period picker on <b>Capacity check</b> does not move these numbers.",
+          sec("plan", "Crews, the sales desk and the marketing budget: every state, every month. Season " + esc(String(FC.year || "")) + " — the period picker on <b>Capacity check</b> does not move these numbers.",
             card("The formula", "X foremen at a location — how many salespeople and what marketing budget",
                  "The arithmetic behind every number on this page, with each coefficient measured over the last three seasons.",
                  '<div id="apFormula">' + formulaHtml() + "</div>") +
@@ -7150,15 +7401,12 @@ registerPage({
           card("Season budget — " + (FC.year || "the coming one"), "Revenue, the job and truck cost, and marketing (post cards inside it), per state",
                "The whole season in one table: what the jobs bring, what they cost to run, what the leads cost to buy. Net is before overhead.",
                '<div id="apBudget" style="overflow-x:auto">' + budgetHtml() + "</div>")) +
-          /* THE MAP TAB IS THE ONE THAT GETS PRESENTED (2026-09-29): no lede, no cards of prose -- the
-             plan, what to do, the map and its list; the working sits in one closed section inside. */
-          pane("map", "", '<div id="apMap" class="ap3-map">' + mapHtml() + "</div>") +
-          pane("cities", "Which cities produce the work, this year to date, all companies — this pane does not follow the period picker. Click a state anywhere to focus the page on it.",
+          sec("cities", "Which cities produce the work, this year to date, all companies — this pane does not follow the period picker. Click a state anywhere to focus the page on it.",
             '<div id="apBandB">' + bandBHtml() + "</div>" +
             card("Push or cut — the opportunity rank", "Cities scored on return per ad dollar, movers, wealth and untapped leads — weights are yours",
                "Where to add leads, and where the money already spent works least. The rank follows the window, focus and minimum leads above.",
                '<div id="apRank">' + rankHtml() + "</div>")) +
-          pane("capacity", "A what-if on a past period: what a foreman table of this size could have run, and where the demand was. <b>Not the " + esc(String(FC.year || "")) + " plan</b> — that one is priced on leads per job with the one-month lag; this one uses the period's own booking rates.",
+          sec("capacity", "A what-if on a past period: what a foreman table of this size could have run, and where the demand was. <b>Not the " + esc(String(FC.year || "")) + " plan</b> — that one is priced on leads per job with the one-month lag; this one uses the period's own booking rates.",
           '<div class="ap2-band" style="margin-top:0;border-top:0;padding-top:0"><span class="k">Capacity check</span><h2>What ' + fmtN(c.totCur) + ' foremen could have run in ' + esc(P.label) + '</h2>' +
           '<span class="clock">a what-if on a past period — not the ' + esc(String(FC.year || "")) + ' plan</span></div>' +
           controlBar() +
@@ -7172,16 +7420,16 @@ registerPage({
           card("Where it leaks", "The counties that lose the most",
                "Top county losses in " + esc(P.label) + (inputs.focus ? " for " + esc(inputs.focus) : "") + " — where extra sales attention or pricing would bite first.",
                '<div id="apLeak">' + leakHtml() + "</div>")) +
-          pane("whatif", "Move a base, buy more of the market, change the budget or the crew \u2014 and see Season " + esc(String(FC.year || "")) + "\u2019s net move. Every lever carries what was measured about it; nothing here is saved to the warehouse.",
+          sec("whatif", "Move a base, buy more of the market, change the budget or the crew \u2014 and see Season " + esc(String(FC.year || "")) + "\u2019s net move. Every lever carries what was measured about it; nothing here is saved to the warehouse.",
             card("What if", "The plan against a scenario you build",
                  "The levers you asked for, with the measurement behind each one printed beside it.",
                  '<div id="apWhatIf">' + whatIfHtml() + "</div>")) +
           /* STORAGE (2026-10-06): its own module (pages/storage-plan.js) and its own table, mounted
              after wire() like every other pane's content is in place -- rendered eagerly, hidden
              by the same attribute, so showPane/goto/deep links need nothing new */
-          pane("storage", "Where to keep goods and how much room to rent: what we held, what it cost, and the setups that would cost less. Last 12 months; this pane does not follow the period picker.",
+          sec("storage", "Where to keep goods and how much room to rent: what we held, what it cost, and the setups that would cost less. Last 12 months; this pane does not follow the period picker.",
             '<div id="apStorage"></div>') +
-          pane("ref", "Read once a season: how the season was set, the outside research, search volume, rent vs buy, and the method behind every number.",
+          sec("ref", "Read once a season: how the season was set, the outside research, search volume, rent vs buy, and the method behind every number.",
           ref("How the season was decided", (SEASON.months || []).map(m => MONTH_NAMES[m]).join("–"), card("The season", "Months that reach the threshold of the year's peak", "", seasonHtml())) +
           (R.states ? ref("The outside picture", "big houses and good areas, joined to our own demand",
              card("Research", "Compiled by us — the gap between the outside case and our own numbers is the expansion argument", "", researchHtml(c))) : "") +
@@ -7192,7 +7440,7 @@ registerPage({
           ref("Method", "what is measured and what is assumed",
              card("Method", "Definitions and provenance", "",
                '<div class="ap2-note" style="line-height:1.75" id="apMethod">Measured: everything except the foreman cells and any number you type. The plan seeds from the distinct foremen who worked last season per state and company (or his 19-August table, or the 28-crew aim). Utilization bridges foremen to a month of jobs against the ' + DAYS_PER_MONTH + '-day ceiling and re-seeds when the period changes. <b>Booked = a closing exists</b> on both halves of the page (his call). Band A geography is where the move starts, in the closing\'s own state; Band B places a job by the lead\'s pickup city and counts last-encounter closings only — so the two job counts will not tie. Band A obeys the period picker; Band B is always this year to date. Miles are straight-line. Marketing $/lead is company-wide.</div>')) +
-          stamps()) +
+          stamps())) +
           "";
 
         wire();
