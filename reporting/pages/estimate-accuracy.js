@@ -82,6 +82,7 @@ registerPage({
         ".eav-t tr.on td{background:var(--blue-bg,rgba(37,99,235,.08))}",
         ".eav-t tr.faint td{color:var(--faint)}",
         ".eav-t td.nm{font-weight:600}",
+        ".eav-rv td{text-align:left}.eav-rv td:nth-child(6),.eav-rv td:nth-child(7),.eav-rv td:last-child{text-align:right}",
         ".eav-sb{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}",
         ".eav-sb i{display:inline-block;height:9px;border-radius:3px;background:var(--neg);opacity:.75}",
         ".eav-drv{font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}",
@@ -332,7 +333,7 @@ registerPage({
           <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${CAN ? (typo ? `<button class="eav-btn" data-okfig="${esc(r.key)}">Figures right</button>` : "") + `<button class="eav-btn" data-exclude="${esc(r.key)}">Exclude</button>` : ""}</td></tr>`;
       }).join("");
       return `<div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">This week's review list</div><span class="rt">moves ${esc(from.slice(5))} – ${esc(last.slice(5))} · biggest surprises first</span></div>
-        ${rows ? `<table class="eav-t"><tbody>${rows}</tbody></table>` : '<div class="eav-note">No surprises in the last week of moves.</div>'}
+        ${rows ? `<table class="eav-t eav-rv"><tbody>${rows}</tbody></table>` : '<div class="eav-note">No surprises in the last week of moves.</div>'}
         <div class="eav-note">Jobs billed 20%+ over the quote, or with 50%+ more items than listed. "Check figures" = an item count 5× off, held out of the numbers until someone confirms it.${CAN ? "" : " Only managers can exclude a job."}</div></div>`;
     }
 
