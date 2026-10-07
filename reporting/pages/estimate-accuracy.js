@@ -63,7 +63,7 @@ registerPage({
         ".eav-note b{color:var(--ink)}",
         ".eav-wf{display:flex;align-items:flex-end;gap:12px;height:170px;padding:18px 4px 0;border-bottom:1px solid var(--line)}",
         ".eav-wf .c{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;position:relative}",
-        ".eav-wf .c i{display:block;border-radius:4px 4px 0 0;min-height:2px}",
+        ".eav-wf .c i{position:absolute;left:0;right:0;display:block;border-radius:4px;min-height:2px}",
         ".eav-wf .c b{position:absolute;left:0;right:0;text-align:center;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}",
         ".eav-wf-l{display:flex;gap:12px;padding:6px 4px 0}.eav-wf-l span{flex:1;text-align:center;font-size:12px;color:var(--muted)}",
         ".eav-hm{border-collapse:separate;border-spacing:4px;width:100%;font-size:12.5px}",
@@ -228,7 +228,7 @@ registerPage({
         else { bottom = v >= 0 ? run : run + v; hgt = Math.abs(v); run += v; color = i === 1 ? COL.hours : i === 2 ? COL.pack : COL.other; }
         const pb = bottom / top * 100, ph = Math.max(1, hgt / top * 100);
         const label = kind === "base" ? usd(v) : usdS(v);
-        return `<div class="c"><b style="bottom:calc(${(pb + ph).toFixed(1)}% + 4px)">${label}</b><i style="height:${ph.toFixed(1)}%;margin-bottom:${pb.toFixed(1)}%;background:${color}"></i></div>`;
+        return `<div class="c"><b style="bottom:calc(${(pb + ph).toFixed(1)}% + 4px)">${label}</b><i style="height:${ph.toFixed(1)}%;bottom:${pb.toFixed(1)}%;background:${color}"></i></div>`;
       }).join("");
       const share = H.avgB - H.avgQ > 0 ? Math.round(Math.max(0, H.avgT) / (H.avgB - H.avgQ) * 100) : null;
       return `<div class="panel"><div class="panel-head"><div class="panel-title">Where the extra comes from</div><span class="rt">the average job</span></div>
