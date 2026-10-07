@@ -1665,7 +1665,7 @@ registerPage({
         mapColor: "tier",            // tier | market | capture -- what the county fill means
         mapLevel: "County",          // County | City | Zip -- the map's grain (2026-09-29)
         mapSt: "",                   // "" = every state; City and Zip always draw one state
-        listTier: 0,                 // the ranked list's tier filter, 0 = all
+        listTiers: [],               // the ranked list's tier filter, several at once; empty = all
         // trucks & storage per base (2026-10-07; additive keys): null = the measured figure
         trkOwnYear: null, trkRentDay: null, storeCF: 2000, storeSet: {},
         // his "be more realistic" (2026-10-07): a rental is a trip, owning is worth something
@@ -1725,7 +1725,12 @@ registerPage({
       }
       if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
       if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
-      if ([0, 1, 2, 3, 4].indexOf(+inputs.listTier) < 0) inputs.listTier = 0;
+      /* SEVERAL TIERS AT ONCE (his ask 2026-10-07: marketing takes "Tier 1 + 2" for a state); a saved
+         single tier carries over */
+      inputs.listTiers = Array.isArray(inputs.listTiers) ? inputs.listTiers.map(Number).filter(t => t >= 1 && t <= 4)
+        : (+inputs.listTier >= 1 && +inputs.listTier <= 4 ? [+inputs.listTier] : []);
+      delete inputs.listTier;
+      const tierOk = r => !inputs.listTiers.length || inputs.listTiers.indexOf(r.tier) >= 0;
       /* ===================== NEW BASES: A YES / NO TEST SCENARIO (2026-09-29) =====================
          His ask: "if we open montgomery - how our marketing budgets and core areals should adjust ...
          sales quantity, foreman quantity on that base - total budget increase". Second pass the same
@@ -5389,6 +5394,7 @@ registerPage({
         return '<div class="ap3-bar">' +
           '<button type="button" class="rs-btn ap3-printbtn" id="apPrintMap" title="The totals and the map at zip-code level, on one landscape page">⬇ Download map (PDF)</button>' +
           "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
+          '<button type="button" class="rs-btn" id="apZipDl" title="The Tier 1 and Tier 2 zip codes of the market picked, under the plan on screen (a new base\'s zips count while it is on) -- one zip per line, ready to paste into Google Ads or Meta">⬇ Target zips (Tier 1–2)</button>' +
           "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
           (lvl === "County" && !inputs.mapYear ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
           (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
@@ -5481,11 +5487,10 @@ registerPage({
         if (!R.length) return '<div class="ap2-note" style="padding:12px">No ' + esc(lvl.toLowerCase()) + " rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>";
         const TC = tierColors();
         const cnt = { 0: R.length }; R.forEach(r => { if (r.tier > 0) cnt[r.tier] = (cnt[r.tier] || 0) + 1; });
-        const tf = +inputs.listTier || 0;
-        const shown = R.filter(r => !tf || r.tier === tf)
+        const shown = R.filter(tierOk)
           .sort((x, y) => ((x.tier || 9) - (y.tier || 9)) || (y.leads - x.leads) || String(x.name).localeCompare(String(y.name)));
         const CAP = 250;
-        const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="' + (t === tf ? "on" : "") + '">' +
+        const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="' + ((t ? inputs.listTiers.indexOf(t) >= 0 : !inputs.listTiers.length) ? "on" : "") + '">' +
           (t ? '<i style="background:' + TC["t" + t] + '"></i>' + t : "All") + "<small>" + fmtN(cnt[t] || 0) + "</small></button>").join("");
         const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
         return '<div class="ap3-list">' +
@@ -5561,7 +5566,7 @@ registerPage({
 
       function areaCsv(N) {
         const lvl = inputs.mapLevel, st = mapStOf();
-        const R = areaRows(N, lvl, st).filter(r => !+inputs.listTier || r.tier === +inputs.listTier);
+        const R = areaRows(N, lvl, st).filter(tierOk);
         const cols = ["Level", "State", "County", "City", "Zip", "Name", "Tier", "Tier Source", "Tier Reason", "Leads 12m", "Booked 12m",
                       "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base", "Foremen Within 60mi", "Data Score",
                       "Market Score", "Population", "Movers Per Year", "Median Income", "Home Value", "Owner Share Pct"];
@@ -5571,7 +5576,26 @@ registerPage({
                                           q(r.budget != null ? Math.round(r.budget) : "")]).join(",")));
         const blob = new Blob([lines.join("\n")], { type: "text/csv" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "seasonal-plan-" + lvl.toLowerCase() + "s" + (st ? "-" + st : "") + ".csv";
+        a.download = "seasonal-plan-" + lvl.toLowerCase() + "s" + (st ? "-" + st : "") + "-" + (PLAN ? PLAN.label : "forecast") +
+          (inputs.listTiers.length ? "-tier-" + inputs.listTiers.join("-") : "") + ".csv";
+        document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      }
+
+      /* TARGET ZIPS, ONE CLICK (his ask 2026-10-07: "marketing wants to start promotions on VA -- select
+         VA for our MAX or MID plan and just download the 1-2 zip codes and implement them"): the
+         market's Tier 1 and 2 zips as the page tiers them right now -- so a plan's new base counts --
+         best first, one per line */
+      function zipTargets(btn) {
+        const N = FC.year ? nextCalc() : null, st = mapStOf();
+        const R = areaRows(N, "Zip", st).filter(r => r.tier === 1 || r.tier === 2)
+          .sort((x, y) => (x.tier - y.tier) || (num(y.a["Market Score"]) - num(x.a["Market Score"])) || (y.leads - x.leads));
+        if (!R.length) { const t = btn.textContent; btn.textContent = "No Tier 1–2 zips " + (st ? "in " + st : "") + " under this plan";
+          setTimeout(() => { btn.textContent = t; }, 3500); return; }
+        const zips = R.map(r => String(r.a.Zip || r.key).replace(/\D/g, "").padStart(5, "0"));
+        const blob = new Blob([zips.join("\r\n") + "\r\n"], { type: "text/plain;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "target zips - " + (st || "all states") + " - " + (PLAN ? PLAN.label + " plan" : "Forecast") +
+          " - " + R.filter(r => r.tier === 1).length + " T1 + " + R.filter(r => r.tier === 2).length + " T2.txt";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
 
@@ -5650,7 +5674,7 @@ registerPage({
         const box = host.querySelector("#apMapBox");
         host.querySelectorAll("[data-mapst]").forEach(b => { b.onclick = () => {
           if ((inputs.mapSt || "") === b.dataset.mapst) return;
-          inputs.mapSt = b.dataset.mapst; inputs.listTier = 0; SIDE = null;
+          inputs.mapSt = b.dataset.mapst; inputs.listTiers = []; SIDE = null;
           save(); repaintMapTab({ bases: false });
           if (box && box._applyLevel) box._applyLevel(true);
         }; });
@@ -5675,12 +5699,14 @@ registerPage({
         }; });
         host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
           if (inputs.mapLevel === b.dataset.maplevel) return;
-          inputs.mapLevel = b.dataset.maplevel; inputs.listTier = 0; SIDE = null;
+          inputs.mapLevel = b.dataset.maplevel; inputs.listTiers = []; SIDE = null;
           save(); repaintMapTab({ bases: false });
           if (box && box._applyLevel) box._applyLevel(true);
         }; });
         host.querySelectorAll("#apAreaList [data-listtier]").forEach(b => { b.onclick = () => {
-          inputs.listTier = +b.dataset.listtier; save(); showSide(null); }; });
+          const t = +b.dataset.listtier, cur = inputs.listTiers;
+          inputs.listTiers = !t ? [] : cur.indexOf(t) >= 0 ? cur.filter(x => x !== t) : cur.concat([t]).sort();
+          save(); showSide(null); }; });
         host.querySelectorAll("#apAreaList [data-area]").forEach(b => { b.onclick = () => {
           const key = b.dataset.area;
           showSide({ kind: "area", level: inputs.mapLevel, key });
@@ -5689,6 +5715,7 @@ registerPage({
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
         const pm = host.querySelector("#apPrintMap"); if (pm) pm.onclick = printMap;
+        const zd = host.querySelector("#apZipDl"); if (zd) zd.onclick = () => zipTargets(zd);
         host.querySelectorAll("[data-dlmap]").forEach(b => { b.onclick = printMap; });
         const fi = host.querySelector("#apFind"), fr = host.querySelector("#apFindRes");
         if (fi && fr) {
@@ -5793,7 +5820,7 @@ registerPage({
       function printMap() {
         const box = host.querySelector("#apMapBox");
         if (!box || !box._map || document.getElementById("apPrintRoot")) return;
-        if (inputs.mapLevel !== "Zip") { inputs.mapLevel = "Zip"; inputs.listTier = 0; SIDE = null; save();
+        if (inputs.mapLevel !== "Zip") { inputs.mapLevel = "Zip"; inputs.listTiers = []; SIDE = null; save();
           repaintMapTab({ bases: false }); if (box._applyLevel) box._applyLevel(true); }
         if (box._highlight) box._highlight(null);
         const N = FC.year ? nextCalc() : null;
