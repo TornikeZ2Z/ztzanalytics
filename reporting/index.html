@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="e4342bc89ca1e65c8df4d7ea2b40ddc45798e31b">
+<meta name="ztz-ref" content="b67a68ddb757004186aad805cf02b67ce9bfba13">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -78,7 +78,7 @@
     }
     setInterval(check, 4 * 60 * 1000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
-    addEventListener('load', function () { setTimeout(check, 60 * 1000); });
+    addEventListener('load', function () { setTimeout(check, 20 * 1000); });   // an already-stale tab hears it soon
   })();
 </script>
 <title>Zip to Zip — Reporting System</title>
