@@ -48,7 +48,7 @@
              "Points Conversion", "Points Profit", "Points Quality", "Points Speed",
              "Points Effort", "Points Qualification",
              "Weight Measured", "Score", "Verdict", "Ranked", "Not Ranked Because",
-             "Rank", "Ranked Reps", "Roster Status", "Rep Type", "Months Matured"],
+             "Rank", "Ranked Reps", "Roster Status", "Rep Type", "Months Matured", "In Pool"],
     };
   }
 })();
@@ -388,7 +388,12 @@ registerPage({
       // RS.load takes ONE dataset key and resolves to its rows — there is no RS.rows()
       // accessor to read them back out afterwards.
       RS.load("sotm").then(rows => {
-        S.rows = (rows || []).slice();
+        // ONLY SALES REPS ARE SCORED (2026-10-07): the mart keeps a row for anyone else who
+        // was assigned leads, `In Pool` 0, so a name the Sales Person List does not know can be
+        // named below the cards instead of vanishing. Those rows never become cards.
+        const all = (rows || []).slice();
+        S.rows = all.filter(r => num(r["In Pool"]) !== 0);
+        S.off = all.filter(r => num(r["In Pool"]) === 0);
         paint();
       }).catch(e => {
         wrap.innerHTML = "<div class='sm-empty'>Could not load the scorecard — " + esc(e && e.message || e) + "</div>";
@@ -497,9 +502,24 @@ registerPage({
         + esc(S.q || "") + "\"><span class='rs-spacer'></span>"
         + "<span class='rs-hint' style='margin:0'>Click a card for the six topics behind the score.</span></div>";
 
+      // UNLISTED NAMES ARE SAID, NOT SCORED. Estimators and Filter Out rows are left out on
+      // purpose; a name missing from the list entirely may be a new rep, so it is named here
+      // with the fix, rather than lost.
+      const unlisted = (S.off || []).filter(r => r["Month"] === S.month
+          && /not on the sales person list/i.test(String(r["Not Ranked Because"] || "")))
+        .sort((a, b) => (num(b["Leads"]) || 0) - (num(a["Leads"]) || 0));
+      const offNote = unlisted.length
+        ? "<div class='sm-note'>Not scored — not on the Sales Person List: "
+          + unlisted.map(r => "<b>" + esc(r["Sales Person"]) + "</b> (" + fmtN(num(r["Leads"]) || 0)
+              + " lead" + (num(r["Leads"]) === 1 ? "" : "s") + ")").join(", ")
+          + ". If one of them is a salesperson, add them to SalesPersonList as a Sales Rep, or add "
+          + "this spelling to SalesTranslator, in Complementary Data.</div>"
+        : "";
+
       wrap.innerHTML = hero + bar
         + (shown.length ? shown.map(card).join("")
-                        : "<div class='sm-empty'>No salesperson matches “" + esc(S.q) + "”.</div>");
+                        : "<div class='sm-empty'>No salesperson matches “" + esc(S.q) + "”.</div>")
+        + offNote;
       wire();
     }
 

@@ -95,6 +95,9 @@
       .dcl-note{padding:10px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
       .dcl-load{padding:40px;text-align:center;color:var(--faint)}
       .dcl-more{display:block;margin:10px auto}
+      .dcl-pill.dcl-nc{background:var(--panel-2);color:var(--muted);margin:0 8px 0 0}
+      .dcl-tbl tr.dcl-ncrow td{white-space:normal}
+      .dcl-nclist{margin-top:4px;line-height:1.6}
       /* ---- DESIGN V2 "Calm finance" (2026-10-06). Light theme only; dark keeps every rule
          above. Look only -- the strip, the table, the dialogs and the print sheet behave and
          count exactly as before. The strip is the artboard's "Today's drawer" panel. ---- */
@@ -156,6 +159,31 @@
     document.head.appendChild(st);
   }
 
+  /* NOT CASH (2026-10-07, the Money Flow final build). Zelle, card and job-against-job entries
+     don't move the drawer -- only cash does -- so their lines arrive with kind "Not cash", effect 0,
+     and the `method` + `amount` they recorded. They are listed for information, never counted:
+     `not_cash` = {total, in, out, n, lines} sits BESIDE `totals` on the open day and on every day.
+     An older bridge sends none of it, and nothing changes. */
+  function isNotCash(l) { return !!l && l.kind === "Not cash"; }
+  function notCash(x) {
+    var v = x && x.not_cash;
+    if (!v) return null;
+    var lines = Array.isArray(v) ? v : Array.isArray(v.lines) ? v.lines : [];
+    var n = !Array.isArray(v) && v.n != null ? +v.n : lines.length;
+    var tot = Array.isArray(v) ? lines.reduce(function (a, l) { return a + Math.abs(+l.amount || 0); }, 0) : Math.abs(+v.total || 0);
+    if (!n && !lines.length && tot < 0.005) return null;
+    return { total: tot, inn: Array.isArray(v) ? null : +v.in || 0, out: Array.isArray(v) ? null : +v.out || 0, n: n || lines.length, lines: lines };
+  }
+  function ncText(nc) {
+    if (!nc) return "";
+    if (nc.inn != null && nc.inn > 0.005 && nc.out > 0.005) return money(nc.inn) + " in · " + money(nc.out) + " paid out, not cash";
+    return money(nc.total) + " not cash";
+  }
+  function ncLine(l) {
+    return esc(l.method || "Not cash") + " " + money2(Math.abs(+l.amount || 0)) + " · " + esc(l.customer || l.job_code || "—")
+      + (l.foreman ? " · " + esc(l.foreman) : "");
+  }
+
   // one sentence per foreman: what happened to the drawer because of him
   function outcome(f) {
     if (f.net > 0.5) return "hands in " + money(f.net);
@@ -186,6 +214,9 @@
   function printSheet(w, day, lines, foreman, who) {
     if (!w) { alert("Your browser blocked the print window. Allow pop-ups for this site and try again."); return; }
     lines = (lines || []).filter(function (l) { return (!foreman || l.foreman === foreman) && (!who || person(l) === who); });
+    // the sheet recomputes its totals from the lines: Not cash lines are listed apart, never counted
+    var ncl = lines.filter(isNotCash);
+    lines = lines.filter(function (l) { return !isNotCash(l); });
     var t = { cash_in: 0, card_out: 0, fines: 0, net: 0 }, byFm = {};
     lines.forEach(function (l) {
       if (l.effect > 0) t.cash_in += l.effect; else if (l.kind !== "Advance given") t.card_out += l.effect;
@@ -225,11 +256,16 @@
       + "h2{font-size:12px;letter-spacing:.05em;color:#6e747c;margin:6px 0}.sig{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}"
       + ".sig div{border-top:1px solid #1d232b;padding-top:5px;color:#6e747c}@media print{body{margin:12mm}}</style></head><body>"
       + "<h1>" + esc(title) + '</h1><div class="sub">' + esc(sub) + " · Zip to Zip</div>"
-      + '<div class="boxes"><div class="box"><span>Cash in</span><b>' + money2(t.cash_in) + '</b></div><div class="box"><span>Card jobs paid out</span><b>'
+      + '<div class="boxes"><div class="box"><span>Cash in</span><b>' + money2(t.cash_in) + '</b></div><div class="box"><span>Paid out</span><b>'
       + money2(t.card_out) + '</b></div><div class="box"><span>Debts repaid</span><b>' + money2(t.fines) + '</b></div><div class="box k"><span>'
       + (foreman ? "Net from this foreman" : "Should be in the drawer") + "</span><b>" + money2(t.net) + "</b></div></div>"
-      + (foreman ? "" : "<h2>BY FOREMAN</h2><table><tr><th>Foreman</th><th class=r>Jobs</th><th class=r>Cash</th><th class=r>Card</th><th class=r>Advances given</th><th class=r>Debts repaid</th><th class=r>Net</th></tr>" + fmRows + "</table>")
+      + (foreman ? "" : "<h2>BY FOREMAN</h2><table><tr><th>Foreman</th><th class=r>Jobs</th><th class=r>Cash</th><th class=r>Paid out</th><th class=r>Advances given</th><th class=r>Debts repaid</th><th class=r>Net</th></tr>" + fmRows + "</table>")
       + "<h2>EVERY MOVEMENT</h2><table><tr><th>Foreman</th><th>Job</th><th>Customer</th><th>What</th><th>Recorded</th><th class=r>Drawer</th></tr>" + lnRows + "</table>"
+      + (ncl.length ? "<h2>NOT CASH (DOESN'T TOUCH THE DRAWER)</h2><table><tr><th>Foreman</th><th>Job</th><th>Customer</th><th>How</th><th>Recorded</th><th class=r>Amount</th></tr>"
+          + ncl.map(function (l) {
+              return "<tr><td>" + esc(l.foreman) + "</td><td>" + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—") + "</td><td>" + esc(l.method || "Not cash")
+                + "</td><td>" + esc(String(l.at || "").slice(5)) + "</td><td class=r>" + money2(Math.abs(+l.amount || 0)) + "</td></tr>";
+            }).join("") + "</table>" : "")
       + '<div class="sig">' + sig.map(function (s) { return "<div>" + esc(s) + "</div>"; }).join("") + "</div>"
       + "<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script></body></html>");
     w.document.close();
@@ -238,11 +274,12 @@
   // ---- the strip on top of Money Flow (and of Day Closing) -------------------------------
   // His rule (2026-09-28): someone who recorded anything today sees HIS total first and the
   // total of everyone on the next line; someone who recorded nothing sees just the total.
-  function stripRow(label, t, mine) {
+  function stripRow(label, t, mine, nc) {
     return '<div class="dcl-srow' + (mine ? " mine" : "") + '"><div class="who">' + esc(label) + "</div>"
       + '<div><span class="big">' + money(t.net) + '</span> <span class="unit">in the drawer</span></div>'
-      + '<div class="sub">' + money(t.cash_in) + " cash in · " + money(t.card_out) + " card jobs paid out"
-      + (t.advances ? " · " + money(t.advances) + " advances given" : "") + "</div>"
+      + '<div class="sub">' + money(t.cash_in) + " cash in · " + money(t.card_out) + " paid out"
+      + (t.advances ? " · " + money(t.advances) + " advances given" : "")
+      + (nc ? ' · <span title="Zelle, card and job-against-job entries: listed, never in the drawer">' + esc(ncText(nc)) + "</span>" : "") + "</div>"
       + '<div class="sub">' + t.n_jobs + " job" + (t.n_jobs === 1 ? "" : "s") + " · " + t.n_foremen + " foremen</div></div>";
   }
   function stripHtml(d, withLink) {
@@ -256,7 +293,7 @@
       + '<span class="dcl-pill open" style="margin-left:0">' + when + "</span>"
       + (withLink ? '<a class="dcl-link" id="dclGoPage" style="margin-left:auto">Day Closing ›</a>' : "") + "</div>"
       + (mine ? stripRow("Your total · " + short(me), mine, true) : "")
-      + stripRow(mine ? "Everyone" : "Total", t, false);
+      + stripRow(mine ? "Everyone" : "Total", t, false, notCash(o));
   }
   function mountStrip(el) {
     if (!el) return;
@@ -280,7 +317,7 @@
 
   window.ZDC = { api: api, css: css, printSheet: printSheet, mountStrip: mountStrip, stripHtml: stripHtml,
                  person: person, money: money, money2: money2, fmtDay: fmtDay, fmtAt: fmtAt, outcome: outcome,
-                 short: short, esc: esc };
+                 short: short, esc: esc, isNotCash: isNotCash, notCash: notCash, ncText: ncText, ncLine: ncLine };
 })();
 
 registerPage({
@@ -309,6 +346,14 @@ registerPage({
     }
     function netCls(v) { return v > 0.5 ? "dcl-pos" : v < -0.5 ? "dcl-neg" : ""; }
 
+    // the day's Not cash lines, under its people: informational, never in a total
+    function ncRows(d) {
+      var nc = Z.notCash(d);
+      if (!nc) return "";
+      return '<tr class="ln dcl-ncrow"><td colspan="8" class="first"><span class="dcl-pill dcl-nc">not cash</span>'
+        + "<b>" + esc(nc.inn != null && nc.inn > 0.005 && nc.out > 0.005 ? money(nc.inn) + " in · " + money(nc.out) + " paid out" : money(nc.total)) + "</b> — doesn’t touch the drawer"
+        + (nc.lines.length ? '<div class="dcl-nclist">' + nc.lines.map(Z.ncLine).join("<br>") + "</div>" : "") + "</td></tr>";
+    }
     function dayRow(d) {
       var k = d.key, open = !!S.open[k], t = d.totals;
       var label = d.kind === "open" ? "Open day" : Z.fmtDay(d.date);
@@ -331,10 +376,11 @@ registerPage({
         + '</td><td class="r">' + money(t.card_out) + '</td><td class="r ' + netCls(t.net) + '">' + money(t.net) + '</td><td class="r">' + acts + "</td></tr>";
       if (!open) return row;
       // an older bridge sends no people: show the foremen straight under the day, as before
-      if (!d.people) return row + (d.foremen || []).map(function (f) { return fmRow(d, null, f); }).join("");
+      if (!d.people) return row + (d.foremen || []).map(function (f) { return fmRow(d, null, f); }).join("") + ncRows(d);
       var people = d.people;
       return row + people.map(function (p) { return psRow(d, p); }).join("")
-        + (people.length ? "" : '<tr><td colspan="8" style="color:var(--faint);padding-left:34px">Nothing moved the drawer.</td></tr>');
+        + (people.length ? "" : '<tr><td colspan="8" style="color:var(--faint);padding-left:34px">Nothing moved the drawer.</td></tr>')
+        + ncRows(d);
     }
     // the person who recorded the movements in Money Flow (Irakli, Kakha…) — his layout, 2026-09-28
     function psRow(d, p) {
@@ -355,13 +401,13 @@ registerPage({
       if (!open) return row;
       var ls = S.lines[d.key];
       if (!ls) return row + '<tr class="ln"><td colspan="8" class="first">Loading…</td></tr>';
-      return row + ls.filter(function (l) { return l.foreman === f.foreman && (!p || Z.person(l) === p.person); }).map(function (l) { return lineRow(d, l); }).join("");
+      return row + ls.filter(function (l) { return !Z.isNotCash(l) && l.foreman === f.foreman && (!p || Z.person(l) === p.person); }).map(function (l) { return lineRow(d, l); }).join("");
     }
     function lineRow(d, l) {
       var what = l.kind === "Fine repaid" ? "Debt repaid" + (l.note ? " — " + esc(l.note) : "")
         : l.kind === "Advance given" ? "Advance given to him" + (l.note ? " — " + esc(l.note) : "")
         : (l.kind === "Advance" ? '<span class="dcl-pill card" style="margin:0 6px 0 0">advance</span>' : "")
-          + (l.paid_from ? '<span class="dcl-pill card" style="margin:0 6px 0 0">card</span>' + esc(l.paid_from)
+          + (l.paid_from ? '<span class="dcl-pill card" style="margin:0 6px 0 0">pay-out</span>' + esc(l.paid_from)
              : l.correction ? "correction " + money2(l.prev) + " → " + money2(l.value) : "");
       var take = d.kind === "signed" && data.me.manager && d.status !== "locked" && (l.src === "portal" || l.src === "fine")
         ? '<button class="dcl-btn sm" data-take="' + esc(d.id + "|" + l.src + "|" + l.src_id) + '">Take out</button>' : "";
@@ -394,15 +440,15 @@ registerPage({
           || (d.people || []).some(function (p) { return p.person.indexOf(q) >= 0; });
       });
       var openRow = S.view === "rec" ? "" : dayRow({ key: "open", kind: "open", since: o.since, totals: o.totals, foremen: o.foremen,
-                                                     people: o.people, closes_in_s: o.closes_in_s });
+                                                     people: o.people, closes_in_s: o.closes_in_s, not_cash: o.not_cash });
       var rows = days.slice(0, S.shown).map(dayRow).join("");
       el.innerHTML = kp + bar + '<div class="dcl-card"><div class="dcl-wrap"><table class="dcl-tbl">'
         + '<colgroup><col style="width:27%"><col style="width:16%"><col style="width:6%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:16%"></colgroup>'
-        + '<thead><tr><th>Day</th><th>Closed</th><th class="r">Jobs</th><th class="r">Foremen</th><th class="r">Cash in</th><th class="r">Card out</th><th class="r">In the drawer</th><th class="r"></th></tr></thead><tbody>'
+        + '<thead><tr><th>Day</th><th>Closed</th><th class="r">Jobs</th><th class="r">Foremen</th><th class="r">Cash in</th><th class="r">Paid out</th><th class="r">In the drawer</th><th class="r"></th></tr></thead><tbody>'
         + openRow + (rows || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No day matches.</td></tr>') + "</tbody></table>"
         + (days.length > S.shown ? '<button class="dcl-btn dcl-more" id="dclMore">Show 30 more days (' + (days.length - S.shown) + " left)</button>" : "")
         + '</div><div class="dcl-note">A day moves the drawer by what each record changed: a double click moves nothing, a correction moves only the difference. '
-        + "Card jobs are covered by the same foreman's cash first, then by the drawer.</div></div>";
+        + "Pay-outs are covered by the same foreman's cash first, then by the drawer. Only cash moves the drawer: Zelle, card and job-against-job entries are listed under each day as not cash.</div></div>";
       wire();
       if (window.ZDC_tick) window.ZDC_tick();
       if (window.RSC && RSC.fitScroller) RSC.fitScroller(el.querySelector(".dcl-wrap"));
