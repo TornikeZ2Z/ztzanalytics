@@ -635,6 +635,7 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-fleet em.spare{background:var(--panel-2);color:var(--muted)}
 .ap3-store{font:inherit;font-size:12px;font-weight:600;border-radius:6px;padding:2px 8px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink)}
 .ap3-store.ps{background:var(--blue-bg,#eff6ff);color:var(--brand-d);border-color:transparent}
+.ap3-step .ap3-fleet .r.st span.ap3-store{cursor:default}
 .ap3-fleetnote{margin:4px 0 10px;line-height:1.55}
 .ap3-fleetsens,.ap3-fleetin{font-size:12.5px;color:var(--muted)}
 .ap3-fin{font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;background:var(--panel);color:var(--ink)}
@@ -1938,6 +1939,18 @@ registerPage({
         return Object.keys(STORE.need).filter(z => STORE.pos[z] && (STORE.need[z] || 0) >= num(inputs.storeCF || 2000)
           && !PF.some(f => f.zone === z && f.store === "PS")).map(z => ({ z, cf: STORE.need[z], pos: STORE.pos[z] }));
       }
+      /* THE FORECAST TOO (his ask 2026-10-07: "I don't see the trucks and storage on the map"): with
+         no named plan, each pool card and each Yes base is sized from the forecast's own crews */
+      function forecastFleet(N) {
+        if (PLAN || !N || !FLEET.has) return null;
+        const one = (base, pool, fm, isNew) => Object.assign({ base, fm, isNew, zone: ZONE_OF_GROUP[base] || base,
+          store: isNew ? "P" : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b).own }, siteFleet(pool, fm));
+        return baseList(N).filter(b => b.fm > 0).map(b => one(b.key, b.key, b.fm))
+          .concat((N.nb || []).filter(o => o.fm > 0).map(o => one(o.label, POOL_OF[o.st] || o.st, o.fm, true)));
+      }
+      /* " · P+S · 3 own + 2–4 rent" -- the flag's and the card's one line */
+      const fleetLine = (f, store) => !f ? "" : " · " + (store === "PS" ? "P+S" : "P") + " · " + fmtN(f.own) + " own" +
+        (f.rentHi ? " + " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + " rent" : "");
       function planEnd() { PLAN = null; Object.keys(NB_CAP).forEach(k => delete NB_CAP[k]); }
       /* the plan's own places leave the candidate list only on Reset / Forecast: when another lever
          takes the plan over, "the bases stay" */
@@ -5072,6 +5085,11 @@ registerPage({
             '<button type="button" aria-label="one owned truck less" data-tro="' + esc(key) + '" data-d="-1">−</button><b>' + fmtN(o.owned) +
             '</b><button type="button" aria-label="one owned truck more" data-tro="' + esc(key) + '" data-d="1">+</button>') +
           '</i><i class="' + (o.rent ? "rent" : "") + '">rent <b>' + fmtN(o.rent) + "</b></i></div>";
+        const FF = forecastFleet(N);
+        const fl = key => { const f = FF && FF.find(x => x.base === key); if (!f) return "";
+          return '<div class="ap3-fleet"><div class="r st">' + (f.isNew ? '<span class="ap3-store p">Parking</span>' :
+            '<button type="button" class="ap3-store ' + f.store.toLowerCase() + '" data-store="' + esc(f.base) + '" title="Click to switch Parking / Parking + Storage">' + STORE_TXT[f.store] + "</button>") +
+            "<span title=\"what the year's truck-days say to own, and to rent on a standard season day – the busiest (see All bases below)\">suggested <b>" + fmtN(f.own) + " own</b> · rent " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</span></div></div>"; };
         const step = (kind, pool, label, shown, plan, cls, extra) => {
           const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
           return '<div class="ap3-step' + (drv ? " drv" : "") + (cls ? " " + cls : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
@@ -5100,11 +5118,11 @@ registerPage({
             baseList(N).map(b => { const b0 = baseList(P).find(x => x.key === b.key) || b;
               return step("fm", b.key, esc(b.key) + " base", fmtN(b.fm),
                 "covers " + esc(b.states.join(" + ")) + " · plan " + fmtN(b0.fm) + " · " + fmtN(b.have) + " today", "",
-                trk(b.key, N.pools.find(q => q.pk === b.key))); }).join("") +
+                trk(b.key, N.pools.find(q => q.pk === b.key)) + fl(b.key)); }).join("") +
             /* a base switched to Yes is a base: its own card, its own crew, his to change */
             (N.nb || []).map(o => step("nbfm", o.label, esc(o.label) + " · new base", fmtN(o.fm),
-              (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb", trk(o.label, o))).join("") +
-          "</div></div>";
+              (o.states.length ? "covers " + esc(o.states.join(" + ")) + " · " : "") + "suggested " + fmtN(o.fmSuggested) + " for " + sgN(o.jobs) + " jobs · 0 today", "nb", trk(o.label, o) + fl(o.label))).join("") +
+          "</div>" + (PLAN ? "" : fleetNote(FF)) + "</div>";
       }
 
       /* the named plan, base by base: his table, with each crew his to change */
@@ -5383,6 +5401,8 @@ registerPage({
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
           (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
+          (FLEET.has ? '<span class="ap2-mk ap2-mkfleet"><b>P</b> parking · <b>P+S</b> parking + storage · <b>Storage only</b> room needed, no base · ' +
+            "<b>3 own + 2–4 rent</b> trucks owned + rented on a standard–busiest day</span>" : "") +
           "</div>";
       }
 
@@ -6232,8 +6252,12 @@ registerPage({
           };
           /* under a named plan the flag also says what the base IS (P / P+S) and its trucks:
              owned + rented on a standard day – the busiest (2026-10-07) */
-          const flagFleet = b => {
-            if (!PLAN) return "";
+          const flagFleet = (b, N) => {
+            if (!PLAN) { const FF = forecastFleet(N); if (!FF) return "";
+              const pc = planCrew(b, N); if (!pc) return "";
+              if (b.kind === "have") return fleetLine(siteFleet(POOL_OF[b.name] || b.name, pc), storeLabel({ base: b.name }));
+              const o = (N.nb || []).find(x => x.label === b.label);
+              return o ? fleetLine(siteFleet(POOL_OF[o.st] || o.st, pc), "P") : ""; }
             const PF = planFleet(); if (!PF) return "";
             if (b.kind === "have") { const f = PF.find(x => x.g.base === b.name); if (!f) return "";
               const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
@@ -6245,21 +6269,21 @@ registerPage({
           };
           const flagText = (b, N) => { const pc = planCrew(b, N);
             return (b.kind === "have" ? b.name + " · " + fmtN(b.foremen) + (pc != null ? " → " + fmtN(pc) : "")
-                                      : b.label.replace(/ [A-Z]{2}$/, "") + (pc != null ? " · " + fmtN(pc) : "")) + flagFleet(b); };
+                                      : b.label.replace(/ [A-Z]{2}$/, "") + (pc != null ? " · " + fmtN(pc) : "")) + flagFleet(b, N); };
           const flagMks = [];
           /* "STORAGE ONLY" (2026-10-07): a zone that needs rented room with no storage base in the
              plan, drawn where its units sit today */
           const soLayer = L.layerGroup().addTo(m);
-          const paintSO = () => { soLayer.clearLayers();
-            storageOnly(planFleet()).forEach(x => L.marker([x.pos.la, x.pos.lo], {
+          const paintSO = N => { soLayer.clearLayers();
+            storageOnly(planFleet() || forecastFleet(N)).forEach(x => L.marker([x.pos.la, x.pos.lo], {
                 icon: flag("cover", "Storage only · ~" + fmtN(Math.round(x.cf)) + " CF"), zIndexOffset: 450 })
               .bindTooltip('<div class="ap2-tip"><b>Storage needed, no storage base</b><div class="t">' + esc(x.z) + " zone rents ~" +
                 fmtN(Math.round(x.cf)) + " CF on a typical day (" + money0(x.pos.rent) + " paid in 12 months). Make a base here Parking + Storage, or rent one facility.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
-            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N)))); paintSO(); };
-          paintSO();
+            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N)))); paintSO(N); };
           const N_FLAG = FC.year ? nextCalc() : null;
+          paintSO(N_FLAG);
           B.have.concat(B.coverage).forEach(b => {
             const flagCls = b.kind + offsetFor(b);
             const mk = L.marker([b.la, b.lo], {
@@ -6488,8 +6512,10 @@ registerPage({
           box._nbRings = () => { nbRings.clearLayers();
             NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: 50 * MI_PER_M,
               interactive: false, color: col.t1, weight: 2, dashArray: "6 5", fillColor: col.t1, fillOpacity: .06 }).addTo(nbRings));
-            if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la && x.fm > 0)
-              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm)), interactive: false, zIndexOffset: 450 }).addTo(nbRings); }));
+            const PF = planFleet();
+            if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
+              const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null;
+              L.marker([x.la, x.lo], { icon: flag("cover", x.name.split(" · ")[0] + " · " + fmtN(x.fm) + fleetLine(sf, "P")), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
