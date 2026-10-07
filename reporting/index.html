@@ -26,6 +26,61 @@
     addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
 </script>
+<!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
+     portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
+<meta name="ztz-ref" content="e4342bc89ca1e65c8df4d7ea2b40ddc45798e31b">
+<script>
+  /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
+     when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
+     reading yesterday's page. Every few minutes -- and whenever the tab comes back into view -- this
+     asks the server which commit is live (deploy-ref.txt, written by the same deploy) and, if it is
+     not the one this tab was built from, offers a refresh.
+     It never refreshes BY ITSELF: someone halfway through a Money Flow entry or an exclusion reason
+     would lose it. The button is a plain location.reload() -- never reload(true) or a cache-busting
+     URL, which is what has signed people out before. "Later" hides it until the next deploy. */
+  (function () {
+    var meta = document.querySelector('meta[name="ztz-ref"]');
+    var mine = meta ? String(meta.content || '').trim() : '';
+    if (!mine || mine === 'dev') return;
+    var dismissed = '', shown = '', busy = false;
+    function check() {
+      if (busy || document.hidden) return;
+      busy = true;
+      fetch('deploy-ref.txt?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (t) {
+          busy = false;
+          var live = String(t || '').trim();
+          if (!/^[0-9a-f]{7,40}$/.test(live) || live === mine || live === dismissed || live === shown) return;
+          show(live);
+        })
+        .catch(function () { busy = false; });
+    }
+    function show(live) {
+      shown = live;
+      var old = document.getElementById('ztzNewVer');
+      if (old) old.remove();
+      var b = document.createElement('div');
+      b.id = 'ztzNewVer';
+      b.setAttribute('role', 'status');
+      b.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;align-items:center;gap:12px;'
+        + 'background:#0F172A;color:#F8FAFC;border-radius:12px;padding:12px 14px 12px 16px;font:500 13.5px/1.4 "IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;'
+        + 'box-shadow:0 10px 30px rgba(15,23,42,.28);max-width:calc(100vw - 36px)';
+      b.innerHTML = '<span>A new version of the portal is live.</span>'
+        + '<button type="button" data-a="go" style="font:inherit;font-weight:600;border:0;border-radius:8px;padding:7px 14px;background:#2563EB;color:#fff;cursor:pointer">Refresh</button>'
+        + '<button type="button" data-a="later" style="font:inherit;border:0;background:none;color:#CBD5E1;cursor:pointer;padding:6px">Later</button>';
+      b.addEventListener('click', function (e) {
+        var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');
+        if (a === 'go') location.reload();
+        if (a === 'later') { dismissed = live; b.remove(); }
+      });
+      (document.body || document.documentElement).appendChild(b);
+    }
+    setInterval(check, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    addEventListener('load', function () { setTimeout(check, 60 * 1000); });
+  })();
+</script>
 <title>Zip to Zip — Reporting System</title>
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
