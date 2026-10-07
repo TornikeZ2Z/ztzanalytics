@@ -18,7 +18,7 @@ registerPage({
       st.textContent = [
         ".psc-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;font-size:13px;color:var(--muted)}",
         ".psc-bar code{background:var(--panel-2);border:1px solid var(--line-2);border-radius:7px;padding:4px 9px;color:var(--ink);font-size:12.5px}",
-        ".psc-frame{width:100%;border:1px solid var(--line);border-radius:12px;background:#F7F6F2;display:block}",
+        ".psc-frame{width:100%;border:0;background:transparent;display:block;}",
       ].join("");
       document.head.appendChild(st);
     }
@@ -27,10 +27,12 @@ registerPage({
         <code>${RSC.esc(url)}</code>
         <button class="rs-btn" id="pscCopy" type="button">Copy link</button>
         <a class="rs-btn" href="${RSC.esc(url)}" target="_blank" rel="noopener">Open in a new tab</a></div>
-      <iframe class="psc-frame" id="pscFrame" title="Photoshoot Confirmation" src="${RSC.esc(url)}"></iframe>`;
+      <iframe class="psc-frame" id="pscFrame" title="Photoshoot Confirmation" src="${RSC.esc(url)}?embed=1"></iframe>`;
     const fr = host.querySelector("#pscFrame");
-    // fill the window below the bar; the embedded page scrolls inside
-    const fit = () => { const top = fr.getBoundingClientRect().top; fr.style.height = Math.max(480, innerHeight - top - 16) + "px"; };
+    // ?embed=1 drops the page's own header. The frame fills the window below the link bar and the
+    // page scrolls inside it -- a frame grown to full height would put the confirm dialog (fixed
+    // to the frame's viewport) in the middle of a very tall frame, off screen.
+    const fit = () => { const top = fr.getBoundingClientRect().top; fr.style.height = Math.max(520, innerHeight - top - 12) + "px"; };
     fit();
     // one listener, replaced on every visit -- not one more per render
     if (window.__pscFit) removeEventListener("resize", window.__pscFit);
