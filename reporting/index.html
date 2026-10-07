@@ -196,6 +196,7 @@ const GROUP_OVERRIDE = {
   "angi-funnel": "marketing-automations",
   "promised-reviews": "marketing-automations",
   "birdeye-sends": "marketing-automations",
+  "photoshoot": "marketing-automations",
   "referral-candidates": "marketing-automations",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
@@ -247,11 +248,12 @@ const NAV_ORDER = {
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
   "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
-  "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2,
+  "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
 
 /* Inline SVG icon set (Feather-style, stroke-based) — no emojis anywhere. */
 const ICONS = {
+  camera:    '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   activity:  '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   clock:     '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.4 2"/>',
   dollar:    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
@@ -316,7 +318,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -800,6 +802,7 @@ const PAGE_DATASETS = {
   "utm-campaigns": [],
   "promised-reviews": [],      // loads its own mart + the Birdie log; no global slicers apply
   "birdeye-sends": [],         // its own two marts, its own week picker; no global slicers apply
+  "photoshoot": [],            // embeds the public photoshoot.html; data via /api/_photo
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
@@ -1113,7 +1116,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy"]);
+  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1267,6 +1270,7 @@ const NAV_TITLES = {
 /* C46: hidden search keywords per nav item — old Power BI page names, singular/plural,
    vendor names — so the transition period doesn't break muscle memory. Never shown. */
 const SEARCH_ALIASES = {
+  "photoshoot": "photoshoot photo shoot photographer photos confirm confirmation camera pictures shoot day marketing",
   // Human Resources
   "hr-questionnaire": "team surveys hr human resources questionnaire survey company wide feedback poll questions results",
   "hr-directory": "team directory people staff back office crew org employees roster emails",
@@ -1805,6 +1809,7 @@ const REPORT_LABELS = {
   "referral-candidates": "List of Possible Referrals",
   "promised-reviews": "Promised Reviews",
   "birdeye-sends": "Birdeye Send-outs",
+  "photoshoot": "Photoshoot Confirmation",
   "angi-funnel": "Angi Lead Funnel",
   "utm-campaigns": "Website Forms & UTM",
   "straight-vs-local": "Straight vs Local",
@@ -1907,7 +1912,7 @@ const ACL_DEPTS = [
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
-  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel"] },
+  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "storage-control", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
   { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary", "crew-pay-compare"] },
@@ -2183,6 +2188,7 @@ registerPage({
 <script src="pages/angi-funnel.js?v=10"></script>
 <script src="pages/promised-reviews.js?v=14"></script>
 <script src="pages/birdeye-sends.js?v=3"></script>
+<script src="pages/photoshoot.js?v=1"></script>
 <script src="pages/foreman-late.js?v=15"></script>
 <script src="pages/referral-candidates.js?v=14"></script>
 <script src="pages/calendar-coverage.js?v=9"></script>
