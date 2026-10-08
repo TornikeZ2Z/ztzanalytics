@@ -14,7 +14,7 @@
                       the money came in.
      * Foreman balances — his balance (fines, advances, short and extra hand-ins, repayments)
                       next to what his open jobs owe.
-   Panels: Settle (a to-the-base job: Cash, Zelle or another method; short goes on his balance,
+   Panels: Settle (a to-the-base job: Cash or a method on for money in; short goes on his balance,
    extra comes off it), Pay out (a to-the-foreman job: balance it against his other jobs first,
    pay the rest by a method or leave it on his balance), the job's story across all its calendar
    days, the foreman's balance, and the payment methods list.
@@ -895,7 +895,7 @@ registerPage({
 
       // THE QUEUE
       var HEAD = {
-        waiting: ["Waiting to settle", "Tick several jobs to confirm the cash a foreman brings in one go. Zelle, short or extra hand-ins and pay-outs are settled one job at a time."],
+        waiting: ["Waiting to settle", "Tick several jobs to confirm the cash a foreman brings in one go. Short or extra hand-ins and pay-outs are settled one job at a time."],
         settled: ["Settled lately", "Every confirmation, by foreman: whoever settled last comes first. Open a job to see its whole story."],
         balances: ["Foreman balances", "What each foreman owes outside his jobs (fines, advances, short and extra hand-ins, repayments), next to what his open jobs owe."],
       };
@@ -1666,7 +1666,7 @@ registerPage({
           + '<div id="mfEff"></div></div>'
           + '<div class="mf-dcl"><span class="mf-b">Day Closing</span><span class="mf-mut" id="mfDcl"></span></div>'
           + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Why the correction</label>'
-          + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="400" placeholder="e.g. It came by Zelle, not cash">' + esc(st.note) + "</textarea></div></div>";
+          + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="400" placeholder="e.g. He brought $1,000, not $1,134">' + esc(st.note) + "</textarea></div></div>";
       }
       var body = jobCardHtml(rr, { out: st.type === TAKEN, settled: true, noStoryLink: true }) + confHtml + box + form + storySection(rr, true);
       var foot = '<div id="mfDErr"></div><div class="mf-dfrow">'
@@ -2256,7 +2256,7 @@ registerPage({
           + steps([
             "Press " + k("Settle", "acc") + " on the job. A panel opens on the right.",
             "Check the job at the top: the customer, the job code, the date, and how much he owes the base.",
-            "Under <b>How did it come in?</b> pick <b>Cash</b> or <b>Zelle</b>, or another method on the list.",
+            "Under <b>How did it come in?</b> pick how the money came. That is <b>Cash</b>: another method shows here only if it is switched on for money in under <b>Payment methods</b> (part 8).",
             "Under <b>How much did he bring?</b> type the amount. The full amount is already filled in. " + k("Full $…") + " puts it back.",
             "Read the coloured box under the amount. It says what will happen.",
             "Press " + k("Confirm", "pri") + ".",
@@ -2267,7 +2267,7 @@ registerPage({
             [q("$… short — goes on his balance"), "He brought less. The job is settled, and the missing money is added to what he owes."],
             [q("$… extra — comes off his balance"), "He brought more. The job is settled, and the extra pays back what he owes."],
           ])
-          + tip("The <b>Day Closing</b> line shows what happens to the cash drawer. Cash: " + q("Adds $… to today’s cash") + ". Zelle or any other method: " + q("Not cash — no change to today’s cash") + ".")
+          + tip("The <b>Day Closing</b> line shows what happens to the cash drawer. Cash: " + q("Adds $… to today’s cash") + ". Any other method: " + q("Not cash — no change to today’s cash") + ".")
           + tip("No contract yet? The button says " + k("Enter cash") + ". Pick which way the money went, <b>He brought money to the base</b> or <b>The base paid him</b>, and enter only money that really moved.") },
 
         { id: "mfHow4", icon: HI.bulk, title: "Several jobs at once", body:
@@ -2281,7 +2281,7 @@ registerPage({
           + list([
             "This is for <b>cash, in full</b> only. Every ticked job is confirmed for its whole amount.",
             "<b>One foreman at a time.</b> Ticking another foreman’s job starts a new selection.",
-            "If one job is short, extra or paid by Zelle, leave it unticked and settle it on its own with " + k("Settle", "acc") + ".",
+            "If one job is short or extra, leave it unticked and settle it on its own with " + k("Settle", "acc") + ".",
             "Only jobs where he owes the base and nothing is confirmed yet have a box.",
             k("Clear") + " removes all the ticks.",
           ]) },
@@ -2310,7 +2310,7 @@ registerPage({
           + defs([
             [k("+ Fine"), "Type the amount and the reason. A fine always needs a reason. He owes more."],
             [k("+ Advance"), "Money given to him ahead. Type the amount and what it is for, and pick how it was paid. He owes more."],
-            [k("+ Repayment"), "He pays money back. If he owes, the full amount is already filled in. Pick Cash, Zelle or another method. He owes less."],
+            [k("+ Repayment"), "He pays money back. If he owes, the full amount is already filled in. Pick how he paid: Cash, or another method switched on for money in. He owes less."],
             [k("+ Opening balance"), "What he owed before this system, and where that figure comes from."],
           ])
           + list([
@@ -2326,7 +2326,7 @@ registerPage({
             "Open the job: press " + k("Review") + " in Waiting, or click the job in <b>Settled</b>.",
             "Press " + k("Add a correction") + ".",
             "Pick the right method and type the right amount.",
-            "Under <b>Why the correction</b>, say what was wrong, for example " + q("It came by Zelle, not cash") + ". A reason is required.",
+            "Under <b>Why the correction</b>, say what was wrong, for example " + q("He brought $1,000, not $1,134") + ". A reason is required.",
             "Press " + k("Save correction", "pri") + ".",
           ])
           + list([
