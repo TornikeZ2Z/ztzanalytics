@@ -1,11 +1,17 @@
 /* MONEY FLOW — who owes whom between the base and the foremen (LOGISTICS group).
 
+   THREE TABS OVER THE PAGE (2026-10-08): Money Flow (everything below) · Day Closing (the Day
+   Closing page, drawn by pages/day-closing.js's own render) · How to use (the guide, howHtml()).
+   The tab rides in the hash: #page=money-flow&tab=day-closing / &tab=how-to.
+
    REBUILT TO THE APPROVED CANVAS (Tornike 2026-10-07; contract: the "Money Flow — final build"
    spec). One queue, three tabs, and every action in a panel on the right:
      * Waiting      — the open jobs grouped by foreman: what he holds for the base, what the base
                       owes him, his own balance, his oldest job. Tick several to-the-base jobs of
-                      ONE foreman and confirm them as cash, in full, in one go.
-     * Settled      — every confirmation, newest first, with how the money came in.
+                      ONE foreman and confirm them as cash, in full, in one go. Every job carries
+                      its Calendar and Contract links (2026-10-08).
+     * Settled      — every confirmation, grouped by foreman (2026-10-08), newest first, with how
+                      the money came in.
      * Foreman balances — his balance (fines, advances, short and extra hand-ins, repayments)
                       next to what his open jobs owe.
    Panels: Settle (a to-the-base job: Cash, Zelle or another method; short goes on his balance,
@@ -51,8 +57,9 @@ registerPage({
       view: "waiting", q: "", formen: [], company: "", need: "",
       live: null, liveOk: false, busy: false,
       fmx: {}, fmAll: {}, allFm: false,
+      sfx: {}, sfAll: {}, allSFm: false,
       sel: {}, selFm: null,
-      dateFrom: null, dateTo: null, hpage: 0, compact: false,
+      dateFrom: null, dateTo: null, compact: false,
       fines: null, finesErr: "",
     });
     // state remembered from the page before the rebuild (2026-10-07)
@@ -63,8 +70,10 @@ registerPage({
     if (!Array.isArray(S.formen)) S.formen = [];
     if (!S.fmx) S.fmx = {};
     if (!S.fmAll) S.fmAll = {};
+    // the Settled tab's foreman groups (2026-10-08) keep their own open / show-all state
+    if (!S.sfx) S.sfx = {};
+    if (!S.sfAll) S.sfAll = {};
     if (!S.sel || typeof S.sel !== "object") S.sel = {};
-    if (S.hpage == null) S.hpage = 0;
     if (S.company == null) S.company = "";
     if (S.need == null) S.need = "";
     if (S.q == null) S.q = "";
@@ -84,29 +93,83 @@ registerPage({
       check: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>',
       yes: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Yes"><path d="M5 12l5 5 9-10"></path></svg>',
       person: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>',
+      // the Waiting rows' two outside links (2026-10-08): the Google Calendar event, the contract
+      cal: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><path d="M3 9.5h18"></path><path d="M8 2.5v4"></path><path d="M16 2.5v4"></path></svg>',
+      doc: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"></path><path d="M14 2.5V8h5.5"></path><path d="M8.5 13h7"></path><path d="M8.5 17h5"></path></svg>',
     };
 
+    /* THREE TABS OVER THE PAGE (his ask, 2026-10-08: "combine day closing and money flow as a
+       separate tabs ... add 3rd tab called how to use"). Money Flow is the page as it was; Day
+       Closing is the Day Closing page itself, drawn by ITS OWN render (pages/day-closing.js --
+       the shell hides its sidebar entry and forwards #page=day-closing here); How to use is the
+       guide for the people who record money. The tab rides in the hash (&tab=day-closing /
+       &tab=how-to) like Salaries and Seasonal Planning do, so a copied link reopens it. */
+    var TOPS = [["money-flow", "Money Flow", "mfPaneFlow"], ["day-closing", "Day Closing", "mfPaneDc"], ["how-to", "How to use", "mfPaneHow"]];
     host.innerHTML = '<div class="mf-root' + (S.compact ? " mf-compact" : "") + '" id="mfRoot">'
-      + '<div class="mf-top"><div class="mf-titles"><h1>Money Flow</h1>'
-      + "<p>Who owes whom between the base and the foremen, job by job and on each foreman’s balance.</p>"
-      + '<div class="mf-livebar"><span class="mf-live mf-off" id="mfLive">Syncing…</span><span id="mfLast"></span>'
-      + '<button type="button" class="mf-linkbtn" id="mfRefresh">Refresh</button></div></div>'
+      + '<div class="mf-titles"><h1>Money Flow</h1>'
+      + "<p>Who owes whom between the base and the foremen, job by job and on each foreman’s balance.</p></div>"
+      + '<div class="rs-tabs mf-toptabs" role="tablist" aria-label="Money Flow sections">'
+      + TOPS.map(function (t) {
+          return '<button type="button" class="rs-tab" role="tab" id="mfTopT-' + t[0] + '" aria-controls="' + t[2]
+            + '" aria-selected="false" data-mftop="' + t[0] + '">' + t[1] + "</button>";
+        }).join("") + "</div>"
+      + '<div class="mf-pane mf-pane-flow" id="mfPaneFlow" role="tabpanel" aria-labelledby="mfTopT-money-flow">'
+      + '<div class="mf-top"><div class="mf-livebar"><span class="mf-live mf-off" id="mfLive">Syncing…</span><span id="mfLast"></span>'
+      + '<button type="button" class="mf-linkbtn" id="mfRefresh">Refresh</button></div>'
       + '<div class="mf-topbtns"><button type="button" class="mf-btn" id="mfMethodsBtn">' + ICON.card + "Payment methods</button>"
       + '<button type="button" class="mf-btn" id="mfExportBtn">' + ICON.dl + "Export</button></div></div>"
       + '<div id="mfDayStrip"></div>'
       + '<div class="mf-tools" id="mfTools"></div>'
       + '<div id="mfBody" class="mf-bodywrap"><div class="mf-load"><div class="mf-spin"></div>Loading jobs…</div></div>'
-      + '<div class="mf-bulk" id="mfBulk" role="region" aria-label="Selected jobs" hidden></div>'
+      + '<div class="mf-bulk" id="mfBulk" role="region" aria-label="Selected jobs" hidden></div></div>'
+      + '<div class="mf-pane" id="mfPaneDc" role="tabpanel" aria-labelledby="mfTopT-day-closing" hidden></div>'
+      + '<div class="mf-pane mf-pane-how" id="mfPaneHow" role="tabpanel" aria-labelledby="mfTopT-how-to" hidden></div>'
       + '<div class="mf-scrim" id="mfScrim"></div>'
       + '<aside class="mf-drawer" id="mfDrawer" role="dialog" aria-modal="true" aria-labelledby="mfDTitle" aria-hidden="true"></aside>'
       + "</div>";
-    // DAY CLOSING strip (2026-09-27): the open day's drawer, shared with the Day Closing page
-    // (pages/day-closing.js, window.ZDC). It refreshes itself every 20 s.
-    if (window.ZDC) ZDC.mountStrip(document.getElementById("mfDayStrip"));
 
     // generation token: each page-open bumps it; a stale render's async callbacks compare
     // against it and skip painting once a newer open has taken over (see paint()).
     var myGen = (window.__MFGEN = (window.__MFGEN || 0) + 1);
+
+    // the tabs work while the jobs are still loading: setTop() and what it calls are function
+    // declarations (hoisted) and touch nothing the load below defines
+    // dcStale: a Money Flow save moved the drawer since the Day Closing tab was drawn
+    var topNow = null, dcMounted = false, dcStale = false, howMounted = false;
+    Array.prototype.forEach.call(host.querySelectorAll("[data-mftop]"), function (b) {
+      b.onclick = function () { setTop(b.getAttribute("data-mftop")); };
+    });
+    var tabList = host.querySelector(".mf-toptabs");
+    if (tabList) tabList.onkeydown = function (e) {         // arrow keys move along the tabs
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      var keys = TOPS.map(function (t) { return t[0]; }), i = keys.indexOf(topNow);
+      var next = keys[(i + (e.key === "ArrowRight" ? 1 : keys.length - 1)) % keys.length];
+      e.preventDefault(); setTop(next);
+      var nb = document.getElementById("mfTopT-" + next); if (nb) nb.focus();
+    };
+    // #page=day-closing (an old link or bookmark) is forwarded here by the shell's REDIRECTS;
+    // navigate() leaves the id it was asked for in window.__navRequested (Sales Trackers reads it
+    // the same way for Communication Analysis)
+    var bootTop = topFromHash();
+    if (window.__navRequested === "day-closing") { bootTop = "day-closing"; window.__navRequested = null; }
+    setTop(bootTop);
+    // DAY CLOSING strip (2026-09-27): the open day's drawer, shared with the Day Closing page
+    // (pages/day-closing.js, window.ZDC). It refreshes itself every 20 s while its tab shows (so
+    // it is mounted AFTER the boot tab is picked: opened on another tab, it waits); its
+    // "Day Closing ›" link opens the Day Closing tab in place.
+    if (window.ZDC) ZDC.mountStrip(document.getElementById("mfDayStrip"), { onGo: function () { setTop("day-closing"); } });
+    window.__MF_SYNCTOP = function () {
+      if (myGen !== window.__MFGEN || !document.getElementById("mfRoot")) return;
+      if (!/[#&]page=money-flow(?:&|$)/.test(location.hash)) return;
+      var k = topFromHash();
+      if (k !== topNow) setTop(k);
+    };
+    // a hand-edited hash, or a link to another tab of this page, switches the tab in place: the
+    // shell re-renders only when the PAGE id changes, and &tab= isn't part of it
+    if (!window.__MF_HASH) {
+      window.__MF_HASH = true;
+      window.addEventListener("hashchange", function () { if (window.__MF_SYNCTOP) window.__MF_SYNCTOP(); });
+    }
 
     var base;
     try { base = await RS.load("fct_money_flow"); }
@@ -153,6 +216,12 @@ registerPage({
         return "https://calendar.google.com/calendar/u/0/r/event?eid="
           + window.btoa(r.ev + " " + r.calendarId).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       } catch (e) { return null; }
+    }
+    // a job's two outside links -- its digital contract and its Google Calendar event -- for the
+    // Settle panel's job card and the Waiting rows alike; only a web address is ever linked
+    function jobLinksOf(r) {
+      var c = r && r.contractUrl ? String(r.contractUrl).trim() : "";
+      return { contract: /^https?:\/\//i.test(c) ? c : null, cal: calUrl(r) };
     }
     var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
@@ -666,7 +735,7 @@ registerPage({
     function offlineNote() {
       if (S.liveOk) return null;
       var e = String(S.liveErr || "");
-      if (/40[13]/.test(e)) return "Your portal sign-in has expired — sign in again, then open this job again.";
+      if (/\b40[13]\b/.test(e)) return "Your portal sign-in has expired — sign in again, then open this job again.";
       return "Money Flow can’t reach the server right now" + (e ? " (" + e + ")" : "") + " — press Refresh at the top of the page.";
     }
     function methodLabel(m) { var n = normMethod(m); return n === "Offset" ? "Against a job" : n; }
@@ -736,7 +805,7 @@ registerPage({
       var coKeys = Object.keys(cos).sort();
       if (coKeys.length > 1) {
         RSC.localSelect($("mfCo"), { label: "Company", values: coKeys, value: S.company, allLabel: "All",
-          onChange: function (v) { S.company = v || ""; S.sel = {}; S.selFm = null; S.hpage = 0; paintTools(); paint(); } });
+          onChange: function (v) { S.company = v || ""; S.sel = {}; S.selFm = null; paintTools(); paint(); } });
       }
       // the foremen of the CURRENT tab, with how many jobs each has there
       var cnt = {};
@@ -751,15 +820,15 @@ registerPage({
       var fmKeys = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a] || a.localeCompare(b); });
       RSC.localMulti($("mfFm"), { label: "Foremen", emptyLabel: "All", selected: S.formen,
         values: fmKeys.map(function (f) { return { v: f, l: f, n: cnt[f] }; }),
-        onChange: function (set) { S.formen = Array.from(set); S.hpage = 0; paint(); } });
+        onChange: function (set) { S.formen = Array.from(set); paint(); } });
       if (S.view === "settled") {
         RSC.dateRange($("mfDt"), {
           get: function () { return { from: S.dateFrom, to: S.dateTo }; },
           set: function (f, t) { S.dateFrom = f || null; S.dateTo = t || null; },
-          onChange: function () { S.hpage = 0; paint(); } });
+          onChange: function () { paint(); } });
       }
       var q = $("mfQ");
-      if (q) q.oninput = function () { S.q = q.value; S.hpage = 0; paint(); };
+      if (q) q.oninput = function () { S.q = q.value; paint(); };
       Array.prototype.forEach.call(el.querySelectorAll("[data-mfd]"), function (b) {
         b.onclick = function () {
           S.compact = b.getAttribute("data-mfd") === "1";
@@ -777,7 +846,9 @@ registerPage({
       // open took over -- bail rather than paint into nothing.
       var body = $("mfBody");
       if (!body || myGen !== window.__MFGEN) return;
-      var sc = document.getElementById("content"), st = sc ? sc.scrollTop : 0;
+      // keep the reader's place -- on THIS tab only: a background repaint while Day Closing or the
+      // guide is showing must not touch their scroll (it would stop a smooth scroll mid-way)
+      var sc = topNow === "money-flow" ? document.getElementById("content") : null, st = sc ? sc.scrollTop : 0;
       var rows = overlaid();
       var scope = rows.filter(inScope);
       var main = scope.filter(function (r) { return MAINSET[r.status]; });
@@ -825,7 +896,7 @@ registerPage({
       // THE QUEUE
       var HEAD = {
         waiting: ["Waiting to settle", "Tick several jobs to confirm the cash a foreman brings in one go. Zelle, short or extra hand-ins and pay-outs are settled one job at a time."],
-        settled: ["Settled lately", "Every confirmation, newest first. Open one to see the whole story of that job."],
+        settled: ["Settled lately", "Every confirmation, by foreman: whoever settled last comes first. Open a job to see its whole story."],
         balances: ["Foreman balances", "What each foreman owes outside his jobs (fines, advances, short and extra hand-ins, repayments), next to what his open jobs owe."],
       };
       var head = HEAD[S.view];
@@ -908,7 +979,7 @@ registerPage({
         + '<button type="button" class="mf-btn mf-sm mf-acc mf-push" data-mfa="fm" data-v="' + esc(f) + '">Open his balance</button></div>'
         + '<div class="mf-jhd"><span class="mf-ck">' + (elig.length
             ? '<input type="checkbox" data-mfselall="' + esc(f) + '"' + (allOn ? " checked" : "") + ' aria-label="Select all of ' + esc(firstName(f)) + '’s jobs to the base">' : "")
-        + "</span><span>Job date</span><span>Job</span><span>Customer</span><span>Type</span><span class=\"mf-r\">Amount</span><span>Money goes</span><span>Waiting</span><span></span></div>"
+        + "</span><span>Job date</span><span>Job</span><span>Customer</span><span>Type</span><span class=\"mf-r\">Amount</span><span>Money goes</span><span>Waiting</span><span>Open</span><span></span></div>"
         + vis.map(jobRowHtml).join("");
       if (hid.length) {
         var hb = 0; hid.forEach(function (r) { if (dirOf(r) > 0) hb += r.balance; });
@@ -934,18 +1005,41 @@ registerPage({
       else if (isPayout(r)) act = '<button type="button" class="mf-act mf-act-out" data-mfa="job" data-v="' + esc(r.ev) + '">Pay out</button>';
       else act = '<button type="button" class="mf-act" data-mfa="job" data-v="' + esc(r.ev) + '">Settle</button>';
       return '<div class="mf-jrow">' + ck
-        + '<span class="mf-mut">' + fmtShort(r.date) + "</span>"
+        + '<span class="mf-mut mf-nowrap" title="' + esc(fmtD(r.date)) + '">' + fmtRowDate(r.date) + "</span>"
         + '<span class="mf-code" title="' + esc(r.jobCode || "") + '">' + esc(r.jobCode || "—") + "</span>"
         + '<button type="button" class="mf-cust" data-mfa="story" data-v="' + esc(r.ev) + '" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</button>"
         + '<span class="mf-mut mf-ell">' + esc(r.jobType || "—") + "</span>"
         + '<span class="mf-r mf-b">' + (r.balance == null ? '<span class="mf-dim">—</span>' : money(Math.abs(r.balance))) + "</span>"
         + pill
-        + '<span class="mf-mut">' + ageText(daysWaiting(r.date)) + "</span>"
+        + '<span class="mf-mut mf-nowrap">' + ageText(daysWaiting(r.date)) + "</span>"
+        + rowLinksHtml(r)
         + act + "</div>";
     }
+    // the 64px date column: "Oct 8" this year, "Nov 3 ’25" before (the long form wrapped onto two lines)
+    function fmtRowDate(v) {
+      if (!v) return "—";
+      var s = fmtShort(v);
+      return String(v).slice(0, 4) === todayIso.slice(0, 4) ? s : s.replace(/, (\d\d)(\d\d)$/, " ’$2");
+    }
+    /* CALENDAR + CONTRACT ON EVERY WAITING JOB (his ask, 2026-10-08: "so its easier for them to
+       see"). The same two links the Settle panel's job card carries (jobLinksOf), as small buttons
+       in a fixed two-slot cell so they line up from row to row; a job without one leaves its slot
+       empty. They open in a new tab, and they are plain links -- no data-mfa -- so a click neither
+       ticks the row nor opens a panel. Where the table is narrow they stack, still labelled (see the
+       @container rule). */
+    function rowLinksHtml(r) {
+      var jl = jobLinksOf(r), who = r.customer || r.jobCode || "this job";
+      var a = function (url, icon, label, tip) {
+        return '<a class="mf-jlink" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(tip) + '" aria-label="' + esc(label + " · " + who) + '">'
+          + icon + '<span class="mf-jlt">' + label + "</span></a>";
+      };
+      return '<span class="mf-jlinks">'
+        + (jl.cal ? a(jl.cal, ICON.cal, "Calendar", "Open the Google Calendar event (new tab)") : "<span></span>")
+        + (jl.contract ? a(jl.contract, ICON.doc, "Contract", "Open the digital contract (new tab)") : "<span></span>")
+        + "</span>";
+    }
 
-    // ---- Settled: every confirmation, newest first ----
-    var HPP = 150;
+    // ---- Settled: every confirmation, grouped by foreman (2026-10-08), newest first ----
     function settledKey(r) { return String(r.flowTs || r.date || ""); }
     function settledBy(r) {
       if (r.flowSrc === "dc") return "Contract";
@@ -960,33 +1054,79 @@ registerPage({
       if (q) cur = cur.filter(function (r) { return matches(r, q); });
       return cur.sort(function (a, b) { var x = settledKey(a), y = settledKey(b); return x < y ? 1 : x > y ? -1 : 0; });
     }
+    /* GROUPED BY FOREMAN (his ask, 2026-10-08: "the settled tab in money flow needs to be grouped
+       by foreman"). The Waiting tab's pattern: one line per foreman -- his jobs settled in the date
+       filter, what went to the base, what went to him, when he last settled -- opening to his
+       settled jobs, newest first. The foreman who settled most recently comes first. A search
+       narrows the jobs inside each foreman and opens every group it matches; the flat 150-row
+       pager gave way to "Show N older jobs" per foreman and "Show every foreman". */
     function settledHtml(scope, q) {
       var cur = settledRows(scope, q);
       if (!cur.length) return '<div class="mf-empty">' + (q || S.dateFrom || S.dateTo ? "Nothing settled matches." : "Nothing confirmed yet.") + "</div>";
-      var pages = Math.max(1, Math.ceil(cur.length / HPP));
-      if (S.hpage >= pages) S.hpage = pages - 1;
-      if (S.hpage < 0) S.hpage = 0;
-      var s0 = S.hpage * HPP, slice = cur.slice(s0, s0 + HPP);
-      var html = '<div class="mf-scroll"><div class="mf-sgrid"><div class="mf-shd"><span>Settled</span><span>Foreman</span><span>Job</span><span>Customer</span>'
-        + '<span>Method</span><span class="mf-r">Amount</span><span>Money went</span><span>By</span></div>'
-        + slice.map(function (r) {
-            var amt = r.flow == null ? 0 : Math.abs(r.flow);
-            return '<div class="mf-srow" role="button" tabindex="0" data-mfa="job" data-v="' + esc(r.ev) + '">'
-              + '<span class="mf-mut">' + fmtShort(settledKey(r)) + "</span>"
-              + '<span class="mf-ell">' + esc(r.forman) + "</span>"
-              + '<span class="mf-code">' + esc(r.jobCode || "—") + "</span>"
-              + '<span class="mf-custt mf-ell" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</span>"
-              + '<span class="mf-pill mf-p-mute">' + esc(methodLabel(r.method)) + "</span>"
-              + '<span class="mf-r mf-b">' + money(amt) + "</span>"
-              + '<span class="mf-mut">' + (r.flow == null || Math.abs(r.flow) < 0.005 ? "Nothing to move" : r.flow < 0 ? "To the foreman" : "To the base") + "</span>"
-              + '<span class="mf-mut mf-ell">' + esc(settledBy(r)) + "</span></div>";
-          }).join("") + "</div></div>";
-      html += '<div class="mf-pager"><div>Showing <b>' + (s0 + 1).toLocaleString() + "–" + Math.min(s0 + HPP, cur.length).toLocaleString()
-        + "</b> of <b>" + cur.length.toLocaleString() + "</b> settled jobs</div>"
-        + '<div class="mf-pgnav"><button type="button" class="mf-btn mf-sm" data-mfa="pg" data-v="-1"' + (S.hpage ? "" : " disabled") + ">‹ Prev</button>"
-        + "<span>Page " + (S.hpage + 1) + " of " + pages + "</span>"
-        + '<button type="button" class="mf-btn mf-sm" data-mfa="pg" data-v="1"' + (S.hpage + 1 < pages ? "" : " disabled") + ">Next ›</button></div></div>";
+      var groups = {};
+      cur.forEach(function (r) {          // cur is newest first, so each group's jobs are too
+        var f = r.forman || MF_NO_FOREMAN;
+        var g = groups[f] || (groups[f] = { name: f, jobs: [], toBase: 0, toFm: 0, last: "" });
+        g.jobs.push(r);
+        if (r.flow != null && r.flow > 0.005) g.toBase += r.flow;
+        else if (r.flow != null && r.flow < -0.005) g.toFm += -r.flow;
+        if (settledKey(r) > g.last) g.last = settledKey(r);
+      });
+      var names = Object.keys(groups).sort(function (a, b) {
+        var x = groups[a].last, y = groups[b].last;
+        return x < y ? 1 : x > y ? -1 : a.localeCompare(b);
+      });
+      var all = S.allSFm || !!q || S.formen.length > 0;
+      var shown = all ? names : names.slice(0, FM_TOP);
+      var html = '<div class="mf-scroll"><div class="mf-grid"><div class="mf-ghd mf-g-set"><span></span><span>Foreman</span><span>Jobs: to the base</span>'
+        + "<span>Jobs: to him</span><span>Last settled</span><span></span></div>";
+      shown.forEach(function (f) { html += settledGroupHtml(groups[f], q); });
+      html += "</div></div>";
+      if (shown.length < names.length) {
+        html += '<div class="mf-qfoot"><button type="button" class="mf-btn mf-sm" data-mfa="sallfm">Show every foreman ('
+          + (names.length - shown.length) + " more)</button></div>";
+      }
       return html;
+    }
+    function settledAgo(v) {
+      var n = daysWaiting(v);
+      return n === 0 ? "today" : n === 1 ? "yesterday" : n + " days ago";
+    }
+    function settledGroupHtml(g, q) {
+      var f = g.name, open = !!S.sfx[f] || !!q;
+      var row = '<button type="button" class="mf-grow mf-g-set' + (open ? " mf-open" : "") + '" data-mfa="sgrp" data-v="' + esc(f) + '" aria-expanded="' + open + '">'
+        + '<span class="mf-av">' + esc(initials(f)) + "</span>"
+        + '<span class="mf-nm"><span class="mf-b">' + esc(f) + '</span><span class="mf-mut">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s") + " settled</span></span>"
+        + '<span class="mf-b">' + (g.toBase > 0.005 ? money(g.toBase) : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (g.toFm > 0.005 ? '<span class="mf-outc">' + money(g.toFm) + "</span>" : '<span class="mf-dim">—</span>') + "</span>"
+        + '<span class="mf-ell">' + fmtShort(g.last) + " · " + settledAgo(g.last) + "</span>"
+        + '<span class="mf-chev">' + ICON.chev + "</span></button>";
+      if (!open) return row;
+      var full = !!S.sfAll[f] || !!q;
+      var vis = full ? g.jobs : g.jobs.slice(0, JOBS_TOP), hid = full ? [] : g.jobs.slice(JOBS_TOP);
+      var sub = '<div class="mf-gsub">'
+        + (f !== MF_NO_FOREMAN ? '<div class="mf-gline"><span>Balance <b>' + (S.fines ? esc(owesText(debtOf(f))) : S.finesErr ? "—" : "…") + "</b> · fines, advances, short and extra hand-ins, repayments</span>"
+            + '<button type="button" class="mf-btn mf-sm mf-acc mf-push" data-mfa="fm" data-v="' + esc(f) + '">Open his balance</button></div>' : "")
+        + '<div class="mf-shd"><span></span><span>Settled</span><span>Job</span><span>Customer</span>'
+        + '<span>Method</span><span class="mf-r">Amount</span><span>Money went</span><span>By</span></div>'
+        + vis.map(settledRowHtml).join("");
+      if (hid.length) {
+        sub += '<div class="mf-more"><button type="button" class="mf-morebtn" data-mfa="solder" data-v="' + esc(f) + '">Show ' + hid.length + " older job" + (hid.length === 1 ? "" : "s")
+          + " · oldest settled " + fmtShort(settledKey(hid[hid.length - 1])) + "</button></div>";
+      }
+      return row + sub + "</div>";
+    }
+    // a settled job: the columns the flat list had (the foreman is the group now); a click opens it settled
+    function settledRowHtml(r) {
+      var amt = r.flow == null ? 0 : Math.abs(r.flow);
+      return '<div class="mf-srow" role="button" tabindex="0" data-mfa="job" data-v="' + esc(r.ev) + '"><span></span>'
+        + '<span class="mf-mut mf-nowrap">' + fmtShort(settledKey(r)) + "</span>"
+        + '<span class="mf-code">' + esc(r.jobCode || "—") + "</span>"
+        + '<span class="mf-custt mf-ell" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</span>"
+        + '<span class="mf-pill mf-p-mute">' + esc(methodLabel(r.method)) + "</span>"
+        + '<span class="mf-r mf-b">' + money(amt) + "</span>"
+        + '<span class="mf-mut">' + (r.flow == null || Math.abs(r.flow) < 0.005 ? "Nothing to move" : r.flow < 0 ? "To the foreman" : "To the base") + "</span>"
+        + '<span class="mf-mut mf-ell">' + esc(settledBy(r)) + "</span></div>";
     }
 
     // ---- Foreman balances: his balance next to his open jobs ----
@@ -1092,6 +1232,7 @@ registerPage({
       if ((items || []).some(function (it) { return it.entry_type === MF_DEBT || it.entry_type === MF_EXTRA; }))
         loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
       if (window.ZDC && $("mfDayStrip")) ZDC.mountStrip($("mfDayStrip"));
+      dcStale = true;
     }
 
     // ================= THE PANEL (right-side drawer) =================
@@ -1192,10 +1333,9 @@ registerPage({
       if (r.expected == null) who = "<span><b>" + esc(r.forman) + "</b> · no contract amount yet</span>";
       else if (pre.type === TAKEN) who = "<span>The base " + (past ? "owed" : "owes") + " <b>" + esc(r.forman) + "</b></span>" + '<span class="mf-jcamt mf-outc">' + money2(pre.amount) + "</span>";
       else who = "<span><b>" + esc(r.forman) + "</b> " + (past ? "owed" : "owes") + " the base</span>" + '<span class="mf-jcamt mf-headc">' + money2(pre.amount) + "</span>";
-      var links = [];
-      if (r.contractUrl) links.push('<a class="mf-alink" href="' + esc(r.contractUrl) + '" target="_blank" rel="noopener">Contract ↗</a>');
-      var cu = calUrl(r);
-      if (cu) links.push('<a class="mf-alink" href="' + esc(cu) + '" target="_blank" rel="noopener">Calendar ↗</a>');
+      var links = [], jl = jobLinksOf(r);
+      if (jl.contract) links.push('<a class="mf-alink" href="' + esc(jl.contract) + '" target="_blank" rel="noopener">Contract ↗</a>');
+      if (jl.cal) links.push('<a class="mf-alink" href="' + esc(jl.cal) + '" target="_blank" rel="noopener">Calendar ↗</a>');
       var legacy = ((r.adv || 0) !== 0 || (r.ded || 0) !== 0)
         ? '<div class="mf-jcnote">Includes an old per-job ' + [((r.adv || 0) !== 0 ? "advance of " + money2(r.adv) : ""),
             ((r.ded || 0) !== 0 ? "deduction of " + money2(Math.abs(r.ded)) : "")].filter(Boolean).join(" and ")
@@ -1840,7 +1980,7 @@ registerPage({
       resetForm();
       renderPanel(true);
       paint();
-      if (kind === "repayment" || kind === "advance") { if (window.ZDC && $("mfDayStrip")) ZDC.mountStrip($("mfDayStrip")); }
+      if (kind === "repayment" || kind === "advance") { if (window.ZDC && $("mfDayStrip")) ZDC.mountStrip($("mfDayStrip")); dcStale = true; }
     }
 
     // ---- PAYMENT METHODS panel ----
@@ -1959,23 +2099,351 @@ registerPage({
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
     }
 
+    // ---------- the three tabs: Money Flow · Day Closing · How to use ----------
+    function topFromHash() {
+      var m = location.hash.match(/[#&]tab=([\w-]+)/), k = m ? m[1] : "money-flow";
+      return TOPS.some(function (t) { return t[0] === k; }) ? k : "money-flow";
+    }
+    // replaceState, never a navigation: no hashchange, no re-render, no reload. Any other
+    // parameter in the hash (&lead= opens a lead over any page) stays where it is.
+    function setTopHash(key) {
+      var rest = location.hash.replace(/^#/, "").split("&").filter(function (p) { return p && !/^(page|tab)=/.test(p); });
+      var want = "#page=money-flow" + (key === "money-flow" ? "" : "&tab=" + key) + (rest.length ? "&" + rest.join("&") : "");
+      if (location.hash !== want) { try { history.replaceState(null, "", want); } catch (e) { /* file:// */ } }
+    }
+    /* Switching tabs only shows and hides: what a tab has loaded stays loaded. Day Closing and the
+       guide are built the first time their tab opens; the Money Flow strip skips its 20-second
+       refresh while its tab is hidden and catches up when the tab comes back (ZDC.wakeStrip). */
+    function setTop(key) {
+      if (!TOPS.some(function (t) { return t[0] === key; })) key = "money-flow";
+      topNow = key;
+      TOPS.forEach(function (t) {
+        var b = document.getElementById("mfTopT-" + t[0]), p = document.getElementById(t[2]), on = t[0] === key;
+        if (b) { b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; }
+        if (p) p.hidden = !on;
+      });
+      setTopHash(key);
+      if (key !== "money-flow" && P) closePanel();
+      if (key === "day-closing") mountDc();
+      else if (key === "how-to") mountHow();
+      else if (window.ZDC && ZDC.wakeStrip) ZDC.wakeStrip(document.getElementById("mfDayStrip"));
+    }
+    /* the Day Closing PAGE, drawn by its own render into this tab -- one copy of it, never two.
+       Drawn once; drawn again (fresh from the server, as its own Refresh does) only when a save
+       here has moved the drawer since -- otherwise it would show the day as it was. */
+    function mountDc() {
+      var pane = document.getElementById("mfPaneDc");
+      if (!pane) return;
+      if (dcMounted && dcStale) dcMounted = false;
+      if (dcMounted) {
+        // a table laid out while its tab was hidden measured nothing; measure it now
+        var w = pane.querySelector(".dcl-wrap");
+        if (w && window.RSC && RSC.fitScroller) RSC.fitScroller(w);
+        return;
+      }
+      var pg = (window.PAGES || []).filter(function (p) { return p.id === "day-closing"; })[0];
+      if (!pg || !window.ZDC) { pane.innerHTML = '<div class="mf-empty">Day Closing isn’t available on this page. Tell Tornike.</div>'; return; }
+      var fresh = dcStale;
+      dcMounted = true; dcStale = false;
+      var mine = myGen;
+      pane.innerHTML = '<div class="mf-load"><div class="mf-spin"></div>Loading Day Closing…</div>';
+      Promise.resolve().then(function () { return pg.render(pane, { embedded: true, fresh: fresh }); }).catch(function (e) {
+        if (mine !== window.__MFGEN || !document.getElementById("mfPaneDc")) return;
+        dcMounted = false;
+        pane.innerHTML = '<div class="mf-empty">Day Closing couldn’t load — ' + esc(String(e && e.message || e))
+          + ' <button type="button" class="mf-btn mf-sm" id="mfDcRetry">Try again</button></div>';
+        var rb = document.getElementById("mfDcRetry"); if (rb) rb.onclick = mountDc;
+      });
+    }
+    function mountHow() {
+      var pane = document.getElementById("mfPaneHow");
+      if (!pane || howMounted) return;
+      howMounted = true;
+      pane.innerHTML = howHtml();
+      pane.onclick = function (e) {
+        var a = e.target.closest("[data-mfh]"); if (!a) return;
+        var k = a.getAttribute("data-mfh");
+        if (TOPS.some(function (t) { return t[0] === k; })) { setTop(k); return; }
+        var to = document.getElementById(k);
+        if (!to) return;
+        // focus FIRST (a focus() during a smooth scroll stops it where it is), then scroll
+        try { to.focus({ preventScroll: true }); } catch (x) { /* best effort */ }
+        try { to.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (x) { to.scrollIntoView(); }
+      };
+    }
+
+    /* HOW TO USE (his ask, 2026-10-08): the guide for the people who record money at the base.
+       Plain words, short sentences, numbered steps. EVERY LINE DESCRIBES WHAT THIS FILE (and
+       day-closing.js) ACTUALLY DOES -- the button names, the panel wording and the messages are
+       quoted from the code above. Change a feature, change its paragraph here. */
+    function howHtml() {
+      var I = function (p) {
+        return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + "</svg>";
+      };
+      var HI = {
+        about: I('<circle cx="12" cy="12" r="9"></circle><path d="M12 8h.01"></path><path d="M11 12h1v5h1"></path>'),
+        wait: I('<path d="M9 6h12"></path><path d="M9 12h12"></path><path d="M9 18h12"></path><path d="M4 6h.01"></path><path d="M4 12h.01"></path><path d="M4 18h.01"></path>'),
+        settle: I('<circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.7 2.7L16 9.8"></path>'),
+        bulk: I('<path d="M12 3l9 5-9 5-9-5z"></path><path d="M3 13l9 5 9-5"></path>'),
+        payout: I('<path d="M19 12H5"></path><path d="M11 6l-6 6 6 6"></path>'),
+        bal: I('<circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path>'),
+        corr: I('<path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>'),
+        card: I('<rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path>'),
+        dc: I('<path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path>'),
+        msg: I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>'),
+      };
+      // a button's name as it looks on the page, and a quote of the page's own words
+      var k = function (label, kind) { return '<span class="mf-hk' + (kind ? " mf-hk-" + kind : "") + '">' + label + "</span>"; };
+      var q = function (s) { return '“<span class="mf-hq">' + s + "</span>”"; };
+      var steps = function (a) { return '<ol class="mf-hsteps">' + a.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>"; };
+      var list = function (a) { return '<ul class="mf-hlist">' + a.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"; };
+      var defs = function (a) { return '<dl class="mf-hdefs">' + a.map(function (x) { return "<dt>" + x[0] + "</dt><dd>" + x[1] + "</dd>"; }).join("") + "</dl>"; };
+      var tip = function (s, warn) { return '<div class="mf-htip' + (warn ? " mf-htip-warn" : "") + '">' + ICON.info + "<span>" + s + "</span></div>"; };
+      var h4 = function (s) { return '<h4 class="mf-hh4">' + s + "</h4>"; };
+      var p = function (s) { return '<p class="mf-hp">' + s + "</p>"; };
+      var inPill = '<span class="mf-pill mf-p-in">' + ICON.toBase + "To the base</span>";
+      var outPill = '<span class="mf-pill mf-p-out">' + ICON.toFm + "To the foreman</span>";
+
+      var SECS = [
+        { id: "mfHow1", icon: HI.about, title: "What this page is for", body:
+          p("Money Flow keeps track of <b>who owes whom</b> between the base and the foremen.")
+          + list([
+            "After a job, the foreman may hold cash that belongs to the base. Or the base may owe him money for that job.",
+            "The page shows this <b>job by job</b>.",
+            "It also keeps one <b>balance</b> for each foreman, for money that isn’t one job: fines, advances, short or extra hand-ins, and repayments.",
+          ])
+          + h4("The three tabs at the top")
+          + defs([
+            [k("Money Flow"), "The work: jobs waiting to be settled, jobs already settled, and each foreman’s balance."],
+            [k("Day Closing"), "The cash drawer at the base. It closes by itself every evening at 8 PM New York time."],
+            [k("How to use"), "This guide."],
+          ])
+          + h4("Inside the Money Flow tab")
+          + defs([
+            [k("Waiting"), "Jobs where money still has to move."],
+            [k("Settled"), "Jobs already confirmed, grouped by foreman. Pick dates to see one period."],
+            [k("Foreman balances"), "Each foreman’s balance, next to what his open jobs owe."],
+          ])
+          + tip("The three cards at the top add it all up: what the foremen owe the base, what the base owes the foremen, and how many jobs need a look.") },
+
+        { id: "mfHow2", icon: HI.wait, title: "The Waiting tab", body:
+          p("Waiting lists the jobs where money still has to move, one line per foreman. The foremen with the most to bring come first.")
+          + steps([
+            "Read the foreman’s line: what his jobs owe the base (<b>Jobs: to the base</b>), what the base owes him (<b>Jobs: to him</b>), <b>His balance</b>, and his <b>Oldest job</b>. An oldest job of more than 30 days is highlighted.",
+            "Click the line to open it. His jobs appear, newest first.",
+            "Each job says where the money goes. " + inPill + " means he must bring money to the base. " + outPill + " means the base must pay him.",
+            "Press the button at the end of the job to act on it (see below).",
+            k(ICON.cal + "Calendar") + " opens the job’s Google Calendar event. " + k(ICON.doc + "Contract") + " opens its digital contract. Both open in a new browser tab, so Money Flow stays open. A job with no contract has no Contract button.",
+          ])
+          + h4("The button at the end of a job")
+          + defs([
+            [k("Settle", "acc"), "He brings money to the base. See part 3."],
+            [k("Pay out", "out"), "The base pays him. See part 5."],
+            [k("Enter cash"), "The job has no contract yet. Enter money only if it really changed hands."],
+            [k("Review"), "The job is already confirmed. Open it to look, or to add a correction (part 7)."],
+            ['<span class="mf-hq">File the closing</span>', "The closing sheet has no line for this job yet. It can’t be settled here until the closing is filed."],
+          ])
+          + list([
+            "Click a <b>customer’s name</b> to see everything that happened on that job.",
+            "The search box finds a customer, a job code, a request number or a foreman. Type a number, like 1134, to find an amount.",
+            "At first only 12 foremen are listed: press " + k("Show every foreman") + " for the rest. Inside a foreman, his 8 newest jobs show first: press " + k("Show … older jobs") + " for the rest.",
+            "<b>Needs a look</b> shows jobs with no contract, jobs that don’t add up, and jobs with no closing. Press " + k("Open the … jobs") + " on a card to list only those.",
+          ])
+          + tip("On a narrower screen, Calendar and Contract sit one above the other instead of side by side. They work the same.") },
+
+        { id: "mfHow3", icon: HI.settle, title: "Settling one job", body:
+          p("Use this when a foreman brings money to the base for one job.")
+          + steps([
+            "Press " + k("Settle", "acc") + " on the job. A panel opens on the right.",
+            "Check the job at the top: the customer, the job code, the date, and how much he owes the base.",
+            "Under <b>How did it come in?</b> pick <b>Cash</b> or <b>Zelle</b>, or another method on the list.",
+            "Under <b>How much did he bring?</b> type the amount. The full amount is already filled in. " + k("Full $…") + " puts it back.",
+            "Read the coloured box under the amount. It says what will happen.",
+            "Press " + k("Confirm", "pri") + ".",
+          ])
+          + h4("What the box under the amount can say")
+          + defs([
+            [q("Settles the job in full"), "He brought the right amount. A difference of $10 or less also counts as in full."],
+            [q("$… short — goes on his balance"), "He brought less. The job is settled, and the missing money is added to what he owes."],
+            [q("$… extra — comes off his balance"), "He brought more. The job is settled, and the extra pays back what he owes."],
+          ])
+          + tip("The <b>Day Closing</b> line shows what happens to the cash drawer. Cash: " + q("Adds $… to today’s cash") + ". Zelle or any other method: " + q("Not cash — no change to today’s cash") + ".")
+          + tip("No contract yet? The button says " + k("Enter cash") + ". Pick which way the money went, <b>He brought money to the base</b> or <b>The base paid him</b>, and enter only money that really moved.") },
+
+        { id: "mfHow4", icon: HI.bulk, title: "Several jobs at once", body:
+          p("When a foreman hands over cash for several jobs, you can confirm them together.")
+          + steps([
+            "Open the foreman in <b>Waiting</b>.",
+            "Tick the box at the start of each job he paid. The box in the header ticks all his jobs on the screen.",
+            "A dark bar appears at the bottom with the number of jobs and the total.",
+            "Press " + k("Confirm $… cash from …", "pri") + ". Check the list in the window that opens, then press <b>Confirm</b> again.",
+          ])
+          + list([
+            "This is for <b>cash, in full</b> only. Every ticked job is confirmed for its whole amount.",
+            "<b>One foreman at a time.</b> Ticking another foreman’s job starts a new selection.",
+            "If one job is short, extra or paid by Zelle, leave it unticked and settle it on its own with " + k("Settle", "acc") + ".",
+            "Only jobs where he owes the base and nothing is confirmed yet have a box.",
+            k("Clear") + " removes all the ticks.",
+          ]) },
+
+        { id: "mfHow5", icon: HI.payout, title: "Paying a foreman out", body:
+          p("Use this when the base owes a foreman money for a job: " + outPill + ".")
+          + steps([
+            "Press " + k("Pay out", "out") + " on the job.",
+            "<b>1 · Balance it against his other jobs.</b> The list shows his jobs where he still holds money for the base. Tick the ones to use. They are used from the top down.",
+            "Each ticked job tells you " + q("Settled by this") + ", " + q("$… used · $… goes on his balance") + " or " + q("Not needed") + ". A ticked job worth more than what is left still settles: its leftover goes on his balance.",
+            "<b>2 · Pay the rest.</b> Pick <b>Cash</b> (already picked), another method that is on for paying out, such as <b>Card</b> or <b>Zelle</b>, or <b>Leave it on his balance</b>.",
+            "Check the line at the bottom of the panel, then press " + k("Confirm", "pri") + ".",
+          ])
+          + h4("How the rest is paid")
+          + defs([
+            [k("Cash"), "Comes out of today’s cash at the base. Day Closing shows it."],
+            [k("Card") + " " + k("Zelle"), "The cash at the base doesn’t change."],
+            [k("Leave it on his balance"), "No money moves now. The base owes him this amount on his balance."],
+          ])
+          + tip("If the ticked jobs cover all of it, the panel says " + q("The jobs cover all of it") + ": nothing is paid out.") },
+
+        { id: "mfHow6", icon: HI.bal, title: "The foreman balance", body:
+          p("Each foreman has one balance for money that isn’t one job. " + q("owes $…") + " means he owes the base. " + q("the base owes him $…") + " means the opposite.")
+          + p("Open it with " + k("Open his balance") + " in Waiting, " + k("Open balance") + " in Foreman balances, or by clicking his balance in any job panel. The top shows his balance and <b>All together, with his open jobs</b>. Under it are the parts: opening balance, fines, advances, short hand-ins, repayments and extra hand-ins.")
+          + h4("Add to his balance")
+          + defs([
+            [k("+ Fine"), "Type the amount and the reason. A fine always needs a reason. He owes more."],
+            [k("+ Advance"), "Money given to him ahead. Type the amount and what it is for, and pick how it was paid. He owes more."],
+            [k("+ Repayment"), "He pays money back. If he owes, the full amount is already filled in. Pick Cash, Zelle or another method. He owes less."],
+            [k("+ Opening balance"), "What he owed before this system, and where that figure comes from."],
+          ])
+          + list([
+            "Short and extra hand-ins arrive by themselves when a job is settled. You don’t add them here.",
+            "A <b>cash</b> repayment goes into today’s drawer. A <b>cash</b> advance comes out of it. Zelle or card doesn’t touch the drawer.",
+            "<b>Every change, newest first</b> lists each entry and what he owed after it. " + k("Correct") + " fixes an entry. To cancel one, set it to $0 and say why. The original stays in the history.",
+            "An entry marked <b>on a statement</b> is already on a closing statement and can’t be corrected: add a repayment or a new fine instead. Entries tagged <b>from Settle</b> or <b>from a pay-out</b> come from a job: correct the job instead (part 7).",
+          ]) },
+
+        { id: "mfHow7", icon: HI.corr, title: "Corrections", body:
+          p("The same money can’t be confirmed twice. If a confirmation was wrong, add a correction. Nothing is deleted.")
+          + steps([
+            "Open the job: press " + k("Review") + " in Waiting, or click the job in <b>Settled</b>.",
+            "Press " + k("Add a correction") + ".",
+            "Pick the right method and type the right amount.",
+            "Under <b>Why the correction</b>, say what was wrong, for example " + q("It came by Zelle, not cash") + ". A reason is required.",
+            "Press " + k("Save correction", "pri") + ".",
+          ])
+          + list([
+            "The old entry stays in the job’s history, marked <b>replaced by a correction</b>, with who and when.",
+            "The <b>Day Closing</b> line shows how today’s cash changes. Only the difference moves.",
+          ])
+          + tip("Pressed Confirm on a job someone already confirmed? You will see " + q("This job is already confirmed … The same money can’t be confirmed twice — add a correction instead. Nothing was saved.") + " Press " + k("Add a correction") + " right there.", true) },
+
+        { id: "mfHow8", icon: HI.card, title: "Payment methods", body:
+          p("Methods are the ways money comes in or goes out. <b>Cash</b> is built in and always there. It is the only method that touches the cash at the base and Day Closing.")
+          + h4("Add a method")
+          + steps([
+            "Press " + k(ICON.card + "Payment methods") + " at the top of the Money Flow tab.",
+            "Under <b>Add a method</b>, type its name.",
+            "Tick <b>For money in</b>, <b>For paying out</b>, or both.",
+            "Press " + k("Add method", "pri") + ". It stays on the list for everyone.",
+          ])
+          + list([
+            "Each method has two switches: <b>Money in</b> (a foreman brings money) and <b>Paying out</b> (the base pays a foreman).",
+            k("Turn off") + " a method you no longer use. It isn’t offered any more, and jobs settled with it keep its name. Turn it back on under <b>Turned off</b>.",
+            "While settling a job you can also press <b>Add a method — it stays on the list</b>. A method added there is for money in.",
+            "Every change keeps who made it and when.",
+          ]) },
+
+        { id: "mfHow9", icon: HI.dc, title: "Day Closing", body:
+          p("Day Closing is the cash drawer at the base. Every day at <b>8:00 PM New York time</b> the day closes by itself. There is no button.")
+          + list([
+            "A day closes only if something was recorded. With nothing recorded, the open day runs on to the next 8 PM.",
+            "<b>Only cash moves the drawer.</b> Zelle, card and jobs balanced against other jobs are listed as <b>not cash</b>: shown, never counted.",
+            "A correction moves only the difference. Confirming the same amount twice moves nothing.",
+          ])
+          + h4("The words on the strip and in the table")
+          + defs([
+            [q("in the drawer"), "What should be in the drawer: the cash that came in, less the cash paid out."],
+            [q("cash in"), "Cash brought to the base."],
+            [q("paid out"), "Cash the base paid to foremen from the drawer."],
+            [q("advances given"), "Cash handed to foremen as advances."],
+            [q("not cash"), "Zelle, card and job-against-job entries. Listed for information only."],
+            [q("Your total"), "What you recorded in the open day. <b>Everyone</b> is the whole base."],
+            [q("reconstructed, not signed"), "A day from before the first closing, rebuilt from the records."],
+          ])
+          + h4("Reading a day")
+          + steps([
+            "Open the " + k("Day Closing") + " tab. Each line is one day, with the open day on top.",
+            "Click a day to see who recorded what. Click a person to see their foremen. Click a foreman to see every movement.",
+            "Press " + k("PDF") + " to print a day, a person or a foreman.",
+          ])
+          + tip("<b>Managers only</b> (the people set up as Day Closing managers in General Settings, and admins) see these on closed days: "
+            + k("Lock") + " once the day’s cash is banked (a locked day can’t be changed or reopened, until a manager presses " + k("Unlock") + "); "
+            + k("Reopen") + " on the newest closed day only (its movements go back to the open day and close again at the next 8 PM); "
+            + k("Take out") + " to send one line back to the open day.")
+          + tip("The strip at the top of the Money Flow tab shows the open day and when it closes. Its " + k("Day Closing ›") + " link opens this tab.") },
+
+        { id: "mfHow10", icon: HI.msg, title: "What the messages mean", body:
+          p("When something goes wrong the page says so in words. A message that ends with " + q("Nothing was saved") + " means nothing changed. When several jobs are saved together, all of them are saved or none is.")
+          + '<div class="mf-hmsgs" role="table" aria-label="Messages">'
+          + '<div class="mf-hmrow mf-hmhd" role="row"><span role="columnheader">You see</span><span role="columnheader">It means</span><span role="columnheader">What to do</span></div>'
+          + [
+            ['<span class="mf-live">● Live</span>', "The figures are up to date, to about a minute.", "Nothing."],
+            ['<span class="mf-live mf-off">◷ Snapshot</span>', "The page can’t reach the live server, so it shows the last saved copy of the figures. Saving needs the server.", "Press <b>Refresh</b> next to it."],
+            [q("Money Flow can’t reach the server right now … — press Refresh at the top of the page."), "The connection or the server had a problem.", "Press <b>Refresh</b>. If it stays, wait a minute and try again."],
+            [q("Your portal sign-in has expired — sign in again, then open this job again.") + " or " + q("Your sign-in has expired."), "The portal signed you out.", "Sign in again, then do it again."],
+            [q("This job is already confirmed (…)"), "Someone already confirmed this job.", "If it’s wrong, add a correction (part 7)."],
+            [q("Someone changed this a moment ago."), "Someone else saved this job at the same time.", "Wait a moment and try again."],
+            [q("No connection to the server — check the internet and try again."), "The internet dropped.", "Check the internet, then try again."],
+            [q("The server did not answer (…)"), "The server had a problem.", "Wait a minute and try again."],
+            [q("Money Flow update pending — …"), "The server isn’t ready for this yet, so only Cash can be saved.", "Use Cash, or tell Tornike."],
+            [q("Your account isn’t allowed to record Money Flow."), "You can look, but not save.", "Ask Tornike for access."],
+            [q("Something went wrong on this page (…)"), "A fault in the page itself.", "Send Tornike a screenshot of the message."],
+            [q("Day Closing unavailable — …"), "The drawer strip couldn’t load. Money Flow still works.", "Nothing: it tries again by itself every 20 seconds."],
+          ].map(function (m) {
+            return '<div class="mf-hmrow" role="row"><span class="mf-hmsg" role="cell">' + m[0] + '</span><span role="cell">' + m[1] + '</span><span role="cell">' + m[2] + "</span></div>";
+          }).join("") + "</div>" },
+      ];
+
+      var nav = '<nav class="mf-hnav" aria-label="Contents"><span class="mf-hnavt">Contents</span><ol>'
+        + SECS.map(function (s, i) {
+            return '<li><button type="button" data-mfh="' + s.id + '"><span class="mf-hnum">' + (i + 1) + "</span>" + s.title + "</button></li>";
+          }).join("") + "</ol></nav>";
+      var hero = '<header class="mf-hhero" id="mfHowTop" tabindex="-1"><h2>How to use Money Flow</h2>'
+        + "<p>This is where the base records the money that moves between the base and the foremen. Each part below explains one task, step by step. Use the contents to jump to what you need.</p>"
+        + '<div class="mf-hquick"><h3>The usual job, in four steps</h3>'
+        + steps([
+            "Open the " + k("Waiting") + " tab and click the foreman’s name.",
+            "On the job, press " + k("Settle", "acc") + " if he brings money, or " + k("Pay out", "out") + " if the base pays him.",
+            "Check how the money came and the amount.",
+            "Press " + k("Confirm", "pri") + ". The job moves to " + k("Settled") + ".",
+          ]) + "</div></header>";
+      var secs = SECS.map(function (s, i) {
+        return '<section class="mf-hsec" id="' + s.id + '" tabindex="-1" aria-labelledby="' + s.id + 'h">'
+          + '<div class="mf-hsech"><span class="mf-hico">' + s.icon + '</span><div><span class="mf-hkick">Part ' + (i + 1) + "</span>"
+          + '<h3 id="' + s.id + 'h">' + s.title + "</h3></div></div>"
+          + s.body
+          + '<div><button type="button" class="mf-linkbtn" data-mfh="mfHowTop">Back to the top</button></div></section>';
+      }).join("");
+      return '<div class="mf-how">' + nav + '<div class="mf-hmain">' + hero + secs + "</div></div>";
+    }
+
     // ---------- wiring: one delegated handler for the page, one for the panel ----------
     function onRootClick(e) {
       if (e.target.closest("#mfDrawer")) return;          // the panel has its own handler
       var a = e.target.closest("[data-mfa]"); if (!a) return;
       var act = a.getAttribute("data-mfa"), v = a.getAttribute("data-v");
       if (act === "tab") {
-        S.view = v; S.hpage = 0; paintTools(); paint();
+        S.view = v; paintTools(); paint();
         if (S.view === "balances" && !S.fines && !S.finesErr) loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
       } else if (act === "need") { S.need = S.need === v ? "" : v; S.view = "waiting"; paintTools(); paint(); }
       else if (act === "needclear") { S.need = ""; paint(); }
       else if (act === "grp") { S.fmx[v] = !S.fmx[v]; paint(); }
       else if (act === "older") { S.fmAll[v] = true; paint(); }
       else if (act === "allfm") { S.allFm = true; paint(); }
+      else if (act === "sgrp") { S.sfx[v] = !S.sfx[v]; paint(); }
+      else if (act === "solder") { S.sfAll[v] = true; paint(); }
+      else if (act === "sallfm") { S.allSFm = true; paint(); }
       else if (act === "job") openJob(v, false);
       else if (act === "story") openJob(v, true);
       else if (act === "fm") openFm(v, false);
-      else if (act === "pg") { S.hpage += +v; paint(); var c = document.getElementById("content"); if (c && $("mfQH")) $("mfQH").scrollIntoView(); }
       else if (act === "retryfines") { S.finesErr = ""; S.fines = null; paint(); loadFines().then(paint); }
       else if (act === "bulkclear") { S.sel = {}; S.selFm = null; paint(); }
       else if (act === "bulkgo") bulkGo(a);
@@ -2091,9 +2559,13 @@ function mfCss() {
       --mf-neg:#B91C1C;--mf-neg-bg:#FEF2F2;--mf-calm:#EFF6F1;--mf-scrim:rgba(15,23,42,.38)}
     .mf-root button,.mf-root input,.mf-root textarea,.mf-drawer button,.mf-drawer input,.mf-drawer textarea{font:inherit}
     .mf-root :focus-visible{outline:2px solid var(--mf-acc);outline-offset:2px}
-    .mf-root > #mfDayStrip{margin-bottom:0}
+    .mf-pane > #mfDayStrip{margin-bottom:0}
     .mf-bodywrap{display:flex;flex-direction:column;gap:22px;min-width:0}
-    .mf-top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+    .mf-root > .mf-toptabs{margin:0}
+    .mf-pane{min-width:0}
+    .mf-pane.mf-pane-flow{display:flex;flex-direction:column;gap:18px}
+    .mf-root > .mf-pane[hidden]{display:none}
+    .mf-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px}
     .mf-titles{display:flex;flex-direction:column;gap:4px;min-width:0}
     .mf-titles h1{margin:0;font-size:26px;line-height:1.2;font-weight:600;color:var(--mf-head)}
     .mf-titles p{margin:0;color:var(--mf-muted);max-width:640px}
@@ -2145,8 +2617,8 @@ function mfCss() {
     .mf-tabs button{height:36px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:var(--mf-muted);font-weight:500;cursor:pointer}
     .mf-tabs button[aria-selected=true]{background:var(--mf-panel);color:var(--mf-head);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.12)}
     .mf-filt{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 20px;border-top:1px solid var(--mf-line);background:var(--mf-warn-bg);color:var(--mf-warn-ink)}
-    .mf-scroll{overflow-x:auto}
-    .mf-grid{min-width:1060px}
+    .mf-scroll{overflow-x:auto;container:mfscroll / inline-size}
+    .mf-grid{min-width:1042px}
     .mf-ghd,.mf-grow{display:grid;grid-template-columns:44px minmax(180px,1fr) 130px 130px 150px 150px 28px;align-items:center;gap:12px;padding:8px 20px 8px 12px;border-top:1px solid var(--mf-line)}
     .mf-ghd{color:var(--mf-muted);font-size:12px;font-weight:500}
     .mf-grow{width:100%;padding:14px 20px 14px 12px;background:transparent;border-left:0;border-right:0;border-bottom:0;text-align:left;cursor:pointer;color:var(--mf-ink)}
@@ -2167,7 +2639,23 @@ function mfCss() {
     .mf-grow.mf-open .mf-chev{transform:rotate(90deg);color:var(--mf-head)}
     .mf-gsub{background:var(--mf-sub)}
     .mf-gline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 20px 10px 68px;border-top:1px solid var(--mf-line);background:var(--mf-panel);color:var(--mf-ink2)}
-    .mf-jhd,.mf-jrow{display:grid;grid-template-columns:44px 64px 104px minmax(150px,1fr) 96px 96px 140px 70px 112px;align-items:center;gap:0 12px;padding:4px 20px 4px 12px;border-top:1px solid var(--mf-soft)}
+    .mf-jhd,.mf-jrow{display:grid;grid-template-columns:44px 64px 104px minmax(150px,1fr) 96px 96px 140px 70px 180px 112px;align-items:center;gap:0 12px;padding:4px 20px 4px 12px;border-top:1px solid var(--mf-soft)}
+    .mf-nowrap{white-space:nowrap}
+    .mf-jlinks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+    .mf-jlink{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;width:100%;height:30px;padding:0 6px;box-sizing:border-box;border:1px solid var(--mf-line2);border-radius:8px;background:var(--mf-panel);color:var(--mf-ink2);font-size:12.5px;font-weight:500;text-decoration:none;white-space:nowrap;overflow:hidden}
+    .mf-jlink:hover{border-color:var(--mf-acc);color:var(--mf-acc-ink);background:var(--mf-tint)}
+    .mf-jlink svg{flex:none}
+    /* AT 1366 PX WITH THE SIDEBAR OPEN the table is ~1070 px wide: the two buttons STACK (Calendar
+       over Contract) instead of sitting side by side, and a few columns give up a little, so every
+       column still fits without a sideways scroll. They keep their WORDS at every width -- icons
+       alone were not "easier for them to see" (his ask), and the people using this aren't
+       icon-readers. */
+    @container mfscroll (max-width:1199px){
+      .mf-jhd,.mf-jrow{grid-template-columns:44px 64px 100px minmax(130px,1fr) 92px 90px 136px 64px 92px 104px}
+      .mf-jlinks{grid-template-columns:1fr;gap:3px}
+      .mf-jlinks>span:empty{display:none}
+      .mf-jlink{height:23px;font-size:11.5px;padding:0 6px}
+    }
     .mf-jhd{color:var(--mf-muted);font-size:12px;font-weight:500;border-top-color:var(--mf-line)}
     .mf-jrow{padding:0 20px 0 12px;min-height:54px}
     .mf-compact .mf-jrow{min-height:40px}
@@ -2199,14 +2687,11 @@ function mfCss() {
     .mf-veil{position:absolute;inset:0;z-index:5;background:color-mix(in srgb,var(--mf-panel) 72%,transparent);display:flex;align-items:center;justify-content:center;gap:12px;font-weight:600;color:var(--mf-muted)}
     .mf-spin{width:22px;height:22px;border:3px solid var(--mf-line2);border-top-color:var(--mf-acc);border-radius:50%;animation:mfspin .8s linear infinite}
     @keyframes mfspin{to{transform:rotate(360deg)}}
-    .mf-sgrid{min-width:1000px}
-    .mf-shd,.mf-srow{display:grid;grid-template-columns:92px 180px 104px minmax(150px,1fr) 130px 96px 130px 90px;align-items:center;gap:0 12px;padding:10px 20px;border-top:1px solid var(--mf-line)}
-    .mf-shd{color:var(--mf-muted);font-size:12px;font-weight:500}
-    .mf-srow{padding:0 20px;min-height:50px;border-top-color:var(--mf-soft);cursor:pointer}
+    .mf-ghd.mf-g-set,.mf-grow.mf-g-set{grid-template-columns:44px minmax(180px,1fr) 150px 150px 190px 28px}
+    .mf-shd,.mf-srow{display:grid;grid-template-columns:44px 92px 104px minmax(150px,1fr) 130px 96px 130px 110px;align-items:center;gap:0 12px;padding:4px 20px 4px 12px;border-top:1px solid var(--mf-soft)}
+    .mf-shd{color:var(--mf-muted);font-size:12px;font-weight:500;border-top-color:var(--mf-line)}
+    .mf-srow{padding:0 20px 0 12px;min-height:50px;cursor:pointer}
     .mf-srow:hover{background:var(--mf-panel2)}
-    .mf-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--mf-line);color:var(--mf-muted)}
-    .mf-pager b{color:var(--mf-ink)}
-    .mf-pgnav{display:flex;align-items:center;gap:9px}
     .mf-bgrid{min-width:860px}
     .mf-bhd,.mf-brow{display:grid;grid-template-columns:minmax(200px,1fr) 170px 170px 170px 150px;align-items:center;gap:0 12px;padding:10px 20px;border-top:1px solid var(--mf-line)}
     .mf-bhd{color:var(--mf-muted);font-size:12px;font-weight:500}
@@ -2375,6 +2860,61 @@ function mfCss() {
     .mf-caps{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mf-muted)}
     .mf-offrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border:1px solid var(--mf-line);border-radius:12px;background:var(--mf-panel2)}
     .mf-footnote{display:flex;align-items:center;gap:10px;color:var(--mf-muted)}
+    /* ---- How to use (2026-10-08): contents on the left (sticky on a wide screen), one card per part ---- */
+    .mf-how{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;max-width:1160px}
+    .mf-hnav{background:var(--mf-panel);border:1px solid var(--mf-line);border-radius:14px;padding:14px 10px 10px}
+    .mf-hnavt{display:block;padding:0 10px 8px;font-size:13px;font-weight:600;color:var(--mf-muted)}
+    .mf-hnav ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px}
+    .mf-hnav button{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:4px 10px;border:0;border-radius:8px;background:transparent;color:var(--mf-ink);text-align:left;cursor:pointer;font-weight:500}
+    .mf-hnav button:hover{background:var(--mf-tint);color:var(--mf-head)}
+    .mf-hnum{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--mf-chip);color:var(--mf-ink2);font-size:12px;font-weight:600}
+    .mf-hmain{display:flex;flex-direction:column;gap:16px;min-width:0;max-width:880px}
+    .mf-hhero,.mf-hsec{background:var(--mf-panel);border:1px solid var(--mf-line);border-radius:14px;padding:20px 24px;display:flex;flex-direction:column;gap:12px;scroll-margin-top:12px}
+    .mf-hhero{border-top:3px solid var(--mf-lime)}
+    .mf-hhero:focus,.mf-hsec:focus{outline:0}
+    .mf-hhero h2{margin:0;font-size:22px;line-height:1.25;font-weight:600;color:var(--mf-head)}
+    .mf-hhero > p{margin:0;color:var(--mf-ink2);font-size:15px;line-height:1.6;max-width:68ch}
+    .mf-hquick{display:flex;flex-direction:column;gap:10px;background:var(--mf-tint);border:1px solid var(--mf-tint-line);border-radius:12px;padding:14px 18px}
+    .mf-hquick h3{margin:0;font-size:15px;font-weight:600;color:var(--mf-head)}
+    .mf-hsech{display:flex;align-items:center;gap:12px}
+    .mf-hico{flex:none;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:var(--mf-in-bg);color:var(--mf-in-ink)}
+    .mf-hsech h3{margin:0;font-size:18px;line-height:1.3;font-weight:600;color:var(--mf-head)}
+    .mf-hkick{display:block;font-size:12.5px;font-weight:600;color:var(--mf-muted)}
+    .mf-hp{margin:0;color:var(--mf-ink2);font-size:14.5px;line-height:1.6;max-width:72ch}
+    .mf-hh4{margin:6px 0 0;font-size:14.5px;font-weight:600;color:var(--mf-ink)}
+    .mf-hsteps{list-style:none;counter-reset:mfstep;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+    .mf-hsteps > li{counter-increment:mfstep;position:relative;padding-left:38px;min-height:26px;font-size:14.5px;line-height:1.65;color:var(--mf-ink)}
+    .mf-hsteps > li::before{content:counter(mfstep);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--mf-deep);color:var(--mf-deep-ink);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
+    .mf-hlist{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;font-size:14.5px;line-height:1.65;color:var(--mf-ink)}
+    .mf-hdefs{display:grid;grid-template-columns:minmax(150px,max-content) minmax(0,1fr);gap:10px 18px;align-items:baseline;margin:0;font-size:14.5px;line-height:1.6}
+    .mf-hdefs dt{margin:0}
+    .mf-hdefs dd{margin:0;color:var(--mf-ink2)}
+    .mf-htip{display:flex;gap:10px;padding:12px 14px;border-radius:12px;background:var(--mf-chip);color:var(--mf-ink2);font-size:14px;line-height:1.6}
+    .mf-htip.mf-htip-warn{background:var(--mf-warn-bg);color:var(--mf-warn-ink);box-shadow:inset 0 0 0 1px var(--mf-warn-line)}
+    .mf-hk{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border:1px solid var(--mf-line2);border-radius:7px;background:var(--mf-panel);color:var(--mf-ink);font-size:13px;font-weight:600;line-height:1.5;white-space:nowrap;vertical-align:1px}
+    .mf-hk.mf-hk-acc{border-color:var(--mf-acc);color:var(--mf-acc-ink)}
+    .mf-hk.mf-hk-out{border-color:var(--mf-out-line);color:var(--mf-out-ink)}
+    .mf-hk.mf-hk-pri{background:var(--mf-deep);border-color:var(--mf-deep);color:var(--mf-deep-ink)}
+    .mf-hq{font-weight:600;color:var(--mf-ink)}
+    .mf-htip .mf-hq{color:inherit}
+    .mf-hmsgs{display:flex;flex-direction:column;border:1px solid var(--mf-line);border-radius:12px;overflow:hidden;font-size:14px;line-height:1.55}
+    .mf-hmrow{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,.85fr);gap:14px;padding:12px 16px;border-top:1px solid var(--mf-soft);color:var(--mf-ink2)}
+    .mf-hmrow.mf-hmhd{border-top:0;background:var(--mf-panel2);color:var(--mf-muted);font-size:12.5px;font-weight:600;padding-top:9px;padding-bottom:9px}
+    .mf-hmsg{color:var(--mf-ink)}
+    .mf-hmsg .mf-live{font-size:12.5px}
+    .mf-pane.mf-pane-how{container:mfhow / inline-size}
+    @container mfhow (min-width:980px){
+      .mf-how{grid-template-columns:236px minmax(0,1fr);gap:28px;align-items:start}
+      .mf-hnav{position:sticky;top:0}
+      .mf-hnav ol{grid-template-columns:minmax(0,1fr)}
+    }
+    @container mfhow (max-width:700px){
+      .mf-hhero,.mf-hsec{padding:16px}
+      .mf-hdefs{grid-template-columns:minmax(0,1fr);gap:2px}
+      .mf-hdefs dd{margin-bottom:8px}
+      .mf-hmrow{grid-template-columns:minmax(0,1fr);gap:4px}
+      .mf-hmrow.mf-hmhd{display:none}
+    }
     @media (max-width:640px){
       .mf-db{padding:16px}
       .mf-dh{padding:12px 8px 12px 16px}

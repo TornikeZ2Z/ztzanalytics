@@ -60,6 +60,7 @@
       .dcl-ok{background:rgba(28,122,74,.10);color:${POS};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
       .dcl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
       .dcl-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
+      .dcl-head h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.3px}
       .dcl-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:780px}
       .dcl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}
       .dcl-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
@@ -126,6 +127,7 @@
       body.rs-app.light.v2 .dcl-err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;font-size:13px}
       body.rs-app.light.v2 .dcl-ok{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;border-radius:8px;font-size:13px}
       body.rs-app.light.v2 .dcl-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
+      body.rs-app.light.v2 .dcl-head h2{font-size:20px;font-weight:600;letter-spacing:-.2px;color:#14301F}
       body.rs-app.light.v2 .dcl-head p{font-size:14.5px;line-height:1.55;color:#475569;margin-top:6px}
       body.rs-app.light.v2 .dcl-kpis{gap:12px}
       body.rs-app.light.v2 .dcl-kpi{display:flex;flex-direction:column;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;background:#FFFFFF}
@@ -291,54 +293,95 @@
       : "nothing recorded yet — the day closes at 8:00 PM NJ only once something is recorded";
     return '<div class="dcl-shead"><span class="lbl">Open day · since ' + esc(fmtAt(o.since)) + "</span>"
       + '<span class="dcl-pill open" style="margin-left:0">' + when + "</span>"
-      + (withLink ? '<a class="dcl-link" id="dclGoPage" style="margin-left:auto">Day Closing ›</a>' : "") + "</div>"
+      // Day Closing is a TAB of Money Flow since 2026-10-08: the link names that tab
+      + (withLink ? '<a class="dcl-link" id="dclGoPage" href="#page=money-flow&amp;tab=day-closing" style="margin-left:auto">Day Closing ›</a>' : "") + "</div>"
       + (mine ? stripRow("Your total · " + short(me), mine, true) : "")
       + stripRow(mine ? "Everyone" : "Total", t, false, notCash(o));
   }
-  function mountStrip(el) {
+  /* The strip polls the open day every 20 s. ONE timer per element: a re-mount clears the old
+     one, and a detached element stops its own. Since Day Closing became a tab of Money Flow
+     (2026-10-08) the strip can sit on a HIDDEN tab: it then skips the fetch and remembers it
+     missed one, and wakeStrip() catches up the moment its tab shows again. Each mount bumps
+     el.__gen, so a slow answer to an older mount never paints over a newer one.
+     opt.onGo: what the "Day Closing ›" link does (Money Flow opens its tab in place). */
+  function mountStrip(el, opt) {
     if (!el) return;
+    if (opt) el.__opt = opt;
     css();
     el.className = "dcl-strip"; el.innerHTML = '<span class="sub">Loading the open day…</span>';
-    var d;
+    var d, gen = (el.__gen = (el.__gen || 0) + 1);
     async function load() {
       if (!document.body.contains(el)) { clearInterval(el.__t); return; }
+      if (el.closest("[hidden]")) { el.__missed = true; return; }
+      el.__missed = false;
       try { d = await api("?open=1"); }
-      catch (e) { el.innerHTML = '<span class="sub">Day Closing unavailable — ' + esc(e.message) + "</span>"; return; }
+      catch (e) {
+        if (gen !== el.__gen) return;
+        el.innerHTML = '<span class="sub">Day Closing unavailable — ' + esc(e.message) + "</span>"; return;
+      }
+      if (gen !== el.__gen) return;
       if (!d.cutover) { el.style.display = "none"; return; }
       el.style.display = "";
       el.innerHTML = stripHtml(d, true);
       tickCountdowns();
-      el.querySelector("#dclGoPage").onclick = function () { location.hash = "#page=day-closing"; };
+      var go = el.querySelector("#dclGoPage");
+      if (go) go.onclick = function (e) {
+        var o = el.__opt || {};
+        if (o.onGo) { e.preventDefault(); o.onGo(); }
+      };
     }
     clearInterval(el.__t);
+    el.__load = load;
     el.__t = setInterval(load, 20000);
     load();
   }
+  // the strip's tab is showing again: fetch now if a refresh was skipped while it was hidden
+  function wakeStrip(el) {
+    if (el && el.__missed && el.__load) el.__load();
+  }
 
-  window.ZDC = { api: api, css: css, printSheet: printSheet, mountStrip: mountStrip, stripHtml: stripHtml,
+  window.ZDC = { api: api, css: css, printSheet: printSheet, mountStrip: mountStrip, wakeStrip: wakeStrip, stripHtml: stripHtml,
                  person: person, money: money, money2: money2, fmtDay: fmtDay, fmtAt: fmtAt, outcome: outcome,
                  short: short, esc: esc, isNotCash: isNotCash, notCash: notCash, ncText: ncText, ncLine: ncLine };
 })();
 
+/* DAY CLOSING IS A TAB OF MONEY FLOW (his ask, 2026-10-08). This registration stays: Money Flow
+   finds it in window.PAGES and calls render(pane, { embedded: true }) in its Day Closing tab, and
+   the shell forwards an old #page=day-closing link there (REDIRECTS + TAB_HOSTED in index.html,
+   which also keep it out of the sidebar). Embedded, the heading steps down to an h2 under Money
+   Flow's h1; opt.fresh re-reads the days the way Refresh does (Money Flow passes it after one of
+   its saves moved the drawer). Every query is scoped to `host`, and a GENERATION GUARD (window.__DCLGEN) lets only
+   the newest mount paint: a slow load from an earlier mount -- the page left and opened again --
+   bails instead of drawing stale days. The page keeps no timer of its own; the countdowns tick
+   from the one shared interval above (window.__dclTick). */
 registerPage({
   id: "day-closing",
   group: "logistics",
   title: "Day Closing",
-  async render(host) {
+  async render(host, opt) {
+    opt = opt || {};
     var Z = window.ZDC, esc = Z.esc, money = Z.money, money2 = Z.money2;
     Z.css();
-    host.innerHTML = '<div class="dcl-head"><div><h1>Day Closing</h1>'
+    var gen = (window.__DCLGEN = (window.__DCLGEN || 0) + 1);
+    var mine = function () { return gen === window.__DCLGEN; };
+    var H = opt.embedded ? "h2" : "h1";
+    host.innerHTML = '<div class="dcl-head"><div><' + H + ">Day Closing</" + H + ">"
       + "<p>The office drawer, closed once a day. Dispatch confirms each job in Money Flow; every day at 8:00 PM New York the day closes by itself and seals what came in and went out before 8 PM (a day with no record doesn't close). "
       + "Click a day to see who confirmed what, a person to see their foremen, a foreman to see every movement. Days before the first closing are rebuilt from the records and marked so.</p></div>"
       + '<div><button class="dcl-btn" id="dclRefresh">↻ Refresh</button></div></div><div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
+    var $b = function () { return host.querySelector("#dclBody"); };
     var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, popen: {}, fopen: {}, lines: {}, shown: 30 });
     if (!S.popen) S.popen = {};
     var data;
     async function load(force) {
-      data = await Z.api(force ? "?fresh=1" : "");
+      var d = await Z.api(force ? "?fresh=1" : "");
+      if (mine()) data = d;
     }
-    try { await load(false); }
-    catch (e) { document.getElementById("dclBody").innerHTML = '<div class="dcl-load">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
+    // opt.fresh (Money Flow saved something since this tab was last drawn): what Refresh does
+    if (opt.fresh) S.lines = {};
+    try { await load(!!opt.fresh); }
+    catch (e) { var b0 = $b(); if (b0 && mine()) b0.innerHTML = '<div class="dcl-load">Couldn’t load — ' + esc(e.message) + "</div>"; return; }
+    if (!mine()) return;
 
     async function linesOf(key) {
       if (!S.lines[key]) S.lines[key] = (await Z.api("?lines=" + encodeURIComponent(key))).lines || [];
@@ -417,7 +460,7 @@ registerPage({
     }
 
     function paint() {
-      var el = document.getElementById("dclBody"); if (!el) return;
+      var el = $b(); if (!el || !mine()) return;      // only the newest mount paints
       var o = data.open, now = new Date(), ym = now.toISOString().slice(0, 7);
       var signed = data.days.filter(function (d) { return d.kind === "signed"; });
       var month = data.days.filter(function (d) { return String(d.date).slice(0, 7) === ym; })
@@ -460,10 +503,10 @@ registerPage({
       catch (e) { alert(e.message); }
     }
     function wire() {
-      var root = document.getElementById("dclBody");
+      var root = $b();
       root.querySelectorAll("[data-v]").forEach(function (b) { b.onclick = function () { S.view = b.getAttribute("data-v"); paint(); }; });
       var q = root.querySelector("#dclQ");
-      if (q) q.oninput = function () { S.q = q.value; var p = q.selectionStart; paint(); var n = document.getElementById("dclQ"); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) { /* best effort */ } } };
+      if (q) q.oninput = function () { S.q = q.value; var p = q.selectionStart; paint(); var n = host.querySelector("#dclQ"); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) { /* best effort */ } } };
       var more = root.querySelector("#dclMore"); if (more) more.onclick = function () { S.shown += 30; paint(); };
       root.querySelectorAll("tr.day").forEach(function (tr) { tr.onclick = function (e) { if (e.target.closest("button")) return; var k = tr.getAttribute("data-day"); S.open[k] = !S.open[k]; paint(); }; });
       root.querySelectorAll("tr.ps").forEach(function (tr) {
@@ -493,7 +536,7 @@ registerPage({
         b.onclick = function () { var p = b.getAttribute("data-take").split("|"); act({ action: "take_out", day_id: +p[0], src: p[1], src_id: p[2], version: ver(+p[0]) }, { t: "Take this line out?", b: "It goes back to the open day and this day's totals are recalculated.", y: "Take out" }); };
       });
     }
-    var rb = document.getElementById("dclRefresh");
+    var rb = host.querySelector("#dclRefresh");
     if (rb) rb.onclick = async function () { rb.disabled = true; try { S.lines = {}; await load(true); } catch (e) { /* keep the last view */ } rb.disabled = false; paint(); };
     paint();
   },

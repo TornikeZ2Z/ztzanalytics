@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="0421327dfdca0a4f67e467bc67eadf5a45d9b13c">
+<meta name="ztz-ref" content="9d298a523160cb8441c98afd213975de376af3e6">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -425,7 +425,17 @@ const RETIRED = new Set([
   "log-foreman", "log-packing", "fin-revenue", "fin-rr", "rev-production",
   "sup-claims", "sup-refunds", "sup-phone",
 ]);
+/* TAB-HOSTED PAGES (2026-10-08): a page that now lives as a TAB of another page. Unlike a
+   RETIRED page it is still GRANTED exactly as before -- its department keeps listing it in
+   ACL_DEPTS and the bridge's DEPT_REPORTS, so every grant and check_acl_mirror.py stand -- it
+   only leaves the sidebar (and so the nav search) and is never picked as the landing page. Its
+   old links go through REDIRECTS to the host page, which reads window.__navRequested to open on
+   that tab. Day Closing is the Day Closing tab of Money Flow (his ask: "combine day closing and
+   money flow as a separate tabs"); /api/_dc already admits money-flow holders. */
+const TAB_HOSTED = new Set(["day-closing"]);
 const REDIRECTS = {
+  // 2026-10-08: Day Closing is a tab of Money Flow; old links land on #page=money-flow&tab=day-closing
+  "day-closing": "money-flow",
   "sales-comms": "sales-trackers",
   // 2026-09-23: ERP Bug Briefs was replaced by Things to do; old links land there
   "erp-briefs": "things-to-do",
@@ -582,7 +592,7 @@ function firstAllowedId() {
     // pageFor(), which resolves the redirect and renders the REPLACEMENT — so returning
     // e.g. "sales-funnel" here handed the user the Monthly Report even though canSee()
     // had just refused it (found 2026-07-26 while fixing the department-grant leak).
-    if (RETIRED.has(p.id)) continue;
+    if (RETIRED.has(p.id) || TAB_HOSTED.has(p.id)) continue;
     const oid = idOwner(p.id);
     if (canSee(oid)) return oid;
   }
@@ -1343,6 +1353,8 @@ const SEARCH_ALIASES = {
   "mkt-sources": "source analysis sources source overview lead source identification attribution angi movers movers.com home advisor homeadvisor post card postcard post cards channels",
   "mkt-phone": "phone response callrail call rail call tracking calls answer rate",
   // Logistics
+  // Day Closing is a tab of Money Flow (2026-10-08) and left the sidebar: searching for it finds Money Flow
+  "money-flow": "money flow day closing drawer cash settle pay out zelle foreman balance fines advances repayment how to use guide",
   "log-foreman": "forman foreman foremen of the month scorecard crew labor helpers hours worked operations comparison",
   "log-packing": "packing storage packing analysis per 100 cf material materials boxes estimate vs written storage payments",
   
@@ -1408,7 +1420,7 @@ function buildNav() {
     // (at its first constituent's position) and its constituents are hidden.
     const display = [];
     const seenMerged = new Set();
-    PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id)).forEach(p => {
+    PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id) && !TAB_HOSTED.has(p.id)).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
         if (!seenMerged.has(m.id) && canSeeIn(m.id, g.key)) {
@@ -2257,8 +2269,8 @@ registerPage({
 <script src="pages/branch-owner.js?v=13"></script>
 <script src="pages/bo-salary.js?v=5"></script>
 <script src="pages/crew-pay-compare.js?v=1"></script>
-<script src="pages/day-closing.js?v=6"></script>
-<script src="pages/money-flow.js?v=71"></script>
+<script src="pages/day-closing.js?v=7"></script>
+<script src="pages/money-flow.js?v=74"></script>
 <script src="pages/ld-planning.js?v=85"></script>
 <script src="pages/cleanup.js?v=40"></script>
 <script src="pages/packing-control.js?v=23"></script>
