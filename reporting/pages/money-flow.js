@@ -34,7 +34,8 @@
       // asked for, so in snapshot mode (live overlay down) a short hand-in's debt vanished.
       cols: ["Event ID", "Calendar ID", "Job Date", "Event Title", "Job No", "Job Code", "Customer",
              "Forman Email", "Forman", "Job Type", "Company", "Contract Type", "Net Cash (DC)",
-             "Net Cash (Closing)", "Expected Net Cash", "Contract URL", "DC Submission Time",
+             "Net Cash (Closing)", "Expected Net Cash", "Net Cash (Recorded)", "Net Cash Corrected",
+             "Job Expenses", "Contract URL", "DC Submission Time",
              "Cash Flow", "Cash Flow Time", "Cash Flow Source", "Cash Flow Method",
              "Cash Flow Records", "Advance", "Deduction", "Moved to Debt", "Balance", "Status"],
     };
@@ -104,7 +105,9 @@ registerPage({
        the shell hides its sidebar entry and forwards #page=day-closing here); How to use is the
        guide for the people who record money. The tab rides in the hash (&tab=day-closing /
        &tab=how-to) like Salaries and Seasonal Planning do, so a copied link reopens it. */
-    var TOPS = [["money-flow", "Money Flow", "mfPaneFlow"], ["day-closing", "Day Closing", "mfPaneDc"], ["how-to", "How to use", "mfPaneHow"]];
+    // + MONTH CLOSE (2026-10-09): the month's cash, foreman repayments, job expenses and corrections
+    var TOPS = [["money-flow", "Money Flow", "mfPaneFlow"], ["day-closing", "Day Closing", "mfPaneDc"],
+                ["month-close", "Month close", "mfPaneMonth"], ["how-to", "How to use", "mfPaneHow"]];
     host.innerHTML = '<div class="mf-root' + (S.compact ? " mf-compact" : "") + '" id="mfRoot">'
       + '<div class="mf-titles"><h1>Money Flow</h1>'
       + "<p>Who owes whom between the base and the foremen, job by job and on each foreman’s balance.</p></div>"
@@ -123,6 +126,7 @@ registerPage({
       + '<div id="mfBody" class="mf-bodywrap"><div class="mf-load"><div class="mf-spin"></div>Loading jobs…</div></div>'
       + '<div class="mf-bulk" id="mfBulk" role="region" aria-label="Selected jobs" hidden></div></div>'
       + '<div class="mf-pane" id="mfPaneDc" role="tabpanel" aria-labelledby="mfTopT-day-closing" hidden></div>'
+      + '<div class="mf-pane mf-pane-month" id="mfPaneMonth" role="tabpanel" aria-labelledby="mfTopT-month-close" hidden></div>'
       + '<div class="mf-pane mf-pane-how" id="mfPaneHow" role="tabpanel" aria-labelledby="mfTopT-how-to" hidden></div>'
       + '<div class="mf-scrim" id="mfScrim"></div>'
       + '<aside class="mf-drawer" id="mfDrawer" role="dialog" aria-modal="true" aria-labelledby="mfDTitle" aria-hidden="true"></aside>'
@@ -231,6 +235,10 @@ registerPage({
        between the two banner lines and run it against fixtures — the settle preset, the
        short/extra effect, the pay-out allocation, the bulk rule and the batch bodies. */
     var BROUGHT = "Cash Brought to Base", TAKEN = "Cash Taken Away from Base";
+    // 2026-10-09: the job's net cash was wrong (the corrected figure, signed) / an expense on the
+    // job that isn't on the contract. Portal-only, never cash, never on his balance.
+    var NC_FIX = "Net Cash Corrected", JOB_EXP = "Job Expense";
+    var FIX_TOL = 1;                 // a correction the closing now matches to the dollar is done
     var WAY_BAL = "__balance";       // pay-out: "Leave it on his balance"
     // the server's seed (spec): what the page offers when the bridge has no methods list yet
     var SEED_METHODS = [
@@ -270,6 +278,22 @@ registerPage({
       return { type: v < 0 ? TAKEN : BROUGHT, amount: Math.abs(v) };
     }
     function isPayout(r) { var p = settle(r); return !!p && p.type === TAKEN && p.amount > MF_TOL; }
+    /* WHAT THE JOB SETTLES AGAINST (2026-10-09) -- src/money_flow.py `Expected Net Cash` and the
+       bridge's _mf_effective, the same rule: the corrected net cash where the office recorded one,
+       else the contract / closing figure, less the job's expenses. No figure stays null. */
+    function effExpected(recorded, fix, exp) {
+      if (recorded == null) return null;
+      return r2((fix != null ? fix : recorded) - (exp || 0));
+    }
+    // still flagged: corrected, and the contract / closing doesn't say so yet
+    function fixOpen(r) { return r.fix != null && r.recorded != null && Math.abs(r.fix - r.recorded) > FIX_TOL; }
+    /* "THE JOB'S NET CASH IS WRONG" (his call, 2026-10-09): he handed over the right amount, so the
+       corrected net cash is the one that makes THIS hand-in settle the job exactly --
+       Balance = NetCash − Expenses − Advance − Flow + Deduction = 0, nothing moved to his balance. */
+    function fixedNetCash(r, type, amt) {
+      var flow = type === TAKEN ? -amt : amt;
+      return r2(flow + (r.adv || 0) - (r.ded || 0) + (r.exp || 0));
+    }
     /* A SHORT HAND-IN BECOMES HIS DEBT (22 Sep walkthrough, built 29 Sep): Cash Brought below what
        the job needs moves the difference onto his foreman balance, so the job settles and the
        dollars are owed in ONE place. AND THE MIRROR (6 Oct): brought MORE is a repayment of his
@@ -327,29 +351,67 @@ registerPage({
           items.push(it);
         }
       }
-      if (r.expected != null) {
+      if (r.expected != null && o.fix && o.amt != null) {
+        // THE NET CASH WAS WRONG: the job's figure is corrected to what he handed over, and any
+        // short / extra already moved for this job comes back off his balance (2026-10-09).
+        // `o.fixEntry` = the job's current correction, replaced rather than stacked.
+        var fx = assign({ entry_type: NC_FIX, amount: fixedNetCash(r, o.type, o.amt), note: note }, jobFields(r));
+        if (o.fixEntry) fx.replaces_id = o.fixEntry.id;
+        items.push(fx);
+        items = items.concat(debtItems(r, 0, { short: "", extra: "" }));
+      } else if (r.expected != null) {
         items = items.concat(debtItems(r, debtOfEntry(r, o.type, o.amt).debt, {
           short: "short hand-in" + (note ? " — " + note : ""),
           extra: "extra hand-in repays his balance" + (note ? " — " + note : "") }));
       }
       return items;
     }
+    /* A JOB EXPENSE (2026-10-09): what was spent on the job that the contract doesn't carry. One
+       entry per expense; `old` = the expense being changed. Withdrawing takes one back entirely:
+       the server keeps it as history, never current. */
+    function expenseItem(r, amt, note, old) {
+      var it = assign({ entry_type: JOB_EXP, amount: r2(amt), note: String(note || "").trim() }, jobFields(r));
+      if (old) {
+        it.replaces_id = old.id;
+        if (old.event_id) it.event_id = old.event_id;
+        if (old.job_code) it.job_code = old.job_code;
+      }
+      return it;
+    }
+    function withdrawItem(r, en, why) {
+      var it = assign({ entry_type: en.type, amount: r2(+en.amount || 0), note: String(why || "").trim(),
+                        replaces_id: en.id, withdraw: true }, jobFields(r));
+      if (en.event_id) it.event_id = en.event_id;          // stays on the leg it was recorded on
+      if (en.job_code) it.job_code = en.job_code;
+      return it;
+    }
     // what the Settle panel says will happen; balNow = his foreman balance right now
-    function settleEffect(r, type, amt, balNow) {
+    // fix = "the job's net cash is wrong" picked (2026-10-09); `canFix` says the choice applies at
+    // all: the amount differs from what the job asks for
+    function settleEffect(r, type, amt, balNow, fix) {
       if (r.expected == null) return { kind: "info", title: "No contract yet",
         line: "Nothing to compare with: the job’s balance is worked out when the contract comes in." };
       if (amt == null) return { kind: "info", title: "Enter the amount", line: "" };
       var d = debtOfEntry(r, type, amt), dOld = r.debt || 0, after = r2(balNow - dOld + d.debt);
+      var canFix = Math.abs(d.debt) > 0.005 || Math.abs(d.balance) > MF_TOL;
+      if (fix && canFix) {
+        var t = fixedNetCash(r, type, amt), was = r.recorded != null ? r.recorded : r.expected, a0 = r2(balNow - dOld);
+        return { kind: "fix", canFix: true, after: a0, fixTo: t,
+          title: "The job’s net cash becomes " + money2(t) + " — the contract says " + money2(was),
+          line: "The job is settled on what he handed over; nothing goes on his balance ("
+            + (Math.abs(a0 - balNow) > 0.005 ? owesText(balNow) + " → " + owesText(a0) : "stays at " + owesText(balNow))
+            + "). The job is flagged until the contract or closing says " + money2(t) + "." };
+      }
       var balLine = Math.abs(after - balNow) > 0.005
         ? "His balance: " + owesText(balNow) + " → " + owesText(after) + "."
         : "His balance stays at " + owesText(balNow) + ".";
-      if (d.debt > 0.005) return { kind: "short", title: money2(d.debt) + " short — goes on his balance",
+      if (d.debt > 0.005) return { kind: "short", canFix: canFix, title: money2(d.debt) + " short — goes on his balance",
         line: "The job is settled. " + balLine, after: after };
-      if (d.debt < -0.005) return { kind: "extra", title: money2(-d.debt) + " extra — comes off his balance",
+      if (d.debt < -0.005) return { kind: "extra", canFix: canFix, title: money2(-d.debt) + " extra — comes off his balance",
         line: "The job is settled. " + balLine, after: after };
       if (Math.abs(d.balance) <= MF_TOL) return { kind: "ok", title: "Settles the job in full", line: balLine, after: after };
       // only a pay-out can land here: taken away, and not the amount the job asks for
-      return { kind: "short", title: "The job stays " + money2(Math.abs(d.balance)) + " off",
+      return { kind: "short", canFix: canFix, title: "The job stays " + money2(Math.abs(d.balance)) + " off",
         line: "It needs " + money2(Math.abs(d.balance)) + (d.balance < 0 ? " more paid to him." : " less paid to him.") + " " + balLine, after: after };
     }
     /* PAY OUT a to-the-foreman job (his decisions, 2026-10-07): first balance it against his open
@@ -447,6 +509,8 @@ registerPage({
       if (_ov) return _ov;
       var liveByEv = {};
       if (S.live) S.live.rows.forEach(function (r) { liveByEv[r.ev] = r; });
+      // the live read lists every current correction and expense (a bridge from 2026-10-09 on)
+      var liveParts = !!(S.live && S.live.rows.some(function (r) { return r.recorded !== undefined; }));
       _ov = base.map(function (b) {
         var ev = b["Event ID"], lv = liveByEv[ev];
         var r = {
@@ -455,6 +519,14 @@ registerPage({
           forman: b["Forman"] || MF_NO_FOREMAN, formanEmail: b["Forman Email"],
           jobType: b["Job Type"], ct: b["Contract Type"], company: b["Company"] || "",
           expected: num(lv && lv.expected != null ? lv.expected : b["Expected Net Cash"]),
+          // THE PARTS OF IT (2026-10-09): the contract / closing figure, the office's correction,
+          // the job's expenses. The live read carries every current correction and expense, so
+          // with it up a job it doesn't list has none (the 6-hourly fact may still hold one that
+          // was withdrawn since); an older bridge sends no `recorded` and its `expected` stands.
+          recorded: lv && lv.recorded !== undefined ? lv.recorded
+            : num(b["Net Cash (Recorded)"] !== undefined ? b["Net Cash (Recorded)"] : b["Expected Net Cash"]),
+          fix: lv && lv.recorded !== undefined ? lv.fix : liveParts ? null : num(b["Net Cash Corrected"]),
+          exp: lv && lv.recorded !== undefined ? (lv.exp || 0) : liveParts ? 0 : (num(b["Job Expenses"]) || 0),
           closingNC: num(b["Net Cash (Closing)"]),
           flow: lv ? (lv.flow != null ? lv.flow : null) : num(b["Cash Flow"]),
           flowTs: lv ? lv.flow_ts : b["Cash Flow Time"],
@@ -474,8 +546,11 @@ registerPage({
           // leg's (src/money_flow.py _ECHO_LEG): it expects nothing
           echoLeg: !!(lv && lv.sib),
         };
+        if (!(lv && lv.recorded === undefined)) r.expected = effExpected(r.recorded, r.fix, r.exp);
         if (r.echoLeg) r.expected = null;
-        else if (r.expected == null && r.closingNC != null) r.expected = r.closingNC;
+        else if (r.expected == null && r.closingNC != null) {
+          r.recorded = r.closingNC; r.expected = effExpected(r.closingNC, r.fix, r.exp);
+        }
         // DEPLOY-SKEW GUARD: an older bridge serves "taken away" advances UNSIGNED (+A) while the
         // nightly fact knows the true −A. When the two differ ONLY by sign, trust the negative.
         if (lv && r.adv != null && r.baseAdv != null && r.adv > 0 && r.baseAdv < 0
@@ -524,10 +599,14 @@ registerPage({
              sub: "Money was recorded, but not the amount the closing asks for. Open one to see its story and add a correction." },
       mc: { status: "Missing Closing", pill: "No closing", head: "Jobs with no closing",
             sub: "The calendar has the job; the closing sheet doesn’t, so there’s no net cash to settle. File the closing first." },
+      // 2026-10-09: settled on a corrected net cash; the contract / closing still says another figure
+      fix: { status: "Money Received", pill: "Net cash to fix", head: "Jobs whose net cash was corrected",
+             sub: "The foreman handed over the right amount, but the contract or closing still says another figure. Fix it there — the flag clears by itself." },
     };
     function needOf(r) {
       return r.status === "Contract Not Received" ? "cnr" : r.status === "Not in Balance" ? "nib"
-        : r.status === "Missing Closing" ? "mc" : "";
+        : r.status === "Missing Closing" ? "mc"
+        : !MAINSET[r.status] && r.status !== "Filter Out" && fixOpen(r) ? "fix" : "";
     }
 
     /* REPEAT CONFIRMATIONS (2026-10-07). Five long-distance jobs read "Money Not Received" for
@@ -547,6 +626,8 @@ registerPage({
       var all = ((S.live && S.live.entries) || []).slice().sort(function (a, b) {
         return String(a.at || "") < String(b.at || "") ? -1 : String(a.at || "") > String(b.at || "") ? 1 : 0;
       });
+      var replaced = {};
+      all.forEach(function (en) { if (en.replaces != null) replaced[en.replaces] = 1; });
       all.forEach(function (en) {
         var k = en.event_id || "", c = codeOf(en.job_code);
         if (c) (_byCode[c] = _byCode[c] || []).push(en);
@@ -554,7 +635,12 @@ registerPage({
         if (en.link_id != null) (_byLink[en.link_id] = _byLink[en.link_id] || []).push(en);
         if (en.id != null) _byId[en.id] = en;
         en._repeatOf = null;
-        if (!en.current) return;
+        // a WITHDRAWN correction / expense (2026-10-09): never current, names what it retired,
+        // and nothing replaced it in turn
+        en._withdrawn = !!en.withdrawn || ((en.type === NC_FIX || en.type === JOB_EXP) && !en.current
+          && en.replaces != null && !replaced[en.id]);
+        // two expenses of the same amount are two expenses, not a repeat
+        if (!en.current || en.type === JOB_EXP || en.type === NC_FIX) return;
         var job = c || k;
         var sg = cashSign(en), stream = sg ? "cash" : String(en.type || "");
         var val = sg ? sg * Math.abs(+en.amount || 0) : +en.amount || 0;
@@ -606,7 +692,8 @@ registerPage({
         lv = { ev: b ? b.ev : evId, expected: b ? b.expected : null, flow: b ? b.flow : null,
                flow_ts: b ? b.flowTs : null, flow_src: b ? b.flowSrc : null, method: b ? b.method : null,
                records: 0, adv: b ? b.adv : null, adv_ts: null, ded: b ? b.ded : null,
-               debt: b ? b.debt : null, sib: b && b.echoLeg ? 1 : 0 };
+               debt: b ? b.debt : null, sib: b && b.echoLeg ? 1 : 0,
+               recorded: b ? b.recorded : null, fix: b ? b.fix : null, exp: b ? b.exp || 0 : 0 };
         S.live.rows.push(lv);
       }
       var nowTs = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -626,7 +713,20 @@ registerPage({
           job_code: it.job_code || "", type: type, amount: amount, note: it.note || "",
           method: (type === BROUGHT || type === TAKEN) ? normMethod(it.method) : null,
           cash_amount: it.cash_amount != null ? it.cash_amount : null, link_id: linkId != null ? linkId : null,
-          at: nowTs, by: "you", replaces: it.replaces_id != null ? it.replaces_id : null, current: 1 });
+          at: nowTs, by: "you", replaces: it.replaces_id != null ? it.replaces_id : null,
+          current: it.withdraw ? 0 : 1, withdrawn: !!it.withdraw });
+      }
+      // a correction / an expense: re-read the leg's current ones from the entries just patched
+      if ((type === NC_FIX || type === JOB_EXP) && S.live.entries) {
+        var fx = null, ex = 0;
+        S.live.entries.forEach(function (e) {
+          if (!e.current || bareEv(e.event_id) !== bareEv(lv.ev)) return;
+          if (e.type === NC_FIX && (!fx || String(e.at) >= String(fx.at))) fx = e;
+          else if (e.type === JOB_EXP) ex += Math.abs(+e.amount || 0);
+        });
+        lv.fix = fx ? +fx.amount : null; lv.exp = r2(ex);
+        if (lv.recorded === undefined) lv.recorded = lv.expected;
+        lv.expected = effExpected(lv.recorded, lv.fix, lv.exp);
       }
       indexEntries();
       _ov = null;   // data changed — recompute the overlay on the next paint
@@ -862,9 +962,9 @@ registerPage({
         else if (d < 0) { toFm += -r.balance; nFm++; }
       });
       var top = Object.keys(byFm).sort(function (a, b) { return byFm[b] - byFm[a]; })[0];
-      var needs = { cnr: [], nib: [], mc: [] };
+      var needs = { cnr: [], nib: [], mc: [], fix: [] };
       scope.forEach(function (r) { var n = needOf(r); if (n) needs[n].push(r); });
-      var nLook = needs.cnr.length + needs.nib.length + needs.mc.length;
+      var nLook = needs.cnr.length + needs.nib.length + needs.mc.length + needs.fix.length;
       if (S.need && !(needs[S.need] || []).length) S.need = "";
       var kp = '<div class="mf-kpis">'
         + '<div class="mf-kpi"><span class="mf-kl">Foremen owe the base</span><span class="mf-kv">' + money(toBase) + "</span>"
@@ -872,7 +972,7 @@ registerPage({
         + '<div class="mf-kpi mf-kpi-out"><span class="mf-kl">The base owes foremen</span><span class="mf-kv">' + money(toFm) + "</span>"
         + '<span class="mf-ks">' + nFm + " job" + (nFm === 1 ? "" : "s") + " · balanced against other jobs or paid out</span></div>"
         + '<div class="mf-kpi mf-kpi-look"><span class="mf-kl">Needs a look</span><span class="mf-kv">' + nLook + " job" + (nLook === 1 ? "" : "s") + "</span>"
-        + '<span class="mf-ks">Can’t be settled until someone checks them</span></div></div>';
+        + '<span class="mf-ks">Someone has to check or fix each one</span></div></div>';
 
       // NEEDS A LOOK: three cards, each filters the queue to its jobs
       var card = function (key, n, title, line) {
@@ -891,6 +991,8 @@ registerPage({
             "Money was recorded, but not the amount the closing asks for." + (widest ? " Widest gap: " + esc(widest.customer || "—") + ", " + money(Math.abs(widest.balance)) + "." : ""))
         + card("mc", needs.mc.length, "job" + (needs.mc.length === 1 ? " has" : "s have") + " no closing",
             "The calendar has the job; the closing sheet doesn’t, so there’s no net cash to settle.")
+        + card("fix", needs.fix.length, "job" + (needs.fix.length === 1 ? "’s" : "s’") + " net cash to fix",
+            "Settled on a corrected net cash. The contract or closing still says another figure — fix it there.")
         + "</div></section>" : "";
 
       // THE QUEUE
@@ -924,6 +1026,7 @@ registerPage({
       body.innerHTML = kp + nl + queue;
       paintBulk();
       if (sc) sc.scrollTop = st;
+      if (topNow === "month-close") paintMonth(false);   // only if what it shows has changed
     }
 
     // ---- Waiting: the open jobs, grouped by foreman ----
@@ -996,10 +1099,12 @@ registerPage({
       if (need === "cnr") pill = '<span class="mf-pill mf-p-mute">No contract</span>';
       else if (need === "mc") pill = '<span class="mf-pill mf-p-mute">No closing</span>';
       else if (need === "nib") pill = '<span class="mf-pill mf-p-warn" title="Recorded, but not the amount the closing asks for">Doesn’t add up</span>';
+      else if (need === "fix") pill = '<span class="mf-pill mf-p-warn" title="The contract says ' + esc(money2(r.recorded)) + ", corrected to " + esc(money2(r.fix)) + '">Net cash to fix</span>';
       else if (d < 0) pill = '<span class="mf-pill mf-p-out">' + ICON.toFm + "To the foreman</span>";
       else pill = '<span class="mf-pill mf-p-in">' + ICON.toBase + "To the base</span>";
       var act;
       if (need === "mc") act = '<span class="mf-dim mf-r">File the closing</span>';
+      else if (need === "fix") act = '<button type="button" class="mf-act mf-act-mute" data-mfa="job" data-v="' + esc(r.ev) + '">Review</button>';
       else if (pf) act = '<button type="button" class="mf-act mf-act-mute" data-mfa="job" data-v="' + esc(r.ev) + '">Review</button>';
       else if (need === "cnr") act = '<button type="button" class="mf-act mf-act-mute" data-mfa="job" data-v="' + esc(r.ev) + '">Enter cash</button>';
       else if (isPayout(r)) act = '<button type="button" class="mf-act mf-act-out" data-mfa="job" data-v="' + esc(r.ev) + '">Pay out</button>';
@@ -1009,7 +1114,9 @@ registerPage({
         + '<span class="mf-code" title="' + esc(r.jobCode || "") + '">' + esc(r.jobCode || "—") + "</span>"
         + '<button type="button" class="mf-cust" data-mfa="story" data-v="' + esc(r.ev) + '" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</button>"
         + '<span class="mf-mut mf-ell">' + esc(r.jobType || "—") + "</span>"
-        + '<span class="mf-r mf-b">' + (r.balance == null ? '<span class="mf-dim">—</span>' : money(Math.abs(r.balance))) + "</span>"
+        // a job to fix shows the gap between the contract and the correction, not its $0 balance
+        + '<span class="mf-r mf-b">' + (need === "fix" ? money(Math.abs(r.fix - r.recorded))
+            : r.balance == null ? '<span class="mf-dim">—</span>' : money(Math.abs(r.balance))) + "</span>"
         + pill
         + '<span class="mf-mut mf-nowrap">' + ageText(daysWaiting(r.date)) + "</span>"
         + rowLinksHtml(r)
@@ -1233,6 +1340,7 @@ registerPage({
         loadFines().then(function () { if (myGen === window.__MFGEN) paint(); });
       if (window.ZDC && $("mfDayStrip")) ZDC.mountStrip($("mfDayStrip"));
       dcStale = true;
+      MC.stale = true;          // the Month close tab refetches its Day Closing days
     }
 
     // ================= THE PANEL (right-side drawer) =================
@@ -1298,8 +1406,9 @@ registerPage({
       var el = document.querySelector("#mfDrawer #mfDErr");
       if (el) el.innerHTML = msg ? '<div class="mf-errbox"><span>' + esc(msg) + "</span>" + (extraHtml || "") + "</div>" : "";
     }
-    // save one batch from a panel; on success the panel closes and the queue repaints at once
-    async function panelSave(items, link) {
+    // save one batch from a panel; on success the panel closes and the queue repaints at once --
+    // or, given `keep` (a job expense, 2026-10-09), the panel stays open: keep() resets its form
+    async function panelSave(items, link, keep) {
       panelErr("");
       panelBusy(true);
       var out;
@@ -1318,10 +1427,153 @@ registerPage({
         return false;
       }
       items.forEach(function (it, i) { patchLive(it, (out.j.ids || [])[i], out.j.link_id); });
-      closePanel();
+      if (keep) { panelBusy(false); keep(); renderPanel(true); }
+      else closePanel();
       paint();
       afterWrite(items);
       return true;
+    }
+
+    /* ---- THE JOB'S NET CASH AND ITS EXPENSES (his calls, 2026-10-09) ----
+       Both sit on the leg that carries the job's net cash (the money leg); a correction or an
+       expense entered on another calendar day of the job would never count. */
+    function moneyLegOf(r) {
+      var c = codeOf(r.jobCode);
+      if (!c || r.recorded != null) return r;
+      return (idx().legs[c] || []).filter(function (x) { return x.recorded != null && !x.echoLeg; })[0] || r;
+    }
+    function fixEntryOf(r) {
+      var l = storyEntriesOf(r).filter(function (e) { return e.current && e.type === NC_FIX; });
+      return l.length ? l[l.length - 1] : null;
+    }
+    function expensesOf(r) {
+      return storyEntriesOf(r).filter(function (e) { return e.current && e.type === JOB_EXP && Math.abs(+e.amount || 0) > 0.005; });
+    }
+    // the job card's lines about them, with "Take the correction back" (st = the panel's state)
+    function figuresHtml(r, st) {
+      var m = moneyLegOf(r), out = "";
+      if (m.fix != null) {
+        var fe = fixEntryOf(m);
+        out += '<div class="mf-jcnote mf-jcfix"><span>Net cash corrected to <b>' + money2(m.fix) + "</b>"
+          + (fixOpen(m) ? " — the contract says " + money2(m.recorded) + ". Flagged until the contract or closing is fixed."
+            : " — the closing now agrees.")
+          + (fe && fe.note ? ' <span class="mf-mut">Why: ' + esc(fe.note) + (fe.by ? " (" + esc(shortBy(fe.by)) + ")" : "") + "</span>" : "") + "</span>"
+          + (fe && st && !st.fixWd ? ' <button type="button" class="mf-linkbtn" data-mfp="fixwd">Take the correction back</button>' : "") + "</div>";
+        if (fe && st && st.fixWd) {
+          out += '<div class="mf-inl"><label for="mfFixWhy" class="mf-lg2">Why take it back? The job goes back to the contract’s ' + money2(m.recorded) + ".</label>"
+            + '<div class="mf-addrow"><input id="mfFixWhy" class="mf-in" maxlength="200" value="' + esc(st.fixWhy || "") + '" placeholder="e.g. Picked by mistake" data-mffocus>'
+            + '<button type="button" class="mf-btn mf-pri" data-mfp="fixwdgo">Take it back</button>'
+            + '<button type="button" class="mf-btn mf-ghost" data-mfp="fixwdno">Cancel</button></div></div>';
+        }
+      }
+      return out;
+    }
+    function expHtml(r, st) {
+      var m = moneyLegOf(r), list = expensesOf(m), tot = 0;
+      list.forEach(function (e) { tot += Math.abs(+e.amount || 0); });
+      var form = function (title, btn) {
+        return '<div class="mf-inl"><span class="mf-lg2">' + title + "</span>"
+          + '<div class="mf-exprow"><div class="mf-amt mf-amt-sm"><span class="mf-mut">$</span><input id="mfExpAmt" inputmode="decimal" autocomplete="off" aria-label="Amount" value="' + esc(st.expAmt || "") + '" data-mffocus></div>'
+          + '<input id="mfExpNote" class="mf-in" maxlength="200" aria-label="What was it for?" placeholder="What was it for? e.g. Extra truck rental" value="' + esc(st.expNote || "") + '"></div>'
+          + '<div class="mf-addrow"><button type="button" class="mf-btn mf-pri" data-mfp="expsave">' + btn + "</button>"
+          + '<button type="button" class="mf-btn mf-ghost" data-mfp="expno">Cancel</button></div></div>';
+      };
+      var rows = list.map(function (e) {
+        if (st.expEdit === e.id) return form("Change this expense", "Save change");
+        var row = '<div class="mf-conf"><span class="mf-tlwhat"><span class="mf-b">' + esc(e.note || "Job expense") + "</span>"
+          + '<span class="mf-mut">' + esc(shortBy(e.by)) + " · " + fmtWhen(e.at) + "</span></span>"
+          + '<span class="mf-tlamt">' + money2(Math.abs(+e.amount || 0)) + "</span>"
+          + '<span class="mf-expbtns"><button type="button" class="mf-linkbtn" data-mfp="expedit" data-v="' + esc(e.id) + '">Change</button>'
+          + '<button type="button" class="mf-linkbtn" data-mfp="expwd" data-v="' + esc(e.id) + '">Withdraw</button></span></div>';
+        if (st.expWd === e.id) {
+          row += '<div class="mf-inl"><label for="mfExpWhy" class="mf-lg2">Why withdraw it?</label>'
+            + '<div class="mf-addrow"><input id="mfExpWhy" class="mf-in" maxlength="200" value="' + esc(st.expWhy || "") + '" placeholder="e.g. Entered twice" data-mffocus>'
+            + '<button type="button" class="mf-btn mf-pri" data-mfp="expwdgo">Withdraw</button>'
+            + '<button type="button" class="mf-btn mf-ghost" data-mfp="expno">Cancel</button></div></div>';
+        }
+        return row;
+      }).join("");
+      return '<section class="mf-exps" aria-labelledby="mfExpH"><div class="mf-fldh"><h3 class="mf-h3" id="mfExpH">Job expenses</h3>'
+        + (list.length ? '<span class="mf-b">' + money2(tot) + "</span>" : "") + "</div>"
+        + '<span class="mf-mut mf-sm2">Money spent on this job that isn’t on the contract. It lowers what he owes on the job at once and never touches the cash drawer.</span>'
+        + rows
+        + (st.expAdding ? form("Add a job expense", "Add expense")
+          : '<button type="button" class="mf-addbtn" data-mfp="expadd">' + ICON.plus + "Add a job expense</button>")
+        + "</section>";
+    }
+    function expInput(e, st) {
+      var id = e.target.id;
+      if (id === "mfExpAmt") st.expAmt = e.target.value;
+      else if (id === "mfExpNote") st.expNote = e.target.value;
+      else if (id === "mfExpWhy") st.expWhy = e.target.value;
+      else if (id === "mfFixWhy") st.fixWhy = e.target.value;
+      else return false;
+      return true;
+    }
+    // done = saved: what the job asks for has changed, so the Settle preset follows it
+    function expReset(st, done) {
+      st.expAdding = false; st.expEdit = null; st.expWd = null; st.expAmt = ""; st.expNote = ""; st.expWhy = "";
+      st.fixWd = false; st.fixWhy = "";
+      if (done) st.amt = null;
+    }
+    // the handlers every job panel adds for the two (merged into its own `h`)
+    function jobExtrasH(r, st) {
+      var m = moneyLegOf(r);
+      var focus = function (id) { var i = $(id); if (i) i.focus(); };
+      return {
+        expadd: function () { expReset(st); st.expAdding = true; renderPanel(true); focus("mfExpAmt"); },
+        expedit: function (a) {
+          var e = _byId[a.getAttribute("data-v")] || _byId[+a.getAttribute("data-v")]; if (!e) return;
+          expReset(st); st.expEdit = e.id; st.expAmt = fmtAmt(Math.abs(+e.amount || 0)); st.expNote = e.note || "";
+          renderPanel(true); focus("mfExpAmt");
+        },
+        expwd: function (a) {
+          var e = _byId[a.getAttribute("data-v")] || _byId[+a.getAttribute("data-v")]; if (!e) return;
+          expReset(st); st.expWd = e.id; renderPanel(true); focus("mfExpWhy");
+        },
+        expno: function () { expReset(st); renderPanel(true); },
+        expsave: function () {
+          var amt = parseAmt(st.expAmt), note = String(st.expNote || "").trim();
+          if (/^\s*-/.test(st.expAmt || "")) { panelErr("Enter the expense without a minus sign."); return; }
+          if (amt == null || amt <= 0) { panelErr("Enter the amount of the expense."); return; }
+          if (amt > 1000000) { panelErr("That amount looks wrong (over $1,000,000). Check the number."); return; }
+          if (!note) { panelErr("Say what the expense was for — month close lists it by that."); return; }
+          var old = st.expEdit != null ? _byId[st.expEdit] : null;
+          if (old && Math.abs(Math.abs(+old.amount || 0) - amt) < 0.005 && String(old.note || "") === note) { expReset(st); renderPanel(true); return; }
+          panelSave([expenseItem(m, amt, note, old)], false, function () { expReset(st, true); });
+        },
+        expwdgo: function () {
+          var e = _byId[st.expWd], why = String(st.expWhy || "").trim();
+          if (!e) return;
+          if (!why) { panelErr("Say why it is withdrawn — it stays in the job’s history."); return; }
+          panelSave([withdrawItem(m, e, why)], false, function () { expReset(st, true); });
+        },
+        fixwd: function () { expReset(st); st.fixWd = true; renderPanel(true); focus("mfFixWhy"); },
+        fixwdno: function () { expReset(st); renderPanel(true); },
+        fixwdgo: function () {
+          var fe = fixEntryOf(m), why = String(st.fixWhy || "").trim();
+          if (!fe) return;
+          if (!why) { panelErr("Say why the correction is taken back — it stays in the job’s history."); return; }
+          panelSave([withdrawItem(m, fe, why)], false, function () { expReset(st, true); });
+        },
+      };
+    }
+    /* "Whose is the difference?" -- shown under the amount whenever it isn't what the job asks for
+       (2026-10-09). Default: his balance, as before. The other: the job's net cash is wrong.
+       eff = what the amount would do WITHOUT the correction (short / extra / still off). */
+    function fixChoiceHtml(st, eff) {
+      var opt = function (v, on, title, sub) {
+        return '<label class="mf-mcard' + (on ? " mf-on" : "") + '"><input type="radio" name="mfFixCh" data-mfp="fixmode" data-v="' + v + '"' + (on ? " checked" : "") + ">"
+          + '<span class="mf-mcol"><span class="mf-b">' + title + '</span><span class="mf-mut mf-sm2">' + sub + "</span></span></label>";
+      };
+      var bal = st.type === TAKEN ? ["Keep the difference open on the job", "The job stays open until the rest is paid."]
+        : eff.kind === "extra" ? ["The extra pays back his balance", "He brought more than the job asks for."]
+          : ["He owes the difference", "It goes on his foreman balance."];
+      return '<fieldset class="mf-fs mf-fixch"><legend class="mf-lg">Whose is the difference?</legend>'
+        + opt("bal", !st.fix, bal[0], bal[1])
+        + opt("fix", !!st.fix, "The job’s net cash is wrong",
+            "He handed over the right amount. The job settles on it, nothing goes on his balance, and the job is flagged until the contract or closing is fixed.")
+        + "</fieldset>";
     }
 
     // ---- the job card on top of the Settle / Pay-out / Settled panels ----
@@ -1353,7 +1605,8 @@ registerPage({
         + (r.forman && r.forman !== MF_NO_FOREMAN
             ? '<button type="button" class="mf-linkbtn mf-b" data-mfp="fm">' + (S.fines ? esc(owesText(debtOf(r.forman))) : S.finesErr ? "open" : "…") + "</button>"
             : '<span class="mf-dim">foreman not identified</span>') + "</div>"
-        + recorded + legacy
+        + recorded + legacy + figuresHtml(r, opt.st)
+        + (moneyLegOf(r).exp > 0.005 ? '<div class="mf-jcnote">After ' + money2(moneyLegOf(r).exp) + " of job expenses (below).</div>" : "")
         + (links.length ? '<div class="mf-jclinks">' + links.join(" · ") + "</div>" : "")
         + "</div>";
     }
@@ -1394,7 +1647,7 @@ registerPage({
         else if (l.expected != null) {
           var v = l.expected - (l.adv || 0) + (l.ded || 0);
           tl(l.dcTs || l.date + " 00", "ring", l.dcTs ? fmtWhen(l.dcTs) + lt : fmtD(l.date),   // the leg date only beside a submission time, never twice
-            '<span class="mf-b">Closing filed: net cash ' + money2(l.expected) + "</span>"
+            '<span class="mf-b">Closing filed: net cash ' + money2(l.recorded != null ? l.recorded : l.expected) + "</span>"
             + '<span class="mf-mut">' + (v > MF_TOL ? "Positive net cash: " + esc(fm) + " is holding money that belongs to the base."
               : v < -MF_TOL ? "Negative net cash: the base owes " + esc(fm) + " on this job." : "Nothing to hand over either way.") + "</span>");
         } else {
@@ -1452,11 +1705,18 @@ registerPage({
         title = amt > 0.005 ? "Short — moved to his balance" : "Short cleared";
       } else if (en.type === MF_EXTRA) {
         title = amt > 0.005 ? (en.link_id != null ? "Left on his balance" : "Extra — taken off his balance") : "Extra cleared";
+      } else if (en.type === NC_FIX) {
+        // the corrected net cash is a FIGURE, signed -- not money that moved (2026-10-09)
+        title = "Net cash corrected — he handed over the right amount";
+        amt = +en.amount || 0;
+      } else if (en.type === JOB_EXP) {
+        title = "Job expense";
       } else if (en.type === "Advance Payment") title = "Advance on the job (old way)";
       else if (en.type === "Forman Deduction") title = "Deduction on the job (old way)";
       else title = esc(en.type || "Entry");
-      if (en.replaces != null) sub.push("correction");
-      if (gone) sub.push("replaced by a correction");
+      if (en._withdrawn) title = (en.type === NC_FIX ? "Net cash correction taken back" : "Job expense withdrawn");
+      if (en.replaces != null && !en._withdrawn) sub.push("correction");
+      if (gone && !en._withdrawn) sub.push("replaced by a correction");
       if (en.note && !/^(confirmed|bulk confirmed|corrected)$/i.test(en.note)) sub.push(esc(en.note));
       // a linked pay-out: name the jobs on the other side
       var linked = "";
@@ -1554,6 +1814,15 @@ registerPage({
       if (!isCashMethod(method)) return "Not cash — no change to today’s cash";
       return type === TAKEN ? "Takes " + money2(amt) + " out of today’s cash" : "Adds " + money2(amt) + " to today’s cash";
     }
+    // the "Whose is the difference?" choice under the amount, and the note's label with it:
+    // a corrected net cash must say why (the office fixes the contract from it)
+    function fixUi(st, effBal) {
+      var fx = $("mfFix"), nl = $("mfNoteL");
+      if (fx) fx.innerHTML = effBal ? fixChoiceHtml(st, effBal) : "";
+      if (nl && !st.correcting) nl.innerHTML = effBal && st.fix
+        ? "What is wrong with the net cash? <span class=\"mf-mut\">(required — the office fixes the contract from it)</span>"
+        : 'Note <span class="mf-mut">(optional)</span>';
+    }
     function settlePanel(r) {
       var st = P.st, pre = settle(r), manual = st.mode === "manual";
       if (st.type == null) st.type = pre ? pre.type : BROUGHT;
@@ -1569,22 +1838,24 @@ registerPage({
         + '<div class="mf-fs"><span class="mf-lg">Which way did the money go?</span><div class="mf-ways" role="radiogroup">'
         + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.type === BROUGHT) + '" data-mfp="dir" data-v="in">He brought money to the base</button>'
         + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.type === TAKEN) + '" data-mfp="dir" data-v="out">The base paid him</button></div></div>' : "";
-      var body = jobCardHtml(r, { out: st.type === TAKEN && !manual }) + why
+      var body = jobCardHtml(r, { out: st.type === TAKEN && !manual, st: st }) + why
         + methodCards(list, st.method, st.type !== TAKEN, st)
         + '<div class="mf-fld"><div class="mf-fldh"><label for="mfAmt" class="mf-lg">' + (st.type === TAKEN ? "How much was paid to him?" : "How much did he bring?") + "</label>"
         + (pre && !manual ? '<button type="button" class="mf-linkbtn" data-mfp="full">Full ' + money2(pre.amount) + "</button>" : "") + "</div>"
         + '<div class="mf-amt"><span class="mf-mut">$</span><input id="mfAmt" inputmode="decimal" autocomplete="off" value="' + esc(st.amt) + '" data-mffocus></div>'
-        + '<div id="mfEff"></div></div>'
+        + '<div id="mfEff"></div><div id="mfFix"></div></div>'
         + '<div class="mf-dcl"><span class="mf-b">Day Closing</span><span class="mf-mut" id="mfDcl"></span></div>'
-        + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Note <span class="mf-mut">(optional)</span></label>'
+        + '<div class="mf-fld"><label for="mfNote" class="mf-lg2" id="mfNoteL">Note <span class="mf-mut">(optional)</span></label>'
         + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="400">' + esc(st.note) + "</textarea></div>"
+        + expHtml(r, st)
         + storySection(r, false);
       var foot = '<div id="mfDErr"></div><div class="mf-dfrow"><button type="button" class="mf-btn" data-mfp="close">Cancel</button>'
         + '<button type="button" class="mf-btn mf-pri" data-mfp="save" id="mfSave">Confirm</button></div>';
       var live = function () {
-        var amt = parseAmt(st.amt), eff = settleEffect(r, st.type, amt, balNow);
+        var amt = parseAmt(st.amt), eff = settleEffect(r, st.type, amt, balNow, st.fix);
         var e = $("mfEff"), dc = $("mfDcl"), sv = $("mfSave");
         if (e) e.innerHTML = '<div class="mf-eff mf-eff-' + eff.kind + '"><span class="mf-b">' + esc(eff.title) + "</span>" + (eff.line ? "<span>" + esc(eff.line) + "</span>" : "") + "</div>";
+        fixUi(st, eff.canFix ? settleEffect(r, st.type, amt, balNow, false) : null);
         if (dc) dc.textContent = amt == null ? "—" : dcLine(st.type, st.method, amt);
         if (sv) sv.textContent = amt == null ? "Confirm" : "Confirm " + money2(amt) + " · " + normMethod(st.method);
       };
@@ -1593,11 +1864,13 @@ registerPage({
         body: body, foot: foot,
         after: live,
         onInput: function (e) {
+          if (expInput(e, st)) return;
           if (e.target.id === "mfAmt") { st.amt = e.target.value; live(); }
           else if (e.target.id === "mfNote") st.note = e.target.value;
           else if (e.target.id === "mfNewM") st.draft = e.target.value;
         },
-        h: {
+        h: assign({
+          fixmode: function (a) { st.fix = a.getAttribute("data-v") === "fix"; live(); },
           method: function (a) { st.method = a.getAttribute("data-v"); renderPanel(true); },
           dir: function (a) { st.type = a.getAttribute("data-v") === "out" ? TAKEN : BROUGHT; st.method = "Cash"; renderPanel(true); },
           full: function () { st.amt = fmtAmt(pre.amount); var i = $("mfAmt"); if (i) i.value = st.amt; live(); },
@@ -1612,11 +1885,14 @@ registerPage({
             if (/^\s*-/.test(st.amt)) { panelErr("Enter the amount without a minus sign — the direction is already set."); return; }
             if (amt == null) { panelErr(st.type === TAKEN ? "Enter how much was paid to him." : "Enter how much he brought (0 if nothing)."); return; }
             if (amt > 1000000) { panelErr("That amount looks wrong (over $1,000,000). Check the number."); return; }
-            var items = settleItems(r, { type: st.type, amt: amt, method: st.method, note: st.note, replaces: null });
+            var fixing = !!(st.fix && settleEffect(r, st.type, amt, balNow, true).canFix);
+            if (fixing && !String(st.note || "").trim()) { panelErr("Say what is wrong with the net cash — the office fixes the contract from it."); return; }
+            var items = settleItems(r, { type: st.type, amt: amt, method: st.method, note: st.note, replaces: null,
+                                         fix: fixing, fixEntry: fixing ? fixEntryOf(r) : null });
             if (!items.length) { closePanel(); return; }   // nothing changed: the job already reads this
             panelSave(items, false);
           },
-        },
+        }, jobExtrasH(r, st)),
       };
     }
     function settledPanel(r) {
@@ -1663,12 +1939,13 @@ registerPage({
           + methodCards(list, st.method, false, st)
           + '<div class="mf-fld"><label for="mfAmt" class="mf-lg">' + (st.type === TAKEN ? "How much was paid to him?" : "How much did he bring?") + "</label>"
           + '<div class="mf-amt"><span class="mf-mut">$</span><input id="mfAmt" inputmode="decimal" autocomplete="off" value="' + esc(st.amt) + '" data-mffocus></div>'
-          + '<div id="mfEff"></div></div>'
+          + '<div id="mfEff"></div><div id="mfFix"></div></div>'
           + '<div class="mf-dcl"><span class="mf-b">Day Closing</span><span class="mf-mut" id="mfDcl"></span></div>'
           + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Why the correction</label>'
           + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="400" placeholder="e.g. He brought $1,000, not $1,134">' + esc(st.note) + "</textarea></div></div>";
       }
-      var body = jobCardHtml(rr, { out: st.type === TAKEN, settled: true, noStoryLink: true }) + confHtml + box + form + storySection(rr, true);
+      var body = jobCardHtml(rr, { out: st.type === TAKEN, settled: true, noStoryLink: true, st: st }) + confHtml + box + form
+        + expHtml(rr, st) + storySection(rr, true);
       var foot = '<div id="mfDErr"></div><div class="mf-dfrow">'
         + (st.correcting ? '<button type="button" class="mf-btn" data-mfp="corrcancel">Cancel</button><button type="button" class="mf-btn mf-pri" data-mfp="corrsave" id="mfSave">Save correction</button>'
           : '<button type="button" class="mf-btn" data-mfp="close">Close</button>') + "</div>";
@@ -1681,9 +1958,10 @@ registerPage({
       };
       var live = function () {
         if (!st.correcting) return;
-        var amt = parseAmt(st.amt), eff = settleEffect(rr, st.type, amt, balNow);
+        var amt = parseAmt(st.amt), eff = settleEffect(rr, st.type, amt, balNow, st.fix);
         var e = $("mfEff"), dc = $("mfDcl"), sv = $("mfSave");
         if (e) e.innerHTML = '<div class="mf-eff mf-eff-' + eff.kind + '"><span class="mf-b">' + esc(eff.title) + "</span>" + (eff.line ? "<span>" + esc(eff.line) + "</span>" : "") + "</div>";
+        fixUi(st, eff.canFix ? settleEffect(rr, st.type, amt, balNow, false) : null);
         if (dc) {
           if (amt == null) dc.textContent = "—";
           else {
@@ -1698,10 +1976,12 @@ registerPage({
         title: settledNow ? "Settled" : "Already confirmed",
         body: body, foot: foot, after: live,
         onInput: function (e) {
+          if (expInput(e, st)) return;
           if (e.target.id === "mfAmt") { st.amt = e.target.value; live(); }
           else if (e.target.id === "mfNote") st.note = e.target.value;
         },
-        h: {
+        h: assign({
+          fixmode: function (a) { st.fix = a.getAttribute("data-v") === "fix"; live(); },
           corr: function () { st.correcting = true; renderPanel(true); var i = $("mfAmt"); if (i) i.focus(); },
           tocorr: function () { st.correcting = true; renderPanel(); },
           corrcancel: function () { st.correcting = false; st.already = null; st.amt = null; st.method = null; st.type = null; st.note = ""; renderPanel(true); },
@@ -1714,11 +1994,13 @@ registerPage({
             if (amt == null) { panelErr("Enter the amount."); return; }
             if (amt > 1000000) { panelErr("That amount looks wrong (over $1,000,000). Check the number."); return; }
             if (!String(st.note || "").trim()) { panelErr("Say why — a correction shows in the job’s history with who and why."); return; }
-            var items = settleItems(rr, { type: st.type, amt: amt, method: st.method, note: st.note, replaces: cur });
+            var fixing = !!(st.fix && settleEffect(rr, st.type, amt, balNow, true).canFix);
+            var items = settleItems(rr, { type: st.type, amt: amt, method: st.method, note: st.note, replaces: cur,
+                                          fix: fixing, fixEntry: fixing ? fixEntryOf(rr) : null });
             if (!items.length) { panelErr("Nothing changed — change the amount or how it came in."); return; }
             panelSave(items, false);
           },
-        },
+        }, jobExtrasH(rr, st)),
       };
     }
     // his open to-the-base jobs a pay-out can be balanced against (newest first)
@@ -1776,7 +2058,7 @@ registerPage({
       else if (plan.used > 0.005) summary = "All " + money2(plan.owed) + " balanced against his jobs";
       else summary = money2(plan.owed) + wl;
       if (plan.leftover > 0.005) summary += " · " + money2(plan.leftover) + " leftover goes on his balance";
-      var body = jobCardHtml(r, { out: true })
+      var body = jobCardHtml(r, { out: true, st: st })
         + '<fieldset class="mf-fs"><legend class="mf-lg">1 · Balance it against his other jobs</legend>'
         + (cands.length ? '<span class="mf-mut">' + (w ? "Jobs where " + esc(fm) + " still holds money for the base. Tick the ones to use."
             : esc(offlineNote() || "Money Flow update pending — balancing against his jobs works once the database step has run.")) + "</span>" : "")
@@ -1784,13 +2066,14 @@ registerPage({
         + rest
         + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Note <span class="mf-mut">(optional)</span></label>'
         + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="400" placeholder="e.g. Salaries for the ' + esc(fmtShort(r.date)) + ' crew">' + esc(st.note) + "</textarea></div>"
+        + expHtml(r, st)
         + storySection(r, false);
       var foot = '<span class="mf-mut">' + esc(summary) + '</span><div id="mfDErr"></div><div class="mf-dfrow"><button type="button" class="mf-btn" data-mfp="close">Cancel</button>'
         + '<button type="button" class="mf-btn mf-pri" data-mfp="save">Confirm</button></div>';
       return {
         title: "Pay out to a foreman", body: body, foot: foot,
-        onInput: function (e) { if (e.target.id === "mfNote") st.note = e.target.value; },
-        h: {
+        onInput: function (e) { if (expInput(e, st)) return; if (e.target.id === "mfNote") st.note = e.target.value; },
+        h: assign({
           tick: function (a) {
             var ev = a.getAttribute("data-v");
             if (st.ticked[ev]) delete st.ticked[ev];
@@ -1811,7 +2094,7 @@ registerPage({
             // a plain one-entry pay-out needs no link (and works before the database step has run)
             panelSave(p2.items, p2.items.length > 1);
           },
-        },
+        }, jobExtrasH(r, st)),
       };
     }
 
@@ -2081,12 +2364,14 @@ registerPage({
         data = balancesList(scope.filter(function (r) { return MAINSET[r.status]; }), q).map(function (x) { return [x.name, x.bal, r2(x.open), x.total]; });
         name = "Money Flow — foreman balances";
       } else {
-        cols = ["Foreman", "Job date", "Job code", "Job #", "Customer", "Type", "Status", "Money goes", "Amount", "Waiting (days)", "His balance"];
+        cols = ["Foreman", "Job date", "Job code", "Job #", "Customer", "Type", "Status", "Money goes", "Amount", "Waiting (days)", "His balance",
+                "Net cash (contract)", "Net cash corrected to", "Job expenses"];
         var set = S.need ? scope.filter(function (r) { return needOf(r) === S.need; }) : scope.filter(function (r) { return MAINSET[r.status]; });
         data = set.filter(function (r) { return matches(r, q); }).sort(function (a, b) { return a.forman.localeCompare(b.forman) || (a.date < b.date ? 1 : -1); }).map(function (r) {
           var d = dirOf(r);
           return [r.forman, r.date, r.jobCode, r.jobNo, r.customer, r.jobType, r.status, d > 0 ? "To the base" : d < 0 ? "To the foreman" : "",
-            r.balance == null ? "" : r2(Math.abs(r.balance)), daysWaiting(r.date), S.fines ? debtOf(r.forman) : ""];
+            r.balance == null ? "" : r2(Math.abs(r.balance)), daysWaiting(r.date), S.fines ? debtOf(r.forman) : "",
+            r.recorded == null ? "" : r.recorded, r.fix == null ? "" : r.fix, r.exp ? r.exp : ""];
         });
         name = "Money Flow — waiting";
       }
@@ -2099,7 +2384,316 @@ registerPage({
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
     }
 
-    // ---------- the three tabs: Money Flow · Day Closing · How to use ----------
+    /* ---------- MONTH CLOSE (his ask, 2026-10-09: "reporting tool ... total foreman repayment and
+       total additional expense per job ... so we can correctly close the month") ----------
+       Four parts, all read from what the page already has -- nothing new is stored:
+         1. Cash: the Day Closing days whose date falls in the month (+ the open day, if it does);
+         2. The foremen's balances: fines, advances, short hand-ins and repayments dated in the month
+            (/api/_ffines, the same ledger as the Foreman balances tab);
+         3. Job expenses and net cash corrections of the month's JOBS (by job date);
+         4. What is still open today from the month's jobs, and what the foremen owe today.
+       All companies: the drawer and the ledger are the base's, not a company's. */
+    // stale: a save here moved the drawer since the days were fetched (set by afterWrite)
+    var MC = { dc: null, dcErr: "", dcAt: 0, loading: false, key: "", stale: false, finesAsked: false };
+    function mcDefaultMonth() {
+      // in the first ten days of a month the month being closed is the one before
+      var d = new Date(todayIso + "T12:00:00");
+      if (d.getDate() <= 10) d.setMonth(d.getMonth() - 1);
+      return d.toISOString().slice(0, 7);
+    }
+    function mcMonths() {
+      var out = [], d = new Date(todayIso.slice(0, 7) + "-15T12:00:00");
+      for (var i = 0; i < 13; i++) { out.push(d.toISOString().slice(0, 7)); d.setMonth(d.getMonth() - 1); }
+      return out;
+    }
+    function mcName(m) {
+      var d = new Date(m + "-15T12:00:00");
+      return isNaN(d) ? m : d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
+    function mcLoadDc(force) {
+      if (!window.ZDC || MC.loading) return;
+      if (!force && (MC.dc || MC.dcErr) && Date.now() - MC.dcAt < 60000 && !MC.stale) return;
+      MC.loading = true; MC.stale = false; MC.dcAt = Date.now();
+      ZDC.api(force ? "?fresh=1" : "").then(function (d) { MC.dc = d; MC.dcErr = ""; MC.dcAt = Date.now(); })
+        .catch(function (e) { MC.dcErr = String(e && e.message || e); })
+        .then(function () { MC.loading = false; if (myGen === window.__MFGEN && topNow === "month-close") paintMonth(true); });
+    }
+    // everything the month's four parts show, worked out once (the CSV reads the same numbers)
+    function mcData(m) {
+      var inM = function (d) { return String(d || "").slice(0, 7) === m; };
+      // 1 · cash, from the Day Closing days of the month
+      var cash = { cash_in: 0, card_out: 0, fines: 0, advances: 0, net: 0, nc_in: 0, nc_out: 0, days: [], open: null };
+      if (MC.dc) {
+        (MC.dc.days || []).forEach(function (d) {
+          if (!inM(d.date)) return;
+          var t = d.totals || {}, nc = d.not_cash || {};
+          cash.days.push({ date: d.date, kind: d.kind, t: t, nc: nc, closedBy: d.closed_by || "" });
+          cash.cash_in += t.cash_in || 0; cash.card_out += t.card_out || 0; cash.fines += t.fines || 0;
+          cash.advances += t.advances || 0; cash.net += t.net || 0; cash.nc_in += nc.in || 0; cash.nc_out += nc.out || 0;
+        });
+        var o = MC.dc.open;
+        if (o && inM(todayIso) && o.totals && (o.totals.n_lines || 0) > 0) {
+          var ot = o.totals, onc = o.not_cash || {};
+          cash.open = { t: ot, nc: onc };
+          cash.cash_in += ot.cash_in || 0; cash.card_out += ot.card_out || 0; cash.fines += ot.fines || 0;
+          cash.advances += ot.advances || 0; cash.net += ot.net || 0; cash.nc_in += onc.in || 0; cash.nc_out += onc.out || 0;
+        }
+        cash.days.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      }
+      // 2 · the foremen's balances: every current movement dated in the month
+      var fm = {}, ftot = { fined: 0, advanced: 0, short: 0, repaid: 0, repaidJobs: 0, opening: 0 }, byMethod = {};
+      ((S.fines || {}).entries || []).forEach(function (e) {
+        if (!e["Is Current"] || !inM(e["Fine Date"])) return;
+        var f = String(e.Foreman || "").trim() || MF_NO_FOREMAN, a = +e.Amount || 0, t = e["Entry Type"];
+        var x = fm[f] || (fm[f] = { name: f, fined: 0, advanced: 0, short: 0, repaid: 0, repaidJobs: 0, opening: 0 });
+        if (t === "repayment") {
+          // an extra brought on a job is a repayment too (the ledger lists it read-only)
+          var k = e.readonly ? "repaidJobs" : "repaid";
+          x[k] += a; ftot[k] += a;
+          if (!e.readonly) { var mm = normMethod(e.Method); byMethod[mm] = (byMethod[mm] || 0) + a; }
+        } else {
+          var key = t === "fine" ? "fined" : t === "advance" ? "advanced" : t === "short" ? "short" : t === "opening" ? "opening" : "fined";
+          x[key] += a; ftot[key] += a;
+        }
+      });
+      var fmList = Object.keys(fm).map(function (f) {
+        var x = fm[f];
+        x.change = r2(x.fined + x.advanced + x.short + x.opening - x.repaid - x.repaidJobs);
+        x.owes = S.fines ? debtOf(f) : null;
+        return x;
+      }).sort(function (a, b) { return Math.abs(b.change) - Math.abs(a.change) || a.name.localeCompare(b.name); });
+      // 3 · job expenses (one line per job) and net cash corrections, by the JOB's date
+      var rows = overlaid(), jobs = {}, expTot = 0, nExp = 0;
+      ((S.live && S.live.entries) || []).forEach(function (e) {
+        if (!e.current || e.type !== JOB_EXP || !(Math.abs(+e.amount || 0) > 0.005)) return;
+        var r = rowByEv(e.event_id) || (codeOf(e.job_code) && (idx().legs[codeOf(e.job_code)] || [])[0]) || null;
+        var date = r ? r.date : String(e.at || "").slice(0, 10);
+        if (!inM(date)) return;
+        var k = codeOf(e.job_code) || (r && codeOf(r.jobCode)) || "ev:" + bareEv(e.event_id);
+        var j = jobs[k] || (jobs[k] = { date: date, code: (r && r.jobCode) || e.job_code || "", customer: r ? r.customer : "",
+                                        forman: r ? r.forman : "", items: [], total: 0, ev: r ? r.ev : null });
+        j.items.push(e); j.total = r2(j.total + Math.abs(+e.amount || 0)); expTot += Math.abs(+e.amount || 0); nExp++;
+      });
+      var expJobs = Object.keys(jobs).map(function (k) { return jobs[k]; }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      var fixes = rows.filter(function (r) { return r.fix != null && inM(r.date) && r.status !== "Filter Out"; }).map(function (r) {
+        var fe = fixEntryOf(r);
+        return { r: r, open: fixOpen(r), was: r.recorded, to: r.fix, diff: r.recorded == null ? null : r2(r.fix - r.recorded), why: fe ? fe.note : "", by: fe ? fe.by : "" };
+      }).sort(function (a, b) { return a.r.date < b.r.date ? -1 : 1; });
+      // 4 · still open today, from the month's jobs
+      var open = { toBase: 0, nBase: 0, toFm: 0, nFm: 0, cnr: 0, mc: 0, fix: 0, byFm: {} };
+      rows.forEach(function (r) {
+        if (!inM(r.date)) return;
+        var n = needOf(r);
+        if (n === "cnr") open.cnr++; else if (n === "mc") open.mc++; else if (n === "fix") open.fix++;
+        if (!MAINSET[r.status]) return;
+        var d = dirOf(r);
+        if (d > 0) { open.toBase += r.balance; open.nBase++; }
+        else if (d < 0) { open.toFm += -r.balance; open.nFm++; }
+        if (d !== 0) {
+          var g = open.byFm[r.forman] || (open.byFm[r.forman] = { name: r.forman, toBase: 0, toFm: 0, n: 0 });
+          if (d > 0) g.toBase += r.balance; else g.toFm += -r.balance;
+          g.n++;
+        }
+      });
+      open.fmList = Object.keys(open.byFm).map(function (f) { return open.byFm[f]; })
+        .sort(function (a, b) { return (b.toBase - b.toFm) - (a.toBase - a.toFm); });
+      var owesNow = 0, owedNow = 0;
+      ((S.fines || {}).balances || []).forEach(function (b) { if (b.owes > 0.005) owesNow += b.owes; else if (b.owes < -0.005) owedNow += -b.owes; });
+      return { m: m, cash: cash, fmList: fmList, ftot: ftot, byMethod: byMethod, expJobs: expJobs, expTot: r2(expTot), nExp: nExp,
+               fixes: fixes, open: open, owesNow: r2(owesNow), owedNow: r2(owedNow) };
+    }
+    // the tab can open before the jobs (and MC, todayIso) exist: it says so, and the page's first
+    // paint() draws it -- so nothing here may touch them
+    function mountMonth() { paintMonth(true); }
+    // what the tab needs besides the jobs: the Day Closing days and the foreman ledger
+    function mcEnsure() {
+      if (!S.fines && !S.finesErr && !MC.finesAsked) {
+        MC.finesAsked = true;
+        loadFines().then(function () { if (myGen === window.__MFGEN && topNow === "month-close") paintMonth(true); });
+      }
+      mcLoadDc(false);
+    }
+    function paintMonth(force) {
+      var pane = document.getElementById("mfPaneMonth");
+      if (!pane || topNow !== "month-close") return;
+      if (!base || !MC || !todayIso) { pane.innerHTML = '<div class="mf-load"><div class="mf-spin"></div>Loading jobs…</div>'; return; }
+      if (!S.mcMonth) S.mcMonth = mcDefaultMonth();
+      mcEnsure();
+      var key = [S.mcMonth, S.liveAt, MC.dcAt, MC.dcErr, (S.fines && S.fines.entries || []).length, S.finesErr, !!S.fines, (S.live && S.live.entries || []).length].join("|");
+      if (!force && key === MC.key) return;          // nothing it shows has changed
+      MC.key = key;
+      var sc = document.getElementById("content"), top = sc ? sc.scrollTop : 0;
+      pane.innerHTML = monthHtml(mcData(S.mcMonth));
+      if (sc) sc.scrollTop = top;
+      var sel = $("mfMcMonth");
+      if (sel) sel.onchange = function () { S.mcMonth = sel.value; paintMonth(true); };
+      pane.onclick = function (e) {
+        var a = e.target.closest("[data-mfm]"); if (!a) return;
+        var k = a.getAttribute("data-mfm");
+        if (k === "csv") monthCsv(mcData(S.mcMonth));
+        else if (k === "refresh") {
+          mcLoadDc(true);
+          loadLive(true).then(function () { setLiveBadge(); paintMonth(true); });
+          loadFines().then(function () { paintMonth(true); });
+        } else if (k === "job") { setTop("money-flow"); openJob(a.getAttribute("data-v"), false); }
+        else if (k === "fm") { setTop("money-flow"); openFm(a.getAttribute("data-v"), false); }
+      };
+    }
+    function monthHtml(D) {
+      var c = D.cash, o = D.open, ft = D.ftot;
+      var repaidAll = r2(ft.repaid + ft.repaidJobs);
+      var opts = mcMonths().map(function (m) { return '<option value="' + m + '"' + (m === D.m ? " selected" : "") + ">" + esc(mcName(m)) + "</option>"; }).join("");
+      var head = '<div class="mf-mchead"><div class="mf-qtitle"><h2>Month close · ' + esc(mcName(D.m)) + "</h2>"
+        + "<p>What moved in the month, what the foremen repaid, the jobs’ extra expenses and net cash corrections, and what is still open. All companies.</p></div>"
+        + '<div class="mf-topbtns"><label class="mf-mcsel"><span class="mf-mut">Month</span><select id="mfMcMonth" class="mf-in">' + opts + "</select></label>"
+        + '<button type="button" class="mf-btn" data-mfm="refresh">Refresh</button>'
+        + '<button type="button" class="mf-btn" data-mfm="csv">' + ICON.dl + "Download CSV</button></div></div>";
+      var kp = '<div class="mf-kpis">'
+        + '<div class="mf-kpi"><span class="mf-kl">Cash into the drawer (net)</span><span class="mf-kv">' + (MC.dc ? money(c.net) : "…") + "</span>"
+        + '<span class="mf-ks">' + (MC.dc ? money(c.cash_in) + " in · " + money(Math.abs(c.card_out + c.advances)) + " out" : MC.dcErr ? "Day Closing didn’t load" : "Loading Day Closing…") + "</span></div>"
+        + '<div class="mf-kpi"><span class="mf-kl">Foremen repaid</span><span class="mf-kv">' + (S.fines ? money(repaidAll) : "…") + "</span>"
+        + '<span class="mf-ks">' + (S.fines ? money(ft.repaid) + " directly · " + money(ft.repaidJobs) + " as extra on jobs" : S.finesErr ? "The balances didn’t load" : "Loading the balances…") + "</span></div>"
+        + '<div class="mf-kpi mf-kpi-out"><span class="mf-kl">Job expenses</span><span class="mf-kv">' + money(D.expTot) + "</span>"
+        + '<span class="mf-ks">' + D.nExp + " expense" + (D.nExp === 1 ? "" : "s") + " on " + D.expJobs.length + " job" + (D.expJobs.length === 1 ? "" : "s") + "</span></div>"
+        + '<div class="mf-kpi mf-kpi-look"><span class="mf-kl">Still open from the month</span><span class="mf-kv">' + money(o.toBase) + "</span>"
+        + '<span class="mf-ks">' + o.nBase + " job" + (o.nBase === 1 ? "" : "s") + " to the base · " + money(o.toFm) + " owed to foremen</span></div></div>";
+      var tbl = function (cols, rows, foot, cls) {
+        return '<div class="mf-scroll"><table class="mf-mct' + (cls ? " " + cls : "") + '"><thead><tr>' + cols.map(function (x) {
+            return "<th" + (x.r ? ' class="mf-r"' : "") + ">" + x.l + "</th>"; }).join("") + "</tr></thead><tbody>"
+          + rows.join("") + "</tbody>" + (foot ? "<tfoot>" + foot + "</tfoot>" : "") + "</table></div>";
+      };
+      var td = function (v, r) { return "<td" + (r ? ' class="mf-r"' : "") + ">" + v + "</td>"; };
+      var sec = function (n, title, sub, inner) {
+        return '<section class="mf-q mf-mcsec" aria-labelledby="mfMc' + n + '"><div class="mf-qhead"><div class="mf-qtitle"><h2 id="mfMc' + n + '"><span class="mf-mcn">' + n + "</span>" + title + "</h2><p>" + sub + "</p></div></div>" + inner + "</section>";
+      };
+      // 1 · cash
+      var s1;
+      if (MC.dcErr && !MC.dc) s1 = '<div class="mf-empty">Day Closing didn’t load — ' + esc(MC.dcErr) + ' <button type="button" class="mf-btn mf-sm" data-mfm="refresh">Try again</button></div>';
+      else if (!MC.dc) s1 = '<div class="mf-load"><div class="mf-spin"></div>Loading Day Closing…</div>';
+      else if (!c.days.length && !c.open) s1 = '<div class="mf-empty">No Day Closing days in ' + esc(mcName(D.m)) + ".</div>";
+      else {
+        var drow = function (label, t, nc) {
+          return "<tr>" + td(label) + td(money2(t.cash_in || 0), 1) + td(money2(Math.abs(t.card_out || 0)), 1) + td(money2(Math.abs(t.advances || 0)), 1)
+            + td(money2(t.fines || 0), 1) + td("<b>" + money2(t.net || 0) + "</b>", 1) + td(money2(Math.abs(nc.in || 0) + Math.abs(nc.out || 0)), 1) + "</tr>";
+        };
+        s1 = tbl([{ l: "Day" }, { l: "Cash in", r: 1 }, { l: "Paid out", r: 1 }, { l: "Advances given", r: 1 }, { l: "of it: balance repaid", r: 1 }, { l: "Net to the drawer", r: 1 }, { l: "Not cash", r: 1 }],
+          c.days.map(function (d) { return drow(esc(fmtD(d.date)) + (d.kind === "reconstructed" ? ' <span class="mf-tag">reconstructed</span>' : ""), d.t, d.nc); })
+            .concat(c.open ? [drow("Open day <span class=\"mf-tag\">not closed yet</span>", c.open.t, c.open.nc)] : []),
+          "<tr>" + td("<b>The month</b>") + td("<b>" + money2(c.cash_in) + "</b>", 1) + td("<b>" + money2(Math.abs(c.card_out)) + "</b>", 1) + td("<b>" + money2(Math.abs(c.advances)) + "</b>", 1)
+            + td("<b>" + money2(c.fines) + "</b>", 1) + td("<b>" + money2(c.net) + "</b>", 1) + td("<b>" + money2(Math.abs(c.nc_in) + Math.abs(c.nc_out)) + "</b>", 1) + "</tr>")
+          + '<p class="mf-mcnote">Cash only: Zelle, card and jobs balanced against other jobs are under <b>Not cash</b> and never touch the drawer. <b>Cash in</b> includes balance repayments made in cash.</p>';
+      }
+      // 2 · the foremen's balances
+      var s2;
+      if (S.finesErr && !S.fines) s2 = '<div class="mf-empty">The foreman balances didn’t load — ' + esc(S.finesErr) + ' <button type="button" class="mf-btn mf-sm" data-mfm="refresh">Try again</button></div>';
+      else if (!S.fines) s2 = '<div class="mf-load"><div class="mf-spin"></div>Loading the foreman balances…</div>';
+      else if (!D.fmList.length) s2 = '<div class="mf-empty">No fines, advances, short hand-ins or repayments in ' + esc(mcName(D.m)) + ".</div>";
+      else {
+        var meth = Object.keys(D.byMethod).sort().map(function (k) { return esc(k) + " " + money2(D.byMethod[k]); }).join(" · ");
+        s2 = tbl([{ l: "Foreman" }, { l: "Fines", r: 1 }, { l: "Advances", r: 1 }, { l: "Short hand-ins", r: 1 }, { l: "Repaid", r: 1 }, { l: "Extra on jobs", r: 1 }, { l: "Change in the month", r: 1 }, { l: "Owes today", r: 1 }],
+          D.fmList.map(function (x) {
+            return "<tr>" + td('<button type="button" class="mf-linkbtn mf-b" data-mfm="fm" data-v="' + esc(x.name) + '">' + esc(x.name) + "</button>")
+              + td(money2(x.fined), 1) + td(money2(x.advanced), 1) + td(money2(x.short), 1) + td(money2(x.repaid), 1) + td(money2(x.repaidJobs), 1)
+              + td("<b>" + (x.change > 0.005 ? "+" : "") + money2(x.change) + "</b>", 1)
+              + td(x.owes == null ? "—" : x.owes > 0.005 ? money2(x.owes) : x.owes < -0.005 ? "base owes " + money2(-x.owes) : "$0", 1) + "</tr>";
+          }),
+          "<tr>" + td("<b>All " + D.fmList.length + "</b>") + td("<b>" + money2(ft.fined) + "</b>", 1) + td("<b>" + money2(ft.advanced) + "</b>", 1) + td("<b>" + money2(ft.short) + "</b>", 1)
+            + td("<b>" + money2(ft.repaid) + "</b>", 1) + td("<b>" + money2(ft.repaidJobs) + "</b>", 1)
+            + td("<b>" + money2(r2(ft.fined + ft.advanced + ft.short + ft.opening - ft.repaid - ft.repaidJobs)) + "</b>", 1) + td("", 1) + "</tr>")
+          + '<p class="mf-mcnote">' + (meth ? "Repaid directly, by how it came in: " + meth + ". " : "")
+          + (ft.opening > 0.005 ? "Opening balances entered this month: " + money2(ft.opening) + " (in the change). " : "")
+          + "A + change means the foremen owe more than at the start of the month.</p>";
+      }
+      // 3 · job expenses + corrections
+      var s3a = D.expJobs.length ? tbl([{ l: "Job date" }, { l: "Job" }, { l: "Customer" }, { l: "Foreman" }, { l: "What for" }, { l: "Expenses", r: 1 }],
+          D.expJobs.map(function (j) {
+            return "<tr>" + td(esc(fmtShort(j.date))) + td('<span class="mf-code">' + esc(j.code || "—") + "</span>")
+              + td(j.ev ? '<button type="button" class="mf-linkbtn" data-mfm="job" data-v="' + esc(j.ev) + '">' + esc(j.customer || "—") + "</button>" : esc(j.customer || "—"))
+              + td(esc(j.forman || "—")) + td(j.items.map(function (e) { return esc(e.note || "—") + (j.items.length > 1 ? " (" + money2(Math.abs(+e.amount || 0)) + ")" : ""); }).join("; "))
+              + td("<b>" + money2(j.total) + "</b>", 1) + "</tr>";
+          }),
+          "<tr>" + td("<b>" + D.expJobs.length + " job" + (D.expJobs.length === 1 ? "" : "s") + "</b>") + td("") + td("") + td("") + td(D.nExp + " expense" + (D.nExp === 1 ? "" : "s")) + td("<b>" + money2(D.expTot) + "</b>", 1) + "</tr>")
+        : '<div class="mf-empty">No job expenses on ' + esc(mcName(D.m)) + " jobs.</div>";
+      var fixOpenN = D.fixes.filter(function (x) { return x.open; }).length;
+      var s3b = D.fixes.length ? tbl([{ l: "Job date" }, { l: "Job" }, { l: "Customer" }, { l: "Foreman" }, { l: "Contract says", r: 1 }, { l: "Corrected to", r: 1 }, { l: "Difference", r: 1 }, { l: "Why" }, { l: "Contract" }],
+          D.fixes.map(function (x) {
+            return "<tr>" + td(esc(fmtShort(x.r.date))) + td('<span class="mf-code">' + esc(x.r.jobCode || "—") + "</span>")
+              + td('<button type="button" class="mf-linkbtn" data-mfm="job" data-v="' + esc(x.r.ev) + '">' + esc(x.r.customer || "—") + "</button>")
+              + td(esc(x.r.forman || "—")) + td(money2(x.was), 1) + td("<b>" + money2(x.to) + "</b>", 1)
+              + td(x.diff == null ? "—" : (x.diff > 0 ? "+" : "") + money2(x.diff), 1)
+              + td(esc(x.why || "—") + (x.by ? ' <span class="mf-mut">(' + esc(shortBy(x.by)) + ")</span>" : ""))
+              + td(x.open ? '<span class="mf-pill mf-p-warn">To fix</span>' : '<span class="mf-pill mf-p-in">' + ICON.check + "Fixed</span>") + "</tr>";
+          }), null)
+        : '<div class="mf-empty">No net cash corrections on ' + esc(mcName(D.m)) + " jobs.</div>";
+      var s3 = '<h3 class="mf-h3 mf-mcsub">Job expenses — not on the contract</h3>' + s3a
+        + '<h3 class="mf-h3 mf-mcsub">Net cash corrections' + (fixOpenN ? ' <span class="mf-pill mf-p-warn">' + fixOpenN + " still to fix in the contract</span>" : "") + "</h3>" + s3b
+        + '<p class="mf-mcnote">By the job’s date. An expense lowers what the foreman owed on that job; a correction replaced the contract’s net cash. Neither touches the drawer or his balance.</p>';
+      // 4 · still open
+      var s4 = tbl([{ l: "Foreman" }, { l: "Open jobs", r: 1 }, { l: "To the base", r: 1 }, { l: "To him", r: 1 }],
+          o.fmList.slice(0, 15).map(function (g) {
+            return "<tr>" + td(esc(g.name)) + td(String(g.n), 1) + td(g.toBase > 0.005 ? money2(g.toBase) : "—", 1) + td(g.toFm > 0.005 ? money2(g.toFm) : "—", 1) + "</tr>";
+          }),
+          "<tr>" + td("<b>" + (o.fmList.length > 15 ? "All " + o.fmList.length + " foremen" : "All") + "</b>") + td("<b>" + (o.nBase + o.nFm) + "</b>", 1)
+            + td("<b>" + money2(o.toBase) + "</b>", 1) + td("<b>" + money2(o.toFm) + "</b>", 1) + "</tr>")
+        + '<p class="mf-mcnote">As of today, for jobs dated in ' + esc(mcName(D.m)) + ". Also waiting: "
+        + o.cnr + " with no contract, " + o.mc + " with no closing, " + o.fix + " net cash to fix."
+        + (S.fines ? " Foremen’s balances today: they owe " + money2(D.owesNow) + (D.owedNow > 0.005 ? "; the base owes them " + money2(D.owedNow) : "") + "." : "") + "</p>";
+      return '<div class="mf-mc">' + head + kp
+        + sec(1, "Cash in, paid out, the drawer", "The Day Closing days of the month, added up.", s1)
+        + sec(2, "Foreman repayments, fines and advances", "Every change to the foremen’s balances dated in the month.", s2)
+        + sec(3, "Job expenses and net cash corrections", "The month’s jobs that had extra costs, or a net cash the office corrected.", '<div class="mf-mcbody">' + s3 + "</div>")
+        + sec(4, "Still open", "What the month’s jobs still owe today.", s4)
+        + "</div>";
+    }
+    function monthCsv(D) {
+      var cell = function (v) {
+        var s = v == null ? "" : String(v);
+        if (/^[=+\-@]/.test(s)) s = " " + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+      };
+      var L = [["Month close", mcName(D.m), "", "", "", "", "", ""],
+               ["Section", "Date", "Job code", "Customer", "Foreman", "Line", "Amount", "Note"]];
+      var c = D.cash;
+      if (MC.dc) {
+        c.days.forEach(function (d) {
+          L.push(["Cash", d.date, "", "", "", "Cash in", r2(d.t.cash_in || 0), d.kind === "reconstructed" ? "reconstructed" : ""]);
+          L.push(["Cash", d.date, "", "", "", "Paid out", r2(Math.abs(d.t.card_out || 0)), ""]);
+          L.push(["Cash", d.date, "", "", "", "Advances given", r2(Math.abs(d.t.advances || 0)), ""]);
+          L.push(["Cash", d.date, "", "", "", "Net to the drawer", r2(d.t.net || 0), ""]);
+        });
+        if (c.open) L.push(["Cash", todayIso, "", "", "", "Net to the drawer", r2(c.open.t.net || 0), "open day, not closed yet"]);
+        L.push(["Cash", "", "", "", "", "Month: cash in", r2(c.cash_in), ""]);
+        L.push(["Cash", "", "", "", "", "Month: paid out", r2(Math.abs(c.card_out)), ""]);
+        L.push(["Cash", "", "", "", "", "Month: advances given", r2(Math.abs(c.advances)), ""]);
+        L.push(["Cash", "", "", "", "", "Month: balance repaid in cash", r2(c.fines), ""]);
+        L.push(["Cash", "", "", "", "", "Month: net to the drawer", r2(c.net), ""]);
+        L.push(["Cash", "", "", "", "", "Month: not cash", r2(Math.abs(c.nc_in) + Math.abs(c.nc_out)), "Zelle, card, balanced against jobs"]);
+      }
+      D.fmList.forEach(function (x) {
+        [["Fines", x.fined], ["Advances", x.advanced], ["Short hand-ins", x.short], ["Repaid", x.repaid], ["Extra on jobs (repaid)", x.repaidJobs], ["Opening balance", x.opening], ["Change in the month", x.change]]
+          .forEach(function (p) { if (Math.abs(p[1]) > 0.005 || p[0] === "Change in the month") L.push(["Foreman balance", "", "", "", x.name, p[0], r2(p[1]), ""]); });
+      });
+      D.expJobs.forEach(function (j) {
+        j.items.forEach(function (e) { L.push(["Job expense", j.date, j.code, j.customer, j.forman, "Expense", r2(Math.abs(+e.amount || 0)), e.note || ""]); });
+      });
+      L.push(["Job expense", "", "", "", "", "Month total", D.expTot, D.nExp + " expenses on " + D.expJobs.length + " jobs"]);
+      D.fixes.forEach(function (x) {
+        L.push(["Net cash correction", x.r.date, x.r.jobCode, x.r.customer, x.r.forman, "Contract says", x.was, ""]);
+        L.push(["Net cash correction", x.r.date, x.r.jobCode, x.r.customer, x.r.forman, "Corrected to", x.to, (x.open ? "to fix in the contract — " : "fixed — ") + (x.why || "")]);
+      });
+      D.open.fmList.forEach(function (g) {
+        if (g.toBase > 0.005) L.push(["Still open", "", "", "", g.name, "To the base", r2(g.toBase), g.n + " jobs"]);
+        if (g.toFm > 0.005) L.push(["Still open", "", "", "", g.name, "To him", r2(g.toFm), ""]);
+      });
+      var blob = new Blob(["﻿" + L.map(function (row) { return row.map(cell).join(","); }).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "Money Flow — month close " + D.m + ".csv";
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    }
+
+    // ---------- the four tabs: Money Flow · Day Closing · Month close · How to use ----------
     function topFromHash() {
       var m = location.hash.match(/[#&]tab=([\w-]+)/), k = m ? m[1] : "money-flow";
       return TOPS.some(function (t) { return t[0] === k; }) ? k : "money-flow";
@@ -2125,6 +2719,7 @@ registerPage({
       setTopHash(key);
       if (key !== "money-flow" && P) closePanel();
       if (key === "day-closing") mountDc();
+      else if (key === "month-close") mountMonth();
       else if (key === "how-to") mountHow();
       else if (window.ZDC && ZDC.wakeStrip) ZDC.wakeStrip(document.getElementById("mfDayStrip"));
     }
@@ -2191,6 +2786,8 @@ registerPage({
         card: I('<rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path>'),
         dc: I('<path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path>'),
         msg: I('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>'),
+        fix: I('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>'),
+        month: I('<rect x="3" y="4.5" width="18" height="16" rx="2"></rect><path d="M3 9.5h18"></path><path d="M8 2.5v4"></path><path d="M16 2.5v4"></path><path d="M8 14h3"></path>'),
       };
       // a button's name as it looks on the page, and a quote of the page's own words
       var k = function (label, kind) { return '<span class="mf-hk' + (kind ? " mf-hk-" + kind : "") + '">' + label + "</span>"; };
@@ -2212,10 +2809,11 @@ registerPage({
             "The page shows this <b>job by job</b>.",
             "It also keeps one <b>balance</b> for each foreman, for money that isn’t one job: fines, advances, short or extra hand-ins, and repayments.",
           ])
-          + h4("The three tabs at the top")
+          + h4("The four tabs at the top")
           + defs([
             [k("Money Flow"), "The work: jobs waiting to be settled, jobs already settled, and each foreman’s balance."],
             [k("Day Closing"), "The cash drawer at the base. It closes by itself every evening at 8 PM New York time."],
+            [k("Month close"), "One month on one page: the cash, the foremen’s repayments, the jobs’ extra expenses and corrected net cash, and what is still open (part 11)."],
             [k("How to use"), "This guide."],
           ])
           + h4("Inside the Money Flow tab")
@@ -2247,7 +2845,7 @@ registerPage({
             "Click a <b>customer’s name</b> to see everything that happened on that job.",
             "The search box finds a customer, a job code, a request number or a foreman. Type a number, like 1134, to find an amount.",
             "At first only 12 foremen are listed: press " + k("Show every foreman") + " for the rest. Inside a foreman, his 8 newest jobs show first: press " + k("Show … older jobs") + " for the rest.",
-            "<b>Needs a look</b> shows jobs with no contract, jobs that don’t add up, and jobs with no closing. Press " + k("Open the … jobs") + " on a card to list only those.",
+            "<b>Needs a look</b> shows jobs with no contract, jobs that don’t add up, jobs with no closing, and jobs whose net cash was corrected (" + q("net cash to fix") + ", part 9). Press " + k("Open the … jobs") + " on a card to list only those.",
           ])
           + tip("On a narrower screen, Calendar and Contract sit one above the other instead of side by side. They work the same.") },
 
@@ -2266,7 +2864,9 @@ registerPage({
             [q("Settles the job in full"), "He brought the right amount. A difference of $10 or less also counts as in full."],
             [q("$… short — goes on his balance"), "He brought less. The job is settled, and the missing money is added to what he owes."],
             [q("$… extra — comes off his balance"), "He brought more. The job is settled, and the extra pays back what he owes."],
+            [q("The job’s net cash becomes $… — the contract says $…"), "You picked " + q("The job’s net cash is wrong") + " (part 9): the job settles on what he handed over and nothing goes on his balance."],
           ])
+          + tip("When the amount isn’t what the job asks for, the panel asks <b>Whose is the difference?</b> Leave it on the first choice if he really brought too little or too much. Pick " + q("The job’s net cash is wrong") + " only when the contract or closing has the wrong figure and he handed over the right amount (part 9).")
           + tip("The <b>Day Closing</b> line shows what happens to the cash drawer. Cash: " + q("Adds $… to today’s cash") + ". Any other method: " + q("Not cash — no change to today’s cash") + ".")
           + tip("No contract yet? The button says " + k("Enter cash") + ". Pick which way the money went, <b>He brought money to the base</b> or <b>The base paid him</b>, and enter only money that really moved.") },
 
@@ -2351,6 +2951,34 @@ registerPage({
             "Every change keeps who made it and when.",
           ]) },
 
+        { id: "mfHowFix", icon: HI.fix, title: "A wrong net cash, and job expenses", body:
+          p("Two things that change what a job asks for, without touching the cash drawer or the foreman’s balance.")
+          + h4("The job’s net cash is wrong")
+          + p("The contract or the closing has the wrong net cash, and the foreman handed over the <b>right</b> amount. Don’t put the difference on his balance: settle the job on what he handed over, and fix the contract afterwards.")
+          + steps([
+            "Press " + k("Settle", "acc") + " (or " + k("Review") + " → " + k("Add a correction") + " if the job is already confirmed).",
+            "Type what he really handed over.",
+            "Under <b>Whose is the difference?</b> pick " + q("The job’s net cash is wrong") + ".",
+            "Under " + q("What is wrong with the net cash?") + " say what is wrong, for example " + q("Contract still has the old price") + ". It is required: the office fixes the contract from it.",
+            "Press " + k("Confirm", "pri") + ".",
+          ])
+          + list([
+            "The job is settled, and nothing goes on his balance. A short or extra already moved for this job comes back off it.",
+            "Until the contract or closing says the corrected figure, the job is listed under <b>Needs a look</b> as " + q("net cash to fix") + ". Once it is fixed there, the flag goes away by itself.",
+            "Picked it by mistake? Open the job and press " + k("Take the correction back") + ", then say why. The job goes back to the contract’s figure.",
+          ])
+          + h4("Job expenses")
+          + p("Money spent on a job that isn’t on the contract, for example $400 for an extra truck. It lowers what the foreman owes on that job at once.")
+          + steps([
+            "Open the job (" + k("Settle", "acc") + ", " + k("Pay out", "out") + " or " + k("Review") + ").",
+            "Under <b>Job expenses</b> press " + k(ICON.plus + "Add a job expense") + ".",
+            "Type the amount and what it was for, then press " + k("Add expense", "pri") + ". The panel stays open, and the amount the job asks for goes down.",
+          ])
+          + list([
+            "A job can have several expenses. Each one has " + k("Change") + " and " + k("Withdraw") + ". Withdrawing asks why, and the expense stays in the job’s history.",
+            "Expenses never touch the cash drawer or his balance. They are listed in " + k("Month close") + ".",
+          ]) },
+
         { id: "mfHow9", icon: HI.dc, title: "Day Closing", body:
           p("Day Closing is the cash drawer at the base. Every day at <b>8:00 PM New York time</b> the day closes by itself. There is no button.")
           + list([
@@ -2380,6 +3008,20 @@ registerPage({
             + k("Take out") + " to send one line back to the open day.")
           + tip("The strip at the top of the Money Flow tab shows the open day and when it closes. Its " + k("Day Closing ›") + " link opens this tab.") },
 
+        { id: "mfHowMonth", icon: HI.month, title: "Month close", body:
+          p("The " + k("Month close") + " tab puts one month on one page, to close the month correctly. Pick the month at the top: in the first ten days of a month it opens on the month before.")
+          + defs([
+            [q("1 · Cash in, paid out, the drawer"), "The Day Closing days of the month added up: cash in, paid out, advances given, balance repaid in cash, and the net to the drawer. Zelle and card are under <b>Not cash</b>."],
+            [q("2 · Foreman repayments, fines and advances"), "Each foreman’s fines, advances, short hand-ins, repayments and extras brought on jobs in the month, and what he owes today."],
+            [q("3 · Job expenses and net cash corrections"), "Every job of the month with an expense (and what it was for), and every corrected net cash: what the contract says, what it was corrected to, and whether the contract is fixed yet."],
+            [q("4 · Still open"), "What the month’s jobs still owe today, by foreman, and what the foremen’s balances add up to."],
+          ])
+          + list([
+            "Jobs count in the month of their job date. Day Closing days and balance changes count in the month they happened.",
+            "Click a customer or a foreman to open them in the Money Flow tab.",
+            k(ICON.dl + "Download CSV") + " saves everything on the page as one spreadsheet. " + k("Refresh") + " reloads the figures.",
+          ]) },
+
         { id: "mfHow10", icon: HI.msg, title: "What the messages mean", body:
           p("When something goes wrong the page says so in words. A message that ends with " + q("Nothing was saved") + " means nothing changed. When several jobs are saved together, all of them are saved or none is.")
           + '<div class="mf-hmsgs" role="table" aria-label="Messages">'
@@ -2395,6 +3037,8 @@ registerPage({
             [q("The server did not answer (…)"), "The server had a problem.", "Wait a minute and try again."],
             [q("Money Flow update pending — …"), "The server isn’t ready for this yet, so only Cash can be saved.", "Use Cash, or tell Tornike."],
             [q("Your account isn’t allowed to record Money Flow."), "You can look, but not save.", "Ask Tornike for access."],
+            [q("Say what is wrong with the net cash — the office fixes the contract from it."), "You picked " + q("The job’s net cash is wrong") + " without saying why.", "Type what is wrong in the box under it."],
+            [q("Say what the expense was for — month close lists it by that."), "A job expense needs a reason.", "Type what it was for."],
             [q("Something went wrong on this page (…)"), "A fault in the page itself.", "Send Tornike a screenshot of the message."],
             [q("Day Closing unavailable — …"), "The drawer strip couldn’t load. Money Flow still works.", "Nothing: it tries again by itself every 20 seconds."],
           ].map(function (m) {
@@ -2771,6 +3415,32 @@ function mfCss() {
     .mf-eff.mf-eff-short{background:var(--mf-out-tint);color:var(--mf-out-ink)}
     .mf-eff.mf-eff-extra{background:var(--mf-calm);color:var(--mf-head)}
     .mf-eff.mf-eff-info{background:var(--mf-chip);color:var(--mf-ink2)}
+    .mf-eff.mf-eff-fix{background:var(--mf-warn-bg);color:var(--mf-warn-ink);border:1px solid var(--mf-warn-line)}
+    .mf-fixch{margin-top:10px}
+    .mf-jcfix{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;color:var(--mf-warn-ink)}
+    .mf-inl{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--mf-line2);border-radius:12px;background:var(--mf-panel2)}
+    .mf-exps{display:flex;flex-direction:column;gap:8px}
+    .mf-exprow{display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px}
+    .mf-expbtns{display:flex;gap:2px;flex:none}
+    .mf-exps .mf-conf .mf-tlwhat{flex:1}
+    .mf-pane.mf-pane-month{min-width:0}
+    .mf-mc{display:flex;flex-direction:column;gap:18px}
+    .mf-mchead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 16px}
+    .mf-mchead h2{margin:0;font-size:20px;font-weight:600;color:var(--mf-head)}
+    .mf-mcsel{display:flex;align-items:center;gap:8px}
+    .mf-mcsel select{height:40px;width:auto;min-width:170px}
+    .mf-mcn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-right:10px;border-radius:50%;background:var(--mf-deep);color:var(--mf-deep-ink);font-size:13px;font-weight:600;vertical-align:1px}
+    .mf-mcbody{display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
+    .mf-mcsub{padding:10px 20px 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+    .mf-mcnote{margin:0;padding:10px 20px 16px;color:var(--mf-muted);font-size:13px}
+    .mf-mct{width:100%;min-width:720px;border-collapse:collapse;font-size:13.5px}
+    .mf-mct th{padding:9px 12px;text-align:left;color:var(--mf-muted);font-size:12px;font-weight:500;border-top:1px solid var(--mf-line);white-space:nowrap}
+    .mf-mct td{padding:9px 12px;border-top:1px solid var(--mf-soft);vertical-align:middle}
+    .mf-mct th:first-child,.mf-mct td:first-child{padding-left:20px}
+    .mf-mct th:last-child,.mf-mct td:last-child{padding-right:20px}
+    .mf-mct .mf-r{text-align:right;white-space:nowrap}
+    .mf-mct tfoot td{background:var(--mf-panel2);border-top:1px solid var(--mf-line)}
+    .mf-mct .mf-linkbtn{padding:0;min-height:0;text-align:left}
     .mf-dcl{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;padding:10px 14px;border:1px solid var(--mf-line);border-radius:12px}
     .mf-err{color:var(--mf-neg);font-weight:600;font-size:13px;min-height:0}
     .mf-err:empty{display:none}
@@ -2920,6 +3590,8 @@ function mfCss() {
       .mf-dh{padding:12px 8px 12px 16px}
       .mf-df{padding:12px 16px 14px}
       .mf-st3,.mf-fk{grid-template-columns:1fr}
+      .mf-exprow{grid-template-columns:1fr}
+      .mf-mcsel select{min-width:0}
       .mf-parts{grid-template-columns:repeat(2,minmax(0,1fr))}
       .mf-frow{grid-template-columns:1fr}
       .mf-lhd,.mf-lrow{grid-template-columns:62px minmax(0,1fr) 86px;}
