@@ -782,6 +782,27 @@ window.RSC = (function () {
     typeof opts === "string" ? { body: opts } : opts));
   const noticeDlg = opts => _dlg(Object.assign({ noCancel: true },
     typeof opts === "string" ? { body: opts } : opts));
+  /* ONE OF SEVERAL (2026-10-09, the print view's Summary / Everything): resolves the chosen
+     value, or null on Cancel, Escape or a click outside. */
+  function choiceDlg({ title, body, choices }) {
+    return new Promise(resolve => {
+      const mask = el("div", "rs-dlg-mask");
+      const box = el("div", "rs-dlg");
+      box.innerHTML = (title ? `<div class="rs-dlg-t">${esc(title)}</div>` : "")
+        + (body ? `<div class="rs-dlg-b">${esc(body)}</div>` : "")
+        + `<div class="rs-dlg-a"><button type="button" class="rs-btn" data-v="">Cancel</button>`
+        + (choices || []).map(c => `<button type="button" class="rs-btn${c.pri ? " pri" : ""}" data-v="${esc(c.v)}">${esc(c.label)}</button>`).join("")
+        + `</div>`;
+      mask.appendChild(box);
+      document.body.appendChild(mask);
+      const done = v => { document.removeEventListener("keydown", onKey, true); mask.remove(); resolve(v || null); };
+      const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
+      document.addEventListener("keydown", onKey, true);
+      mask.onclick = e => { if (e.target === mask) done(null); };
+      box.querySelectorAll("[data-v]").forEach(b => { b.onclick = () => done(b.getAttribute("data-v")); });
+      (box.querySelector(".rs-btn.pri") || box.querySelector("[data-v]")).focus();
+    });
+  }
   if (!document.getElementById("rs-dlg-css")) {
     const st = document.createElement("style");
     st.id = "rs-dlg-css";
@@ -859,7 +880,7 @@ window.RSC = (function () {
     return f;
   }
 
-  function printView(cfg) {
+  async function printView(cfg) {
     const host = cfg.host;
     if (!host) return;
     const body = host.cloneNode(true);
@@ -882,6 +903,48 @@ window.RSC = (function () {
       el.style.height = "auto";
     });
     body.querySelectorAll("table").forEach(el => { el.style.tableLayout = "auto"; });
+    /* A LINK HAS NO USE ON PAPER (2026-10-09): a column whose cells are only links ("Open ↗",
+       the Monday column) is dropped, heading and all. */
+    body.querySelectorAll("table").forEach(tb => {
+      const head = tb.tHead && tb.tHead.rows[tb.tHead.rows.length - 1];
+      if (!head) return;
+      const rows = [...tb.tBodies].flatMap(b => [...b.rows]);
+      const drop = [];
+      [...head.cells].forEach((th, i) => {
+        const cells = rows.map(r => r.cells.length === head.cells.length ? r.cells[i] : null).filter(Boolean);
+        const linky = cells.length > 0 && cells.every(c => !c.textContent.trim()
+          || (c.querySelector("a") && c.textContent.trim().length <= 8));
+        if (/^(monday|link)$/i.test(th.textContent.trim()) || linky) drop.push(i);
+      });
+      drop.reverse().forEach(i => [...tb.rows].forEach(r => {
+        if (r.cells.length === head.cells.length && r.cells[i]) r.cells[i].remove();
+      }));
+    });
+    /* LONG LISTS: ASK EACH TIME (his pick, 2026-10-09). Claims Analysis printed 18 sheets, 13 of
+       them the claim list. When a table has more than 40 rows the reader picks: Summary keeps every
+       chart and table but only the first 25 rows of a long list (and says how many it left out),
+       Everything prints it all. cfg.full skips the question. */
+    const LONG = 40, KEEP = 25;
+    const longs = [...body.querySelectorAll("table")].filter(tb =>
+      [...tb.tBodies].reduce((n, b) => n + b.rows.length, 0) > LONG);
+    if (longs.length && !cfg.full) {
+      const n = Math.max(...longs.map(tb => [...tb.tBodies].reduce((k, b) => k + b.rows.length, 0)));
+      const pick = await choiceDlg({ title: "Download PDF",
+        body: (longs.length === 1 ? "This report has a long list" : "This report has " + longs.length + " long lists")
+          + " (up to " + n.toLocaleString("en-US") + " rows). Summary prints every chart and table with the first "
+          + KEEP + " rows of each long list. Everything prints every row.",
+        choices: [{ v: "all", label: "Everything" }, { v: "summary", label: "Summary", pri: true }] });
+      if (!pick) return;
+      if (pick === "summary") longs.forEach(tb => {
+        const rows = [...tb.tBodies].flatMap(b => [...b.rows]);
+        const cols = Math.max(1, ...[...tb.rows].map(r => [...r.cells].reduce((k, c) => k + (c.colSpan || 1), 0)));
+        rows.slice(KEEP).forEach(r => r.remove());
+        const more = document.createElement("tr");
+        more.className = "pv-more";
+        more.innerHTML = `<td colspan="${cols}">… and ${(rows.length - KEEP).toLocaleString("en-US")} more rows. Choose “Everything” when downloading to print them all.</td>`;
+        (tb.tBodies[tb.tBodies.length - 1] || tb).appendChild(more);
+      });
+    }
 
     /* THEMED PAGES. Each entry becomes one printed page with its own heading and a forced
        break after it. Elements are claimed in the order the caller lists them, so a panel
@@ -943,23 +1006,43 @@ window.RSC = (function () {
     const esc2 = v => esc(v == null ? "" : v);
     const when = new Date().toLocaleDateString(undefined,
       { year: "numeric", month: "long", day: "numeric" });
+    // the running footer is CSS content: a quoted CSS string, not HTML
+    const cssStr = v => '"' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]+/g, " ") + '"';
+    const footCss = cssStr("Zip to Zip Moving · " + (cfg.title || "Report") + (cfg.subtitle ? " · " + cfg.subtitle : ""));
+    let logo = "logo-wide.png";
+    try { logo = new URL("logo-wide.png", document.baseURI).href; } catch (e) { /* relative is fine */ }
+    const headHtml = `<div class="pv-head"><div class="pv-brand"><img alt="Zip to Zip Moving" src="${esc2(logo)}"></div>`
+      + `<div><div class="kind">REPORTING SYSTEM</div><h1>${esc2(cfg.title || "Report")}</h1>`
+      + (cfg.subtitle ? `<div class="sub">${esc2(cfg.subtitle)}</div>` : "")
+      + (cfg.note ? `<div class="note">${esc2(cfg.note)}</div>` : "")
+      + `</div><span class="when">Printed ${esc2(when)}</span></div>`;
 
     const DOC = `<!doctype html><html><head><meta charset="utf-8">
       <title>${esc2(cfg.title || "Report")}</title>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
       <style>
-        @page{size:A4 ${cfg.orientation === "portrait" ? "portrait" : "landscape"};margin:12mm}
+        @page{size:A4 ${cfg.orientation === "portrait" ? "portrait" : "landscape"};margin:11mm 12mm 13mm;
+          @bottom-left{content:${footCss};font:500 8px 'IBM Plex Sans','Segoe UI',Arial,sans-serif;color:#64748B}
+          @bottom-right{content:"Page " counter(page) " of " counter(pages);font:600 8px 'IBM Plex Sans','Segoe UI',Arial,sans-serif;color:#475569}}
         ${PAPER_TOKENS}
         ${pageCss}
         *{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}
         body{margin:0;background:#fff;color:#0F172A;
           font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
           font-size:11px;line-height:1.45}
-        .pv-head{border-bottom:2px solid #14301F;padding-bottom:10px;margin-bottom:16px}
-        .pv-head h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
-        .pv-head .sub{font-size:11.5px;color:#5B5F6B}
-        .pv-head .note{font-size:10.5px;color:#7A7E88;margin-top:4px}
-        .pv-head .when{float:right;font-size:10px;color:#64748B}
+        /* THE HEADER (redesigned 2026-10-09): the Zip to Zip logo band, the report's name, what is
+           in the window, and when it was printed -- on the first sheet, above the first section,
+           so no sheet carries the title alone */
+        .pv-head{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+          border-bottom:2.5px solid #14301F;padding-bottom:7px;margin-bottom:10px}
+        .pv-brand{background:#9BBB3B;border-radius:6px;padding:6px 9px}
+        .pv-brand img{height:20px;display:block}
+        .pv-head .kind{font-size:8px;font-weight:700;letter-spacing:.14em;color:#3F7D20}
+        .pv-head h1{font-size:17px;margin:0;letter-spacing:-.01em}
+        .pv-head .sub{font-size:10px;color:#5B5F6B}
+        .pv-head .note{font-size:9px;color:#7A7E88;margin-top:2px;max-width:150ch}
+        .pv-head .when{font-size:9px;color:#64748B;text-align:right;white-space:nowrap}
+        tr.pv-more td{color:#64748B;font-style:italic;background:#F8FAFC}
         /* the kit's vocabulary, restyled for paper */
         .rs-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;
           margin:0 0 16px}
@@ -1019,25 +1102,34 @@ window.RSC = (function () {
         .pv-pack .panel{margin-top:8px !important}
         .pv-pack .panel-head{padding-top:6px !important;padding-bottom:6px !important}
       </style></head><body${cfg.pack ? ' class="pv-pack"' : ""}>
-      <div class="pv-head">
-        <span class="when">${esc2(when)}</span>
-        <h1>${esc2(cfg.title || "Report")}</h1>
-        ${cfg.subtitle ? `<div class="sub">${esc2(cfg.subtitle)}</div>` : ""}
-        ${cfg.note ? `<div class="note">${esc2(cfg.note)}</div>` : ""}
-      </div>
-      ${pagesHtml}
-      <div class="pv-foot">Zip to Zip · Reporting System · ${esc2(when)}</div>
+      ${pagesHtml.replace('<section class="pv-page">', '<section class="pv-page">' + headHtml)}
       </body></html>`;
     // the frame takes the orientation the document asks for, so the clone lays out at the
     // width it will actually print at rather than reflowing when the dialog opens
     const portrait = cfg.orientation === "portrait";
     printDoc(DOC, { title: cfg.title || "Report",
-                    width: portrait ? "210mm" : "297mm",
-                    height: portrait ? "297mm" : "210mm" });
+                    // the PRINTABLE width (A4 less the 12mm side margins), so what is measured
+                    // below is laid out the way the sheet will be
+                    width: portrait ? "186mm" : "273mm",
+                    height: portrait ? "297mm" : "210mm",
+                    beforePrint: (win, d) => {
+                      const sec = d.querySelector(".pv-page"); if (!sec) return;
+                      const first = sec.querySelector(".panel, .rs-kpis, table"); if (!first) return;
+                      // the sheet's height less its margins -- with room to spare: the printed layout
+                      // wraps text and sizes charts taller than this screen measure (Claims Analysis:
+                      // 470px measured, ~590px printed), so the fit aims at 80% of the sheet
+                      const usable = (portrait ? 297 - 24 : 210 - 24) * 96 / 25.4 * 0.8;
+                      const top = first.getBoundingClientRect().top - sec.getBoundingClientRect().top;
+                      const h = first.getBoundingClientRect().height;
+                      if (top + h > usable) {
+                        const z = (usable - top) / h;
+                        if (z >= 0.72) first.style.zoom = z.toFixed(3);
+                      }
+                    } });
   }
 
   return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
-           confirm: confirmDlg, ask: askDlg, notice: noticeDlg,
+           confirm: confirmDlg, ask: askDlg, notice: noticeDlg, choice: choiceDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter, printView };
 })();

@@ -213,63 +213,133 @@
   window.ZDC_tick = tickCountdowns;
 
   // ---- the printed sheet (a day, one person, or one foreman) -----------------------------
+  /* THE PRINTED SHEET (redesigned 2026-10-09, his pick "As proposed"): the Zip to Zip logo band,
+     the one number that matters in the dark box (what should be in the drawer), the foremen with
+     their subtotals, then every movement grouped by foreman -- time, job, customer, what, drawer --
+     and the sign-off. "Page X of Y" and the document's name print on every sheet (@page margin
+     boxes), and the column headings repeat on each one. Built from the lines it is given: Not
+     cash lines are listed apart, never counted. */
   function printSheet(w, day, lines, foreman, who) {
     if (!w) { alert("Your browser blocked the print window. Allow pop-ups for this site and try again."); return; }
     lines = (lines || []).filter(function (l) { return (!foreman || l.foreman === foreman) && (!who || person(l) === who); });
-    // the sheet recomputes its totals from the lines: Not cash lines are listed apart, never counted
     var ncl = lines.filter(isNotCash);
     lines = lines.filter(function (l) { return !isNotCash(l); });
-    var t = { cash_in: 0, card_out: 0, fines: 0, net: 0 }, byFm = {};
+    var t = { cash_in: 0, card_out: 0, fines: 0, adv: 0, net: 0 }, byFm = {}, jobsAll = {};
     lines.forEach(function (l) {
-      if (l.effect > 0) t.cash_in += l.effect; else if (l.kind !== "Advance given") t.card_out += l.effect;
-      if (l.kind === "Fine repaid") t.fines += l.effect;
-      t.net += l.effect;
-      var f = byFm[l.foreman] || (byFm[l.foreman] = { jobs: {}, cash: 0, card: 0, fines: 0, adv: 0, net: 0 });
-      if (l.kind !== "Fine repaid" && l.kind !== "Advance given") f.jobs[l.job_code || l.event_id] = 1;
-      if (l.kind === "Fine repaid") f.fines += l.effect; else if (l.kind === "Advance given") f.adv += l.effect;
-      else if (l.effect > 0) f.cash += l.effect; else f.card += l.effect;
-      f.net += l.effect;
+      var e = +l.effect || 0;
+      if (l.kind === "Fine repaid") t.fines += e;
+      else if (l.kind === "Advance given") t.adv += e;
+      else if (e > 0) t.cash_in += e; else t.card_out += e;
+      t.net += e;
+      var f = byFm[l.foreman] || (byFm[l.foreman] = { lines: [], jobs: {}, cash: 0, card: 0, fines: 0, adv: 0, net: 0, by: {} });
+      f.lines.push(l);
+      if (l.kind !== "Fine repaid" && l.kind !== "Advance given") { f.jobs[l.job_code || l.event_id] = 1; jobsAll[l.job_code || l.event_id] = 1; }
+      if (l.kind === "Fine repaid") f.fines += e; else if (l.kind === "Advance given") f.adv += e;
+      else if (e > 0) f.cash += e; else f.card += e;
+      f.net += e;
+      f.by[short(person(l))] = 1;
     });
     var signed = day && day.kind === "signed", open = !day;
-    var title = (who ? short(who) + " · " : "") + (foreman ? foreman + " · " : "");
-    title += open ? "Open day (not closed yet)" : "Day closing · " + fmtDay(day.date);
-    var sub = open ? "Printed " + new Date().toLocaleString("en-US") + " · still open"
-      : signed ? "Closed " + fmtAt(day.closed_at) + (day.automatic ? " automatically" : " by " + short(day.closed_by)) + " · counted since " + fmtAt(day.since)
-      : "Reconstructed from the records of that New York day — never signed";
-    var fmRows = Object.keys(byFm).sort(function (a, b) { return byFm[b].net - byFm[a].net; }).map(function (n) {
-      var f = byFm[n]; return "<tr><td>" + esc(n) + "</td><td class=r>" + Object.keys(f.jobs).length + "</td><td class=r>" + money2(f.cash)
-        + "</td><td class=r>" + money2(f.card) + "</td><td class=r>" + (f.adv ? money2(f.adv) : "—") + "</td><td class=r>" + (f.fines ? money2(f.fines) : "—") + "</td><td class=r><b>" + money2(f.net) + "</b></td></tr>";
-    }).join("");
-    var lnRows = lines.slice().sort(function (a, b) { return (a.foreman + a.at).localeCompare(b.foreman + b.at); }).map(function (l) {
-      var what = l.kind === "Fine repaid" ? "Debt repaid" + (l.note ? " — " + l.note : "")
-        : l.kind === "Advance given" ? "Advance given to him" + (l.note ? " — " + l.note : "")
-        : (l.kind === "Advance" ? "Advance · " : "") + (l.paid_from || (l.correction ? "correction: " + money2(l.prev) + " → " + money2(l.value) : ""));
-      return "<tr><td>" + esc(l.foreman) + "</td><td>" + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—") + "</td><td>"
-        + esc(what) + "</td><td>" + esc(String(l.at || "").slice(5)) + "</td><td class=r>" + money2(l.effect) + "</td></tr>";
-    }).join("");
-    var sig = signed && !day.automatic ? ["Counted by · " + (day.counted_by || ""), "Closed by · " + short(day.closed_by), "Cash handed to · " + (day.handed_to || "")]
-      : ["Counted by", "Checked by", "Cash handed to"];
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>"
-      + "body{font-family:Arial,Helvetica,sans-serif;color:#1d232b;margin:28px;font-size:12px}h1{font-size:19px;margin:0 0 3px}"
-      + ".sub{color:#6e747c;margin-bottom:14px}.boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}"
-      + ".box{border:1px solid #dde2e6;border-radius:6px;padding:8px 10px}.box span{display:block;color:#6e747c;font-size:11px}.box b{font-size:16px}"
-      + ".box.k{border-color:#1d232b}table{width:100%;border-collapse:collapse;margin-bottom:16px}th{text-align:left;color:#6e747c;font-size:10.5px;"
-      + "border-bottom:1px solid #1d232b;padding:5px 6px}td{border-bottom:1px solid #eef1f3;padding:5px 6px}.r{text-align:right}"
-      + "h2{font-size:12px;letter-spacing:.05em;color:#6e747c;margin:6px 0}.sig{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}"
-      + ".sig div{border-top:1px solid #1d232b;padding-top:5px;color:#6e747c}@media print{body{margin:12mm}}</style></head><body>"
-      + "<h1>" + esc(title) + '</h1><div class="sub">' + esc(sub) + " · Zip to Zip</div>"
-      + '<div class="boxes"><div class="box"><span>Cash in</span><b>' + money2(t.cash_in) + '</b></div><div class="box"><span>Paid out</span><b>'
-      + money2(t.card_out) + '</b></div><div class="box"><span>Debts repaid</span><b>' + money2(t.fines) + '</b></div><div class="box k"><span>'
-      + (foreman ? "Net from this foreman" : "Should be in the drawer") + "</span><b>" + money2(t.net) + "</b></div></div>"
-      + (foreman ? "" : "<h2>BY FOREMAN</h2><table><tr><th>Foreman</th><th class=r>Jobs</th><th class=r>Cash</th><th class=r>Paid out</th><th class=r>Advances given</th><th class=r>Debts repaid</th><th class=r>Net</th></tr>" + fmRows + "</table>")
-      + "<h2>EVERY MOVEMENT</h2><table><tr><th>Foreman</th><th>Job</th><th>Customer</th><th>What</th><th>Recorded</th><th class=r>Drawer</th></tr>" + lnRows + "</table>"
-      + (ncl.length ? "<h2>NOT CASH (DOESN'T TOUCH THE DRAWER)</h2><table><tr><th>Foreman</th><th>Job</th><th>Customer</th><th>How</th><th>Recorded</th><th class=r>Amount</th></tr>"
-          + ncl.map(function (l) {
-              return "<tr><td>" + esc(l.foreman) + "</td><td>" + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—") + "</td><td>" + esc(l.method || "Not cash")
-                + "</td><td>" + esc(String(l.at || "").slice(5)) + "</td><td class=r>" + money2(Math.abs(+l.amount || 0)) + "</td></tr>";
-            }).join("") + "</table>" : "")
-      + '<div class="sig">' + sig.map(function (s) { return "<div>" + esc(s) + "</div>"; }).join("") + "</div>"
-      + "<script>window.onload=function(){setTimeout(function(){window.print()},200)}<\/script></body></html>");
+    var head = (who ? short(who) + " · " : "") + (foreman ? foreman : "");
+    var title = open ? "Open day" : fmtDay(day.date).replace(/^(\w+), /, function (m, d) { return { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" }[d] + ", "; });
+    var people = {}; lines.forEach(function (l) { people[short(person(l))] = 1; });
+    var meta = (open ? "Not closed yet · it closes by itself at 8:00 PM New York"
+        : signed ? "Closed " + (day.automatic ? "automatically" : "by " + short(day.closed_by)) + " " + fmtAt(day.closed_at) + " · counted since " + fmtAt(day.since)
+        : "Reconstructed from the records of that New York day · never signed")
+      + (Object.keys(people).length ? " · recorded by " + Object.keys(people).sort().join(", ") : "");
+    var kind = head ? "DAY CLOSING · " + head.toUpperCase() : "DAY CLOSING";
+    var ref = open ? "Printed while still open" : signed ? "Closing #" + day.id : "Reconstructed";
+    var printed = new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    var foot = "Zip to Zip Moving · Day closing · " + (open ? "open day" : fmtDay(day.date)) + (head ? " · " + head : "");
+    var cssStr = function (v) { return '"' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]+/g, " ") + '"'; };
+    var logo = (function () { try { return new URL("logo-wide.png", document.baseURI).href; } catch (e) { return "logo-wide.png"; } })();
+    // a sheet that spans several dates (the open day) says the date beside the time
+    var dates = {}; lines.concat(ncl).forEach(function (l) { dates[String(l.at || "").slice(0, 10)] = 1; });
+    var multiDay = Object.keys(dates).length > 1;
+    var when = function (l) {
+      var s = String(l.at || "");
+      if (!multiDay) return s.slice(11, 16);
+      var d = new Date(s.slice(0, 10) + "T12:00:00");
+      return (isNaN(d) ? s.slice(5, 10) : d.toLocaleDateString("en-US", { month: "short", day: "numeric" })) + " " + s.slice(11, 16);
+    };
+    var amt = function (v) { return '<td class="r' + ((+v || 0) < -0.004 ? " neg" : "") + '">' + money2(+v || 0) + "</td>"; };
+    var tile = function (l, v, s, neg) { return '<div class="t"><div class="l">' + l + '</div><div class="v' + (neg ? " neg" : "") + '">' + v + '</div><div class="s">' + s + "</div></div>"; };
+    var tiles = [tile("Cash in", money2(t.cash_in), "brought by foremen"), tile("Paid out", money2(t.card_out), "cash handed to foremen", t.card_out < -0.004)];
+    if (Math.abs(t.adv) > 0.004) tiles.push(tile("Advances given", money2(t.adv), "cash out, on their balances", true));
+    tiles.push(tile("Debts repaid", money2(t.fines), "to their balances"));
+    var order = Object.keys(byFm).sort(function (a, b) { return byFm[b].net - byFm[a].net; });
+    var hero = '<section class="hero" style="grid-template-columns:1.25fr repeat(' + tiles.length + ',1fr)"><div class="big"><div class="l">'
+      + (foreman ? "NET FROM THIS FOREMAN" : "SHOULD BE IN THE DRAWER") + '</div><div class="v">' + money2(t.net) + '</div><div class="s">'
+      + Object.keys(jobsAll).length + " job" + (Object.keys(jobsAll).length === 1 ? "" : "s") + (foreman ? "" : " · " + order.length + " foremen") + " · cash only</div></div>"
+      + tiles.join("") + "</section>";
+    var summary = foreman || order.length < 2 ? "" : '<h2>BY FOREMAN</h2><table><thead><tr><th>Foreman</th><th class="r">Jobs</th><th class="r">Cash in</th><th class="r">Paid out</th>'
+      + (Math.abs(t.adv) > 0.004 ? '<th class="r">Advances</th>' : "") + (Math.abs(t.fines) > 0.004 ? '<th class="r">Debts repaid</th>' : "") + '<th class="r">In the drawer</th></tr></thead><tbody>'
+      + order.map(function (n) {
+          var f = byFm[n];
+          return "<tr><td><b>" + esc(n) + '</b></td><td class="r">' + Object.keys(f.jobs).length + "</td>" + amt(f.cash) + amt(f.card)
+            + (Math.abs(t.adv) > 0.004 ? amt(f.adv) : "") + (Math.abs(t.fines) > 0.004 ? amt(f.fines) : "") + '<td class="r"><b>' + money2(f.net) + "</b></td></tr>";
+        }).join("")
+      + '<tr class="tot"><td>All foremen</td><td class="r">' + Object.keys(jobsAll).length + "</td>" + amt(t.cash_in) + amt(t.card_out)
+      + (Math.abs(t.adv) > 0.004 ? amt(t.adv) : "") + (Math.abs(t.fines) > 0.004 ? amt(t.fines) : "") + '<td class="r">' + money2(t.net) + "</td></tr></tbody></table>";
+    var what = function (l) {
+      if (l.kind === "Fine repaid") return "Debt repaid" + (l.note ? " — " + l.note : "");
+      if (l.kind === "Advance given") return "Advance given to him" + (l.note ? " — " + l.note : "");
+      return (l.kind === "Advance" ? "Advance · " : "") + (l.paid_from || (l.correction ? "correction: " + money2(l.prev) + " → " + money2(l.value) : ""));
+    };
+    var mv = '<h2>' + (foreman ? "EVERY MOVEMENT" : "EVERY MOVEMENT, BY FOREMAN") + '</h2><table><thead><tr><th style="width:' + (multiDay ? 70 : 44) + 'px">Time</th>'
+      + '<th style="width:82px">Job</th><th>Customer</th><th>What</th><th class="r" style="width:72px">Drawer</th></tr></thead><tbody>'
+      + (lines.length ? "" : '<tr><td colspan="5" class="mut">Nothing moved the drawer.</td></tr>')
+      + order.map(function (n) {
+          var f = byFm[n];
+          var jobs = Object.keys(f.jobs).length;
+          return (foreman ? "" : '<tr class="grp"><td colspan="4">' + esc(n) + ' <span class="mut">· ' + jobs + " job" + (jobs === 1 ? "" : "s")
+              + " · recorded by " + esc(Object.keys(f.by).sort().join(", ")) + '</span></td><td class="r">' + money2(f.net) + "</td></tr>")
+            + f.lines.slice().sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); }).map(function (l) {
+                return '<tr><td class="mut">' + esc(when(l)) + '</td><td class="code">' + esc(l.job_code || "—") + "</td><td>" + esc(l.customer || "—")
+                  + '</td><td class="mut">' + esc(what(l)) + "</td>" + amt(l.effect) + "</tr>";
+              }).join("");
+        }).join("") + "</tbody></table>";
+    var nc = ncl.length ? '<h2>NOT CASH · LISTED, NEVER IN THE DRAWER</h2><table><thead><tr><th style="width:' + (multiDay ? 70 : 44) + 'px">Time</th><th>Foreman</th>'
+        + '<th style="width:82px">Job</th><th>Customer</th><th>How</th><th class="r" style="width:72px">Amount</th></tr></thead><tbody>'
+        + ncl.map(function (l) {
+            return '<tr><td class="mut">' + esc(when(l)) + "</td><td>" + esc(l.foreman) + '</td><td class="code">' + esc(l.job_code || "—") + "</td><td>"
+              + esc(l.customer || "—") + "</td><td>" + esc(l.method || "Not cash") + '</td><td class="r">' + money2(Math.abs(+l.amount || 0)) + "</td></tr>";
+          }).join("") + "</tbody></table>" : "";
+    var sig = signed && !day.automatic
+      ? [["Counted by", day.counted_by || ""], ["Closed by", short(day.closed_by)], ["Cash handed to", day.handed_to || ""]]
+      : [["Counted by", ""], ["Checked by", ""], ["Cash handed to", ""]];
+    var css = "@page{size:A4 portrait;margin:13mm 12mm 15mm;"
+      + "@bottom-left{content:" + cssStr(foot) + ";font:500 8px 'Segoe UI',Arial,sans-serif;color:#64748B}"
+      + "@bottom-right{content:\"Page \" counter(page) \" of \" counter(pages);font:600 8px 'Segoe UI',Arial,sans-serif;color:#475569}}"
+      + "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
+      + "body{margin:0;font:10px/1.42 'Segoe UI','IBM Plex Sans',Arial,sans-serif;color:#0F172A;font-variant-numeric:tabular-nums}"
+      + ".dh{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding-bottom:10px;border-bottom:2.5px solid #14301F;margin-bottom:12px}"
+      + ".dh .brand{background:#9BBB3B;border-radius:6px;padding:7px 10px}.dh .brand img{height:22px;display:block}"
+      + ".dh .kind{font-size:8.5px;font-weight:700;letter-spacing:.14em;color:#3F7D20}.dh h1{margin:1px 0 2px;font-size:19px;line-height:1.15}"
+      + ".dh .meta{color:#475569;font-size:9.5px}.dh .ref{text-align:right;color:#64748B;font-size:8.5px;line-height:1.5}"
+      + ".hero{display:grid;gap:8px;margin:0 0 14px;break-inside:avoid}"
+      + ".hero .big{background:#14301F;color:#fff;border-radius:8px;padding:10px 13px}.hero .big .l{font-size:8.5px;letter-spacing:.1em;font-weight:700;color:#B7E23B}"
+      + ".hero .big .v{font-size:25px;font-weight:700;line-height:1.15;margin-top:2px}.hero .big .s{font-size:8.5px;color:#D7E5C8;margin-top:2px}"
+      + ".hero .t{border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px}.hero .t .l{font-size:8.5px;color:#475569;font-weight:600}"
+      + ".hero .t .v{font-size:16px;font-weight:700;margin-top:3px}.hero .t .s{font-size:8px;color:#64748B;margin-top:1px}"
+      + "h2{font-size:9px;letter-spacing:.12em;color:#3F7D20;margin:14px 0 5px;font-weight:800;break-after:avoid}"
+      + "table{width:100%;border-collapse:collapse;margin-bottom:4px}thead{display:table-header-group}"
+      + "th{text-align:left;font-size:8px;font-weight:700;color:#475569;letter-spacing:.03em;text-transform:uppercase;padding:5px 6px;border-bottom:1.5px solid #0F172A}"
+      + "td{padding:4px 6px;border-bottom:1px solid #EEF1F4;vertical-align:top}tr{break-inside:avoid}"
+      + ".r{text-align:right;white-space:nowrap}.neg{color:#B91C1C}.mut{color:#64748B}.code{font-family:Consolas,'Courier New',monospace;font-size:9px}"
+      + "tr.grp td{background:#F4FAE6;border-bottom:1px solid #DCEFB0;padding-top:6px;font-weight:700}tr.grp td .mut{font-weight:500}"
+      + "tr.tot td{border-top:1.5px solid #0F172A;border-bottom:0;font-weight:800;font-size:10.5px;padding-top:6px}"
+      + ".sign{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px;break-inside:avoid}"
+      + ".sign div{border-top:1px solid #0F172A;padding-top:4px;font-size:8.5px;color:#475569}.sign div b{display:block;color:#0F172A;font-size:9px}"
+      + ".sign div span{display:block;margin-top:16px;border-top:1px dotted #94A3B8;padding-top:3px}";
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((head ? head + " · " : "") + (open ? "Open day" : "Day closing " + day.date))
+      + "</title><style>" + css + "</style></head><body>"
+      + '<header class="dh"><div class="brand"><img alt="Zip to Zip Moving" src="' + esc(logo) + '"></div>'
+      + '<div><div class="kind">' + esc(kind) + "</div><h1>" + esc(title) + '</h1><div class="meta">' + esc(meta) + "</div></div>"
+      + '<div class="ref">Printed ' + esc(printed) + "<br>" + esc(ref) + "</div></header>"
+      + hero + summary + mv + nc
+      + '<section class="sign">' + sig.map(function (x) { return "<div><b>" + esc(x[0]) + "</b>" + (esc(x[1]) || "name") + "<span>signature · date</span></div>"; }).join("") + "</section>"
+      + "<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>");
     w.document.close();
   }
 
