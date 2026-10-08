@@ -658,6 +658,17 @@ registerPage({
     }
     function methodsLive() { return !!(S.live && Array.isArray(S.live.methods)); }
     function methodsWritable() { return methodsLive() && allMethods().some(function (m) { return m.id != null; }); }
+    /* WHY THE PAGE CAN'T TAKE A NON-CASH SAVE (2026-10-08). Two different causes read the same:
+       the live sync failing (sign-in expired, network, a server error) and the server really
+       missing the database step. Every note said "update pending", so on 8 Oct a failed sync read
+       as "Money Flow can't be updated" although the database step had run the day before.
+       offlineNote() names the first cause; null means the live sync is fine. */
+    function offlineNote() {
+      if (S.liveOk) return null;
+      var e = String(S.liveErr || "");
+      if (/40[13]/.test(e)) return "Your portal sign-in has expired — sign in again, then open this job again.";
+      return "Money Flow can’t reach the server right now" + (e ? " (" + e + ")" : "") + " — press Refresh at the top of the page.";
+    }
     function methodLabel(m) { var n = normMethod(m); return n === "Offset" ? "Against a job" : n; }
 
     // ---------- the foreman balances (bridge-computed; three answers would be three numbers) ----------
@@ -1089,6 +1100,15 @@ registerPage({
       if (push && P) PSTACK.push(P.spec); else PSTACK = [];
       P = { spec: spec, st: {} };
       renderPanel();
+      // the live sync failed earlier (sign-in, network, server): try once more as the panel opens,
+      // so a passing hiccup doesn't leave every save in it cash-only (2026-10-08)
+      if (!S.liveOk) {
+        var mine = P;
+        loadLive(true).then(function () {
+          setLiveBadge();
+          if (P === mine) renderPanel(true);
+        });
+      }
       var d = $("mfDrawer"), s = $("mfScrim");
       if (!d) return;
       d.classList.add("mf-show"); d.setAttribute("aria-hidden", "false");
@@ -1340,7 +1360,7 @@ registerPage({
               + '<span class="mf-mcol"><span class="mf-b">' + esc(m.name) + '</span><span class="mf-mut mf-sm2">' + hint + "</span></span>"
               + (st.newName && st.newName === m.name ? '<span class="mf-tag">New</span>' : "") + "</label>";
           }).join("");
-      if (!w) html += '<span class="mf-mut mf-sm2">Money Flow update pending — only Cash can be saved until the database step has run.</span>';
+      if (!w) html += '<span class="mf-mut mf-sm2">' + esc(offlineNote() || "Money Flow update pending — only Cash can be saved until the database step has run.") + '</span>';
       else if (canAdd) {
         html += st.adding
           ? '<div class="mf-addm"><label for="mfNewM" class="mf-b">Name of the new method</label><div class="mf-addrow">'
@@ -1371,7 +1391,7 @@ registerPage({
       if (/^(cash|offset)$/i.test(name)) return "“" + name + "” is built in — pick another name.";
       if (allMethods().some(function (m) { return m.id !== exceptId && String(m.name).toLowerCase() === name.toLowerCase(); }))
         return "“" + name + "” is already on the list" + (allMethods().some(function (m) { return String(m.name).toLowerCase() === name.toLowerCase() && !+m.is_on; }) ? " (turned off — turn it on in Payment methods)." : ".");
-      if (!methodsWritable()) return "Money Flow update pending — methods can’t be added until the server is updated.";
+      if (!methodsWritable()) return offlineNote() || "Money Flow update pending — methods can’t be added until the server is updated.";
       return "";
     }
     function setMethods(list) {
@@ -1606,7 +1626,7 @@ registerPage({
                 + (!w && m.name !== "Cash" ? " disabled" : "") + ">" + esc(m.name) + "</button>";
             }).join("")
           + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.way === WAY_BAL) + '" data-mfp="way" data-v="' + WAY_BAL + '"' + (w ? "" : " disabled") + ">Leave it on his balance</button></div>"
-          + (w ? "" : '<span class="mf-mut mf-sm2">Money Flow update pending — until the database step has run, a pay-out can only be the full amount in cash.</span>')
+          + (w ? "" : '<span class="mf-mut mf-sm2">' + esc(offlineNote() || "Money Flow update pending — until the database step has run, a pay-out can only be the full amount in cash.") + '</span>')
           + '<div class="mf-info">' + ICON.info + "<span>" + info + "</span></div></div>"
         : '<div class="mf-eff mf-eff-ok"><span class="mf-b">The jobs cover all of it</span><span>Nothing to pay out — no money moves.'
           + (Math.abs(after - balNow) > 0.005 ? " His balance: " + esc(owesText(balNow)) + " → " + esc(owesText(after)) + "." : "") + "</span></div>";
@@ -1619,7 +1639,7 @@ registerPage({
       var body = jobCardHtml(r, { out: true })
         + '<fieldset class="mf-fs"><legend class="mf-lg">1 · Balance it against his other jobs</legend>'
         + (cands.length ? '<span class="mf-mut">' + (w ? "Jobs where " + esc(fm) + " still holds money for the base. Tick the ones to use."
-            : "Money Flow update pending — balancing against his jobs works once the database step has run.") + "</span>" : "")
+            : esc(offlineNote() || "Money Flow update pending — balancing against his jobs works once the database step has run.")) + "</span>" : "")
         + list + "</fieldset>"
         + rest
         + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Note <span class="mf-mut">(optional)</span></label>'
@@ -1807,7 +1827,7 @@ registerPage({
         body.method = normMethod(st.method);
         // an older bridge ignores `method` and would book a Zelle repayment as drawer cash
         if (!isCashMethod(body.method) && !methodsWritable()) {
-          panelErr("Money Flow update pending — only Cash can be recorded here until the server is updated."); return;
+          panelErr(offlineNote() || "Money Flow update pending — only Cash can be recorded here until the server is updated."); return;
         }
       }
       panelErr(""); panelBusy(true);
@@ -1834,7 +1854,8 @@ registerPage({
         var v = !!+m[key];
         return '<button type="button" class="mf-sw" role="switch" aria-checked="' + v + '" aria-label="' + esc(m.name) + " " + label + '" data-mfp="msw" data-id="' + esc(String(m.id)) + '" data-k="' + key + '"' + dis + "></button>";
       };
-      var body = (w ? "" : '<div class="mf-why"><b>Money Flow update pending.</b> The server hasn’t been updated yet, so this list is the starting set and can’t be changed. Cash always works.</div>')
+      var body = (w ? "" : '<div class="mf-why">' + (offlineNote() ? esc(offlineNote())
+        : "<b>Money Flow update pending.</b> The server hasn’t been updated yet, so this list is the starting set and can’t be changed. Cash always works.") + '</div>')
         + '<div class="mf-mt"><div class="mf-mthd"><span>Method</span><span class="mf-c">Money in</span><span class="mf-c">Paying out</span><span class="mf-r">Offered</span></div>'
         + '<div class="mf-mtrow mf-mtcash"><span class="mf-mcol"><span class="mf-lwhat"><span class="mf-b">Cash</span><span class="mf-tag">Built in</span></span>'
         + '<span class="mf-sm2">The only one that touches the cash at the base and Day Closing</span></span>'
