@@ -37,7 +37,8 @@
              "Net Cash (Closing)", "Expected Net Cash", "Net Cash (Recorded)", "Net Cash Corrected",
              "Job Expenses", "Contract URL", "DC Submission Time",
              "Cash Flow", "Cash Flow Time", "Cash Flow Source", "Cash Flow Method",
-             "Cash Flow Records", "Advance", "Deduction", "Moved to Debt", "Balance", "Status"],
+             "Cash Flow Records", "Advance", "Deduction", "Moved to Debt", "Moved to Debt (Recorded)",
+             "Balance", "Status"],
     };
   }
 })();
@@ -294,6 +295,18 @@ registerPage({
       var flow = type === TAKEN ? -amt : amt;
       return r2(flow + (r.adv || 0) - (r.ded || 0) + (r.exp || 0));
     }
+    /* A SHORT OR EXTRA COUNTS ONLY WHAT THE JOB STILL NEEDS (his call, 2026-10-09: "net cash is now
+       corrected and i need it to automatically become correct, he does not owe us anything").
+       moved = signed (+ short on his balance, - extra off it); need = what the job needs from him
+       before anything was moved. A short counts up to the job's current shortfall and nothing once he
+       brought what it asks; never upwards. src/money_flow.py _counted_sql() and bridge _mf_counted()
+       are the same rule (tests/test_mf_echo_leg.py runs all three). Nothing is written. */
+    function countedMove(moved, need) {
+      if (moved == null || need == null) return moved;
+      if (moved > 0) return need <= MF_TOL ? 0 : (need < moved ? need : moved);
+      if (moved < 0) return -need <= MF_TOL ? 0 : (need > moved ? need : moved);
+      return moved;
+    }
     /* A SHORT HAND-IN BECOMES HIS DEBT (22 Sep walkthrough, built 29 Sep): Cash Brought below what
        the job needs moves the difference onto his foreman balance, so the job settles and the
        dollars are owed in ONE place. AND THE MIRROR (6 Oct): brought MORE is a repayment of his
@@ -314,14 +327,15 @@ registerPage({
     // the shortfall onto his foreman balance, or the extra onto it as a repayment -- and the OTHER
     // kind back to $0, so one job never carries both (the job balance reads the latest of each)
     function debtItems(r, dNew, notes) {
-      var out = [], dOld = r.debt || 0;
+      // the RECORDED short / extra (2026-10-09: what counts can be less, once the net cash changed)
+      var out = [], dOld = r.debtRec != null ? r.debtRec : (r.debt || 0);
       if (Math.abs(dNew - dOld) > 0.009) {
         if (dNew > 0.009 || dOld > 0.009)
           out.push(assign({ entry_type: MF_DEBT, amount: r2(Math.max(0, dNew)),
-                            note: dNew > 0.009 ? notes.short : "brought in full" }, jobFields(r)));
+                            note: dNew > 0.009 ? notes.short : (notes.noShort || "brought in full") }, jobFields(r)));
         if (dNew < -0.009 || dOld < -0.009)
           out.push(assign({ entry_type: MF_EXTRA, amount: r2(Math.max(0, -dNew)),
-                            note: dNew < -0.009 ? notes.extra : "no extra" }, jobFields(r)));
+                            note: dNew < -0.009 ? notes.extra : (notes.noExtra || "no extra") }, jobFields(r)));
       }
       return out;
     }
@@ -362,7 +376,9 @@ registerPage({
       } else if (r.expected != null) {
         items = items.concat(debtItems(r, debtOfEntry(r, o.type, o.amt).debt, {
           short: "short hand-in" + (note ? " — " + note : ""),
-          extra: "extra hand-in repays his balance" + (note ? " — " + note : "") }));
+          extra: "extra hand-in repays his balance" + (note ? " — " + note : ""),
+          noShort: "brought in full" + (note ? " — " + note : ""),
+          noExtra: "no extra" + (note ? " — " + note : "") }));
       }
       return items;
     }
@@ -537,6 +553,9 @@ registerPage({
           ded: lv ? lv.ded : num(b["Deduction"]),
           // a short hand-in MOVED TO HIS DEBT (29 Sep): the job is settled, he owes it instead
           debt: lv ? (lv.debt != null ? lv.debt : null) : num(b["Moved to Debt"]),
+          // what was moved when the job was settled; `debt` becomes what of it still COUNTS below
+          debtRec: lv ? (lv.debt_moved !== undefined ? lv.debt_moved : (lv.debt != null ? lv.debt : null))
+            : num(b["Moved to Debt (Recorded)"] !== undefined ? b["Moved to Debt (Recorded)"] : b["Moved to Debt"]),
           baseAdv: num(b["Advance"]),
           contractUrl: b["Contract URL"] || null,
           dcTs: b["DC Submission Time"] || null,
@@ -556,8 +575,10 @@ registerPage({
         if (lv && r.adv != null && r.baseAdv != null && r.adv > 0 && r.baseAdv < 0
             && Math.abs(r.adv + r.baseAdv) < 0.01) r.adv = r.baseAdv;
         // Balance = Expected − Advance − Flow + Deduction − Debt — the original system's formula
-        r.balance = (r.expected == null) ? null
-          : r.expected - (r.adv || 0) - (r.flow || 0) + (r.ded || 0) - (r.debt || 0);
+        // ...minus what of a short / extra still counts (2026-10-09, countedMove)
+        r.need = (r.expected == null) ? null : r2(r.expected - (r.adv || 0) - (r.flow || 0) + (r.ded || 0));
+        r.debt = r.need == null ? r.debtRec : countedMove(r.debtRec, r.need);
+        r.balance = (r.expected == null) ? null : r.need - (r.debt || 0);
         r.status = computeStatus(r);
         return r;
       });
@@ -692,7 +713,7 @@ registerPage({
         lv = { ev: b ? b.ev : evId, expected: b ? b.expected : null, flow: b ? b.flow : null,
                flow_ts: b ? b.flowTs : null, flow_src: b ? b.flowSrc : null, method: b ? b.method : null,
                records: 0, adv: b ? b.adv : null, adv_ts: null, ded: b ? b.ded : null,
-               debt: b ? b.debt : null, sib: b && b.echoLeg ? 1 : 0,
+               debt: b ? b.debtRec : null, debt_moved: b ? b.debtRec : null, sib: b && b.echoLeg ? 1 : 0,
                recorded: b ? b.recorded : null, fix: b ? b.fix : null, exp: b ? b.exp || 0 : 0 };
         S.live.rows.push(lv);
       }
@@ -705,8 +726,13 @@ registerPage({
       else if (type === "Forman Deduction") { lv.ded = amount; }
       // `debt` is signed: + shortfall moved to his debt, - extra applied to his balance; a $0 of
       // one kind only clears that kind
-      else if (type === MF_DEBT) { if (amount > 0) lv.debt = amount; else if ((lv.debt || 0) > 0) lv.debt = 0; }
-      else if (type === MF_EXTRA) { if (amount > 0) lv.debt = -amount; else if ((lv.debt || 0) < 0) lv.debt = 0; }
+      else if (type === MF_DEBT || type === MF_EXTRA) {
+        // the RECORDED stream (`debt_moved`); the overlay works out what of it counts
+        var rec = lv.debt_moved !== undefined ? lv.debt_moved : lv.debt;
+        if (type === MF_DEBT) { if (amount > 0) rec = amount; else if ((rec || 0) > 0) rec = 0; }
+        else { if (amount > 0) rec = -amount; else if ((rec || 0) < 0) rec = 0; }
+        lv.debt_moved = rec; lv.debt = rec;
+      }
       if (S.live.entries) {
         if (it.replaces_id != null) S.live.entries.forEach(function (e) { if (e.id === it.replaces_id) e.current = false; });
         S.live.entries.push({ id: newId != null ? newId : "tmp" + Date.now() + Math.random(), event_id: evId,
@@ -1449,6 +1475,16 @@ registerPage({
     function expensesOf(r) {
       return storyEntriesOf(r).filter(function (e) { return e.current && e.type === JOB_EXP && Math.abs(+e.amount || 0) > 0.005; });
     }
+    // a short / extra that counts less than was recorded: the net cash changed after it was settled
+    function movedNoteHtml(r) {
+      var m = moneyLegOf(r), rec = m.debtRec || 0, now = m.debt || 0;
+      if (Math.abs(rec) < 0.005 || Math.abs(rec - now) < 0.005) return "";
+      var kind = rec > 0 ? "short" : "extra", fm = esc(firstName(m.forman));
+      return '<div class="mf-jcnote mf-jcfix"><span>The ' + money2(Math.abs(rec)) + " " + kind + " moved to " + fm + "’s balance "
+        + (Math.abs(now) < 0.005 ? "no longer counts" : "now counts " + money2(Math.abs(now)))
+        + ": the job’s net cash is " + money2(m.expected) + " now"
+        + (Math.abs(now) < 0.005 ? (kind === "short" ? ", and he brought what it asks." : ".") : ".") + "</span></div>";
+    }
     // the job card's lines about them, with "Take the correction back" (st = the panel's state)
     function figuresHtml(r, st) {
       var m = moneyLegOf(r), out = "";
@@ -1605,7 +1641,7 @@ registerPage({
         + (r.forman && r.forman !== MF_NO_FOREMAN
             ? '<button type="button" class="mf-linkbtn mf-b" data-mfp="fm">' + (S.fines ? esc(owesText(debtOf(r.forman))) : S.finesErr ? "open" : "…") + "</button>"
             : '<span class="mf-dim">foreman not identified</span>') + "</div>"
-        + recorded + legacy + figuresHtml(r, opt.st)
+        + recorded + legacy + figuresHtml(r, opt.st) + movedNoteHtml(r)
         + (moneyLegOf(r).exp > 0.005 ? '<div class="mf-jcnote">After ' + money2(moneyLegOf(r).exp) + " of job expenses (below).</div>" : "")
         + (links.length ? '<div class="mf-jclinks">' + links.join(" · ") + "</div>" : "")
         + "</div>";
@@ -1678,6 +1714,13 @@ registerPage({
         tl(en.at, en.current ? "fill" : "dash", fmtWhen(en.at) + " · " + esc(shortBy(en.by)), entryBoxHtml(en, r));
         i++;
       }
+      legs.forEach(function (l) {
+        var rec = l.debtRec || 0, now = l.debt || 0;
+        if (Math.abs(rec) < 0.005 || Math.abs(rec - now) < 0.005) return;
+        tl("9999", "dash", "Now", boxHtml("rep", (rec > 0 ? "Short" : "Extra") + (Math.abs(now) < 0.005 ? " no longer counts" : " now counts " + money2(Math.abs(now))),
+          "The job’s net cash is " + money2(l.expected) + " now, so " + esc(fm) + "’s balance carries " + (Math.abs(now) < 0.005 ? "none of it" : "only that") + ". Nothing was changed by hand.",
+          money2(Math.abs(rec))));
+      });
       items.sort(function (a, b) { return a.t < b.t ? -1 : a.t > b.t ? 1 : 0; });
       var end = '<div class="mf-tl"><div class="mf-tlrail"><span class="mf-tldot mf-tld-end"></span></div><div class="mf-tlbody"><span class="mf-tlwhen">Today</span>'
         + '<span class="mf-b">' + (Math.abs(open) <= MF_TOL ? "Nothing open on this job"
@@ -2914,7 +2957,7 @@ registerPage({
             [k("+ Opening balance"), "What he owed before this system, and where that figure comes from."],
           ])
           + list([
-            "Short and extra hand-ins arrive by themselves when a job is settled. You don’t add them here.",
+            "Short and extra hand-ins arrive by themselves when a job is settled. You don’t add them here. A short counts only what its job is still short, so it comes down by itself when the job’s net cash is corrected (part 9).",
             "A <b>cash</b> repayment goes into today’s drawer. A <b>cash</b> advance comes out of it. Zelle or card doesn’t touch the drawer.",
             "<b>Every change, newest first</b> lists each entry and what he owed after it. " + k("Correct") + " fixes an entry. To cancel one, set it to $0 and say why. The original stays in the history.",
             "An entry marked <b>on a statement</b> is already on a closing statement and can’t be corrected: add a repayment or a new fine instead. Entries tagged <b>from Settle</b> or <b>from a pay-out</b> come from a job: correct the job instead (part 7).",
@@ -2967,6 +3010,7 @@ registerPage({
             "Until the contract or closing says the corrected figure, the job is listed under <b>Needs a look</b> as " + q("net cash to fix") + ". Once it is fixed there, the flag goes away by itself.",
             "Picked it by mistake? Open the job and press " + k("Take the correction back") + ", then say why. The job goes back to the contract’s figure.",
           ])
+          + tip("<b>Already settled short, and the contract or closing gets fixed later?</b> Nothing to do. A short on his balance counts only what the job is still short. Once the net cash matches what he brought, it stops counting by itself, the moment the fix reaches Money Flow. The job card and its history say " + q("no longer counts") + ", and his balance shows the short as " + q("counts $… of $…") + " while it is only partly owed. Nothing is written, so if the figure changes back, the short counts again.")
           + h4("Job expenses")
           + p("Money spent on a job that isn’t on the contract, for example $400 for an extra truck. It lowers what the foreman owes on that job at once.")
           + steps([
