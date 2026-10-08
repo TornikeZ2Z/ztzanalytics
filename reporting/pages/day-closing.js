@@ -491,7 +491,10 @@ registerPage({
         + openRow + (rows || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No day matches.</td></tr>') + "</tbody></table>"
         + (days.length > S.shown ? '<button class="dcl-btn dcl-more" id="dclMore">Show 30 more days (' + (days.length - S.shown) + " left)</button>" : "")
         + '</div><div class="dcl-note">A day moves the drawer by what each record changed: a double click moves nothing, a correction moves only the difference. '
-        + "Pay-outs are covered by the same foreman's cash first, then by the drawer. Only cash moves the drawer: Zelle, card and job-against-job entries are listed under each day as not cash.</div></div>";
+        + "Pay-outs are covered by the same foreman's cash first, then by the drawer. Only cash moves the drawer: Zelle, card and job-against-job entries are listed under each day as not cash."
+        // the statements made before Day Closing existed (2026-10-08): Foreman Net Cash Closings left
+        // the sidebar as an archive, and this is the way to it
+        + ' <a class="dcl-link" href="#page=foreman-closings">Older foreman statements (16 Apr – 24 Sep) ›</a></div></div>';
       wire();
       if (window.ZDC_tick) window.ZDC_tick();
       if (window.RSC && RSC.fitScroller) RSC.fitScroller(el.querySelector(".dcl-wrap"));

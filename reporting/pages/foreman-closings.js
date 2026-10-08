@@ -139,12 +139,15 @@ registerPage({
     host.innerHTML = `
       <div class="fnc-head"><div>
         <h1>Foreman Net Cash Closings</h1>
-        <p>Every job a foreman confirms in Money Flow is grouped into a batch, closed once, and archived as a PDF statement. <b>Pending</b> is each foreman's next batch; <b>History</b> is every closing sent.</p>
+        <p><b>Replaced by Day Closing on 27 Sep 2026.</b> Closing and emailing statements stopped that day: every day now closes by itself at 8 PM in <a href="#page=money-flow&amp;tab=day-closing">Money Flow &rsaquo; Day Closing</a>, with a PDF per foreman, and where each foreman stands is his balance in Money Flow. This page keeps the statements made before then (16 Apr &ndash; 24 Sep).</p>
       </div><div class="fnc-refwrap"><span class="fnc-last" id="fncLast"></span><button class="fnc-refresh" id="fncRefresh">↻ Refresh</button></div></div>
       <div id="fncBody"><div class="fnc-load">Loading closings…</div></div>`;
 
     var S = window.__FNC || (window.__FNC = { view: "pending", dense: "details", q: "", open: {}, hopen: {}, copen: {}, _jobs: {} });
     if (!S.dense) S.dense = "details";
+    // ARCHIVED (2026-10-08): Day Closing took over on 27 Sep, so nothing closes a "Pending" batch
+    // any more -- the list only grew and looked like unfinished work. History is all there is.
+    S.view = "history";
 
     // DATA — reuse the last pull if it's under a minute old (his ask 2026-07-22: switching
     // pages fast shouldn't re-hit the server); Refresh forces a fresh fetch. Cached on window
@@ -320,9 +323,9 @@ registerPage({
       var pendJobs = pend.reduce(function (a, p) { return a + p.n_jobs; }, 0);
       var pendCash = pend.reduce(function (a, p) { return a + (p.total_net_cash || 0); }, 0);
 
+      // no "pending" KPIs on the archive (2026-10-08): nothing will ever close them; Day Closing does that now
+      void pendJobs; void pendCash;
       var kp = '<div class="fnc-kpis">'
-        + '<div class="fnc-kpi"><b>' + pend.length + '</b><span>Foremen pending</span><small>have confirmed jobs to close</small></div>'
-        + '<div class="fnc-kpi"><b>' + pendJobs + '</b><span>Jobs pending</span><small>' + money(pendCash) + ' net cash</small></div>'
         + '<div class="fnc-kpi pos"><b>' + hist.length.toLocaleString() + '</b><span>Closings to date</span><small>archived statements</small></div>'
         + '<div class="fnc-kpi"><b>' + hist.reduce(function (a, h) { return a + h.n_jobs; }, 0).toLocaleString() + '</b><span>Jobs settled</span><small>each closed once</small></div></div>';
 
@@ -331,7 +334,7 @@ registerPage({
       // rs-ckeep: the automatic-run status and the Run button are not filters — a collapsed
       // bar may hide controls, never the state of the thing that pays the foremen
       var bar = '<div class="fnc-bar" id="fncBar"><div class="fnc-seg">'
-        + segBtn("pending", "Pending", pend.length) + segBtn("history", "History", hist.length) + "</div>"
+        + segBtn("history", "Statements to 24 Sep", hist.length) + "</div>"
         // History has no compact plan, so the toggle did nothing there but look broken
         + (S.view === "pending"
             ? '<div class="fnc-seg fnc-dseg">' + dBtn("details", "Details") + dBtn("overview", "Compact") + "</div>"

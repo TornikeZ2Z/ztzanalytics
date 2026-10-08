@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="9d298a523160cb8441c98afd213975de376af3e6">
+<meta name="ztz-ref" content="38e013992c3179efa7aad51ad38723c909ddd92e">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -433,6 +433,13 @@ const RETIRED = new Set([
    that tab. Day Closing is the Day Closing tab of Money Flow (his ask: "combine day closing and
    money flow as a separate tabs"); /api/_dc already admits money-flow holders. */
 const TAB_HOSTED = new Set(["day-closing"]);
+/* ARCHIVED PAGES (2026-10-08): out of the sidebar, the nav search and the landing pick like a
+   tab-hosted page, still GRANTED as before (ACL lists untouched), but NOT redirected: the page
+   stays reachable by its own link because it holds history nothing else shows. Foreman Net Cash
+   Closings was switched off on 27 Sep when Day Closing took over its job (his "dont we already
+   have it?"); its 435 statements (16 Apr - 24 Sep) are linked from the Day Closing tab. */
+const ARCHIVED = new Set(["foreman-closings"]);
+function navHidden(id) { return TAB_HOSTED.has(id) || ARCHIVED.has(id); }
 const REDIRECTS = {
   // 2026-10-08: Day Closing is a tab of Money Flow; old links land on #page=money-flow&tab=day-closing
   "day-closing": "money-flow",
@@ -592,7 +599,7 @@ function firstAllowedId() {
     // pageFor(), which resolves the redirect and renders the REPLACEMENT — so returning
     // e.g. "sales-funnel" here handed the user the Monthly Report even though canSee()
     // had just refused it (found 2026-07-26 while fixing the department-grant leak).
-    if (RETIRED.has(p.id) || TAB_HOSTED.has(p.id)) continue;
+    if (RETIRED.has(p.id) || navHidden(p.id)) continue;
     const oid = idOwner(p.id);
     if (canSee(oid)) return oid;
   }
@@ -1420,7 +1427,7 @@ function buildNav() {
     // (at its first constituent's position) and its constituents are hidden.
     const display = [];
     const seenMerged = new Set();
-    PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id) && !TAB_HOSTED.has(p.id)).forEach(p => {
+    PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id) && !navHidden(p.id)).forEach(p => {
       const m = MERGED_BY_TAB[p.id];
       if (m) {
         if (!seenMerged.has(m.id) && canSeeIn(m.id, g.key)) {
@@ -2269,7 +2276,7 @@ registerPage({
 <script src="pages/branch-owner.js?v=13"></script>
 <script src="pages/bo-salary.js?v=5"></script>
 <script src="pages/crew-pay-compare.js?v=1"></script>
-<script src="pages/day-closing.js?v=7"></script>
+<script src="pages/day-closing.js?v=8"></script>
 <script src="pages/money-flow.js?v=74"></script>
 <script src="pages/ld-planning.js?v=85"></script>
 <script src="pages/cleanup.js?v=40"></script>
@@ -2290,7 +2297,7 @@ registerPage({
 <script src="pages/data-migration.js?v=25"></script>
 <script src="pages/general-tables.js?v=7"></script>
 <script src="pages/money-flow-issues.js?v=4"></script>
-<script src="pages/foreman-closings.js?v=22"></script>
+<script src="pages/foreman-closings.js?v=23"></script>
 <script src="pages/general-settings.js?v=7"></script>
 <script src="pages/admin-activity.js?v=5"></script>
 <script src="pages/review-performance.js?v=32"></script>
