@@ -129,6 +129,23 @@
              "State Lead Share", "State Job Share"],
     };
   }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.tuji_area) {
+    /* THE TUJI TAB (his ask 2026-10-09): every county and zip within 100 miles of Tuji's base in
+       Newark, DE -- Tuji's own leads and jobs, a tier, and the three "needs attention" flags with
+       the sentence that explains each. Its own mart (curated.py mart_tuji_area), read only when the
+       tab is first opened. Every column the mart builds: the CSV promises all of them. */
+    RS.DATASETS.tuji_area = {
+      table: "mart_tuji_area",
+      cols: ["Level", "Area Key", "State", "County", "City", "Zip", "Name", "Latitude", "Longitude", "Miles From Base",
+             "Leads 12m", "Booked 12m", "Jobs 12m", "Revenue 12m", "Booking Rate", "Avg Ticket", "Top Source", "Source Mix",
+             "Leads Last 3m", "Leads Same 3m Last Year", "Leads Change Pct", "Months Compared", "Leads Through",
+             "Population", "Movers Per Year", "Median Income", "Home Value", "Owner Share Pct", "Leads Per 10k Movers",
+             "Measured Median Per 10k", "Tuji Booking Rate", "Market Score", "Market Tier", "Data Score", "Data Tier",
+             "Tier", "Tier Source", "Tier Reason", "Flag Falling", "Flag Not Converting", "Flag Untapped",
+             "Falling Reason", "Not Converting Reason", "Untapped Reason", "Flag Reason"],
+      dateCols: {}, defaultDate: null,
+    };
+  }
 })();
 
 (() => {
@@ -1412,6 +1429,76 @@ body.rs-app.light.v2 .ap2-gt{--gt-t:#3F7D20;--gt-c:#94A3B8;--gt-pos:#0F766E;--gt
 body.rs-app.light.v2 .ap2-gt-svg text{font-size:12px}
 body.rs-app.light.v2 .ap2-gt-leg{font-size:12.5px}
 body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
+/* ---------- THE TUJI TAB (2026-10-09) -------------------------------------------
+   ap-tj- only. It borrows the page's own map and sheet classes (ap2-mapbox, ap2-mapkey, ap2-tip,
+   ap3-kpi, ap3-det, ap3-seg) so it reads as the same page; what is new is the grid, the
+   "needs attention" groups and the table chrome. Lives inside .ap2-pane, so the --ap- tokens apply. */
+.ap-tj-head h2{margin:0 0 4px;font-size:19px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+.ap-tj-head p{margin:0 0 12px;font-size:13px;line-height:1.55;color:var(--muted);max-width:104ch}
+.ap-tj-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.ap-tj-mix span{margin:0 0 6px}
+.ap-tj-mix div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;line-height:1.55;color:var(--ink)}
+.ap-tj-mix div em{font-style:normal;color:var(--muted)}
+.ap-tj-mix div b{display:inline;font-size:14px;font-weight:800;letter-spacing:0;line-height:1.55}
+.ap-tj-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;align-items:stretch;margin:0 0 6px}
+/* isolation: Leaflet's panes carry z-index 200-700, which would otherwise paint OVER the sticky tab
+   bar (z-index 28) as the map scrolls under it -- found in the first render */
+.ap-tj-grid .ap2-mapbox{height:min(72vh,780px);min-height:500px;isolation:isolate}
+.ap-tj-grid .ap3-det{height:min(72vh,780px);min-height:500px}
+.ap-tj-stat{font-size:12px;color:var(--muted)}
+.ap-tj-sw-f{background:transparent !important;border:2.5px solid var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
+.ap-tj-sw-r{background:transparent !important;border:1.6px dashed var(--ink)}
+.ap-tj-flag{margin:10px 0 0;padding:9px 11px;border:1px solid color-mix(in srgb,var(--warn) 45%,var(--ap-rule));border-left:4px solid var(--warn);
+  border-radius:var(--ap-r2);background:color-mix(in srgb,var(--warn) 7%,transparent)}
+.ap-tj-flag b{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ap-warn-ink)}
+.ap-tj-flag span{display:block;font-size:13.5px;line-height:1.45;color:var(--ink);margin-top:2px}
+.ap-tj-flag small{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.ap-tj-sech{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--ap-rule)}
+.ap-tj-sech h3{margin:0;font-size:16px;font-weight:800;color:var(--ink)}
+.ap-tj-sech span{font-size:12.5px;color:var(--muted)}
+.ap-tj-need{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px;align-items:start}
+.ap-tj-grp{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0}
+.ap-tj-grp>.h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding-bottom:7px;margin-bottom:4px;border-bottom:1px solid var(--ap-rule)}
+.ap-tj-grp>.h b{font-size:15px;color:var(--ink)}
+.ap-tj-grp>.h span{font-size:12px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+.ap-tj-grp .lv{margin:10px 0 2px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+.ap-tj-grp .none{font-size:13px;color:var(--muted);padding:8px 0}
+.ap-tj-row{display:block;width:100%;text-align:left;font:inherit;color:var(--ink);background:none;border:0;border-bottom:1px solid var(--ap-rule);
+  padding:8px 4px;cursor:pointer;border-radius:6px}
+.ap-tj-row:hover{background:var(--ap-sub)}
+.ap-tj-row:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
+.ap-tj-row .n{display:block;font-size:13.5px;font-weight:700}
+.ap-tj-row .n small{margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+.ap-tj-row .r{display:block;font-size:12.5px;line-height:1.45;color:var(--ink);margin-top:2px}
+.ap-tj-row .a{display:block;font-size:12px;color:var(--ap-warn-ink);margin-top:2px}
+.ap-tj-row .a::before{content:"\\2192  "}
+.ap-tj-more{margin:8px 0 0;font:inherit;font-size:12.5px;font-weight:700;color:var(--brand-d);background:none;border:0;padding:2px 0;cursor:pointer}
+.ap-tj-more:hover{text-decoration:underline}
+.ap-tj-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
+.ap-tj-bar>.sp{flex:1 1 auto}
+.ap-tj-tbl{margin:0 0 6px}
+.ap-tj-tbl table{font-size:13px}
+.ap-tj-tbl th{white-space:nowrap;padding:0}
+.ap-tj-th{font:inherit;font-size:inherit;font-weight:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit;background:none;border:0;
+  padding:8px 10px;cursor:pointer;width:100%;text-align:inherit;white-space:nowrap}
+.ap-tj-th:hover,.ap-tj-th.on{color:var(--ink)}
+.ap-tj-th:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
+.ap-tj-tbl tbody tr{cursor:pointer}
+.ap-tj-tbl tbody tr:hover td{background:var(--ap-sub)}
+.ap-tj-tbl td small{display:block;font-size:11px;color:var(--faint)}
+.ap-tj-tchip{display:inline-block;min-width:26px;text-align:center;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;color:#fff}
+.ap-tj-tchip.t2,.ap-tj-tchip.t3{color:#0F172A}
+.ap-tj-fchip{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;margin:1px 3px 1px 0;border-radius:999px;white-space:nowrap;
+  color:var(--ap-warn-ink);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.ap-tj-up{color:var(--ap-pos-ink);font-weight:700}
+.ap-tj-dn{color:var(--ap-neg-ink);font-weight:700}
+.ap-tj-how{margin:16px 0 0}
+.ap-tj-how .panel{line-height:1.7}
+.ap-tj-how h4{margin:12px 0 2px;font-size:13px;color:var(--ink)}
+.ap-tj-how h4:first-child{margin-top:0}
+.ap-tj-how ul{margin:2px 0 0 18px;padding:0}
+@media (max-width:1100px){.ap-tj-grid{grid-template-columns:1fr}.ap-tj-grid .ap3-det{height:auto;min-height:0}}
+@media (max-width:560px){.ap-tj-grid .ap2-mapbox{min-height:400px;height:62vh}}
     `;
     document.head.appendChild(st);
   }
@@ -3048,9 +3135,12 @@ registerPage({
          SECTIONS of Statistics, each its own <details> with a jump bar on top. Their content and ids
          are untouched -- still rendered once, eagerly -- so every repaint, goto and deep link keeps
          working: an old key (tab=cities, showPane("whatif")) opens Statistics at that section. */
+      /* TUJI (2026-10-09): its own tab between Statistics and Settings -- Tuji's areas within 100
+         miles of Newark, DE. Drawn lazily on first show (tujiShow), never part of the Zip plan. */
       const PANES = [
         { k: "map", label: "Map" },
         { k: "stats", label: "Statistics" },
+        { k: "tuji", label: "Tuji" },
         { k: "vars", label: "Settings" },
       ];
       const SECS = [
@@ -3138,6 +3228,9 @@ registerPage({
            the map draws one grey tile, AND fitBounds clamps to maxZoom, until it is told to
            measure again. Both have to be redone, not just the first. */
         if (key === "map") setTimeout(fitMap, 40);
+        /* the Tuji tab reads its own mart the first time it is shown, and its map has the same
+           0x0-while-hidden problem as the Map tab's: tujiShow re-measures it on every show */
+        if (key === "tuji") tujiShow();
         if (sec) openSec(sec, !quiet);
       }
       /* THE PLAN ON PAPER (2026-09-20). He presents this; a deck needs the decisions and the working,
@@ -4110,6 +4203,20 @@ registerPage({
         document.head.appendChild(sc);
       }
       const tok = n => (getComputedStyle(document.body).getPropertyValue(n) || "").trim() || "#888";
+      /* THE GROUND, ONE WAY FOR EVERY MAP ON THE PAGE (the Map tab and the Tuji tab): Esri's Light /
+         Dark Gray Canvas, with the place names on their own pane ABOVE the fills (see wireMap for why
+         this basemap). Returns whether the dark one was drawn. */
+      function baseTiles(m) {
+        const darkMap = !document.body.classList.contains("light");
+        const ESRI = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_"
+                   + (darkMap ? "Dark" : "Light") + "_Gray_";
+        L.tileLayer(ESRI + "Base/MapServer/tile/{z}/{y}/{x}", { maxZoom: 14 }).addTo(m);
+        const labelPane = m.createPane("apLabels");
+        labelPane.style.zIndex = 460; labelPane.style.pointerEvents = "none";   // above the fills, under markers and tooltips
+        L.tileLayer(ESRI + "Reference/MapServer/tile/{z}/{y}/{x}",
+                    { maxZoom: 14, pane: "apLabels", opacity: darkMap ? .75 : .9 }).addTo(m);
+        return darkMap;
+      }
 
       /* COUNTY BOUNDARIES, VENDORED (2026-09-21). His words: "instead of bubbles, i prefer to have
          filled areas - for EVERY location, as i have in original Power BI." A circle at a county's
@@ -4117,16 +4224,21 @@ registerPage({
          map whose job is visibility. assets/vendor/geo/counties8.geojson is the eight states'
          327 shapes (195 KB), decoded from the public us-atlas TopoJSON by
          scripts/build_county_geojson.py -- no key, no vendor, no runtime dependency. */
-      let GEO = null, GEO_ERR = null;
+      let GEO = null, GEO_ERR = null, GEO_WAIT = null;
       function ensureGeo(cb) {
         if (GEO || GEO_ERR) { cb(); return; }
+        /* two maps can ask at once (a deep link to the Tuji tab builds both): one read, every caller told */
+        if (GEO_WAIT) { GEO_WAIT.push(cb); return; }
+        GEO_WAIT = [cb];
+        const done = () => { const w = GEO_WAIT || []; GEO_WAIT = null;
+          w.forEach(f => { try { f(); } catch (e) { console.error(e); } }); };   // one map failing never starves the other
         fetch("assets/vendor/geo/counties8.geojson")
           .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
           .then(j => { GEO = j;
             /* the state borders are decoration: if they fail the map still draws, without them */
             return fetch("assets/vendor/geo/states8.geojson").then(r => r.ok ? r.json() : null).catch(() => null); })
-          .then(sj => { if (sj) host._apStates = sj; cb(); })
-          .catch(e => { GEO_ERR = e && e.message || "unreadable"; cb(); });
+          .then(sj => { if (sj) host._apStates = sj; done(); })
+          .catch(e => { GEO_ERR = e && e.message || "unreadable"; done(); });
       }
 
       /* every county, with the three things the tooltip says. The budget follows LEADS: a county
@@ -6241,14 +6353,7 @@ registerPage({
              names on a SEPARATE layer so they can ride ON TOP of the county fills instead of being
              buried under them. No key, no quota. Dark Gray Canvas is its twin for the dark theme, so
              the map is designed in both rather than inverted into one. */
-          const darkMap = !document.body.classList.contains("light");
-          const ESRI = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_"
-                     + (darkMap ? "Dark" : "Light") + "_Gray_";
-          L.tileLayer(ESRI + "Base/MapServer/tile/{z}/{y}/{x}", { maxZoom: 14 }).addTo(m);
-          const labelPane = m.createPane("apLabels");
-          labelPane.style.zIndex = 460; labelPane.style.pointerEvents = "none";   // above the fills, under markers and tooltips
-          L.tileLayer(ESRI + "Reference/MapServer/tile/{z}/{y}/{x}",
-                      { maxZoom: 14, pane: "apLabels", opacity: darkMap ? .75 : .9 }).addTo(m);
+          const darkMap = baseTiles(m);      // the Tuji tab's map draws the same ground (baseTiles)
           /* the four tiers' palette (tierColors), plus the two old names the rings and the
              no-crew outline still use: push = Tier 1's green, fix = Tier 4's red */
           const TC4 = tierColors();
@@ -7438,6 +7543,482 @@ registerPage({
         };
       }
 
+      /* ===================== THE TUJI TAB (2026-10-09) =====================
+         His words: "the planning part for Tuji. we need just area - simple marketing planning part.
+         tuji base 100 Miles Radius + our marketing data so if any area sucks right now within that
+         area to let the user know. we dont have any planning part more that that for tuji".
+         So: the areas within 100 miles of Newark, DE, how each is doing for Tuji, which need
+         attention and why. NO crews, desk or budget, and nothing here reaches the Zip-to-Zip plan.
+         Zip to Zip's own areas inside the ring (Philadelphia, South Jersey, Baltimore) are areas like
+         any other -- flagged the same way, no special marking (his call).
+         LAZY: the pane is an empty shell in paint(); tujiShow() reads mart_tuji_area the first time the
+         tab opens, so the Zip panes never wait on it. A paint() rebuilds the host and with it the
+         shell, so the next show draws again from the rows already read (TJ) -- one read per visit. */
+      /* THE RULES THE MART APPLIES, for the sentences that explain them. They MUST equal the TUJI_*
+         constants in src/curated.py -- tests/test_tuji_area_mart.py reads both and fails if they drift. */
+      const TJ_RULES = {
+        radius: 100,
+        fallPrior: { County: 8, Zip: 5 }, fallPct: -30,
+        convLeads: { County: 20, Zip: 12 }, convShare: 0.6,
+        untapShare: 0.25, untapMovers: { County: 2000, Zip: 1000 }, untapTier: { County: 2, Zip: 1 },
+        measure: { County: 30, Zip: 15 },
+      };
+      const TJ_BASE = { name: "Newark, DE", zip: "19711", la: 39.713598, lo: -75.741073 };
+      const TJ_FLAGS = [
+        { k: "fall", label: "Falling", col: "Flag Falling", why: "Falling Reason",
+          act: "Check whether its Angi/Thumbtack/Google targeting or budget changed", none: "No area is falling right now." },
+        { k: "conv", label: "Not converting", col: "Flag Not Converting", why: "Not Converting Reason",
+          act: "Listen to calls from this area and check pricing", none: "Every area with enough leads books near Tuji's rate." },
+        { k: "untap", label: "Untapped", col: "Flag Untapped", why: "Untapped Reason",
+          act: "Add it to ad targeting", none: "No strong market is being missed." },
+      ];
+      const TJ_LEVELS = [["County", "County"], ["Zip", "Zip code"]];
+      const TJ_PAGE = 50, TJ_SHOW = 8;
+      let TJ = null;                 // { rows, ix: {County, Zip}, geo, base } once the mart is read
+      /* the tab's own state, this visit only (nothing persisted -- no localStorage shape to migrate) */
+      const TJ_S = { mapLevel: "County", tblLevel: "County", sort: "Leads 12m", desc: true, page: 0, more: {}, pick: null };
+      const TJ_COLS = [
+        { k: "Name", l: "Area", f: "name" }, { k: "Miles From Base", l: "Miles", f: "n1" }, { k: "Tier", l: "Tier", f: "tier" },
+        { k: "Leads 12m", l: "Leads 12 mo", f: "n" }, { k: "Booking Rate", l: "Booked", f: "pct" }, { k: "Jobs 12m", l: "Jobs", f: "n" },
+        { k: "Avg Ticket", l: "Avg ticket", f: "$" }, { k: "Leads Last 3m", l: "Last 3 mo", f: "n" },
+        { k: "Leads Same 3m Last Year", l: "Year before", f: "n" }, { k: "Leads Change Pct", l: "Change", f: "chg" },
+        { k: "Movers Per Year", l: "Movers / yr", f: "n" }, { k: "Leads Per 10k Movers", l: "Leads / 10k movers", f: "n1" },
+        { k: "Median Income", l: "Median income", f: "$" }, { k: "Top Source", l: "Top source", f: "t" },
+        { k: "_flags", l: "Needs attention", f: "flags" },
+      ];
+      const tjFlagsOf = r => TJ_FLAGS.filter(f => num(r[f.col]) === 1);
+      const tjName = r => r.Level === "Zip" ? r.Zip + " " + (r.City || "") + ", " + r.State : (r.Name || r.County || "") + ", " + r.State;
+      const tjPct = v => (v == null || v === "") ? "—" : r1(num(v)) + "%";
+      const tjChg = v => (v == null || v === "") ? "—"
+        : '<span class="' + (num(v) < 0 ? "ap-tj-dn" : num(v) > 0 ? "ap-tj-up" : "") + '">' + (num(v) > 0 ? "+" : "") + Math.round(num(v)) + "%</span>";
+      const tjMix = r => String(r["Source Mix"] || "").split("|").map(p => { const i = p.lastIndexOf("=");
+        return i > 0 ? { k: p.slice(0, i), n: num(p.slice(i + 1)) } : null; }).filter(Boolean);
+      const tjCount = (n, one, many) => fmtN(n) + " " + (n === 1 ? one : many);
+      function tjSeg(attr, items, on) {
+        return '<div class="ap3-seg">' + items.map(([k, l]) => '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") +
+          '" aria-pressed="' + (k === on ? "true" : "false") + '">' + esc(l) + "</button>").join("") + "</div>";
+      }
+      function tjPut(sel, html) { const el = host.querySelector(sel); if (el) el.innerHTML = html; }
+      function tjIndex(rows) {
+        const ix = { County: {}, Zip: {} }, geo = {};
+        rows.forEach(r => { if (!ix[r.Level]) return; ix[r.Level][r["Area Key"]] = r;
+          if (r.Level === "County") geo[r.State + "|" + ckey(r.County)] = r; });
+        const b = ix.Zip[TJ_BASE.zip];
+        return { rows, ix, geo, base: b && num(b.Latitude) ? { la: num(b.Latitude), lo: num(b.Longitude) } : { la: TJ_BASE.la, lo: TJ_BASE.lo } };
+      }
+      /* Tuji across the 100 miles = its ZIP rows (a county row counts the whole county, so its edge
+         counties would double the ring's border zips) -- the same basis the mart's own yardstick uses */
+      function tjTotals() {
+        const Z = TJ.rows.filter(r => r.Level === "Zip"), s = k => Z.reduce((a, r) => a + num(r[k]), 0);
+        const mix = {};
+        Z.forEach(r => tjMix(r).forEach(x => { mix[x.k] = (mix[x.k] || 0) + x.n; }));
+        const mixN = Object.values(mix).reduce((a, n) => a + n, 0);
+        const r0 = TJ.rows[0] || {};
+        return { leads: s("Leads 12m"), booked: s("Booked 12m"), jobs: s("Jobs 12m"), rev: s("Revenue 12m"),
+                 l3: s("Leads Last 3m"), p3: s("Leads Same 3m Last Year"), book: r0["Tuji Booking Rate"],
+                 through: r0["Leads Through"], months: String(r0["Months Compared"] || ""),
+                 top: Object.keys(mix).sort((a, b) => mix[b] - mix[a]).slice(0, 3).map(k => ({ k, p: mixN ? mix[k] / mixN : 0 })) };
+      }
+
+      function tujiShow() {
+        const root = host.querySelector("#apTuji"); if (!root) return;
+        if (root._tj) { setTimeout(tjFit, 40); return; }
+        root._tj = 1;
+        const draw = () => { if (root.isConnected) tjRender(root); };
+        if (TJ) { draw(); return; }
+        RS.load("tuji_area").then(rows => { TJ = tjIndex(Array.isArray(rows) ? rows : []); draw(); })
+          .catch(e => {
+            root._tj = 0;                   // a failed read is retried the next time the tab opens
+            const msg = String(e && e.message || e || "");
+            root.innerHTML = '<div class="panel">' + (/403|permitted|forbidden/i.test(msg)
+              ? "Your access does not reach Tuji’s area table yet (mart_tuji_area) — ask Tornike to grant <b>Seasonal Planning</b> again."
+              : /1146|doesn.t exist|not found|404/i.test(msg)
+              ? "Tuji’s area table (mart_tuji_area) is not built yet — it builds with the next data refresh."
+              : "Tuji’s areas (mart_tuji_area) could not be read: " + esc(msg)) + "</div>";
+          });
+      }
+      function tjRender(root) {
+        if (!TJ.rows.length) {
+          root.innerHTML = '<div class="panel">Tuji’s area table (mart_tuji_area) is empty — it builds with the next data refresh.</div>';
+          return;
+        }
+        root.innerHTML = tjHeadHtml() +
+          '<div id="apTjBar">' + tjBarHtml() + "</div>" +
+          '<div class="ap-tj-grid"><div id="apTjMap" class="ap2-mapbox"></div>' +
+            '<div id="apTjSide" class="ap3-det" aria-live="polite">' + tjSideHtml() + "</div></div>" +
+          '<div id="apTjNeed">' + tjNeedHtml() + "</div>" +
+          '<div id="apTjAll">' + tjTableHtml() + "</div>" +
+          tjHowHtml();
+        tjWire(root);
+        tjMap(root);
+      }
+
+      function tjHeadHtml() {
+        const T = tjTotals();
+        const kpi = (v, l, s) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + l + "</span>" + (s ? "<small>" + s + "</small>" : "") + "</div>";
+        const qtr = T.months.split(" vs ")[0];
+        return '<div class="ap-tj-head"><h2>Tuji · marketing within 100 miles of Newark, DE</h2>' +
+          "<p>Every county and zip code within 100 miles of Tuji’s base, how each one did for Tuji over the last 12 months, " +
+          "and which need attention now — and why. Tuji’s own leads and jobs; nothing on this tab is in the Zip to Zip plan.</p></div>" +
+          '<div class="ap3-kpis ap-tj-kpis">' +
+            kpi(fmtN(T.leads), "Leads · 12 months", "through " + esc(dayLabel(T.through)) +
+              (qtr ? " · " + esc(qtr) + ": " + fmtN(T.l3) + " vs " + fmtN(T.p3) + " a year before" : "")) +
+            kpi(tjPct(T.book), "Booking rate", fmtN(T.booked) + " leads confirmed") +
+            kpi(fmtN(T.jobs), "Jobs · 12 months", money0(T.rev) + " billed") +
+            kpi(T.jobs ? money0(T.rev / T.jobs) : "—", "Average ticket", "per job") +
+            '<div class="ap3-kpi ap-tj-mix"><span>Where the leads come from</span>' +
+              T.top.map(x => "<div><em>" + esc(x.k) + "</em><b>" + Math.round(100 * x.p) + "%</b></div>").join("") + "</div>" +
+          "</div>";
+      }
+      function tjBarHtml() {
+        const TC = tierColors();
+        const sw = (band, label) => '<span class="ap2-mk"><span class="ap2-sw" style="background:' + (TC[band] || TC.grey) + '"></span>' + esc(label) + "</span>";
+        return '<div class="ap3-bar"><label>Show</label>' + tjSeg("tjlvl", TJ_LEVELS, TJ_S.mapLevel) +
+            '<span id="apTjStat" class="ap-tj-stat"></span></div>' +
+          '<div class="ap2-mapkey">' + ["t1", "t2", "t3", "t4"].map(b => sw(b, TIER_LABEL[b])).join("") + sw("grey", "Not rated") +
+            '<span class="ap2-mk"><span class="ap2-sw ap-tj-sw-f"></span>Needs attention</span>' +
+            '<span class="ap2-mk"><span class="ap2-sw ap-tj-sw-r"></span>Tuji’s base · 100 miles</span></div>';
+      }
+      function tjSideHtml() {
+        const TC = tierColors();
+        const kv = (l, v, sub) => '<div class="kv"><span>' + l + (sub ? "<small>" + sub + "</small>" : "") + "</span><b>" + v + "</b></div>";
+        const p = TJ_S.pick, r = p && TJ.ix[p.level] ? TJ.ix[p.level][p.key] : null;
+        if (!r) {
+          const lvl = TJ_S.mapLevel, R = TJ.rows.filter(x => x.Level === lvl);
+          const by = t => R.filter(x => num(x.Tier) === t).length;
+          return '<div class="dh"><b>Tuji’s 100 miles</b><span>' + tjCount(TJ.rows.filter(x => x.Level === "County").length, "county", "counties") +
+              " · " + tjCount(TJ.rows.filter(x => x.Level === "Zip").length, "zip code", "zip codes") + "</span></div>" +
+            '<div class="why" style="margin-top:8px">Click an area on the map, or a row below, for its numbers and why it is flagged.</div>' +
+            '<div class="sec">' + (lvl === "Zip" ? "Zip codes" : "Counties") + " by tier</div>" +
+            [1, 2, 3, 4, 0].map(t => kv('<i class="ap-tj-tchip t' + t + '" style="background:' + (TC[TIER_BAND(t)] || TC.grey) + '">' + (t ? "T" + t : "–") + "</i> " +
+              esc(t ? TIER_LABEL[TIER_BAND(t)].replace(/^Tier \d · /, "") : "Not rated"), fmtN(by(t)))).join("") +
+            '<div class="sec">Needs attention</div>' +
+            TJ_FLAGS.map(f => kv(esc(f.label), tjCount(R.filter(x => num(x[f.col]) === 1).length, lvl === "Zip" ? "zip" : "county", lvl === "Zip" ? "zips" : "counties"))).join("");
+        }
+        const band = TIER_BAND(num(r.Tier)), L12 = num(r["Leads 12m"]), mix = tjMix(r), mixN = mix.reduce((a, x) => a + x.n, 0);
+        const fl = tjFlagsOf(r);
+        const med = r["Measured Median Per 10k"];
+        return '<button type="button" class="ap3-back" data-tjback="1">← All areas</button>' +
+          '<div class="dh"><b>' + esc(tjName(r)) + "</b><span>" + (r.Level === "Zip" ? "Zip code · " + esc(r.County || "") + " County" : "County") +
+            " · " + r1(num(r["Miles From Base"])) + " mi from Newark</span></div>" +
+          '<div class="tierline"><i style="background:' + (TC[band] || TC.grey) + '"></i>' + esc(TIER_LABEL[band]) + "</div>" +
+          '<div class="why">' + esc(r["Tier Reason"] || "") + "</div>" +
+          fl.map(f => '<div class="ap-tj-flag"><b>' + esc(f.label) + "</b><span>" + esc(r[f.why] || "") + "</span><small>What to do: " + esc(f.act) + "</small></div>").join("") +
+          '<div class="sec">Tuji here · last 12 months</div>' +
+          kv("Leads", fmtN(L12)) +
+          kv("Booked", L12 ? fmtN(num(r["Booked 12m"])) + " · " + tjPct(r["Booking Rate"]) : "—", "Tuji across the 100 miles: " + tjPct(r["Tuji Booking Rate"])) +
+          kv("Jobs", fmtN(num(r["Jobs 12m"]))) +
+          kv("Billed", money0(num(r["Revenue 12m"])), r["Avg Ticket"] != null ? money0(num(r["Avg Ticket"])) + " a job" : "") +
+          (mix.length ? kv("Sources", mix.slice(0, 3).map(x => esc(x.k) + " " + Math.round(100 * x.n / (mixN || 1)) + "%").join(" · ")) : "") +
+          '<div class="sec">' + esc(String(r["Months Compared"] || "Last 3 months vs a year before")) + "</div>" +
+          kv("Leads, last 3 months", fmtN(num(r["Leads Last 3m"]))) +
+          kv("Same months a year before", fmtN(num(r["Leads Same 3m Last Year"]))) +
+          kv("Change", tjChg(r["Leads Change Pct"])) +
+          '<div class="sec">The market</div>' +
+          kv("People", r.Population != null ? fmtN(num(r.Population)) : "—") +
+          kv("Move a year", r["Movers Per Year"] != null ? fmtN(num(r["Movers Per Year"])) : "—") +
+          kv("Tuji leads per 10,000 movers", r["Leads Per 10k Movers"] != null ? r1(num(r["Leads Per 10k Movers"])) : "—",
+             med != null ? "median where Tuji is measured: " + r1(num(med)) : "") +
+          kv("Median income", r["Median Income"] != null ? money0(num(r["Median Income"])) : "—") +
+          kv("Home value", r["Home Value"] != null ? money0(num(r["Home Value"])) : "—") +
+          kv("Own their home", r["Owner Share Pct"] != null ? r1(num(r["Owner Share Pct"])) + "%" : "—") +
+          '<div class="sec">Scores</div>' +
+          kv("Market score", r["Market Score"] != null ? r1(num(r["Market Score"])) + " · Tier " + fmtN(num(r["Market Tier"])) : "—", "income, home value, ownership") +
+          kv("Data score", r["Data Score"] != null && r["Data Tier"] != null ? r1(num(r["Data Score"])) + " · Tier " + fmtN(num(r["Data Tier"])) : "not measured",
+             "distance, booking, ticket, cubic feet");
+      }
+
+      /* WHAT NEEDS ATTENTION, by reason: counties first, then zip codes, the biggest first -- the
+         steepest fall, the most leads not booking, the most movers we never hear from */
+      function tjNeedHtml() {
+        const order = {
+          fall: (a, b) => (num(b["Leads Same 3m Last Year"]) - num(b["Leads Last 3m"])) - (num(a["Leads Same 3m Last Year"]) - num(a["Leads Last 3m"])),
+          conv: (a, b) => num(b["Leads 12m"]) - num(a["Leads 12m"]),
+          untap: (a, b) => num(b["Movers Per Year"]) - num(a["Movers Per Year"]),
+        };
+        const row = (r, f) => '<button type="button" class="ap-tj-row" data-tjgo="' + esc(r.Level + "|" + r["Area Key"]) + '">' +
+          '<span class="n">' + esc(tjName(r)) + "<small>" + (r.Level === "Zip" ? "zip" : "county") + "</small></span>" +
+          '<span class="r">' + esc(r[f.why] || "") + '</span><span class="a">' + esc(f.act) + "</span></button>";
+        const more = (n, key) => n <= TJ_SHOW ? ""
+          : '<button type="button" class="ap-tj-more" data-tjmore="' + key + '">' + (TJ_S.more[key] ? "Show the first " + TJ_SHOW : "Show all " + fmtN(n)) + "</button>";
+        const part = (R, f, lvl, label) => { if (!R.length) return "";
+          const key = f.k + lvl, shown = TJ_S.more[key] ? R : R.slice(0, TJ_SHOW);
+          return '<div class="lv">' + label + "</div>" + shown.map(r => row(r, f)).join("") + more(R.length, key); };
+        let nC = 0, nZ = 0;
+        TJ.rows.forEach(r => { if (!tjFlagsOf(r).length) return; if (r.Level === "County") nC++; else nZ++; });
+        const grp = f => {
+          const C = TJ.rows.filter(r => r.Level === "County" && num(r[f.col]) === 1).sort(order[f.k]);
+          const Z = TJ.rows.filter(r => r.Level === "Zip" && num(r[f.col]) === 1).sort(order[f.k]);
+          return '<section class="ap-tj-grp"><div class="h"><b>' + esc(f.label) + "</b><span>" +
+              tjCount(C.length, "county", "counties") + " · " + tjCount(Z.length, "zip", "zips") + "</span></div>" +
+            (!C.length && !Z.length ? '<div class="none">' + esc(f.none) + "</div>"
+              : part(C, f, "C", "Counties") + part(Z, f, "Z", "Zip codes")) + "</section>";
+        };
+        return '<div class="ap-tj-sech"><h3>Needs attention</h3><span>' + tjCount(nC, "county", "counties") + " and " +
+            tjCount(nZ, "zip code", "zip codes") + " are flagged for at least one reason. Click one to find it on the map.</span></div>" +
+          '<div class="ap-tj-need">' + TJ_FLAGS.map(grp).join("") + "</div>";
+      }
+
+      /* ALL AREAS: one level at a time, sortable, 50 rows a page; the CSV carries every row and column */
+      function tjSorted(lvl) {
+        const k = TJ_S.sort, dir = TJ_S.desc ? -1 : 1;
+        const val = r => k === "_flags" ? tjFlagsOf(r).length : r[k];
+        return TJ.rows.filter(r => r.Level === lvl).slice().sort((a, b) => {
+          const x = val(a), y = val(b), ex = x == null || x === "", ey = y == null || y === "";
+          if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1;           // blanks last, either direction
+          const nx = parseFloat(x), ny = parseFloat(y);
+          const c = (k !== "Name" && k !== "Top Source" && !isNaN(nx) && !isNaN(ny)) ? nx - ny : String(x).localeCompare(String(y));
+          return c * dir || num(b["Leads 12m"]) - num(a["Leads 12m"]);
+        });
+      }
+      function tjCell(c, r) {
+        const v = r[c.k];
+        if (c.f === "name") return "<td><b>" + esc(r.Level === "Zip" ? r.Zip + " " + (r.City || "") : r.Name) + "</b><small>" + esc(r.Level === "Zip" ? (r.County || "") + ", " + r.State : r.State) + "</small></td>";
+        if (c.f === "tier") { const t = num(v), TC = tierColors();
+          return '<td><i class="ap-tj-tchip t' + t + '" style="background:' + (TC[TIER_BAND(t)] || TC.grey) + '" title="' + esc(r["Tier Reason"] || "") + '">' + (t ? "T" + t : "–") + "</i>" +
+            "<small>" + esc(r["Tier Source"] || "") + "</small></td>"; }
+        if (c.f === "flags") return "<td>" + tjFlagsOf(r).map(f => '<span class="ap-tj-fchip" title="' + esc(r[f.why] || "") + '">' + esc(f.label) + "</span>").join("") + "</td>";
+        if (c.f === "t") return "<td>" + esc(v == null ? "—" : v) + "</td>";
+        const out = v == null || v === "" ? "—" : c.f === "n" ? fmtN(num(v)) : c.f === "n1" ? r1(num(v)) : c.f === "pct" ? tjPct(v)
+          : c.f === "$" ? money0(num(v)) : c.f === "chg" ? tjChg(v) : esc(v);
+        return '<td class="num">' + out + "</td>";
+      }
+      function tjTableHtml() {
+        const lvl = TJ_S.tblLevel, R = tjSorted(lvl), pages = Math.max(1, Math.ceil(R.length / TJ_PAGE));
+        TJ_S.page = Math.min(Math.max(0, TJ_S.page), pages - 1);
+        const P = R.slice(TJ_S.page * TJ_PAGE, (TJ_S.page + 1) * TJ_PAGE);
+        const right = c => c.f !== "name" && c.f !== "tier" && c.f !== "flags" && c.f !== "t";
+        return '<div class="ap-tj-sech"><h3>All areas</h3><span>' + tjCount(R.length, lvl === "Zip" ? "zip code" : "county", lvl === "Zip" ? "zip codes" : "counties") +
+            " within 100 miles · click a column to sort, a row to find it on the map</span></div>" +
+          '<div class="ap-tj-bar"><div class="ap3-bar" style="margin:0"><label>Show</label>' + tjSeg("tjtlvl", TJ_LEVELS, lvl) + "</div>" +
+            '<span class="sp"></span><button type="button" class="rs-btn" id="apTjCsv">Download CSV</button></div>' +
+          '<div class="rs-tablewrap ap-tj-tbl" data-noenh="1"><table class="rs-table" data-name="Tuji areas"><thead><tr>' +
+            TJ_COLS.map(c => { const on = TJ_S.sort === c.k;
+              return '<th class="' + (right(c) ? "num" : "") + '" aria-sort="' + (on ? (TJ_S.desc ? "descending" : "ascending") : "none") + '">' +
+                '<button type="button" class="ap-tj-th' + (on ? " on" : "") + '" data-tjsort="' + esc(c.k) + '">' + esc(c.l) + (on ? (TJ_S.desc ? " ↓" : " ↑") : "") + "</button></th>"; }).join("") +
+          "</tr></thead><tbody>" +
+            P.map(r => '<tr data-tjgo="' + esc(r.Level + "|" + r["Area Key"]) + '">' + TJ_COLS.map(c => tjCell(c, r)).join("") + "</tr>").join("") +
+          "</tbody></table></div>" +
+          (pages > 1 ? '<div class="ap2-pager"><span>page ' + (TJ_S.page + 1) + " of " + pages + "</span>" +
+            '<button type="button" class="rs-btn" data-tjpg="prev"' + (TJ_S.page <= 0 ? " disabled" : "") + ">‹ Prev</button>" +
+            '<button type="button" class="rs-btn" data-tjpg="next"' + (TJ_S.page >= pages - 1 ? " disabled" : "") + ">Next ›</button></div>" : "");
+      }
+      function tjCsv() {
+        const cols = RS.DATASETS.tuji_area.cols.slice(), R = tjSorted(TJ_S.tblLevel);
+        const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s;
+          return '"' + s.replace(/"/g, '""') + '"'; };
+        const lines = [cols.map(cell).join(",")].concat(R.map(r => cols.map(c => cell(r[c])).join(",")));
+        const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "Tuji areas within 100 miles - " + (TJ_S.tblLevel === "Zip" ? "zip codes" : "counties") + ".csv"; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      function tjHowHtml() {
+        const r0 = TJ.rows[0] || {}, R = TJ_RULES;
+        const med = lvl => { const r = TJ.rows.find(x => x.Level === lvl && x["Measured Median Per 10k"] != null); return r ? r1(num(r["Measured Median Per 10k"])) : "—"; };
+        return '<details class="ap2-ref ap-tj-how"><summary>How this is calculated<small>windows, tiers, the three flags</small></summary><div class="panel ap2-note">' +
+          "<h4>The area</h4>Every county and zip code in the eight states we map whose centre is within <b>" + R.radius + " straight-line miles</b> of Tuji’s base, zip " +
+            TJ_BASE.zip + " in Newark, DE. A county counts all of its zip codes and its centre is weighted by population. " +
+            "<b>Zip to Zip’s own areas inside the 100 miles</b> (Philadelphia, South Jersey, Baltimore) are included like any other area and can be flagged the same way." +
+          "<h4>The numbers</h4><ul><li><b>Leads</b>: Tuji leads by create date, by the move’s pickup zip, in the 12 months through " + esc(dayLabel(r0["Leads Through"])) +
+            " (Tuji’s newest lead). Leads with no address are left out.</li>" +
+            "<li><b>Booked</b>: the lead’s status is Confirmed. <b>Jobs</b> and <b>billed</b>: Tuji closings (last encounter) in the same 12 months, placed by the lead’s pickup zip.</li>" +
+            "<li><b>Last 3 months</b>: the last three full calendar months, against the same three months a year before (" + esc(String(r0["Months Compared"] || "")) + ").</li>" +
+            "<li><b>The market</b>: people, movers a year, income and home ownership from the Census (ACS), home value from Zillow.</li></ul>" +
+          "<h4>The tier — the same method as the Zip to Zip map, on Tuji’s numbers</h4><ul>" +
+            "<li><b>Measured</b> when the area has at least " + R.measure.County + " leads (county) or " + R.measure.Zip + " (zip) in 12 months: a 0–100 score from the distance to Newark (30), " +
+              "the booking rate (30), the average ticket (25) and cubic feet (15), each pulled toward Tuji’s average where the evidence is thin. Tier 1 from 72, Tier 2 from 64, Tier 3 from 56, else Tier 4.</li>" +
+            "<li><b>Market</b> otherwise: median income (45%), home value (35%) and home ownership (20%), each ranked against the other areas inside the 100 miles. Tier 1 from 80, Tier 2 from 55, Tier 3 from 30, else Tier 4.</li>" +
+            "<li><b>Not rated</b>: too few leads and no Census figures (PO boxes, single buildings).</li></ul>" +
+          "<h4>Needs attention — any of three reasons</h4><ul>" +
+            "<li><b>Falling</b>: at least " + R.fallPrior.County + " leads (county) or " + R.fallPrior.Zip + " (zip) in those three months a year ago, and down " + Math.abs(R.fallPct) + "% or more.</li>" +
+            "<li><b>Not converting</b>: at least " + R.convLeads.County + " leads (county) or " + R.convLeads.Zip + " (zip) in 12 months, booking under " + R.convShare +
+              " × Tuji’s rate across the 100 miles (" + tjPct(r0["Tuji Booking Rate"]) + ").</li>" +
+            "<li><b>Untapped</b>: a strong market — a Tier 1–" + R.untapTier.County + " county with at least " + fmtN(R.untapMovers.County) +
+              " movers a year, or a Tier " + R.untapTier.Zip + " zip code with at least " + fmtN(R.untapMovers.Zip) + " — sending fewer than " + Math.round(100 * R.untapShare) + "% of the leads per 10,000 movers that Tuji’s measured areas get (their median: " +
+              med("County") + " for counties, " + med("Zip") + " for zip codes).</li></ul>" +
+          "</div></details>";
+      }
+
+      /* ONE DELEGATED HANDLER on the tab's own root, which paint() replaces wholesale -- so nothing
+         accumulates on the shell's shared #content (the trap the input handler below documents) */
+      function tjWire(root) {
+        root.onclick = e => {
+          const t = e.target.closest("[data-tjlvl],[data-tjtlvl],[data-tjsort],[data-tjpg],[data-tjmore],[data-tjgo],[data-tjback],#apTjCsv");
+          if (!t || !root.contains(t)) return;
+          const d = t.dataset;
+          if (t.id === "apTjCsv") { tjCsv(); return; }
+          if (d.tjlvl) { tjLevel(d.tjlvl); return; }
+          if (d.tjtlvl) { if (TJ_S.tblLevel !== d.tjtlvl) { TJ_S.tblLevel = d.tjtlvl; TJ_S.page = 0; tjPut("#apTjAll", tjTableHtml()); } return; }
+          if (d.tjsort) { if (TJ_S.sort === d.tjsort) TJ_S.desc = !TJ_S.desc; else { TJ_S.sort = d.tjsort; TJ_S.desc = d.tjsort !== "Name"; }
+            TJ_S.page = 0; tjPut("#apTjAll", tjTableHtml()); const b = host.querySelector('#apTjAll [data-tjsort="' + CSS.escape(d.tjsort) + '"]'); if (b) b.focus(); return; }
+          if (d.tjpg) { TJ_S.page += d.tjpg === "next" ? 1 : -1; tjPut("#apTjAll", tjTableHtml()); return; }
+          if (d.tjmore) { TJ_S.more[d.tjmore] = !TJ_S.more[d.tjmore]; tjPut("#apTjNeed", tjNeedHtml()); return; }
+          if (d.tjback) { TJ_S.pick = null; tjPut("#apTjSide", tjSideHtml()); const bx = host.querySelector("#apTjMap"); if (bx && bx._tjMark) bx._tjMark(); return; }
+          if (d.tjgo) { const i = d.tjgo.indexOf("|"); tjPick(d.tjgo.slice(0, i), d.tjgo.slice(i + 1), true); }
+        };
+      }
+      function tjLevel(lvl) {
+        if (TJ_S.mapLevel === lvl) return;
+        TJ_S.mapLevel = lvl;
+        tjPut("#apTjBar", tjBarHtml());
+        if (!TJ_S.pick) tjPut("#apTjSide", tjSideHtml());
+        const box = host.querySelector("#apTjMap"); if (box && box._tjApply) box._tjApply();
+      }
+      /* a click on the map shows the area's sheet; a click in a list ALSO brings the map to it */
+      function tjPick(level, key, fromList) {
+        if (!TJ.ix[level] || !TJ.ix[level][key]) return;
+        TJ_S.pick = { level, key };
+        tjPut("#apTjSide", tjSideHtml());
+        const box = host.querySelector("#apTjMap"); if (!box) return;
+        if (fromList) {
+          tjLevel(level);
+          if (box._tjFocus) box._tjFocus(level, key);
+          const grid = box.closest(".ap-tj-grid"), sc = host.closest(".rs-content") || document.scrollingElement;
+          if (grid && sc) sc.scrollTop = Math.max(0, grid.getBoundingClientRect().top - (sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top) + sc.scrollTop - 70);
+        }
+        if (box._tjMark) box._tjMark();
+      }
+      /* Leaflet measured a 0x0 box if the pane was hidden when the map was built: measure again, and
+         frame the 100-mile ring -- on every show until the reader moves the map himself (a frame
+         taken while the layout was still settling is corrected by the next call, never kept) */
+      function tjFit() {
+        const box = host.querySelector("#apTjMap");
+        if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
+        box._map.invalidateSize();
+        if (box._tjMoved) return;
+        box._tjFitting = 1;
+        box._map.fitBounds(L.latLng(TJ.base.la, TJ.base.lo).toBounds(2 * TJ_RULES.radius * MI_PER_M), { padding: [6, 6], animate: false });
+        box._tjFitting = 0;
+      }
+      /* THE MAP: the Map tab's ground (baseTiles), its county shapes (counties8.geojson via ensureGeo),
+         its zip shapes (zips-<ST>.json, cached on the host and shared with the Map tab) and its tier
+         palette (tierColors). Built once per render; the level switch only swaps layers. */
+      function tjMap(root) {
+        const box = root.querySelector("#apTjMap"); if (!box || box._tjb) return;
+        box._tjb = 1;
+        ensureLeaflet(() => ensureGeo(() => {
+          if (!box.isConnected || box._map) return;
+          const m = L.map(box, { scrollWheelZoom: true, zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 110, attributionControl: false });
+          m.setView([TJ.base.la, TJ.base.lo], 8);        // must precede any layer: polygons project on add
+          box._map = m;
+          /* the reader moved it: from now on a show only re-measures, it never re-frames */
+          m.on("dragstart", () => { box._tjMoved = 1; });
+          m.on("zoomstart", () => { if (!box._tjFitting) box._tjMoved = 1; });
+          baseTiles(m);
+          const TC = tierColors(), INK = tok("--ink"), BG = tok("--bg"), WARN = tok("--warn"), RULE = tok("--line-2");
+          const topPane = m.createPane("apTjTop"); topPane.style.zIndex = 450; topPane.style.pointerEvents = "none";
+          const flagPane = m.createPane("apTjFlags"); flagPane.style.zIndex = 455; flagPane.style.pointerEvents = "none";
+          const fillOf = r => { const band = TIER_BAND(num(r && r.Tier));
+            return { fillColor: TC[band] || TC.grey, fillOpacity: band === "grey" ? .28 : band === "t2" ? .72 : .62 }; };
+          const isPick = r => !!(TJ_S.pick && r && TJ_S.pick.level === r.Level && TJ_S.pick.key === r["Area Key"]);
+          const glance = r => { const band = TIER_BAND(num(r.Tier)), fl = tjFlagsOf(r), L12 = num(r["Leads 12m"]);
+            return '<div class="ap2-tip ap3-glance"><b>' + esc(tjName(r)) + '</b><div class="t">' + esc(TIER_LABEL[band]) + " · " + r1(num(r["Miles From Base"])) + " mi from Newark</div>" +
+              '<div class="g3"><span>Leads<b>' + fmtN(L12) + "</b><small>12 mo</small></span><span>Booked<b>" + (L12 ? tjPct(r["Booking Rate"]) : "—") +
+              "</b><small>of leads</small></span><span>Jobs<b>" + fmtN(num(r["Jobs 12m"])) + "</b><small>12 mo</small></span></div>" +
+              (fl.length ? '<div class="w">Needs attention: ' + fl.map(f => esc(f.label.toLowerCase())).join(", ") + "</div>" : "") +
+              '<div class="hint">Click for the full sheet</div></div>'; };
+          /* a layer's look = its tier fill, plus an ink outline while its area is the one picked */
+          const styleOf = r => Object.assign(
+            isPick(r) ? { color: INK, weight: 3, opacity: 1 } : { color: RULE, weight: r && r.Level === "Zip" ? .4 : .7, opacity: .8 },
+            { lineJoin: "round" }, fillOf(r));
+          const wire = (lyr, r) => {
+            lyr._tjRow = r;
+            lyr.bindTooltip(() => glance(r), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+            lyr.on("click", () => tjPick(r.Level, r["Area Key"], false));
+            lyr.on("mouseover", () => lyr.setStyle({ weight: 2.4, color: INK, opacity: 1 }));
+            lyr.on("mouseout", () => lyr.setStyle(styleOf(r)));
+          };
+          /* NEEDS ATTENTION = THE WARN COLOUR, ON A HALO. Tier 3's golden yellow sits close to the warn
+             amber, so a bare amber line would vanish on it: a background-coloured halo goes under it. */
+          /* A ZIP IS A FEW PIXELS WIDE ZOOMED OUT (first render: 400-odd flagged zips at full weight
+             turned the ring into one amber scribble), so a zip's line follows the zoom; a county's does not */
+          const flagW = (zipLvl, halo) => { const z = m.getZoom();
+            const w = !zipLvl ? 2.8 : z <= 7 ? 0.9 : z <= 8 ? 1.3 : z <= 10 ? 2 : 2.6;
+            return halo ? (zipLvl ? w + 1.8 : 6) : w; };
+          const flagLines = (feats, renderer, zipLvl) => {
+            const fc = { type: "FeatureCollection", features: feats };
+            const halo = L.geoJSON(fc, { pane: "apTjFlags", renderer, interactive: false,
+              style: { color: BG, weight: flagW(zipLvl, true), opacity: .9, fill: false, lineJoin: "round" } });
+            const line = L.geoJSON(fc, { pane: "apTjFlags", renderer, interactive: false,
+              style: { color: WARN, weight: flagW(zipLvl, false), opacity: 1, fill: false, lineJoin: "round" } });
+            const g = L.layerGroup([halo, line]);
+            g._reweigh = () => { halo.setStyle({ weight: flagW(zipLvl, true) }); line.setStyle({ weight: flagW(zipLvl, false) }); };
+            return g; };
+
+          /* ---- counties: the Map tab's 327 shapes, only those the mart has inside the ring ---- */
+          const ckOf = f => f.properties.st + "|" + f.properties.key;
+          const cFeats = ((GEO && GEO.features) || []).filter(f => TJ.geo[ckOf(f)]);
+          const county = L.geoJSON({ type: "FeatureCollection", features: cFeats }, {
+            style: f => styleOf(TJ.geo[ckOf(f)]), onEachFeature: (f, lyr) => wire(lyr, TJ.geo[ckOf(f)]) });
+          const cFlags = flagLines(cFeats.filter(f => tjFlagsOf(TJ.geo[ckOf(f)]).length));
+          const cLines = L.geoJSON({ type: "FeatureCollection", features: cFeats }, { pane: "apTjTop", interactive: false,
+            style: { color: INK, weight: 1, opacity: .4, fill: false } });
+          if (GEO_ERR) tjPut("#apTjStat", "The county shapes could not be read (" + esc(GEO_ERR) + ").");
+          if (host._apStates) L.geoJSON(host._apStates, { pane: "apTjTop", interactive: false,
+            style: { color: INK, weight: 1.7, opacity: .62, lineJoin: "round", fill: false } }).addTo(m);
+          /* ---- the base and its reach ---- */
+          L.circle([TJ.base.la, TJ.base.lo], { pane: "apTjTop", radius: TJ_RULES.radius * MI_PER_M, interactive: false,
+            color: INK, weight: 1.8, opacity: .8, dashArray: "7 6", fill: false }).addTo(m);
+          L.marker([TJ.base.la, TJ.base.lo], { interactive: false, keyboard: false, zIndexOffset: 600,
+            icon: L.divIcon({ className: "", iconSize: [0, 0],
+              html: '<span class="ap2-flag"><i></i><b><span class="l1">Tuji · ' + esc(TJ_BASE.name) + '</span><span class="l2">base · 100-mile reach</span></b></span>' }) }).addTo(m);
+
+          /* ---- zip codes: fetched the first time the level is picked; ~1,500 shapes, so on a canvas ---- */
+          let zips = null, zipsBusy = false;
+          function loadZips() {
+            if (zips || zipsBusy) return;
+            zipsBusy = true; tjPut("#apTjStat", "Drawing the zip codes…");
+            const ZG = host._apZipGeo = host._apZipGeo || {};
+            const sts = Array.from(new Set(TJ.rows.filter(r => r.Level === "Zip").map(r => r.State)));
+            const one = st => ZG[st] ? Promise.resolve(ZG[st]) : fetch("assets/vendor/geo/zips-" + st + ".json")
+              .then(r => r.ok ? r.json() : Promise.reject(new Error(st + " HTTP " + r.status))).then(j => (ZG[st] = j));
+            Promise.all(sts.map(st => one(st).catch(() => null))).then(all => {
+              zipsBusy = false;
+              if (!box.isConnected) return;
+              const feats = [];
+              all.forEach(j => ((j && j.features) || []).forEach(f => { if (TJ.ix.Zip[f.properties.z]) feats.push(f); }));
+              const fillR = L.canvas({ padding: .4 }), lineR = L.canvas({ pane: "apTjFlags", padding: .4 });
+              zips = {
+                fill: L.geoJSON({ type: "FeatureCollection", features: feats }, { renderer: fillR,
+                  style: f => styleOf(TJ.ix.Zip[f.properties.z]), onEachFeature: (f, lyr) => wire(lyr, TJ.ix.Zip[f.properties.z]) }),
+                flags: flagLines(feats.filter(f => tjFlagsOf(TJ.ix.Zip[f.properties.z]).length), lineR, true),
+              };
+              m.on("zoomend", () => { if (zips) zips.flags._reweigh(); });
+              const missing = sts.filter((st, i) => !all[i]);
+              tjPut("#apTjStat", missing.length ? "The zip shapes for " + esc(missing.join(", ")) + " could not be read." : "");
+              apply();
+              if (box._pending) { const p = box._pending; box._pending = null; box._tjFocus(p.level, p.key); }
+            });
+          }
+          function apply() {
+            const zipLvl = TJ_S.mapLevel === "Zip";
+            [county, cFlags].forEach(l => { if (zipLvl) m.removeLayer(l); else if (!m.hasLayer(l)) l.addTo(m); });
+            if (zipLvl) { if (!m.hasLayer(cLines)) cLines.addTo(m);
+              if (!zips) loadZips(); else [zips.fill, zips.flags].forEach(l => { if (!m.hasLayer(l)) l.addTo(m); }); }
+            else { m.removeLayer(cLines); if (zips) { m.removeLayer(zips.fill); m.removeLayer(zips.flags); } }
+          }
+          box._tjApply = apply;
+          box._tjMark = () => { county.setStyle(f => styleOf(TJ.geo[ckOf(f)]));
+            if (zips) zips.fill.setStyle(f => styleOf(TJ.ix.Zip[f.properties.z])); };
+          box._tjFocus = (level, key) => {
+            const grp = level === "County" ? county : zips && zips.fill;
+            if (!grp) { box._pending = { level, key }; return; }
+            const lyrs = []; grp.eachLayer(l => { if (l._tjRow && l._tjRow["Area Key"] === key) lyrs.push(l); });
+            const r = TJ.ix[level][key];
+            if (!lyrs.length) { if (r && num(r.Latitude)) m.setView([num(r.Latitude), num(r.Longitude)], level === "Zip" ? 11 : 9, { animate: false }); return; }
+            let b = null;
+            lyrs.forEach(l => { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); });
+            m.fitBounds(b, { padding: [40, 40], maxZoom: level === "Zip" ? 12 : 10, animate: false });
+            box._tjMoved = 1;                               // a found area stays framed
+            box._tjMark();
+          };
+          apply();
+          setTimeout(tjFit, 40);
+          setTimeout(tjFit, 600);                           // once more, after the layout has settled
+        }));
+      }
+
       function paint() {
         recalcPeriod();
         const c = calc();
@@ -7536,6 +8117,9 @@ registerPage({
              card("Method", "Definitions and provenance", "",
                '<div class="ap2-note" style="line-height:1.75" id="apMethod">Measured: everything except the foreman cells and any number you type. The plan seeds from the distinct foremen who worked last season per state and company (or his 19-August table, or the 28-crew aim). Utilization bridges foremen to a month of jobs against the ' + DAYS_PER_MONTH + '-day ceiling and re-seeds when the period changes. <b>Booked = a closing exists</b> on both halves of the page (his call). Band A geography is where the move starts, in the closing\'s own state; Band B places a job by the lead\'s pickup city and counts last-encounter closings only — so the two job counts will not tie. Band A obeys the period picker; Band B is always this year to date. Miles are straight-line. Marketing $/lead is company-wide.</div>')) +
           stamps())) +
+          /* TUJI: an empty shell here; tujiShow() fills it from mart_tuji_area the first time the tab
+             is opened (and again after a paint(), from the rows already read) */
+          pane("tuji", "", '<div id="apTuji" class="ap-tj"><div class="rs-loading" style="padding:40px 0">Reading Tuji’s areas…</div></div>') +
           "";
 
         wire();
