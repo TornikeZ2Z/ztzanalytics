@@ -278,18 +278,26 @@ registerPage({
       const steps = [
         { k: "Hourly wages", short: "Hourly rates", t: tot.hourlyT, n: tot.hourlyN,
           how: `${Math.round(tierH).toLocaleString()} hours paid (travel included) × each seat's new rate — seat by seat below. Today: what the sheets paid for the same hours. Long-distance drivers and helpers are paid by the day instead (another step).` },
-        { k: "Long-distance day pay", short: "LD day pay", t: tot.ldT, n: tot.ldN,
+        { k: "Long-distance day pay", short: "LD day pay", other: true, t: tot.ldT, n: tot.ldN,
           how: `${R.ldDays.Driver} driver days × ${$(c.ldDriverDay)} + ${R.ldDays.Helper} helper days × ${$(c.ldHelperDay)}.${ldDays ? ` Today those days were paid ${money(tot.ldT / ldDays)} each on average.` : ""}` },
-        { k: "Long-distance CF share", short: "LD CF share", t: 0, n: tot.cfN,
+        { k: "Long-distance CF share", short: "LD CF share", other: true, t: 0, n: tot.cfN,
           how: `${num(c.ldCfPct)}% × the CF moved beyond the Moveboard estimate × the LD sheet's price per CF, on the ${R.ldCfJobs} of ${R.ldJobs} long-distance jobs that have all three. New.` },
-        { k: "Packing commission — foreman", short: "Foreman packing", t: tot.packT, n: tot.packN,
+        { k: "Packing commission — foreman", short: "Foreman packing", other: true, t: tot.packT, n: tot.packN,
           how: `${num(c.packingPct)}% × ${money(R.soldTot)} of packing materials sold.${R.soldTot ? ` Today the sheets paid ${(tot.packT / R.soldTot * 100).toFixed(1)}% of it.` : ""}` },
         { k: "Packing pool — drivers & helpers", short: "Packing pool", t: 0, n: tot.poolN,
           how: `${num(c.crewPackPct)}% × the same ${money(R.soldTot)}: ${num(c.crewPackDriverShare)}% to the driver, the rest split over the helpers (a missing seat's half goes to the other). New — today they get none.` },
         { k: "Foreman bonus", short: "Foreman bonus", t: 0, n: tot.bonusN,
           how: `${R.eligMonths} of ${R.fmMonths} foreman-months qualify (${num(c.bonusMinShifts)} shifts, ${num(c.bonusMinHours)} h, ${num(c.bonusMinJobs)} jobs) × ${money(R.ev)} each = ${num(c.band1Share)}% × ${$(c.band1Amt)} + ${num(c.band2Share)}% × ${$(c.band2Amt)} + ${num(c.band3Share)}% × ${$(c.band3Amt)}, the band mix assumed in Settings. New.` },
       ].sort((a, b) => (b.n - b.t) - (a.n - a.t));
-      const maxAbs = Math.max(1, ...steps.map(p => Math.abs(p.n - p.t)));
+      // the three big steps stand alone; the small ones become ONE "Other" step (his ask 2026-10-09,
+      // "combine this things please in Other") -- one bar on the waterfall, one row with its parts
+      // listed under it in the table
+      const others = steps.filter(p => p.other), main = steps.filter(p => !p.other);
+      const other = { k: "Other", short: "Other", parts: others,
+        t: others.reduce((a, p) => a + p.t, 0), n: others.reduce((a, p) => a + p.n, 0),
+        how: `${others.map(p => p.k.replace(/^Long-distance/, "long-distance").replace(/^Packing commission — foreman/, "the foreman's packing commission")).join(", ").replace(/, ([^,]*)$/, " and $1").replace(/^./, ch => ch.toUpperCase())} together — each one below.` };
+      const shownSteps = others.length ? main.concat([other]) : main;
+      const maxAbs = Math.max(1, ...steps.concat(shownSteps).map(p => Math.abs(p.n - p.t)));
       const seats = ["Foreman", "Driver", "Helper"].filter(s => R.bySeat[s]);
       const months = Object.keys(R.byMonth).sort();
       const people = Object.values(R.people).filter(p => !S.q || p.who.toLowerCase().includes(S.q.toLowerCase()));
@@ -315,12 +323,15 @@ registerPage({
             <tbody>
               <tr class="cpc-totrow"><td class="cpc-stepn"></td><td><b>Paid today</b></td><td class="cpc-howcell">Wages and packing on ${R.jobs.toLocaleString()} jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}. Tips, stairs and bulky-item pay are left out — the plan pays them exactly as today.</td>
                 <td class="num">${money(t)}</td><td></td><td></td><td></td></tr>
-              ${steps.map((p, i) => {
-                const d = p.n - p.t, w = Math.round(Math.abs(d) / maxAbs * 100);
-                return `<tr><td class="cpc-stepn">${i + 1}</td><td><b>${p.k}</b></td><td class="cpc-howcell">${p.how}</td>
-                  <td class="num">${money(p.t)}</td><td class="num">${money(p.n)}</td>
-                  <td class="num ${d > 0.5 ? "cpc-up" : d < -0.5 ? "cpc-down" : ""}">${Math.abs(d) < 0.5 ? "—" : signMoney(d)}</td>
-                  <td class="cpc-barcell"><span class="cpc-bar ${d >= 0 ? "pos" : "neg"}" style="width:${w}%"></span></td></tr>`;
+              ${shownSteps.map((p, i) => {
+                const row = (q, num, cls) => {
+                  const d = q.n - q.t, w = Math.round(Math.abs(d) / maxAbs * 100);
+                  return `<tr class="${cls || ""}"><td class="cpc-stepn">${num}</td><td>${cls ? esc(q.k) : `<b>${esc(q.k)}</b>`}</td><td class="cpc-howcell">${q.how}</td>
+                    <td class="num">${money(q.t)}</td><td class="num">${money(q.n)}</td>
+                    <td class="num ${d > 0.5 ? "cpc-up" : d < -0.5 ? "cpc-down" : ""}">${Math.abs(d) < 0.5 ? "—" : signMoney(d)}</td>
+                    <td class="cpc-barcell"><span class="cpc-bar ${d >= 0 ? "pos" : "neg"}" style="width:${w}%"></span></td></tr>`;
+                };
+                return row(p, i + 1) + (p.parts || []).map(q => row(q, "", "cpc-subrow")).join("");
               }).join("")}</tbody>
             <tfoot><tr><td></td><td>Under the new plan</td><td></td><td class="num">${money(t)}</td><td class="num">${money(n)}</td><td class="num">${signMoney(n - t)}</td><td></td></tr></tfoot>
           </table></div>
@@ -399,7 +410,7 @@ registerPage({
         const v2 = RS.isV2 && RS.isV2(), V = RS.V2 || {};
         const cTot = v2 ? V.navy : "#5c6a7c", cUp = v2 ? V.accent : "#b7e23b", cDown = v2 ? V.other : "#64748b", cInk = v2 ? V.ink : "#e6edf6";
         let run = t; const bars = [[0, t]], cols = [cTot], labs = ["Paid today"], vals = [t];
-        steps.forEach(p => { const d = p.n - p.t; bars.push([run, run + d]); run += d; cols.push(d >= 0 ? cUp : cDown); labs.push(p.short); vals.push(d); });
+        shownSteps.forEach(p => { const d = p.n - p.t; bars.push([run, run + d]); run += d; cols.push(d >= 0 ? cUp : cDown); labs.push(p.short); vals.push(d); });
         bars.push([0, n]); cols.push(cTot); labs.push("New plan"); vals.push(n);
         const lo = Math.min(t, n, ...bars.map(b => Math.min(b[0], b[1])).filter(x => x > 0));
         const floor = Math.max(0, Math.floor(lo * 0.85 / 100000) * 100000);
@@ -408,7 +419,8 @@ registerPage({
           type: "bar",
           data: { labels: labs, datasets: [{ data: bars, backgroundColor: cols, borderRadius: 4, borderSkipped: false, maxBarThickness: 64 }] },
           options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 22 } },
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => lab(vals[x.dataIndex], x.dataIndex) } } },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => lab(vals[x.dataIndex], x.dataIndex),
+              afterLabel: x => { const p = shownSteps[x.dataIndex - 1]; return p && p.parts ? p.parts.map(q => q.short + ": " + lab(q.n - q.t, 1)) : ""; } } } },
             scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0 } },
                       y: { min: floor, ticks: { callback: v => moneyK(v) } } } },
           plugins: [{ id: "cpcWfLab", afterDatasetsDraw(ch) {
@@ -649,6 +661,8 @@ registerPage({
         .cpc-stepn{width:28px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
         .cpc-howcell{font-size:12.5px;color:var(--muted);line-height:1.5;min-width:300px;max-width:560px}
         .cpc-totrow td{background:var(--panel2,transparent)}
+        .cpc-subrow td{font-size:12.5px;color:var(--muted);border-top-style:dashed}
+        .cpc-subrow td:nth-child(2){padding-left:26px}
         .cpc-job .panel-head{flex-wrap:wrap;gap:8px}
         .cpc-jobpick{position:relative}
         .cpc-jobpick .cpc-q{min-width:340px}
