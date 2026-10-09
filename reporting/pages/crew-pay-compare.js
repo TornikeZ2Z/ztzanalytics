@@ -661,7 +661,7 @@ registerPage({
         .cpc-stepn{width:28px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
         .cpc-howcell{font-size:12.5px;color:var(--muted);line-height:1.5;min-width:300px;max-width:560px}
         .cpc-totrow td{background:var(--panel2,transparent)}
-        .cpc-subrow td{font-size:12.5px;color:var(--muted);border-top-style:dashed}
+        .cpc-subrow td{font-size:12.5px;color:var(--muted);border-top:1px dotted var(--line-2)}
         .cpc-subrow td:nth-child(2){padding-left:26px}
         .cpc-job .panel-head{flex-wrap:wrap;gap:8px}
         .cpc-jobpick{position:relative}
