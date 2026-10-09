@@ -1987,6 +1987,9 @@ registerPage({
          rule that used to pick the count is gone; renting is still priced the cheaper way per slot. */
       const OWN_MAIN = { NJ: 3, PA: 3, CT: 2 };
       const ownFor = (base, isMain) => isMain ? (OWN_MAIN[base] || 1) : 1;
+      /* a POOL's own trucks = its main bases' (NJ pool = NJ 3 + NY 1). One rule for the forecast's pool
+         cards, the Trucks tile and the budget -- the tile said 8 while the budget counted 9 (2026-10-09). */
+      const poolOwn = pk => ["NJ", "NY", "PA", "CT"].reduce((a, b) => a + ((POOL_OF[b] || b) === pk ? ownFor(b, true) : 0), 0);
       function siteFleet(pool, crews, benefit, ownFix) {
         const H = FLEET.hist[pool] || [];
         const peak = H.reduce((a, x) => Math.max(a, x.n), 0);
@@ -2090,7 +2093,7 @@ registerPage({
         if (PLAN || !N || !FLEET.has) return null;
         const one = (base, pool, fm, isNew) => { const ns = isNew ? newStore(base, N) : null;
           return Object.assign({ base, fm, isNew, zone: ns ? ns.zone : zoneOf(base), zoneHome: ns ? ns.home : true, cf: ns ? ns.cf : null,
-            store: ns ? ns.store : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b, ownFor(base, !isNew)).own }, siteFleet(pool, fm, undefined, ownFor(base, !isNew))); };
+            store: ns ? ns.store : storeLabel({ base }), ownAt: b => siteFleet(pool, fm, b, isNew ? 1 : poolOwn(base)).own }, siteFleet(pool, fm, undefined, isNew ? 1 : poolOwn(base))); };
         return baseList(N).filter(b => b.fm > 0).map(b => one(b.key, b.key, b.fm))
           .concat((N.nb || []).filter(o => o.fm > 0).map(o => one(o.label, POOL_OF[o.st] || o.st, o.fm, true)));
       }
@@ -3469,9 +3472,8 @@ registerPage({
         /* HIS OWNED COUNTS (2026-10-07), the same rule as the plan cards: a pool owns its main base's
            trucks (NJ 3, PA 3, CT 2) plus 1 for every other existing base it holds (NY); a new base
            owns 1. So the budget rents exactly what the cards rent, not "peak minus the register". */
-        const mainOwn = pk => ["NJ", "NY", "PA", "CT"].reduce((a, b) => a + ((POOL_OF[b] || b) === pk ? ownFor(b, true) : 0), 0);
         if (perBase) {
-          pools.forEach(q => { q.owned = Math.max(0, TR_OWN[q.pk] != null ? TR_OWN[q.pk] : mainOwn(q.pk)); q.rent = Math.max(0, q.trucks - q.owned); });
+          pools.forEach(q => { q.owned = Math.max(0, TR_OWN[q.pk] != null ? TR_OWN[q.pk] : poolOwn(q.pk)); q.rent = Math.max(0, q.trucks - q.owned); });
           nbOut.forEach(o => { o.trucks = Math.ceil(o.fm * (crew.trucks || 0)); o.owned = Math.max(0, TR_OWN[o.label] != null ? TR_OWN[o.label] : (o.fm > 0 ? 1 : 0)); o.rent = Math.max(0, o.trucks - o.owned); });
         }
         const owned = perBase ? pools.reduce((a, q) => a + q.owned, 0) + nbOut.reduce((a, o) => a + o.owned, 0)
