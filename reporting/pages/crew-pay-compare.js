@@ -28,7 +28,16 @@
    - STAIRS & BULKY are NOT part of the comparison (his call 2026-10-09: "we dont touch and change
      that thing at all"). The plan pays them exactly as today, so -- like tips -- they sit outside
      both totals; replaying them from the contract's charges only produced rounding ($38 today vs
-     $37.50 "new" per person on a $150 flight split four ways). */
+     $37.50 "new" per person on a $150 flight split four ways).
+   - ZIP TO ZIP ONLY (his call 2026-10-09: "exclude tuji and everything, it should be only about
+     ZIP"): Tuji, Boston and Virginia jobs are not replayed.
+   - The FOREMAN'S PACKING COMMISSION is out too: it has been 20% since December 2025 -- the plan's
+     number -- and the only "difference" was Oct-Nov 2025, still paid at the old 26%.
+   - LONG-DISTANCE DAYS: a driver/helper row on an LD job at a rate of $100 or more is a DAY rate,
+     and its Hours column holds the number of DAYS (2 x $240 = $480). The plan pays those days x
+     $250 / $200. Rows at an hourly rate are hourly legs (loading and the like) and stay hourly at
+     the seat's new rate (his pick) -- the first build paid every row as ONE day, which undercounted
+     multi-day trips and overpaid 2-hour legs. */
 if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
   RS.DATASETS.crew_pay_compare = {
     table: "mart_crew_pay_compare",
@@ -60,11 +69,13 @@ registerPage({
     };
 
     /* ---------- the drafted plan (PDF) = the defaults ---------- */
+    const COMPANY = "Zip to Zip";   // his call 2026-10-09: "it should be only about ZIP"
+    const LD_DAY_RATE = 100;        // an LD driver/helper "rate" this high is per DAY, and Hours holds days
     const PLAN = {
       from: "2025-10-01", to: "2026-09-30",
       helperEntry: 18, helperExp: 20, expHelperMonths: 3,
       driver: 22, foreman: 25, seniorForeman: 27, seniorForemanYears: 2,
-      packingPct: 20, crewPackPct: 10, crewPackDriverShare: 50,
+      crewPackPct: 10, crewPackDriverShare: 50,
       ldTypes: "Straight Moving,Regular Moving",
       ldDriverDay: 250, ldHelperDay: 200, ldCfPct: 15,
       bonusMinShifts: 10, bonusMinHours: 80, bonusMinJobs: 8,
@@ -75,7 +86,6 @@ registerPage({
       from: "From", to: "To",
       helperEntry: "Entry helper $/h", helperExp: "Experienced helper $/h", expHelperMonths: "Experienced after (months with us)",
       driver: "Driver / mover $/h", foreman: "Foreman $/h", seniorForeman: "Senior foreman $/h", seniorForemanYears: "Senior after (years as foreman)",
-      packingPct: "Packing: foreman's % of materials sold",
       crewPackPct: "Packing: driver + helpers' pool, % of materials sold", crewPackDriverShare: "Driver's share of that pool %",
       ldTypes: "Long-distance job types", ldDriverDay: "LD driver $ per day", ldHelperDay: "LD helper $ per day", ldCfPct: "LD foreman: % of extra CF value",
       bonusMinShifts: "Minimum shifts in the month", bonusMinHours: "Minimum hours in the month", bonusMinJobs: "Minimum jobs as foreman",
@@ -88,8 +98,8 @@ registerPage({
         ["helperEntry", "helperExp", "driver", "foreman", "seniorForeman"]],
       ["Career ladder", "Tenure is counted from a person's first job with us (any seat), and for senior foreman from their first job as foreman — as of each job's date.",
         ["expHelperMonths", "seniorForemanYears"]],
-      ["Packing", "From the closing sheet's packing materials sold. The driver + helpers' pool is one pot per job: the driver seat gets its share and the helpers split the rest evenly. If a job has no driver the helpers get the whole pot, and the other way round. (Stairs and bulky-item pay are not in the comparison — the plan pays them exactly as today.)",
-        ["packingPct", "crewPackPct", "crewPackDriverShare"]],
+      ["Packing pool", "From the closing sheet's packing materials sold. The pool is one pot per job: the driver seat gets its share and the helpers split the rest evenly. If a job has no driver the helpers get the whole pot, and the other way round. (The foreman keeps his 20% exactly as today, so it is not in the comparison — nor are stairs and bulky-item pay.)",
+        ["crewPackPct", "crewPackDriverShare"]],
       ["Long distance", "One day per closing row for drivers and helpers. The foreman stays hourly and gets a share of the CF he moved beyond the Moveboard estimate, at the LD sheet's price per CF.",
         ["ldTypes", "ldDriverDay", "ldHelperDay", "ldCfPct"]],
       ["Foreman bonus — eligibility", "Checked per foreman per month from the closing sheets. The plan's '90% of records complete' rule is not measurable in our data and is left out.",
@@ -116,9 +126,9 @@ registerPage({
     /* ---------- the replay ---------- */
     function compute(c) {
       const ld = new Set(String(c.ldTypes).split(",").map(x => x.trim()).filter(Boolean));
-      const rows = all.filter(r => r["Date"] >= c.from && r["Date"] <= c.to);
+      const rows = all.filter(r => r["Company"] === COMPANY && r["Date"] >= c.from && r["Date"] <= c.to);
       const monthsBetween = (a, b) => (new Date(b) - new Date(a)) / (1000 * 3600 * 24 * 30.4375);
-      const comp = () => ({ hourlyT: 0, hourlyN: 0, ldT: 0, ldN: 0, cfN: 0, packT: 0, packN: 0, poolN: 0, bonusN: 0, tips: 0 });
+      const comp = () => ({ hourlyT: 0, hourlyN: 0, ldT: 0, ldN: 0, cfN: 0, poolN: 0, bonusN: 0, tips: 0 });
       const tot = comp(), bySeat = {}, byMonth = {}, people = {}, seatHours = {};
       const fm = {};   // foreman x month -> {days:Set, hours, jobs}
       let noHours = 0, ldRows = 0, ldCfJobs = new Set(), ldJobs = new Set(), jobs = new Set();
@@ -132,7 +142,7 @@ registerPage({
       const poolPct = num(c.crewPackPct) / 100, poolDriver = Math.min(1, num(c.crewPackDriverShare) / 100);
       // for the walk-through: every person's line on every job, the hourly seats, and job-level sums
       const byJob = {}, byTier = {}, ldDays = { Driver: 0, Helper: 0 };
-      let soldTot = 0;
+      let soldTot = 0, ldLegs = 0;
       rows.forEach(r => {
         const role = r["Role"], who = r["Person"] || "(no name)", d = r["Date"], ym = r["Month"];
         const isLD = ld.has(r["Moving Type"]);
@@ -140,21 +150,24 @@ registerPage({
         // HOURS PAID, not hours shown: the closing sheet shows whole hours, the wage was paid on the
         // exact ones (labor or the minimum, plus travel from the miles lookup) -- 10.5 h shows as 11
         const rate = num(r["Rate"]), wage = Math.max(0, sal - packT);
-        let hours = num(r["Hours"]);
+        // LONG-DISTANCE DAYS: on an LD job, a driver/helper rate of $100+ is a day rate and Hours holds days
+        const dayRow = isLD && role !== "Foreman" && rate >= LD_DAY_RATE;
+        const days = dayRow ? (num(r["Hours"]) || wage / rate || 1) : 0;
+        let hours = dayRow ? 0 : num(r["Hours"]);
         shownHours += hours;
-        if (rate > 0 && wage > 0) {
+        if (!dayRow && rate > 0 && wage > 0) {
           const x = wage / rate;
           if (!hours || Math.abs(x - hours) < 1) hours = x;   // no hours on the row, or the sheet's rounding
         }
         paidHours += hours;
-        if (!hours && sal > 0) noHours++;
+        if (!dayRow && !hours && sal > 0) noHours++;
+        if (isLD && !dayRow && role !== "Foreman") ldLegs++;
         if (r["Travel Hours"] != null && r["Travel Hours"] !== "" && !isLD) {   // contract jobs: how much is drive time
           travelHours += Math.min(num(r["Travel Hours"]), hours); travelBase += hours; travelJobs.add(r["Unique Key"]);
         }
         // today: what was paid, split into its parts
         const t = comp(), n = comp();
         t.tips = tip;
-        t.packT = packT;
         // new: the plan
         let tier = "", newRate = null, tenure = null;
         if (role === "Foreman") {
@@ -164,7 +177,6 @@ registerPage({
           tenure = { m: asForeman, as: "as foreman" };
           n.hourlyN = hours * newRate;
           t.hourlyT = Math.max(0, sal - packT);
-          n.packN = num(r["Packing Sold"]) * num(c.packingPct) / 100;
           if (isLD) {
             const est = num(r["Estimated CF"]), fin = num(r["Final CF"]), price = num(r["Price per CF"]);
             if (est > 0 && fin > 0 && price > 0) { ldCfJobs.add(r["Unique Key"]); n.cfN = Math.max(0, fin - est) * price * num(c.ldCfPct) / 100; }
@@ -172,12 +184,12 @@ registerPage({
           const k = who + "|" + ym;
           const m = fm[k] = fm[k] || { who, ym, days: new Set(), hours: 0, jobs: 0 };
           m.days.add(d); m.hours += hours; m.jobs++;
-        } else if (isLD) {
-          ldRows++; ldDays[role] = (ldDays[role] || 0) + 1;
-          tier = "Long-distance " + role.toLowerCase();
+        } else if (dayRow) {
+          ldRows++; ldDays[role] = (ldDays[role] || 0) + days;
+          tier = "Long-distance " + role.toLowerCase() + " (by the day)";
           tenure = { m: r["First Job"] ? monthsBetween(r["First Job"], d) : null, as: "with us" };
           t.ldT = sal;
-          n.ldN = num(role === "Driver" ? c.ldDriverDay : c.ldHelperDay);
+          n.ldN = days * num(role === "Driver" ? c.ldDriverDay : c.ldHelperDay);
         } else {
           const withUs = r["First Job"] ? monthsBetween(r["First Job"], d) : null;
           const exp = role === "Helper" && withUs != null && withUs >= num(c.expHelperMonths);
@@ -187,7 +199,7 @@ registerPage({
           t.hourlyT = sal;
           n.hourlyN = hours * newRate;
         }
-        if (!hours && sal > 0) { n.hourlyN = t.hourlyT; }   // keep what was paid when there is nothing to replay
+        if (!dayRow && !hours && sal > 0) { n.hourlyN = t.hourlyT; }   // keep what was paid when there is nothing to replay
         // packing pool for the driver and helper seats (today: nothing)
         const sold = num(r["Packing Sold"]);
         if (role !== "Foreman" && sold > 0 && poolPct > 0) {
@@ -202,8 +214,8 @@ registerPage({
         }
         jobs.add(r["Unique Key"]);
         if (isLD) ldJobs.add(r["Unique Key"]);
-        const T = t.hourlyT + t.ldT + t.packT, N = n.hourlyN + n.ldN + n.cfN + n.packN + n.poolN;
-        (byJob[r["Unique Key"]] = byJob[r["Unique Key"]] || []).push({ r, role, who, tier, tenure, shown: num(r["Hours"]), hours, rate, newRate, isLD, t, n, T, N });
+        const T = t.hourlyT + t.ldT, N = n.hourlyN + n.ldN + n.cfN + n.poolN;
+        (byJob[r["Unique Key"]] = byJob[r["Unique Key"]] || []).push({ r, role, who, tier, tenure, shown: dayRow ? 0 : num(r["Hours"]), hours, rate, newRate, isLD, dayRow, days, t, n, T, N });
         if (newRate != null) {   // the hourly seats (a long-distance foreman stays hourly)
           const b = byTier[tier] = byTier[tier] || { tier, hours: 0, t: 0, n: 0, rows: 0, people: new Set(), rate: newRate };
           b.hours += hours; b.t += t.hourlyT; b.n += n.hourlyN; b.rows++; b.people.add(who);
@@ -236,9 +248,9 @@ registerPage({
         (bySeat.Foreman = bySeat.Foreman || comp()).bonusN += ev;
         (byMonth[m.ym] = byMonth[m.ym] || comp()).bonusN += ev;
       });
-      const T = o => o.hourlyT + o.ldT + o.packT;
-      const N = o => o.hourlyN + o.ldN + o.cfN + o.packN + o.poolN + o.bonusN;
-      return { rows, tot, bySeat, byMonth, people, T, N, ev, eligMonths, fmMonths, noHours, ldRows, seatHours,
+      const T = o => o.hourlyT + o.ldT;
+      const N = o => o.hourlyN + o.ldN + o.cfN + o.poolN + o.bonusN;
+      return { rows, tot, bySeat, byMonth, people, T, N, ev, eligMonths, fmMonths, noHours, ldRows, ldLegs, seatHours,
                byJob, byTier, ldDays, soldTot,
                revenue, shownHours, paidHours, travelHours, travelBase, travelJobs: travelJobs.size, poolJobs: poolJobs.size,
                jobs: jobs.size, ldJobs: ldJobs.size, ldCfJobs: ldCfJobs.size };
@@ -253,7 +265,7 @@ registerPage({
         <div class="cpc">
           <div class="rs-page-head"><h1>Crew Salary Comparison</h1>
             <p>What a year of crew pay would have cost under the drafted compensation plan, replayed job by job
-              against what we actually paid · ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}</p></div>
+              against what we actually paid · Zip to Zip jobs · ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}</p></div>
           <div class="rs-tabs cpc-tabs">
             <button class="rs-tab ${S.tab === "analysis" ? "on" : ""}" data-tab="analysis">Analysis</button>
             <button class="rs-tab ${S.tab === "settings" ? "on" : ""}" data-tab="settings">Settings${S.draft ? " · unsaved" : ""}</button>
@@ -277,15 +289,13 @@ registerPage({
       const tierT = tiers.reduce((a, b) => a + b.t, 0), tierN = tiers.reduce((a, b) => a + b.n, 0), tierH = tiers.reduce((a, b) => a + b.hours, 0);
       const steps = [
         { k: "Hourly wages", short: "Hourly rates", t: tot.hourlyT, n: tot.hourlyN,
-          how: `${Math.round(tierH).toLocaleString()} hours paid (travel included) × each seat's new rate — seat by seat below. Today: what the sheets paid for the same hours. Long-distance drivers and helpers are paid by the day instead (another step).` },
+          how: `${Math.round(tierH).toLocaleString()} hours paid (travel included) × each seat's new rate — seat by seat below. Today: what the sheets paid for the same hours.${R.ldLegs ? ` Includes ${R.ldLegs} hourly legs of long-distance jobs (loading and the like); long-distance days are their own step.` : ""}` },
         { k: "Long-distance day pay", short: "LD day pay", other: true, t: tot.ldT, n: tot.ldN,
-          how: `${R.ldDays.Driver} driver days × ${$(c.ldDriverDay)} + ${R.ldDays.Helper} helper days × ${$(c.ldHelperDay)}.${ldDays ? ` Today those days were paid ${money(tot.ldT / ldDays)} each on average.` : ""}` },
+          how: `${+R.ldDays.Driver.toFixed(1)} driver days × ${$(c.ldDriverDay)} + ${+R.ldDays.Helper.toFixed(1)} helper days × ${$(c.ldHelperDay)} — the days each day-rate row on the sheet says (2 days × $240 = $480 today).${ldDays ? ` Today those days were paid ${money(tot.ldT / ldDays)} each on average.` : ""}` },
         { k: "Long-distance CF share", short: "LD CF share", other: true, t: 0, n: tot.cfN,
           how: `${num(c.ldCfPct)}% × the CF moved beyond the Moveboard estimate × the LD sheet's price per CF, on the ${R.ldCfJobs} of ${R.ldJobs} long-distance jobs that have all three. New.` },
-        { k: "Packing commission — foreman", short: "Foreman packing", other: true, t: tot.packT, n: tot.packN,
-          how: `${num(c.packingPct)}% × ${money(R.soldTot)} of packing materials sold.${R.soldTot ? ` Today the sheets paid ${(tot.packT / R.soldTot * 100).toFixed(1)}% of it.` : ""}` },
         { k: "Packing pool — drivers & helpers", short: "Packing pool", t: 0, n: tot.poolN,
-          how: `${num(c.crewPackPct)}% × the same ${money(R.soldTot)}: ${num(c.crewPackDriverShare)}% to the driver, the rest split over the helpers (a missing seat's half goes to the other). New — today they get none.` },
+          how: `${num(c.crewPackPct)}% × ${money(R.soldTot)} of packing materials sold: ${num(c.crewPackDriverShare)}% to the driver, the rest split over the helpers (a missing seat's half goes to the other). New — today they get none.` },
         { k: "Foreman bonus", short: "Foreman bonus", t: 0, n: tot.bonusN,
           how: `${R.eligMonths} of ${R.fmMonths} foreman-months qualify (${num(c.bonusMinShifts)} shifts, ${num(c.bonusMinHours)} h, ${num(c.bonusMinJobs)} jobs) × ${money(R.ev)} each = ${num(c.band1Share)}% × ${$(c.band1Amt)} + ${num(c.band2Share)}% × ${$(c.band2Amt)} + ${num(c.band3Share)}% × ${$(c.band3Amt)}, the band mix assumed in Settings. New.` },
       ].sort((a, b) => (b.n - b.t) - (a.n - a.t));
@@ -306,7 +316,7 @@ registerPage({
       const mainRole = p => Object.entries(p.roles).sort((a, b) => b[1] - a[1])[0][0];
       body.innerHTML = `
         <div class="rs-kpis" style="--kpi-cols:5">
-          <div class="kpi"><div class="l">Paid today</div><div class="v">${moneyK(t)}</div><div class="s">wages &amp; packing · tips, stairs &amp; bulky not included</div></div>
+          <div class="kpi"><div class="l">Paid today</div><div class="v">${moneyK(t)}</div><div class="s">wages · tips, stairs, bulky &amp; foreman packing unchanged, left out</div></div>
           <div class="kpi"><div class="l">Under the new plan</div><div class="v">${moneyK(n)}</div><div class="s">same jobs, same hours</div></div>
           <div class="kpi cpc-kd"><div class="l">Difference over the year</div><div class="v">${n >= t ? "+" : "−"}${moneyK(Math.abs(n - t)).replace("−", "")}</div>
             <div class="s">${delta(n, t)} vs today</div></div>
@@ -321,7 +331,7 @@ registerPage({
           <div class="rs-tablewrap"><table class="rs-table cpc-parts">
             <thead><tr><th class="cpc-stepn">#</th><th>Step</th><th>How it is worked out</th><th class="num">Today</th><th class="num">New plan</th><th class="num">Difference</th><th></th></tr></thead>
             <tbody>
-              <tr class="cpc-totrow"><td class="cpc-stepn"></td><td><b>Paid today</b></td><td class="cpc-howcell">Wages and packing on ${R.jobs.toLocaleString()} jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}. Tips, stairs and bulky-item pay are left out — the plan pays them exactly as today.</td>
+              <tr class="cpc-totrow"><td class="cpc-stepn"></td><td><b>Paid today</b></td><td class="cpc-howcell">Hourly wages and long-distance day pay on ${R.jobs.toLocaleString()} Zip to Zip jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}. Tips, stairs, bulky-item pay and the foreman's 20% packing commission are left out — the plan pays them exactly as today.</td>
                 <td class="num">${money(t)}</td><td></td><td></td><td></td></tr>
               ${shownSteps.map((p, i) => {
                 const row = (q, num, cls) => {
@@ -383,11 +393,11 @@ registerPage({
         <section class="panel cpc-how">
           <div class="panel-head"><span class="panel-title">How this is counted</span></div>
           <ul>
-            <li><b>Today</b> is what was paid: the closing sheets' wage (a foreman's already includes his packing commission). Tips, stairs and bulky-item pay stay exactly as they are today, so they sit outside the comparison.</li>
+            <li><b>Today</b> is what was paid in wages on Zip to Zip jobs (Tuji, Boston and Virginia are left out): the closing sheets' hourly wage — a foreman's without his packing commission — and long-distance day pay. Tips, stairs, bulky-item pay and the foreman's packing commission (20% since December 2025, the plan's number) stay exactly as they are, so they sit outside the comparison.</li>
             <li><b>Hours</b> are the hours the wage was paid for (wage ÷ rate). The closing sheet only shows whole hours — a 10.5-hour job shows as 11 — so the new plan is replayed on ${Math.round(R.paidHours).toLocaleString()} hours, not the ${Math.round(R.shownHours).toLocaleString()} the sheets show.</li>
             ${R.travelBase ? `<li><b>Travel</b> stays as it is today: the foreman enters the miles, a lookup turns them into hours (1 h up to about 110 miles, then roughly ½ h more per 20 miles), and they are added to the job's hours. On the ${R.travelJobs.toLocaleString()} local jobs with a contract, ${Math.round(R.travelHours).toLocaleString()} of ${Math.round(R.travelBase).toLocaleString()} hours (${Math.round(R.travelHours / R.travelBase * 100)}%) are drive time. Both models pay drive time at the seat's full rate — today's contracts already do — so nothing is subtracted or paid at a lower rate.</li>` : ""}
-            <li><b>Packing pool:</b> new money for drivers and helpers on ${R.poolJobs.toLocaleString()} jobs with packing sold. Today they get none of it; the foreman's own commission is unchanged.</li>
-            <li><b>Long distance:</b> ${R.ldJobs} jobs, ${R.ldRows} driver/helper days. The CF share needs an estimate, a final CF and a price per CF — ${R.ldCfJobs} of the ${R.ldJobs} jobs have all three.</li>
+            <li><b>Packing pool:</b> new money for drivers and helpers on ${R.poolJobs.toLocaleString()} jobs with packing sold. Today they get none of it; the foreman's own 20% is unchanged.</li>
+            <li><b>Long distance:</b> ${R.ldJobs} jobs. Drivers and helpers paid by the day: ${R.ldRows} rows, ${+(R.ldDays.Driver + R.ldDays.Helper).toFixed(1)} days — the sheet's count of days on each day-rate row — × the plan's day pay. ${R.ldLegs} hourly legs (loading and the like) are paid hourly in both. The CF share needs an estimate, a final CF and a price per CF — ${R.ldCfJobs} of the ${R.ldJobs} jobs have all three.</li>
             <li><b>Foreman bonus:</b> ${R.eligMonths} of ${R.fmMonths} foreman-months meet the shift, hour and job minimums. Each eligible month is paid the band mix's expected ${money(R.ev)} (Settings).</li>
             <li><b>Not modelled:</b> overtime (his call), and the plan's documentation rule.${R.noHours ? ` ${R.noHours} rows had pay but no hours or rate — they keep what was paid in both models.` : ""}</li>
           </ul>
@@ -476,17 +486,17 @@ registerPage({
         // today
         if (x.t.hourlyT) T.push(ln(x.hours && Math.abs(x.hours * x.rate - x.t.hourlyT) < 0.5
           ? `${h2(x.hours)} h × ${m2(x.rate)} = <b>${m2(x.t.hourlyT)}</b>` : `wage <b>${m2(x.t.hourlyT)}</b>`));
-        if (x.t.ldT) T.push(ln(`day pay <b>${m2(x.t.ldT)}</b>`));
-        if (x.t.packT) T.push(ln(`+ ${m2(x.t.packT)} packing commission`));
+        const dl = v => h2(v) + (Math.abs(v - 1) < 0.001 ? " day" : " days");
+        if (x.t.ldT) T.push(ln(x.dayRow && Math.abs(x.days * x.rate - x.t.ldT) < 1
+          ? `${dl(x.days)} × ${m2(x.rate)} = <b>${m2(x.t.ldT)}</b>` : `day pay <b>${m2(x.t.ldT)}</b>`));
         if (!x.T) T.push(ln("nothing in the comparison", "cpc-sub"));
         T.push(ln(`= ${m2(x.T)}`, "cpc-tot"));
         if (x.shown && Math.abs(x.shown - x.hours) >= 0.01 && x.hours) T.push(ln(`the sheet shows ${h2(x.shown)} h`, "cpc-sub"));
         // the plan
         if (x.newRate != null && x.hours) N.push(ln(`${h2(x.hours)} h × ${m2(x.newRate)} = <b>${m2(x.n.hourlyN)}</b>`));
         else if (x.n.hourlyN) N.push(ln(`wage kept as paid <b>${m2(x.n.hourlyN)}</b>`));
-        if (x.n.ldN) N.push(ln(`1 day × <b>${m2(x.n.ldN)}</b>`));
+        if (x.n.ldN) N.push(ln(`${dl(x.days)} × ${m2(num(x.role === "Driver" ? c.ldDriverDay : c.ldHelperDay))} = <b>${m2(x.n.ldN)}</b>`));
         if (x.n.cfN) N.push(ln(`+ ${m2(x.n.cfN)} CF share (${num(c.ldCfPct)}% of the extra CF)`));
-        if (x.n.packN) N.push(ln(`+ ${m2(x.n.packN)} packing (${num(c.packingPct)}% of ${m2(sold)})`));
         if (x.n.poolN) N.push(ln(`+ ${m2(x.n.poolN)} packing pool (${shareTxt(x.role === "Driver" ? dShare : 1 - dShare)} of ${num(c.crewPackPct)}% of ${m2(sold)}${x.role === "Helper" && nH > 1 ? ", ÷ " + nH + " helpers" : ""})`));
         if (!x.N) N.push(ln("nothing in the comparison", "cpc-sub"));
         N.push(ln(`= ${m2(x.N)}`, "cpc-tot"));
@@ -516,7 +526,7 @@ registerPage({
           <tbody>${rowsHtml}</tbody>
           <tfoot><tr><td>The job</td><td>${money(jT)}</td><td>${money(jN)}</td><td class="num">${delta(jN, jT)}</td></tr></tfoot>
         </table></div>
-        <p class="cpc-note">Tips, stairs and bulky-item pay are left out of both — the plan pays them exactly as today. The foreman bonus is paid per month, not per job${fms.length ? ": " + fms.join("; ") : ""}.</p>`;
+        <p class="cpc-note">Tips, stairs, bulky-item pay and the foreman's 20% packing commission are left out of both — the plan pays them exactly as today. The foreman bonus is paid per month, not per job${fms.length ? ": " + fms.join("; ") : ""}.</p>`;
       const q = box.querySelector("#cpcJobQ"), hits = box.querySelector("#cpcHits");
       const index = () => R._jobIndex = R._jobIndex || Object.entries(R.byJob).map(([k, ys]) => {
         const a = ys[0].r, fm = (ys.find(y => y.role === "Foreman") || {}).who || "";
