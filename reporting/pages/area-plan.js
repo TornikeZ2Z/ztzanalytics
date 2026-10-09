@@ -626,6 +626,9 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 .ap3-mapgrid.ap3-fs{position:fixed;inset:0;z-index:9000;background:var(--bg);padding:12px;margin:0}
 .ap3-mapgrid:fullscreen{background:var(--bg);padding:12px;width:100vw;height:100vh;box-sizing:border-box}
 .rs-content.ap-fsfix{animation:none !important;transform:none !important}
+/* Leaflet's panes carry z-indexes up to 1000, so without its own stacking context the map painted
+   over the sticky tab bar (z 28) when scrolled under it (found by the Tuji build, 2026-10-09) */
+#apMapBox{isolation:isolate}
 .ap3-mapgrid.ap3-fs .ap2-mapbox{height:calc(100vh - 24px);min-height:0}
 .ap3-mapgrid.ap3-fs>:not(.ap2-mapbox){max-height:calc(100vh - 24px);overflow:auto}
 html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
