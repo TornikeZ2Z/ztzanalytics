@@ -45,7 +45,19 @@
     if (!RS.DATASETS.fct_storage_rent) {
       RS.DATASETS.fct_storage_rent = {
         table: "fct_storage_rent",
-        cols: ["Date", "Brand", "Store", "Amount", "Company", "Facility"],
+        cols: ["Date", "Brand", "Store", "Amount", "Company", "Facility",
+               "Unit", "Customer", "Job Code", "Match", "Link"],
+      };
+    }
+    // dispatch's Public Storage export (his ask 2026-10-10), every unit with the customer and job
+    // it held and what the card feed shows it cost -- src/storage_mart.py _link_units
+    if (!RS.DATASETS.fct_storage_unit) {
+      RS.DATASETS.fct_storage_unit = {
+        table: "fct_storage_unit",
+        cols: ["Unit", "Size", "State", "Facility", "Address", "City", "Store", "Customer",
+               "Job Code", "Job Type", "Match", "How We Know", "Status", "Opened", "First Rent",
+               "PS Payments", "Last Payment", "Bank Charges", "Bank Paid", "First Charge",
+               "Last Charge", "Monthly", "Months Open", "Bank Through"],
       };
     }
     if (!RS.DATASETS.st_custody) {
@@ -155,6 +167,14 @@ registerPage({
       // the sentence that explains the section. It was an inline style attribute repeated three
       // times, rendering at 9.5px --faint -- an explanation nobody could read.
       + ".stc-h2 .note{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
+      // rented units (dispatch's Public Storage export)
+      + ".stc-sz{font-size:11.5px;color:var(--faint);font-weight:400}"
+      + ".stc-units td{white-space:nowrap}"
+      + ".stc-why2{padding:6px 14px}"
+      + ".stc-why2 details{border-bottom:1px solid var(--line);padding:8px 0}"
+      + ".stc-why2 details:last-child{border-bottom:0}"
+      + ".stc-why2 summary{cursor:pointer;font-size:13px;color:var(--ink)}"
+      + ".stc-why2 table{margin-top:8px}"
       // the vault board
       + ".stc-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}"
       + ".stc-v{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 9px;min-height:58px;position:relative;overflow:hidden;cursor:pointer;transition:transform .08s,border-color .12s}"
@@ -302,6 +322,7 @@ registerPage({
       RS.load("fct_storage_rent").catch(function () { return []; }),
       RS.load("st_custody").catch(function () { return []; }),
       RS.load("st_ldboard").catch(function () { return []; }),
+      RS.load("fct_storage_unit").catch(function () { return []; }),
     ]).then(function (rs) {
       S.reg = (rs[0] || []).map(function (r) {
         ["Chargeable CF", "Real CF", "Fee per CF", "Fee per CF Initial", "Monthly I", "Monthly II",
@@ -331,6 +352,11 @@ registerPage({
         return r;
       });
       S.ldboard = (rs[7] || []).map(function (r) { r.CF = r.CF == null || r.CF === "" ? null : num(r.CF); return r; });
+      S.units = (rs[8] || []).map(function (u) {
+        ["First Rent", "PS Payments", "Bank Charges", "Bank Paid", "Monthly", "Months Open"].forEach(function (k) { u[k] = num(u[k]); });
+        ["Opened", "Last Payment", "First Charge", "Last Charge", "Bank Through"].forEach(function (k) { u[k] = u[k] ? String(u[k]).slice(0, 10) : null; });
+        return u;
+      });
       S.custody = (rs[6] || []).map(function (c) {
         c.Posted = c.Posted ? String(c.Posted).slice(0, 10) : null;
         c["Photo Count"] = num(c["Photo Count"]);
@@ -452,6 +478,7 @@ registerPage({
           var pb = (b.Status === "dormant" && b["Active Items"] ? 0 : RANK[b.Status] || 9);
           return pa - pb || (b["Monthly Run Rate"] || 0) - (a["Monthly Run Rate"] || 0);
         });
+        html += unitsHtml();
         /* ---- CONSOLIDATION WORKLIST (his pick, 2026-10-06, from the storage analysis) ----------
            Rent tripled over summer 2026 across ~30 sites, and in the units whose fill we know about
            half the rent paid for empty space. Every unit we still pay for, cheapest-to-fix first:
@@ -636,6 +663,103 @@ registerPage({
                    scope: S.show === "active" ? "In storage now" : "Everything" };
         },
       });
+    }
+
+    /* ---- RENTED UNITS (his ask 2026-10-10: "map it with our bank transactions") ---------------
+       Dispatch's Public Storage export: every unit opened, the customer and job it held, and --
+       from the card feed -- what it cost. The mart (src/storage_mart.py _link_units) ties each
+       charge to its unit: the first rent lands 0-4 days after opening (plus PS's $22 admin fee and
+       tax), monthly rent in the first week of each month. Weak matches count, flagged (his pick).
+       Then: storage cost per job, and the charges no unit explains, each with the reason. */
+    var MATCH_PILL = { "Sure": "ok", "Likely": "mute", "Guess": "warn", "No job found": "bad" };
+    var WHY = {
+      "Possible double charge": "same amount, same store, same day as a charge already tied to a unit — check the statement",
+      "No unit in the export": "rent-sized charges where the export has no unit open — ask dispatch which unit",
+      "Unit opened before the export": "older units still paying — not in this export",
+      "Extra Space (not in the export)": "the export is Public Storage only",
+      "Tuji's card": "Tuji's units, on Tuji's card",
+      "Add-on, no unit open": "locks, protection plans, fees where no export unit was open",
+    };
+    function unitsHtml() {
+      var U = S.units || [];
+      if (!U.length) return "";
+      var q = S.q.toLowerCase();
+      var isOpen = function (u) { return String(u.Status || "").toLowerCase() === "open"; };
+      var from = U.reduce(function (a, u) { return u.Opened && (!a || u.Opened < a) ? u.Opened : a; }, "");
+      var through = U.reduce(function (a, u) { return u["Bank Through"] && u["Bank Through"] > a ? u["Bank Through"] : a; }, "");
+      var open = U.filter(isOpen);
+      var list = (S.show === "active" ? open : U).filter(function (u) {
+        return !q || [u.Unit, u.Customer, u["Job Code"], u.Facility, u.City].join(" ").toLowerCase().indexOf(q) >= 0;
+      }).sort(function (a, b) { return String(b.Opened || "").localeCompare(String(a.Opened || "")); });
+      var h = '<div class="stc-h2">Rented units · <b>' + U.length + " opened since " + dayLab(from) + ", " + open.length + " open now</b>"
+        + ' <span class="note">— dispatch’s Public Storage export. “Paid” is what the card feed shows for each unit, through '
+        + dayLab(through) + "; Guess and No-job-found matches count, flagged.</span></div>";
+      h += list.length
+        ? '<div class="rs-tablewrap stc-units" style="max-height:52vh"><table class="rs-table"><thead><tr>'
+          + '<th>Unit</th><th>Facility</th><th>Customer</th><th>Job</th><th>Opened</th><th class="num">Months</th>'
+          + '<th class="num">Monthly</th><th class="num">Paid (bank)</th><th>Status</th></tr></thead><tbody>'
+          + list.map(function (u) {
+              var inReg = findItem(u["Job Code"] || "", u.Customer || "");
+              return "<tr" + (inReg ? ' class="click" data-job="' + esc(u["Job Code"] || "") + '" data-cust="' + esc(u.Customer || "") + '"' : "") + ">"
+                + '<td class="strong">' + esc(u.Unit || "—") + (u.Size ? ' <span class="stc-sz">' + esc(u.Size) + "</span>" : "") + "</td>"
+                + "<td>" + esc(String(u.Facility || "").split(",")[0]) + ' <span class="stc-sz">' + esc(u.State || "") + "</span></td>"
+                + "<td>" + esc(u.Customer || "—") + "</td>"
+                + "<td>" + esc(u["Job Code"] || "—") + ' <span class="rs-pill ' + (MATCH_PILL[u.Match] || "mute") + '">' + esc(u.Match || "?") + "</span></td>"
+                + "<td>" + dayLab(u.Opened) + "</td>"
+                + '<td class="num">' + (u["Months Open"] != null ? u["Months Open"] : "—") + "</td>"
+                + '<td class="num">' + usd(u.Monthly) + "</td>"
+                + '<td class="num" title="' + (u["Bank Charges"] || 0) + " card charges · " + (u["PS Payments"] || 0) + ' payments per Public Storage">' + usd(u["Bank Paid"]) + "</td>"
+                + '<td><span class="rs-pill ' + (isOpen(u) ? "ok" : "mute") + '">' + esc(u.Status || "") + "</span></td></tr>";
+            }).join("") + "</tbody></table></div>"
+        : '<div class="panel rs-noanim stc-empty">No unit matches this filter.</div>';
+
+      // storage cost per job: every charge tied to a unit, summed by the job dispatch matched it to
+      var byJob = {};
+      (S.rent || []).forEach(function (r) {
+        if (!r.Unit) return;
+        var k = r["Job Code"] || "— " + (r.Customer || r.Unit);
+        var o = byJob[k] = byJob[k] || { job: r["Job Code"], cust: r.Customer, match: r.Match, units: {}, n: 0, paid: 0 };
+        o.units[r.Unit] = 1; o.n++; o.paid += r.Amount || 0;
+      });
+      var jobs = Object.keys(byJob).map(function (k) { return byJob[k]; }).filter(function (o) {
+        return !q || ((o.job || "") + " " + (o.cust || "")).toLowerCase().indexOf(q) >= 0;
+      }).sort(function (a, b) { return b.paid - a.paid; });
+      var jobTot = jobs.reduce(function (a, o) { return a + o.paid; }, 0);
+      if (jobs.length) {
+        h += '<div class="stc-h2">Storage cost per job · <b>' + jobs.length + " jobs · " + usd(jobTot) + "</b>"
+          + ' <span class="note">— every card charge tied to a unit, summed by the job it held</span></div>'
+          + '<div class="rs-tablewrap stc-units" style="max-height:40vh"><table class="rs-table"><thead><tr>'
+          + '<th>Job</th><th>Customer</th><th class="num">Units</th><th class="num">Charges</th><th class="num">Paid</th><th>Match</th></tr></thead><tbody>'
+          + jobs.map(function (o) {
+              return '<tr><td class="strong">' + esc(o.job || "no job") + "</td><td>" + esc(o.cust || "—") + "</td>"
+                + '<td class="num">' + Object.keys(o.units).length + '</td><td class="num">' + o.n + '</td><td class="num">' + usd(o.paid) + "</td>"
+                + '<td><span class="rs-pill ' + (MATCH_PILL[o.match] || "mute") + '">' + esc(o.match || "?") + "</span></td></tr>";
+            }).join("") + "</tbody></table></div>";
+      }
+
+      // the charges no unit explains, each kind with its reason -- the list to ask dispatch about
+      var why = {}, n = 0, amt = 0;
+      (S.rent || []).forEach(function (r) {
+        if (!r.Link || !WHY[r.Link]) return;
+        var o = why[r.Link] = why[r.Link] || { n: 0, amt: 0, rows: [] };
+        o.n++; o.amt += r.Amount || 0; o.rows.push(r); n++; amt += r.Amount || 0;
+      });
+      if (n) {
+        h += '<div class="stc-h2">Charges no unit explains · <b>' + n + " since " + dayLab(from) + " · " + usd(amt) + "</b>"
+          + ' <span class="note">— open a line for the charges</span></div>'
+          + '<div class="panel rs-noanim stc-why2">'
+          + Object.keys(WHY).filter(function (k) { return why[k]; }).map(function (k) {
+              var o = why[k];
+              return "<details><summary><b>" + esc(k) + "</b> · " + o.n + " charge" + (o.n === 1 ? "" : "s") + " · " + usd(o.amt)
+                + ' <span class="stc-sz">' + esc(WHY[k]) + "</span></summary>"
+                + '<table class="rs-table"><tbody>'
+                + o.rows.sort(function (a, b) { return String(b.Date).localeCompare(String(a.Date)); }).map(function (r) {
+                    return "<tr><td>" + dayLab(r.Date) + "</td><td>" + esc((r.Brand || "") + " " + (r.Store || "")) + "</td><td>"
+                      + esc(String(r.Facility || "—").split(",")[0]) + '</td><td class="num">' + usd(r.Amount, 2) + "</td></tr>";
+                  }).join("") + "</tbody></table></details>";
+            }).join("") + "</div>";
+      }
+      return h;
     }
 
     function kpi(v, lab, sub, cls) {
