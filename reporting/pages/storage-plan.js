@@ -15,11 +15,18 @@
      - with: the facility's monthly rent + a worker + other running costs, PLUS units still rented in
              any month the state holds more than the facility fits, priced at that state's own real
              $ per CF-month (rent / CF held over the same months).
-   NJ (his facts): our vaults sit in the main base, a fixed ~$6,000/month that exists anyway, and the
-   extra NJ facility (FLM Associates, $5,298/month on the bank) is on top; dispatch runs storage there,
-   so NJ needs no worker. The NJ row is about the units we STILL rent on top of both. A new PA or CT
-   facility would need a worker (default one person, 40 h x $20). Everything is this browser's
-   settings (localStorage).
+   THE NJ BASE (his word 2026-10-12, after finance checked the debits): FLM Associates IS the main
+   base -- vaults, trucks, office -- paid by bank debit, ~$5,300 a month. It counts in what storage
+   costs (zone "NJBASE" in the mart, kept apart from the rented units' $ per CF); dispatch runs the
+   storage there, so no worker. The NJ row is about the units we still rent on top of the base. A
+   new PA or CT facility would need a worker (default one person, 40 h x $20).
+   EXTRA STOPS (his point 2026-10-12): a load into a rented unit is a detour -- the crew drives to
+   the unit, unloads, then takes the truck back to base -- and again when the goods come out for
+   delivery; at our own base the truck just comes home. Each load = 2 stops x (hours x crew x $/h +
+   miles x $/mile). His answer: "we can't measure"; the default is my best guess -- 45 minutes a
+   stop (units sit a median 16-23 road miles from their base; ~15 extra miles plus getting into a
+   unit with no dock), crew 3 at $20, truck $1.11 a mile. A facility at the base saves the stops
+   for everything it holds; overflow units keep theirs. Everything is this browser's settings.
 
    Rented units, why and where (his ask 2026-10-10, "which states use the most rental storages"):
    the `units` rows -- zone x purpose from dispatch's Public Storage export (fct_storage_unit).
@@ -47,14 +54,15 @@
     sqftPA: 2000, rentPA: 3000, workerPA: 3460, otherPA: 0,
     sqftCT: 2000, rentCT: 3000, workerCT: 3460, otherCT: 0,
     density: 11,
-    njBase: 6000, njExtra: 5298,
+    stopHours: 0.75, crewSize: 3, crewRate: 20, stopMiles: 15, mileCost: 1.11,
   };
   var LABEL = {
     sqftNJ: "NJ: facility size (sq ft)", rentNJ: "NJ: rent $/month", workerNJ: "NJ: worker $/month", otherNJ: "NJ: power, insurance, other $/month",
     sqftPA: "PA: facility size (sq ft)", rentPA: "PA: rent $/month", workerPA: "PA: worker $/month", otherPA: "PA: power, insurance, other $/month",
     sqftCT: "CT: facility size (sq ft)", rentCT: "CT: rent $/month", workerCT: "CT: worker $/month", otherCT: "CT: power, insurance, other $/month",
     density: "CF stored per sq ft (vaults 3 high)",
-    njBase: "NJ main base rent $/month (vaults inside)", njExtra: "NJ extra facility (FLM) $/month",
+    stopHours: "Extra stop at a rented unit: hours", crewSize: "Crew on the truck", crewRate: "Crew $ per hour",
+    stopMiles: "Extra stop: truck miles", mileCost: "Truck $ per mile",
   };
   var ZONES = ["NJ", "PA", "CT"];
   var ZONE_NAME = { NJ: "New Jersey (Tinton Falls)", PA: "Philadelphia", CT: "Connecticut (Bridgeport)", DE: "Delaware (Tuji)" };
@@ -128,6 +136,10 @@
     var rentZM = {};
     rent.forEach(function (r) { if (inWin[r.Month]) rentZM[r.Month + "|" + r.Zone] = (rentZM[r.Month + "|" + r.Zone] || 0) + num(r["Rent USD"]); });
     var perYear = win.length ? 12 / win.length : 1;
+    // loads into rented units, last 12 months -- each one is two extra stops (in, and out for delivery)
+    var loads = {}; rows.filter(function (r) { return r.Kind === "loads"; }).forEach(function (r) { loads[r.Zone] = num(r.Jobs); });
+    var STOPS_PER_LOAD = 2;
+    var perStop = num(c.stopHours) * num(c.crewSize) * num(c.crewRate) + num(c.stopMiles) * num(c.mileCost);
 
     // per zone: what it held in rented space, month by month, and what that rent cost
     var zt = {}, fees = 0, heldAll = 0;
@@ -150,8 +162,9 @@
       heldAll += o.heldSum;
       zt[z] = o;
     });
-    // DE (Tuji) and anything unmapped stay as they are in every scenario
-    var asIs = num(rentByZone.DE) + num(rentByZone.Unmapped);
+    // the NJ base, DE (Tuji) and anything unmapped stay as they are in every scenario
+    var base = num(rentByZone.NJBASE);
+    var asIs = num(rentByZone.DE) + num(rentByZone.Unmapped) + base;
     var A = rentTot;
 
     // OWN OR RENT, per state: with a facility = its fixed costs + units still rented when it is full
@@ -165,15 +178,21 @@
         overflow += extra * o.perCF; if (extra > 0) over++;
         fillSum += cap ? Math.min(h, cap) / cap : 0;
       });
-      var today = o.today * perYear, withFac = (fixedMo * win.length + overflow) * perYear;
+      // the stops: today every load; with a facility at the base only the overflow's share
+      var stops = num(loads[z]) * STOPS_PER_LOAD * perStop;
+      var overShare = o.heldSum ? (overflow / (o.perCF || 1)) / o.heldSum : 0;
+      var today = o.today * perYear + stops;
+      var withFac = (fixedMo * win.length + overflow) * perYear + stops * overShare;
       sc[z] = {
-        own: !!num(c["own" + z]), cap: cap, fixedMo: fixedMo, today: today, overflow: overflow * perYear, withFac: withFac,
+        own: !!num(c["own" + z]), cap: cap, fixedMo: fixedMo, units: o.today * perYear, stops: stops, loads: num(loads[z]),
+        stopsKept: stops * overShare, today: today, overflow: overflow * perYear, withFac: withFac,
         avgFill: win.length ? fillSum / win.length : 0, peakFill: cap ? o.peakRented / cap : 0, monthsOver: over,
         // the monthly rent at which the facility costs exactly what renting costs today
-        breakEven: win.length ? (o.today - overflow) / win.length - num(c["worker" + z]) - num(c["other" + z]) : 0,
+        breakEven: win.length ? (o.today - overflow + (stops - stops * overShare) / perYear) / win.length - num(c["worker" + z]) - num(c["other" + z]) : 0,
       };
     });
     var scenario = asIs * perYear + ZONES.reduce(function (a, z) { return a + (sc[z].own ? sc[z].withFac : sc[z].today); }, 0);
+    var todayAll = asIs * perYear + ZONES.reduce(function (a, z) { return a + sc[z].today; }, 0);
 
     var unitRows = rows.filter(function (r) { return r.Kind === "units"; });
     var shortRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, not billed"; });
@@ -185,7 +204,8 @@
       unitRows: unitRows, shortPaid: shortPaid, shortUnits: shortUnits, unitsFrom: unitsFrom,
       billedUnits: billedRows.reduce(function (a, r) { return a + num(r.Units); }, 0),
       win: win, rentWin: rentWin, M: M, get: get, dim: dim, peakDay: peakDay, peakCF: peakCF, rentByMonth: rentByMonth,
-      rentByZone: rentByZone, A: A, asIs: asIs, zt: zt, fees: fees, sc: sc, scenario: scenario, perYear: perYear,
+      rentByZone: rentByZone, A: A, asIs: asIs, base: base, zt: zt, fees: fees, sc: sc, scenario: scenario, todayAll: todayAll,
+      perYear: perYear, perStop: perStop,
       perCFAll: heldAll ? (A - asIs) / heldAll : 0,
     };
   }
@@ -249,13 +269,13 @@
     var html = ''
       + '<div class="rs-kpis" style="--kpi-cols:4">'
       + '<div class="kpi"><div class="l">Most stored at once</div><div class="v">' + cf(R.peakCF) + '</div><div class="s">' + esc(R.peakDay || "") + " · rented units + our vaults</div></div>"
-      + '<div class="kpi"><div class="l">Self-storage rent, last 12 months</div><div class="v">' + moneyK(R.A) + '</div><div class="s">' + esc(rentLabel) + " · after refunds</div></div>"
+      + '<div class="kpi"><div class="l">Storage spend, last 12 months</div><div class="v">' + moneyK(R.A) + '</div><div class="s">' + esc(rentLabel) + " · units " + moneyK(R.A - R.base) + " + NJ base " + moneyK(R.base) + "</div></div>"
       + '<div class="kpi"><div class="l">What a rented CF costs us</div><div class="v">$' + R.perCFAll.toFixed(2) + '</div><div class="s">per CF per month, NJ + PA + CT, what was actually held</div></div>'
       + '<div class="kpi"><div class="l">Customer storage fees, 12 months</div><div class="v">' + moneyK(R.fees) + '</div><div class="s">contracted · the space earns this</div></div>'
       + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Own a facility, or keep renting — by state</span><span class="sp-sub">' + esc(winLabel) + ", per year · switch a state on to price a facility there; sizes and costs are the settings below</span></div>"
-      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Held in rented units</th><th class="num">Today: rented units</th>'
-      + '<th class="num">With a facility</th><th class="num">of it: overflow units</th><th class="num">Difference</th><th class="num">Facility fill: avg / peak</th><th class="num">Break-even rent</th></tr></thead><tbody>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Held in rented units</th><th class="num">Today: units + extra stops</th>'
+      + '<th class="num">With a facility</th><th class="num">of it: overflow</th><th class="num">Difference</th><th class="num">Facility fill: avg / peak</th><th class="num">Break-even rent</th></tr></thead><tbody>'
       + ZONES.map(function (z) {
           var o = R.zt[z], f = R.sc[z];
           if (!o) return "";
@@ -263,21 +283,23 @@
             + '<div class="sp-sub">' + Math.round(num(c["sqft" + z])).toLocaleString() + " sq ft · " + cf(f.cap) + " · " + money(f.fixedMo) + "/month"
             + (num(c["worker" + z]) ? " incl. a worker" : "") + "</div></td>"
             + '<td class="num">' + cf(o.avgRented) + '<div class="sp-sub">' + cf(o.minMonth) + " → " + cf(o.maxMonth) + "</div></td>"
-            + '<td class="num">' + money(f.today) + '<div class="sp-sub">$' + o.perCF.toFixed(2) + "/CF-month</div></td>"
+            + '<td class="num">' + money(f.today) + '<div class="sp-sub">units ' + money(f.units) + " ($" + o.perCF.toFixed(2) + "/CF-month) + "
+            + money(f.stops) + " for " + f.loads + " loads × 2 stops</div></td>"
             + '<td class="num">' + money(f.withFac) + "</td>"
-            + '<td class="num">' + (f.overflow ? money(f.overflow) + '<div class="sp-sub">' + f.monthsOver + " month" + (f.monthsOver === 1 ? "" : "s") + " over</div>" : "—") + "</td>"
+            + '<td class="num">' + (f.overflow ? money(f.overflow + f.stopsKept) + '<div class="sp-sub">' + f.monthsOver + " month" + (f.monthsOver === 1 ? "" : "s") + " over, stops incl.</div>" : "—") + "</td>"
             + '<td class="num">' + diff(f.withFac, f.today) + "</td>"
             + '<td class="num">' + pct(f.avgFill) + " / " + pct(f.peakFill) + "</td>"
             + '<td class="num">' + (f.breakEven > 0 ? money(f.breakEven) + "/mo" : "never") + "</td></tr>";
         }).join("")
-      + '<tr class="sp-tot"><td><b>All states</b><div class="sp-sub">switched-on states with a facility, the rest rented as today; Delaware (Tuji) and unplaced charges as they are</div></td><td></td>'
-      + '<td class="num"><b>' + money(R.A * R.perYear) + '</b></td><td class="num"><b>' + money(R.scenario) + "</b></td><td></td>"
-      + '<td class="num"><b>' + diff(R.scenario, R.A * R.perYear) + "</b></td><td></td><td></td></tr>"
+      + '<tr class="sp-tot"><td><b>All states</b><div class="sp-sub">switched-on states with a facility, the rest rented as today; the NJ base, Delaware (Tuji) and unplaced charges as they are</div></td><td></td>'
+      + '<td class="num"><b>' + money(R.todayAll) + '</b></td><td class="num"><b>' + money(R.scenario) + "</b></td><td></td>"
+      + '<td class="num"><b>' + diff(R.scenario, R.todayAll) + "</b></td><td></td><td></td></tr>"
       + "</tbody></table></div>"
-      + '<p class="sp-note"><b>How to read it.</b> "Today" is what that state\'s rented units cost over these months (the bank, after refunds). "With a facility" is its rent + worker + other costs every month, plus units still rented in any month the state holds more than the facility fits, at the state\'s own $/CF-month. '
+      + '<p class="sp-note"><b>How to read it.</b> "Today" is what that state\'s rented units cost over these months (the bank, after refunds) plus the <b>extra stops</b>: every load into a rented unit is a detour going in and again coming out for delivery, ' + money(R.perStop) + " a stop at the settings below (crew time + truck miles); at our own base the truck just comes home. "
+      + '"With a facility" is its rent + worker + other costs every month, plus units still rented in any month the state holds more than the facility fits, at the state\'s own $/CF-month, and those units\' stops. '
       + "<b>Break-even rent</b>: a facility of that size pays off only if its rent is below this (\"never\" = the worker and overflow alone already cost more than renting). "
-      + "<b>New Jersey</b>: our vaults sit in the main base (" + money(num(c.njBase)) + "/month, fixed) and the extra facility costs " + money(num(c.njExtra))
-      + "/month; dispatch runs storage, so there is no worker. Both stay as they are — the NJ row is about the units we still rent on top of them.</p></div>"
+      + "<b>New Jersey</b>: the main base (FLM Associates, " + money(R.base * R.perYear) + " a year on the bank) holds our vaults, the trucks and the office; dispatch runs storage, so there is no worker. "
+      + "It is in the totals and stays as it is — the NJ row is about the units we still rent on top of it.</p></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">How much we hold, zone by zone</span><span class="sp-sub">rented space only — our vaults hold their own</span></div>'
       + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zone</th><th class="num">Rented CF, average</th><th class="num">of it long-distance</th><th class="num">Quietest → busiest month</th><th class="num">Peak day</th><th class="num">Rent, 12 months</th><th class="num">$ per CF-month</th></tr></thead><tbody>'
       + ZONES.map(function (z) {
@@ -295,7 +317,7 @@
       + '<div class="sp-fields">' + Object.keys(DEF).filter(function (k) { return LABEL[k]; }).map(function (k) {
           return '<label class="sp-f"><span>' + esc(LABEL[k]) + '</span><input data-k="' + k + '" type="number" step="any" value="' + esc(String(c[k])) + '"></label>';
         }).join("") + "</div>"
-      + '<p class="sp-note"><b>Where the defaults come from.</b> A 2,000 sq ft space at about $18 per sq ft a year all-in (central NJ industrial asking ~$16, Colliers Q2 2026, plus taxes, insurance and the small-space premium) is $3,000 a month; vaults stacked 3 high hold ~11 CF per sq ft. A worker is one person, 40 hours a week at $20 (this year\'s crew pay). Power, insurance and the rest start at 0 — add yours. Rent data runs to the end of the bank sheet.</p></div>';
+      + '<p class="sp-note"><b>Where the defaults come from.</b> A 2,000 sq ft space at about $18 per sq ft a year all-in (central NJ industrial asking ~$16, Colliers Q2 2026, plus taxes, insurance and the small-space premium) is $3,000 a month; vaults stacked 3 high hold ~11 CF per sq ft. A worker is one person, 40 hours a week at $20 (this year\'s crew pay). Power, insurance and the rest start at 0 — add yours. An extra stop is a best guess — nobody can measure it: rented units sit a median 16–23 road miles from their base, so ~15 extra miles plus getting into a unit with no dock, about 45 minutes for a crew of 3 at ~$20/h; truck $1.11/mile is the portal\'s fuel + tolls figure. Rent data runs to the end of the bank sheet.</p></div>';
     el.innerHTML = '<div class="sp">' + html + "</div>";
     el.querySelectorAll("input[data-own]").forEach(function (inp) {
       inp.onchange = function () { var o = cfg(); o["own" + inp.dataset.own] = inp.checked ? 1 : 0; saveCfg(o); render(el); };

@@ -406,10 +406,12 @@ registerPage({
         + kpi(Math.round(cf).toLocaleString(), "Cubic feet held", "chargeable, on active items", "")
         + kpi(String(Object.keys(occ).length), "Vaults occupied", "our warehouse", "")
         + (function () {
+            // the NJ base (FLM Associates: vaults, trucks, office -- his word 2026-10-12) counts here
             var act = (S.fac || []).filter(function (f) { return f.Status === "active"; });
             var rate = act.reduce(function (a, f) { return a + (f["Monthly Run Rate"] || 0); }, 0);
-            return kpi(usd(rate) + "/mo", "Rent we are paying",
-              act.length + " facilities on the card feed", "");
+            var base = act.filter(isBase).reduce(function (a, f) { return a + (f["Monthly Run Rate"] || 0); }, 0);
+            return kpi(usd(rate) + "/mo", "Storage we are paying for",
+              (act.length - act.filter(isBase).length) + " rented facilities" + (base ? " + the NJ base " + usd(base) : ""), "");
           })()
         + kpi(usd(owed), "Balance outstanding", owed > 0 ? "on goods still with us" : "everyone is current",
               owed > 0 ? "neg" : "pos")
@@ -462,7 +464,7 @@ registerPage({
 
       // ---- rented facilities: seed geography + card-feed money + register occupancy ----
       if (S.kind !== "our") {
-        var facs = (S.fac || []).slice();
+        var facs = (S.fac || []).filter(function (f) { return !isBase(f); });   // our base is not a rented unit
         if (S.show === "active") facs = facs.filter(function (f) { return f.Status !== "closed"; });
         var itemsByFac = {};
         rentedActive.forEach(function (r) {
@@ -491,7 +493,7 @@ registerPage({
         var lastFeed = (S.fac || []).reduce(function (a, f) { return f["Last Charge"] && String(f["Last Charge"]) > a ? String(f["Last Charge"]) : a; }, "");
         var cutoff = lastFeed ? new Date(new Date(lastFeed.slice(0, 10)).getTime() - 45 * 864e5).toISOString().slice(0, 10) : "";
         var paying = (S.fac || []).filter(function (f) {
-          return f.Status !== "closed" && (f["Monthly Run Rate"] || 0) > 0 && String(f["Last Charge"] || "").slice(0, 10) >= cutoff;
+          return !isBase(f) && f.Status !== "closed" && (f["Monthly Run Rate"] || 0) > 0 && String(f["Last Charge"] || "").slice(0, 10) >= cutoff;
         });
         // long-distance goods in a unit: the board's Location Detail names the street address
         var ldIn = function (f) {
@@ -680,7 +682,7 @@ registerPage({
        Then: storage cost per job, and the charges no unit explains, each with the reason. */
     var MATCH_PILL = { "Sure": "ok", "Likely": "mute", "Guess": "warn", "No job found": "bad" };
     // charges tied to a unit, or outside the export's window -- not on the "no unit explains" list
-    var LINKED = { "First rent": 1, "Monthly": 1, "Add-on": 1, "Before the export": 1 };
+    var LINKED = { "First rent": 1, "Monthly": 1, "Add-on": 1, "Before the export": 1, "NJ base": 1 };
     var WHY = {
       "Possible double charge": "same amount, same store, same day as a charge already tied to a unit — check the statement",
       "No unit in the export": "rent-sized charges where the export has no unit open — ask dispatch which unit",
@@ -771,6 +773,7 @@ registerPage({
       return h;
     }
 
+    function isBase(f) { return f && f.Brand === "NJ BASE"; }
     function kpi(v, lab, sub, cls) {
       return '<div class="kpi ' + cls + '"><div class="l">' + esc(lab) + '</div><div class="v">'
         + esc(v) + '</div><div class="s">' + esc(sub) + "</div></div>";
