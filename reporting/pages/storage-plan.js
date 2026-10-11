@@ -6,25 +6,20 @@
 
    Facts: mart_storage_plan (src/storage_plan.py) -- CF held per zone per day (customers in our
    warehouse, customers in rented units, long-distance goods in rented units), self-storage rent per
-   zone per month, loads into storage per zone, and long-distance pickup miles to each candidate hub.
-   Names nothing. Everything below the facts is arithmetic on inputs that live in THIS browser
-   (localStorage), seeded with the October 2026 market check: large-unit web prices per area,
-   warehouse lease rates, our truck cost per mile and crew pay.
+   zone per month, and the rented units by zone x purpose. Names nothing.
 
-   Scenarios (his picks: both customer and long-distance storage, kept apart; market prices
-   researched; haul at our real costs; scenario E included):
-     A  as today -- what the rent actually cost over the last 12 months
-     B  one hub -- every rented CF in one place (CT by default), plus the extra haul from the
-        other zones, priced at our truck $/mile and crew $/hour
-     C  one zone per base (NJ / Philadelphia / CT): large units sized month by month to the CF
-        each zone held, plus a margin
-     D  C, but NJ's rented space replaced by a leased warehouse
-     E  C with a share of long-distance jobs given a carrier at pickup, so they never sit
-     F  as today, but SHORT HOLDS kept on the truck or in our warehouse (his pick 2026-10-10): A minus
-        what the units rented for a night or a few days on local moves cost -- only the ones NOT billed
-        to the customer (2026-10-11): a billed short hold earns more than its unit costs. Built on A, not C --
-        C never counts short holds (their goods are in neither the register nor the LD board), so
-        taking them off C would count the saving twice.
+   OWN A FACILITY OR KEEP RENTING -- BY STATE (his call 2026-10-11, replacing options A-F: "I don't
+   need this multiple options - I just need scenarios - we have X sized storage in PA - or we don't.
+   Same with CT"). Per state one switch: a facility of size X, or not.
+     - not:  what that state's rented units actually cost (the bank), month by month;
+     - with: the facility's monthly rent + a worker + other running costs, PLUS units still rented in
+             any month the state holds more than the facility fits, priced at that state's own real
+             $ per CF-month (rent / CF held over the same months).
+   NJ (his facts): our vaults sit in the main base, a fixed ~$6,000/month that exists anyway, and the
+   extra NJ facility (FLM Associates, $5,298/month on the bank) is on top; dispatch runs storage there,
+   so NJ needs no worker. The NJ row is about the units we STILL rent on top of both. A new PA or CT
+   facility would need a worker (default one person, 40 h x $20). Everything is this browser's
+   settings (localStorage).
 
    Rented units, why and where (his ask 2026-10-10, "which states use the most rental storages"):
    the `units` rows -- zone x purpose from dispatch's Public Storage export (fct_storage_unit).
@@ -41,26 +36,25 @@
       dateCols: {}, defaultDate: null,
     };
   }
-  var LS = "ztzStoragePlan.v1";
-  /* the October 2026 market check (web prices, Public Storage 10x30 online; Colliers / Matthews /
-     LPC industrial reports and listings) and the portal's own truck and crew figures */
+  var LS = "ztzStoragePlan.v2";   // v2 (2026-10-11): the A-F settings are gone, the per-state ones are new
+  /* defaults: a 2,000 sq ft space at ~$18/sq ft/year all-in (central NJ industrial asking ~$16, Colliers
+     Q2 2026, plus taxes / insurance / the small-space premium) = $3,000/month; vaults 3 high hold ~11 CF
+     per sq ft; a worker = one person, 40 h a week at $20 (this year's crew pay). Other running costs
+     (power, insurance, internet) start at 0 -- add yours. */
   var DEF = {
-    unitCF: 1800, slack: 15,
-    priceNJ: 290, pricePA: 285, priceCT: 286, priceDE: 294,
-    ourCapacity: 16500,
-    milePrice: 1.11, crewRate: 25, crewSize: 2, mph: 40,
-    hubB: "CT",
-    whRate: 18, whDensity: 11, whMinSqft: 2500,
-    ldDirect: 50,
+    ownNJ: 0, ownPA: 0, ownCT: 0,
+    sqftNJ: 2000, rentNJ: 3000, workerNJ: 0, otherNJ: 0,
+    sqftPA: 2000, rentPA: 3000, workerPA: 3460, otherPA: 0,
+    sqftCT: 2000, rentCT: 3000, workerCT: 3460, otherCT: 0,
+    density: 11,
+    njBase: 6000, njExtra: 5298,
   };
   var LABEL = {
-    unitCF: "Usable CF in one large unit (10x30)", slack: "Margin over the CF needed (%)",
-    priceNJ: "NJ: large unit $/month", pricePA: "PA: large unit $/month", priceCT: "CT: large unit $/month", priceDE: "DE: large unit $/month",
-    ourCapacity: "Our warehouse capacity (CF)",
-    milePrice: "Truck $ per mile", crewRate: "Crew $ per hour", crewSize: "People per haul", mph: "Average mph on a haul",
-    hubB: "B: where the one hub would be (NJ / PA / CT)",
-    whRate: "D: NJ warehouse $/sq ft/year, all-in", whDensity: "D: CF stored per sq ft (vaults)", whMinSqft: "D: smallest space you can lease (sq ft)",
-    ldDirect: "E: long-distance jobs given a carrier at pickup (%)",
+    sqftNJ: "NJ: facility size (sq ft)", rentNJ: "NJ: rent $/month", workerNJ: "NJ: worker $/month", otherNJ: "NJ: power, insurance, other $/month",
+    sqftPA: "PA: facility size (sq ft)", rentPA: "PA: rent $/month", workerPA: "PA: worker $/month", otherPA: "PA: power, insurance, other $/month",
+    sqftCT: "CT: facility size (sq ft)", rentCT: "CT: rent $/month", workerCT: "CT: worker $/month", otherCT: "CT: power, insurance, other $/month",
+    density: "CF stored per sq ft (vaults 3 high)",
+    njBase: "NJ main base rent $/month (vaults inside)", njExtra: "NJ extra facility (FLM) $/month",
   };
   var ZONES = ["NJ", "PA", "CT"];
   var ZONE_NAME = { NJ: "New Jersey (Tinton Falls)", PA: "Philadelphia", CT: "Connecticut (Bridgeport)", DE: "Delaware (Tuji)" };
@@ -129,64 +123,58 @@
       rentTot += num(r["Rent USD"]);
     });
     rent.forEach(function (r) { rentByMonth[r.Month] = (rentByMonth[r.Month] || 0) + num(r["Rent USD"]); });
-    var entries = {}; rows.filter(function (r) { return r.Kind === "entries"; }).forEach(function (r) { entries[r.Zone] = num(r.Jobs); });
-    var pick = {}; rows.filter(function (r) { return r.Kind === "pickup"; }).forEach(function (r) { pick[r.Zone] = r; });
 
-    var price = { NJ: num(c.priceNJ), PA: num(c.pricePA), CT: num(c.priceCT) };
-    var units = function (need) { return need > 0 ? Math.ceil(need * (1 + num(c.slack) / 100) / Math.max(1, num(c.unitCF))) : 0; };
     var get = function (m, z) { return M[m + "|" + z] || { our: 0, rent: 0, ld: 0, days: {}, peakRented: 0, peakAll: 0, fees: 0 }; };
+    var rentZM = {};
+    rent.forEach(function (r) { if (inWin[r.Month]) rentZM[r.Month + "|" + r.Zone] = (rentZM[r.Month + "|" + r.Zone] || 0) + num(r["Rent USD"]); });
+    var perYear = win.length ? 12 / win.length : 1;
 
-    // zone table + scenario C / E
-    var zt = {}, costC = 0, costE = 0, fees = 0;
+    // per zone: what it held in rented space, month by month, and what that rent cost
+    var zt = {}, fees = 0, heldAll = 0;
     ZONES.forEach(function (z) {
-      var o = { avgRented: 0, peakRented: 0, avgOur: 0, unitsMin: Infinity, unitsMax: 0, cost: 0, costE: 0, avgLD: 0 };
+      var o = { avgRented: 0, peakRented: 0, avgOur: 0, avgLD: 0, minMonth: Infinity, maxMonth: 0, held: {}, heldSum: 0, today: 0 };
       win.forEach(function (m) {
-        var g = get(m, z), n = dim(m);
-        o.avgRented += (g.rent + g.ld) / n / win.length;
+        var g = get(m, z), n = dim(m), h = (g.rent + g.ld) / n;
+        o.held[m] = h; o.heldSum += h;
+        o.avgRented += h / win.length;
         o.avgLD += g.ld / n / win.length;
         o.avgOur += g.our / n / win.length;
         o.peakRented = Math.max(o.peakRented, g.peakRented);
-        var u = units(g.peakRented); o.unitsMin = Math.min(o.unitsMin, u); o.unitsMax = Math.max(o.unitsMax, u);
-        o.cost += u * price[z];
-        // E: the long-distance share that never sits. The month's peak scales with its LD share.
-        var share = (g.rent + g.ld) ? g.ld / (g.rent + g.ld) : 0;
-        o.costE += units(g.peakRented * (1 - share * num(c.ldDirect) / 100)) * price[z];
+        o.minMonth = Math.min(o.minMonth, h); o.maxMonth = Math.max(o.maxMonth, h);
+        o.today += num(rentZM[m + "|" + z]);
         fees += g.fees;
       });
-      if (o.unitsMin === Infinity) o.unitsMin = 0;
-      zt[z] = o; costC += o.cost; costE += o.costE;
+      if (o.minMonth === Infinity) o.minMonth = 0;
+      // the state's own real price: rent / CF held over the same months ($ per CF-month)
+      o.perCF = o.heldSum ? o.today / o.heldSum : 0;
+      heldAll += o.heldSum;
+      zt[z] = o;
     });
-    // DE and anything unmapped stay as they are in every scenario: Tuji's own unit
+    // DE (Tuji) and anything unmapped stay as they are in every scenario
     var asIs = num(rentByZone.DE) + num(rentByZone.Unmapped);
-
-    // B: one hub
-    var H = String(c.hubB || "CT").toUpperCase(); if (ZONES.indexOf(H) < 0) H = "CT";
-    var costBUnits = 0;
-    win.forEach(function (m) {
-      var peak = 0; ZONES.forEach(function (z) { peak += get(m, z).peakRented; });
-      costBUnits += units(peak) * price[H];
-    });
-    var hubCol = { NJ: "Miles NJ", PA: "Miles PA", CT: "Miles CT2" };
-    var haul = 0, haulRows = [];
-    ZONES.forEach(function (z) {
-      if (z === H) return;
-      var p = pick[z]; if (!p) return;
-      var extra = Math.max(0, num(p[hubCol[H]]) - num(p[hubCol[z]]));
-      var trip = 2 * extra;                                    // there and back
-      var perLoad = trip * num(c.milePrice) + trip / Math.max(1, num(c.mph)) * num(c.crewRate) * num(c.crewSize);
-      var n = num(entries[z]);
-      haul += perLoad * n;
-      haulRows.push({ z: z, extra: extra, perLoad: perLoad, n: n });
-    });
-    var costB = costBUnits + haul;
-
-    // D: NJ in a leased warehouse, PA and CT as C
-    var njPeak = zt.NJ ? zt.NJ.peakRented : 0;
-    var sqft = Math.max(num(c.whMinSqft), Math.ceil(njPeak * (1 + num(c.slack) / 100) / Math.max(1, num(c.whDensity))));
-    var costD = sqft * num(c.whRate) + (zt.PA ? zt.PA.cost : 0) + (zt.CT ? zt.CT.cost : 0);
-
     var A = rentTot;
-    // F: as today, without the short holds (see the header for why it is built on A)
+
+    // OWN OR RENT, per state: with a facility = its fixed costs + units still rented when it is full
+    var sc = {};
+    ZONES.forEach(function (z) {
+      var o = zt[z], cap = num(c["sqft" + z]) * num(c.density);
+      var fixedMo = num(c["rent" + z]) + num(c["worker" + z]) + num(c["other" + z]);
+      var overflow = 0, over = 0, fillSum = 0;
+      win.forEach(function (m) {
+        var h = o.held[m] || 0, extra = Math.max(0, h - cap);
+        overflow += extra * o.perCF; if (extra > 0) over++;
+        fillSum += cap ? Math.min(h, cap) / cap : 0;
+      });
+      var today = o.today * perYear, withFac = (fixedMo * win.length + overflow) * perYear;
+      sc[z] = {
+        own: !!num(c["own" + z]), cap: cap, fixedMo: fixedMo, today: today, overflow: overflow * perYear, withFac: withFac,
+        avgFill: win.length ? fillSum / win.length : 0, peakFill: cap ? o.peakRented / cap : 0, monthsOver: over,
+        // the monthly rent at which the facility costs exactly what renting costs today
+        breakEven: win.length ? (o.today - overflow) / win.length - num(c["worker" + z]) - num(c["other" + z]) : 0,
+      };
+    });
+    var scenario = asIs * perYear + ZONES.reduce(function (a, z) { return a + (sc[z].own ? sc[z].withFac : sc[z].today); }, 0);
+
     var unitRows = rows.filter(function (r) { return r.Kind === "units"; });
     var shortRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, not billed"; });
     var billedRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, billed"; });
@@ -196,11 +184,9 @@
     return {
       unitRows: unitRows, shortPaid: shortPaid, shortUnits: shortUnits, unitsFrom: unitsFrom,
       billedUnits: billedRows.reduce(function (a, r) { return a + num(r.Units); }, 0),
-      F: unitRows.length ? A - shortPaid : null,
       win: win, rentWin: rentWin, M: M, get: get, dim: dim, peakDay: peakDay, peakCF: peakCF, rentByMonth: rentByMonth,
-      rentByZone: rentByZone, A: A, asIs: asIs, zt: zt, fees: fees, entries: entries, pick: pick,
-      B: costB + asIs, Bunits: costBUnits, haul: haul, haulRows: haulRows, H: H,
-      C: costC + asIs, D: costD + asIs, sqft: sqft, E: costE + asIs,
+      rentByZone: rentByZone, A: A, asIs: asIs, zt: zt, fees: fees, sc: sc, scenario: scenario, perYear: perYear,
+      perCFAll: heldAll ? (A - asIs) / heldAll : 0,
     };
   }
 
@@ -246,69 +232,74 @@
       + body + "</tbody></table></div>"
       + (R.shortUnits || R.billedUnits ? '<p class="sp-note"><b>Short holds:</b> ' + (R.shortUnits + R.billedUnits) + " units were rented for a night or a few days on local two-day moves — a month's rent plus a $22 fee each time. "
           + R.billedUnits + " were billed to the customer as storage (they earn more than the unit costs); the other " + R.shortUnits + " cost us " + money(R.shortPaid)
-          + " so far. Keeping those goods on the truck or in our warehouse is option F above.</p>" : "")
+          + " so far. Keeping those goods on the truck or in our warehouse saves that.</p>" : "")
       + '<p class="sp-note">Units opened before ' + esc(dayLong(R.unitsFrom)) + ", Extra Space units and Tuji's are not in the export; the rent rows above still count them.</p></div>";
   }
 
   /* ---------------- paint ---------------- */
   function render(el) {
     var c = cfg(), R = compute(c);
-    var avgRentedAll = ZONES.reduce(function (a, z) { return a + (R.zt[z] ? R.zt[z].avgRented : 0); }, 0);
-    var eff = avgRentedAll ? (R.A - R.asIs) / 12 / avgRentedAll : 0;
-    var row = function (k, name, cost, note, best) {
-      var d = cost - R.A;
-      return '<tr' + (best ? ' class="sp-best"' : "") + "><td><b>" + k + "</b> " + esc(name) + '<div class="sp-sub">' + note + "</div></td>"
-        + '<td class="num">' + money(cost) + "</td>"
-        + '<td class="num">' + (k === "A" ? "—" : (d < 0 ? "▼ " : "▲ ") + moneyK(Math.abs(d)) + " · " + Math.abs(R.A ? d / R.A * 100 : 0).toFixed(0) + "%") + "</td></tr>";
-    };
-    var best = Math.min(R.B, R.C, R.D, R.E, R.F == null ? Infinity : R.F);
     var winLabel = R.win.length ? ml(R.win[0]) + " – " + ml(R.win[R.win.length - 1]) : "";
     var rentLabel = R.rentWin.length ? ml(R.rentWin[0]) + " – " + ml(R.rentWin[R.rentWin.length - 1]) : "";
+    var diff = function (a, b) {
+      var d = a - b;
+      return Math.abs(d) < 1 ? "—" : '<span class="' + (d < 0 ? "sp-good" : "sp-bad") + '">' + (d < 0 ? "▼ " : "▲ ") + moneyK(Math.abs(d)) + "</span>";
+    };
+    var pct = function (v) { return Math.round(v * 100) + "%"; };
     var html = ''
       + '<div class="rs-kpis" style="--kpi-cols:4">'
-      + '<div class="kpi"><div class="l">Most stored at once</div><div class="v">' + cf(R.peakCF) + '</div><div class="s">' + esc(R.peakDay || "") + " · our warehouse holds ~" + cf(num(c.ourCapacity)) + "</div></div>"
-      + '<div class="kpi"><div class="l">Self-storage rent, last 12 months</div><div class="v">' + moneyK(R.A) + '</div><div class="s">' + esc(rentLabel) + "</div></div>"
-      + '<div class="kpi"><div class="l">What a stored CF costs us</div><div class="v">$' + eff.toFixed(2) + '</div><div class="s">per CF per month · large units cost ~$' + (num(c.priceNJ) / num(c.unitCF)).toFixed(2) + "</div></div>"
+      + '<div class="kpi"><div class="l">Most stored at once</div><div class="v">' + cf(R.peakCF) + '</div><div class="s">' + esc(R.peakDay || "") + " · rented units + our vaults</div></div>"
+      + '<div class="kpi"><div class="l">Self-storage rent, last 12 months</div><div class="v">' + moneyK(R.A) + '</div><div class="s">' + esc(rentLabel) + " · after refunds</div></div>"
+      + '<div class="kpi"><div class="l">What a rented CF costs us</div><div class="v">$' + R.perCFAll.toFixed(2) + '</div><div class="s">per CF per month, NJ + PA + CT, what was actually held</div></div>'
       + '<div class="kpi"><div class="l">Customer storage fees, 12 months</div><div class="v">' + moneyK(R.fees) + '</div><div class="s">contracted · the space earns this</div></div>'
       + "</div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">The options, per year</span><span class="sp-sub">' + esc(winLabel) + " sized month by month · prices are this browser's settings below</span></div>"
-      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Setup</th><th class="num">Per year</th><th class="num">Against today</th></tr></thead><tbody>'
-      + row("A", "As today", R.A, "what the self-storage charges actually cost (" + esc(rentLabel) + "), scattered over many sites", false)
-      + row("B", "One hub in " + R.H, R.B, money(R.Bunits) + " of units for everything in one place, plus <b>" + money(R.haul) + "</b> of extra hauling from the other zones (" + R.haulRows.map(function (h) { return h.n + " loads from " + h.z + " × " + Math.round(h.extra) + " extra mi"; }).join(", ") + ")", R.B === best)
-      + row("C", "One zone per base — NJ / Philadelphia / CT", R.C, "large units near each base, as many as each month's peak needs plus " + num(c.slack) + "%; filled before a new one is rented", R.C === best)
-      + row("D", "C, with NJ in a leased warehouse", R.D, Math.round(R.sqft).toLocaleString() + " sq ft × $" + num(c.whRate) + "/sq ft/yr for NJ (3-high vaults need a tall ceiling); PA and CT as C", R.D === best)
-      + row("E", "C, and " + num(c.ldDirect) + "% of long-distance jobs get a carrier at pickup", R.E, "those goods never sit; the rest as C", R.E === best)
-      + (R.F == null ? "" : row("F", "As today, short holds kept on the truck or in our warehouse", R.F,
-          R.shortUnits + " units rented for a night or a few days on local two-day moves since " + esc(dayLong(R.unitsFrom))
-          + ", not billed to the customer, cost <b>" + money(R.shortPaid) + "</b>; nothing else changes. Units before then are not in dispatch's export, so the real saving is larger", R.F === best))
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Own a facility, or keep renting — by state</span><span class="sp-sub">' + esc(winLabel) + ", per year · switch a state on to price a facility there; sizes and costs are the settings below</span></div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Held in rented units</th><th class="num">Today: rented units</th>'
+      + '<th class="num">With a facility</th><th class="num">of it: overflow units</th><th class="num">Difference</th><th class="num">Facility fill: avg / peak</th><th class="num">Break-even rent</th></tr></thead><tbody>'
+      + ZONES.map(function (z) {
+          var o = R.zt[z], f = R.sc[z];
+          if (!o) return "";
+          return '<tr' + (f.own ? ' class="sp-on"' : "") + '><td><label class="sp-sw"><input type="checkbox" data-own="' + z + '"' + (f.own ? " checked" : "") + "> <b>" + esc(ZONE_NAME[z]) + "</b></label>"
+            + '<div class="sp-sub">' + Math.round(num(c["sqft" + z])).toLocaleString() + " sq ft · " + cf(f.cap) + " · " + money(f.fixedMo) + "/month"
+            + (num(c["worker" + z]) ? " incl. a worker" : "") + "</div></td>"
+            + '<td class="num">' + cf(o.avgRented) + '<div class="sp-sub">' + cf(o.minMonth) + " → " + cf(o.maxMonth) + "</div></td>"
+            + '<td class="num">' + money(f.today) + '<div class="sp-sub">$' + o.perCF.toFixed(2) + "/CF-month</div></td>"
+            + '<td class="num">' + money(f.withFac) + "</td>"
+            + '<td class="num">' + (f.overflow ? money(f.overflow) + '<div class="sp-sub">' + f.monthsOver + " month" + (f.monthsOver === 1 ? "" : "s") + " over</div>" : "—") + "</td>"
+            + '<td class="num">' + diff(f.withFac, f.today) + "</td>"
+            + '<td class="num">' + pct(f.avgFill) + " / " + pct(f.peakFill) + "</td>"
+            + '<td class="num">' + (f.breakEven > 0 ? money(f.breakEven) + "/mo" : "never") + "</td></tr>";
+        }).join("")
+      + '<tr class="sp-tot"><td><b>All states</b><div class="sp-sub">switched-on states with a facility, the rest rented as today; Delaware (Tuji) and unplaced charges as they are</div></td><td></td>'
+      + '<td class="num"><b>' + money(R.A * R.perYear) + '</b></td><td class="num"><b>' + money(R.scenario) + "</b></td><td></td>"
+      + '<td class="num"><b>' + diff(R.scenario, R.A * R.perYear) + "</b></td><td></td><td></td></tr>"
       + "</tbody></table></div>"
-      + '<p class="sp-note">Every option keeps Tuji\'s Delaware unit and any unplaced charge as they are (' + money(R.asIs) + " a year). Hauling is the extra distance from a zone's long-distance pickups to the hub instead of their own base area, there and back, at " + "$" + num(c.milePrice) + "/mile and " + num(c.crewSize) + " people at $" + num(c.crewRate) + "/h.</p></div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">How big, zone by zone</span><span class="sp-sub">rented space only — our warehouse holds its own</span></div>'
-      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zone</th><th class="num">Rented CF, average</th><th class="num">of it long-distance</th><th class="num">Peak day</th><th class="num">Large units: quiet month → peak</th><th class="num">C: per year</th><th class="num">Today: rent 12 months</th></tr></thead><tbody>'
+      + '<p class="sp-note"><b>How to read it.</b> "Today" is what that state\'s rented units cost over these months (the bank, after refunds). "With a facility" is its rent + worker + other costs every month, plus units still rented in any month the state holds more than the facility fits, at the state\'s own $/CF-month. '
+      + "<b>Break-even rent</b>: a facility of that size pays off only if its rent is below this (\"never\" = the worker and overflow alone already cost more than renting). "
+      + "<b>New Jersey</b>: our vaults sit in the main base (" + money(num(c.njBase)) + "/month, fixed) and the extra facility costs " + money(num(c.njExtra))
+      + "/month; dispatch runs storage, so there is no worker. Both stay as they are — the NJ row is about the units we still rent on top of them.</p></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">How much we hold, zone by zone</span><span class="sp-sub">rented space only — our vaults hold their own</span></div>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zone</th><th class="num">Rented CF, average</th><th class="num">of it long-distance</th><th class="num">Quietest → busiest month</th><th class="num">Peak day</th><th class="num">Rent, 12 months</th><th class="num">$ per CF-month</th></tr></thead><tbody>'
       + ZONES.map(function (z) {
           var o = R.zt[z]; if (!o) return "";
           return "<tr><td><b>" + esc(ZONE_NAME[z]) + "</b></td><td class=\"num\">" + cf(o.avgRented) + "</td><td class=\"num\">" + cf(o.avgLD) + "</td>"
-            + '<td class="num">' + cf(o.peakRented) + "</td><td class=\"num\">" + o.unitsMin + " → " + o.unitsMax + "</td>"
-            + '<td class="num">' + money(o.cost) + "</td><td class=\"num\">" + money(num(R.rentByZone[z])) + "</td></tr>";
+            + '<td class="num">' + cf(o.minMonth) + " → " + cf(o.maxMonth) + "</td>"
+            + '<td class="num">' + cf(o.peakRented) + "</td><td class=\"num\">" + money(num(R.rentByZone[z])) + "</td>"
+            + '<td class="num">$' + o.perCF.toFixed(2) + "</td></tr>";
         }).join("")
       + "</tbody></table></div></div>"
       + unitsPanel(R)
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Month by month — what we held</span></div><div class="chartbox" style="height:300px"><canvas id="spChart"></canvas></div>'
-      + '<p class="sp-note">Bars: average CF on hand (our warehouse, customers in rented units, long-distance goods in rented units). Line: self-storage rent that month.</p></div>'
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">How far a hub is</span><span class="sp-sub">average miles from each zone\'s long-distance pickups (last 12 months), straight line × 1.25</span></div>'
-      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Pickups in</th><th class="num">Pickups</th><th class="num">Loads into storage</th><th class="num">to Tinton Falls NJ</th><th class="num">to NE Philadelphia</th><th class="num">to Bridgeport CT</th><th class="num">to Meriden CT</th></tr></thead><tbody>'
-      + ["NJ", "PA", "CT", "DE"].map(function (z) {
-          var p = R.pick[z]; if (!p) return "";
-          var m = function (v) { return v == null ? "—" : Math.round(v) + " mi"; };
-          return "<tr><td><b>" + z + "</b></td><td class=\"num\">" + num(p.Jobs) + "</td><td class=\"num\">" + num(R.entries[z]) + "</td><td class=\"num\">" + m(p["Miles NJ"]) + "</td><td class=\"num\">" + m(p["Miles PA"]) + "</td><td class=\"num\">" + m(p["Miles CT2"]) + "</td><td class=\"num\">" + m(p["Miles CT"]) + "</td></tr>";
-        }).join("")
-      + "</tbody></table></div></div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Settings</span><span class="sp-sub">kept in this browser · seeded with the October 2026 market check</span><span class="spacer"></span><button class="btn" id="spReset">Back to the defaults</button></div>'
-      + '<div class="sp-fields">' + Object.keys(DEF).map(function (k) {
-          return '<label class="sp-f"><span>' + esc(LABEL[k]) + '</span><input data-k="' + k + '" type="' + (k === "hubB" ? "text" : "number") + '" step="any" value="' + esc(String(c[k])) + '"></label>';
+      + '<p class="sp-note">Bars: average CF on hand (our vaults, customers in rented units, long-distance goods in rented units). Line: self-storage rent that month.</p></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Settings</span><span class="sp-sub">kept in this browser</span><span class="spacer"></span><button class="btn" id="spReset">Back to the defaults</button></div>'
+      + '<div class="sp-fields">' + Object.keys(DEF).filter(function (k) { return LABEL[k]; }).map(function (k) {
+          return '<label class="sp-f"><span>' + esc(LABEL[k]) + '</span><input data-k="' + k + '" type="number" step="any" value="' + esc(String(c[k])) + '"></label>';
         }).join("") + "</div>"
-      + '<p class="sp-note"><b>Where the defaults come from.</b> Large units: Public Storage 10x30 web prices in each area, Oct 2026 ($252–308 around Tinton Falls, $268–285 NE Philadelphia, ~$286 Meriden, ~$294 New Castle); ~1,800 of a 10x30\'s 2,400 CF is usable when packed. Warehouse: central NJ industrial asking rent ~$16/sq ft/yr (Colliers Q2 2026) plus taxes, insurance and the small-space premium ≈ $18 all-in; vaults stacked 3 high hold ~11 CF per sq ft. Truck $1.11/mile is the portal\'s fuel + tolls figure; crew $25/h is this year\'s average pay. Long-distance CF is known for few board rows — a missing one counts 450 CF; rent data runs to the end of the bank sheet.</p></div>';
+      + '<p class="sp-note"><b>Where the defaults come from.</b> A 2,000 sq ft space at about $18 per sq ft a year all-in (central NJ industrial asking ~$16, Colliers Q2 2026, plus taxes, insurance and the small-space premium) is $3,000 a month; vaults stacked 3 high hold ~11 CF per sq ft. A worker is one person, 40 hours a week at $20 (this year\'s crew pay). Power, insurance and the rest start at 0 — add yours. Rent data runs to the end of the bank sheet.</p></div>';
     el.innerHTML = '<div class="sp">' + html + "</div>";
+    el.querySelectorAll("input[data-own]").forEach(function (inp) {
+      inp.onchange = function () { var o = cfg(); o["own" + inp.dataset.own] = inp.checked ? 1 : 0; saveCfg(o); render(el); };
+    });
     el.querySelectorAll("input[data-k]").forEach(function (inp) {
       inp.onchange = function () {
         var o = cfg(); o[inp.dataset.k] = inp.type === "number" ? (inp.value === "" ? "" : +inp.value) : inp.value;
@@ -325,7 +316,7 @@
       if (canvas._ch) canvas._ch.destroy();
       canvas._ch = new Chart(canvas, {
         data: { labels: months.map(ml), datasets: [
-          { type: "bar", label: "Our warehouse", data: months.map(function (m) { return Math.round(sum(m, "our")); }), backgroundColor: v2 ? RS.V2.navy : "#4a6285", stack: "s", yAxisID: "y" },
+          { type: "bar", label: "Our vaults", data: months.map(function (m) { return Math.round(sum(m, "our")); }), backgroundColor: v2 ? RS.V2.navy : "#4a6285", stack: "s", yAxisID: "y" },
           { type: "bar", label: "Customers in rented units", data: months.map(function (m) { return Math.round(sum(m, "rent")); }), backgroundColor: v2 ? RS.V2.accentL : "#84aef0", stack: "s", yAxisID: "y" },
           { type: "bar", label: "Long-distance in rented units", data: months.map(function (m) { return Math.round(sum(m, "ld")); }), backgroundColor: v2 ? RS.V2.cat[4] : "#a78bfa", stack: "s", yAxisID: "y" },
           { type: "line", label: "Rent $", data: months.map(function (m) { return R.rentByMonth[m] != null ? Math.round(R.rentByMonth[m]) : null; }), borderColor: v2 ? RS.V2.warn : "#fbbf24", backgroundColor: "transparent", yAxisID: "y2", tension: 0.2, spanGaps: false },
@@ -342,7 +333,10 @@
     var s = document.createElement("style"); s.id = "sp-css";
     s.textContent = ".sp-sub{font-size:12.5px;color:var(--faint);font-weight:400}"
       + ".sp-note{font-size:12.5px;color:var(--muted);line-height:1.55;margin:10px 0 0;max-width:120ch}"
-      + ".sp tr.sp-best td{background:var(--pos-bg)}"
+      + ".sp tr.sp-on td{background:var(--panel2,#F8FAFC)}"
+      + ".sp tr.sp-tot td{border-top:2px solid var(--line-2)}"
+      + ".sp-good{color:var(--pos);font-weight:600}.sp-bad{color:var(--neg);font-weight:600}"
+      + ".sp-sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer}"
       + ".sp tr.sp-unitz td{background:var(--panel2,#F8FAFC);border-top:1px solid var(--line-2)}"
       + ".sp-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}"
       + ".sp-f{display:flex;flex-direction:column;gap:5px}.sp-f span{font-size:12.5px;color:var(--muted)}"
