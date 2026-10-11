@@ -527,7 +527,11 @@ registerPage({
         });
         work.slice().sort(function (x, y) { return (x.fill == null ? 9 : x.fill) - (y.fill == null ? 9 : y.fill); }).forEach(function (w) {
           if (w.f.State === "DE" && !w.items) { w.act = "Tuji's unit"; w.why = "Tuji keeps no register here — ask them what it holds"; w.cls = "mute"; }
-          else if (!w.items && w.rate) { w.act = "Check, then close"; w.why = "no customer or long-distance goods on record here"; w.cls = "bad"; }
+          else if (!w.items && w.rate) {
+            w.act = "Check, then close"; w.cls = "bad";
+            w.why = "no customer or long-distance goods on record here"
+              + (w.f["First Charge"] ? " — paying since " + dayLab(w.f["First Charge"]) + (w.f["Paid Total"] ? ", " + usd(w.f["Paid Total"]) + " so far" : "") : "");
+          }
           else if (w.fill != null && w.fill < 0.4 && anchor.has(w)) {
             w.act = "Gather here"; w.cls = "ok";
             w.why = Math.round(w.fill * 100) + "% full — the unit in " + (w.f.State || "this state") + " holding the most; move the others into it";
@@ -548,9 +552,12 @@ registerPage({
         work.sort(function (x, y) { return y.idle - x.idle; });
         var idleTot = work.reduce(function (a, w) { return a + w.idle; }, 0);
         var toFix = work.filter(function (w) { return w.act === "Check, then close" || w.act === "Merge & close"; });
+        var toCheck = work.filter(function (w) { return w.act === "Check, then close"; });
+        var checkRate = toCheck.reduce(function (a, w) { return a + w.rate; }, 0);
         if (work.length) {
           html += '<div class="stc-h2">Consolidation worklist \u00b7 <b>' + toFix.length + " of " + work.length
-            + " units to act on</b>" + ' <span class="note">\u2014 about <b>' + usd(idleTot) + "/mo</b> of rent pays for empty space. "
+            + " units to act on</b>" + ' <span class="note">\u2014 about <b>' + usd(idleTot) + "/mo</b> of rent pays for empty space"
+            + (toCheck.length ? "; " + toCheck.length + " unit" + (toCheck.length === 1 ? "" : "s") + " with nothing recorded inside cost <b>" + usd(checkRate) + "/mo</b>" : "") + ". "
             + "Units charged in the last 45 days; long-distance goods counted from the Long Distance board (450 CF where a job has none).</span></div>"
             + '<div class="rs-tablewrap stc-work"><table class="rs-table"><thead><tr><th>Unit</th><th>State</th><th class="num">Rent / mo</th>'
             + '<th class="num">Holds</th><th class="num">Size</th><th class="num">Empty space / mo</th><th>Do</th></tr></thead><tbody>'
@@ -672,6 +679,8 @@ registerPage({
        tax), monthly rent in the first week of each month. Weak matches count, flagged (his pick).
        Then: storage cost per job, and the charges no unit explains, each with the reason. */
     var MATCH_PILL = { "Sure": "ok", "Likely": "mute", "Guess": "warn", "No job found": "bad" };
+    // charges tied to a unit, or outside the export's window -- not on the "no unit explains" list
+    var LINKED = { "First rent": 1, "Monthly": 1, "Add-on": 1, "Before the export": 1 };
     var WHY = {
       "Possible double charge": "same amount, same store, same day as a charge already tied to a unit — check the statement",
       "No unit in the export": "rent-sized charges where the export has no unit open — ask dispatch which unit",
@@ -693,7 +702,7 @@ registerPage({
       }).sort(function (a, b) { return String(b.Opened || "").localeCompare(String(a.Opened || "")); });
       var h = '<div class="stc-h2">Rented units · <b>' + U.length + " opened since " + dayLab(from) + ", " + open.length + " open now</b>"
         + ' <span class="note">— dispatch’s Public Storage export. “Paid” is what the card feed shows for each unit, through '
-        + dayLab(through) + "; Guess and No-job-found matches count, flagged.</span></div>";
+        + dayLab(through) + ", net of refunds; Guess and No-job-found matches count, flagged.</span></div>";
       h += list.length
         ? '<div class="rs-tablewrap stc-units" style="max-height:52vh"><table class="rs-table"><thead><tr>'
           + '<th>Unit</th><th>Facility</th><th>Customer</th><th>Job</th><th>Opened</th><th class="num">Months</th>'
@@ -740,7 +749,7 @@ registerPage({
       // the charges no unit explains, each kind with its reason -- the list to ask dispatch about
       var why = {}, n = 0, amt = 0;
       (S.rent || []).forEach(function (r) {
-        if (!r.Link || !WHY[r.Link]) return;
+        if (!r.Link || LINKED[r.Link] || /^Refund/.test(r.Link)) return;
         var o = why[r.Link] = why[r.Link] || { n: 0, amt: 0, rows: [] };
         o.n++; o.amt += r.Amount || 0; o.rows.push(r); n++; amt += r.Amount || 0;
       });
@@ -748,10 +757,10 @@ registerPage({
         h += '<div class="stc-h2">Charges no unit explains · <b>' + n + " since " + dayLab(from) + " · " + usd(amt) + "</b>"
           + ' <span class="note">— open a line for the charges</span></div>'
           + '<div class="panel rs-noanim stc-why2">'
-          + Object.keys(WHY).filter(function (k) { return why[k]; }).map(function (k) {
+          + Object.keys(why).sort(function (a, b) { return why[b].amt - why[a].amt; }).map(function (k) {
               var o = why[k];
               return "<details><summary><b>" + esc(k) + "</b> · " + o.n + " charge" + (o.n === 1 ? "" : "s") + " · " + usd(o.amt)
-                + ' <span class="stc-sz">' + esc(WHY[k]) + "</span></summary>"
+                + ' <span class="stc-sz">' + esc(WHY[k] || (/not in the export/.test(k) ? "another brand — the export is Public Storage only" : "")) + "</span></summary>"
                 + '<table class="rs-table"><tbody>'
                 + o.rows.sort(function (a, b) { return String(b.Date).localeCompare(String(a.Date)); }).map(function (r) {
                     return "<tr><td>" + dayLab(r.Date) + "</td><td>" + esc((r.Brand || "") + " " + (r.Store || "")) + "</td><td>"

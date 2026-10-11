@@ -21,7 +21,8 @@
      D  C, but NJ's rented space replaced by a leased warehouse
      E  C with a share of long-distance jobs given a carrier at pickup, so they never sit
      F  as today, but SHORT HOLDS kept on the truck or in our warehouse (his pick 2026-10-10): A minus
-        what the units rented for a night or a few days on local moves cost. Built on A, not C --
+        what the units rented for a night or a few days on local moves cost -- only the ones NOT billed
+        to the customer (2026-10-11): a billed short hold earns more than its unit costs. Built on A, not C --
         C never counts short holds (their goods are in neither the register nor the LD board), so
         taking them off C would count the saving twice.
 
@@ -187,12 +188,14 @@
     var A = rentTot;
     // F: as today, without the short holds (see the header for why it is built on A)
     var unitRows = rows.filter(function (r) { return r.Kind === "units"; });
-    var shortRows = unitRows.filter(function (r) { return r.Purpose === "Short hold"; });
+    var shortRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, not billed"; });
+    var billedRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, billed"; });
     var shortPaid = shortRows.reduce(function (a, r) { return a + num(r["Rent USD"]); }, 0);
     var shortUnits = shortRows.reduce(function (a, r) { return a + num(r.Units); }, 0);
     var unitsFrom = unitRows.length ? String(unitRows[0].Day || "").slice(0, 10) : "";
     return {
       unitRows: unitRows, shortPaid: shortPaid, shortUnits: shortUnits, unitsFrom: unitsFrom,
+      billedUnits: billedRows.reduce(function (a, r) { return a + num(r.Units); }, 0),
       F: unitRows.length ? A - shortPaid : null,
       win: win, rentWin: rentWin, M: M, get: get, dim: dim, peakDay: peakDay, peakCF: peakCF, rentByMonth: rentByMonth,
       rentByZone: rentByZone, A: A, asIs: asIs, zt: zt, fees: fees, entries: entries, pick: pick,
@@ -203,10 +206,11 @@
 
   /* RENTED UNITS -- why and where (his ask 2026-10-10: "which states uses the most rental storages").
      Zone x purpose from dispatch's Public Storage export; no names (this tab is for everyone). */
-  var PURPOSES = ["Customer storage", "Short hold", "Long distance", "No job"];
+  var PURPOSES = ["Customer storage", "Short hold, not billed", "Short hold, billed", "Long distance", "No job"];
   var PURPOSE_NOTE = {
     "Customer storage": "a customer's goods, weeks or more",
-    "Short hold": "a night or a few on a local two-day move",
+    "Short hold, not billed": "a night or a few on a local two-day move — our cost",
+    "Short hold, billed": "a night or a few, charged to the customer as storage",
     "Long distance": "waiting for delivery",
     "No job": "no job found for the unit",
   };
@@ -240,8 +244,9 @@
       + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Zone</th><th>Why</th><th class="num">Units</th><th class="num">Open now</th>'
       + '<th class="num">Months held (median)</th><th class="num">Paid</th><th class="num">First rent (avg)</th></tr></thead><tbody>'
       + body + "</tbody></table></div>"
-      + (R.shortUnits ? '<p class="sp-note"><b>Short holds:</b> ' + R.shortUnits + " units were rented for a night or a few days on local two-day moves — a month's rent plus a $22 fee each time, "
-          + money(R.shortPaid) + " so far. Keeping those goods on the truck or in our warehouse is option F above.</p>" : "")
+      + (R.shortUnits || R.billedUnits ? '<p class="sp-note"><b>Short holds:</b> ' + (R.shortUnits + R.billedUnits) + " units were rented for a night or a few days on local two-day moves — a month's rent plus a $22 fee each time. "
+          + R.billedUnits + " were billed to the customer as storage (they earn more than the unit costs); the other " + R.shortUnits + " cost us " + money(R.shortPaid)
+          + " so far. Keeping those goods on the truck or in our warehouse is option F above.</p>" : "")
       + '<p class="sp-note">Units opened before ' + esc(dayLong(R.unitsFrom)) + ", Extra Space units and Tuji's are not in the export; the rent rows above still count them.</p></div>";
   }
 
@@ -275,7 +280,7 @@
       + row("E", "C, and " + num(c.ldDirect) + "% of long-distance jobs get a carrier at pickup", R.E, "those goods never sit; the rest as C", R.E === best)
       + (R.F == null ? "" : row("F", "As today, short holds kept on the truck or in our warehouse", R.F,
           R.shortUnits + " units rented for a night or a few days on local two-day moves since " + esc(dayLong(R.unitsFrom))
-          + " cost <b>" + money(R.shortPaid) + "</b>; nothing else changes. Units before then are not in dispatch's export, so the real saving is larger", R.F === best))
+          + ", not billed to the customer, cost <b>" + money(R.shortPaid) + "</b>; nothing else changes. Units before then are not in dispatch's export, so the real saving is larger", R.F === best))
       + "</tbody></table></div>"
       + '<p class="sp-note">Every option keeps Tuji\'s Delaware unit and any unplaced charge as they are (' + money(R.asIs) + " a year). Hauling is the extra distance from a zone's long-distance pickups to the hub instead of their own base area, there and back, at " + "$" + num(c.milePrice) + "/mile and " + num(c.crewSize) + " people at $" + num(c.crewRate) + "/h.</p></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">How big, zone by zone</span><span class="sp-sub">rented space only — our warehouse holds its own</span></div>'
