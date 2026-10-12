@@ -28,6 +28,10 @@
    unit with no dock), crew 3 at $20, truck $1.11 a mile. A facility at the base saves the stops
    for everything it holds; overflow units keep theirs. Everything is this browser's settings.
 
+   WHERE THE STORAGE MONEY GOES (his pick 2026-10-12): spend by calendar year since 2024 and the last 12
+   months -- rented units (Public Storage, Extra Space, Gap), the NJ base, Tuji's Delaware unit, and the
+   extra stops (loads per year from the mart's `loadsy` rows x 2 x the stop cost in the settings).
+
    Rented units, why and where (his ask 2026-10-10, "which states use the most rental storages"):
    the `units` rows -- zone x purpose from dispatch's Public Storage export (fct_storage_unit).
 
@@ -194,6 +198,27 @@
     var scenario = asIs * perYear + ZONES.reduce(function (a, z) { return a + (sc[z].own ? sc[z].withFac : sc[z].today); }, 0);
     var todayAll = asIs * perYear + ZONES.reduce(function (a, z) { return a + sc[z].today; }, 0);
 
+    // WHERE THE MONEY GOES: calendar years since 2024, this year to date, and the last 12 months
+    var UNIT_ZONES = { NJ: 1, PA: 1, CT: 1, Unmapped: 1 };
+    var bucket = function () { return { units: 0, base: 0, tuji: 0, stops: 0, months: {} }; };
+    var years = {}, last12 = bucket();
+    rent.forEach(function (r) {
+      var y = String(r.Month).slice(0, 4), b = years[y] = years[y] || bucket(), v = num(r["Rent USD"]);
+      var k = r.Zone === "NJBASE" ? "base" : r.Zone === "DE" ? "tuji" : UNIT_ZONES[r.Zone] ? "units" : null;
+      if (!k) return;
+      b[k] += v; b.months[r.Month] = 1;
+      if (rentWin.indexOf(r.Month) >= 0) last12[k] += v;
+    });
+    rows.filter(function (r) { return r.Kind === "loadsy" && UNIT_ZONES[r.Zone]; }).forEach(function (r) {
+      if (years[r.Month]) years[r.Month].stops += num(r.Jobs) * STOPS_PER_LOAD * perStop;
+    });
+    ZONES.forEach(function (z) { last12.stops += sc[z].stops; });
+    var spend = Object.keys(years).sort().filter(function (y) { return y >= "2024"; }).map(function (y) {
+      var ms = Object.keys(years[y].months).sort();
+      return Object.assign(years[y], { label: ms.length >= 12 ? y : ml(ms[0]) + " – " + ml(ms[ms.length - 1]) });
+    });
+    spend.push(Object.assign(last12, { label: "Last 12 months", last: true }));
+
     var unitRows = rows.filter(function (r) { return r.Kind === "units"; });
     var shortRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, not billed"; });
     var billedRows = unitRows.filter(function (r) { return r.Purpose === "Short hold, billed"; });
@@ -205,7 +230,7 @@
       billedUnits: billedRows.reduce(function (a, r) { return a + num(r.Units); }, 0),
       win: win, rentWin: rentWin, M: M, get: get, dim: dim, peakDay: peakDay, peakCF: peakCF, rentByMonth: rentByMonth,
       rentByZone: rentByZone, A: A, asIs: asIs, base: base, zt: zt, fees: fees, sc: sc, scenario: scenario, todayAll: todayAll,
-      perYear: perYear, perStop: perStop,
+      perYear: perYear, perStop: perStop, spend: spend,
       perCFAll: heldAll ? (A - asIs) / heldAll : 0,
     };
   }
@@ -256,6 +281,27 @@
       + '<p class="sp-note">Units opened before ' + esc(dayLong(R.unitsFrom)) + ", Extra Space units and Tuji's are not in the export; the rent rows above still count them.</p></div>";
   }
 
+  function spendPanel(R) {
+    if (!R.spend.length) return "";
+    var tot = function (b) { return b.units + b.base + b.tuji + b.stops; };
+    var line = function (lab, sub, k, strong) {
+      return "<tr" + (strong ? ' class="sp-tot"' : "") + "><td>" + (strong ? "<b>" + lab + "</b>" : lab) + (sub ? '<div class="sp-sub">' + sub + "</div>" : "") + "</td>"
+        + R.spend.map(function (b) {
+            var v = k ? b[k] : tot(b);
+            return '<td class="num' + (b.last ? " sp-last" : "") + '">' + (strong ? "<b>" + money(v) + "</b>" : money(v)) + "</td>";
+          }).join("") + "</tr>";
+    };
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Where the storage money goes</span><span class="sp-sub">from the bank, after refunds · calendar years and the last 12 months</span></div>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th></th>'
+      + R.spend.map(function (b) { return '<th class="num' + (b.last ? " sp-last" : "") + '">' + esc(b.label) + "</th>"; }).join("") + "</tr></thead><tbody>"
+      + line("Rented units", "Public Storage, Extra Space, Gap Self Storage", "units")
+      + line("NJ base", "FLM Associates — vaults, trucks, office", "base")
+      + line("Tuji's unit", "Delaware, on Tuji's card", "tuji")
+      + line("Extra stops at rented units", "crew time + truck miles, " + money(R.perStop) + " a stop (settings) — an estimate", "stops")
+      + line("Total", "", null, true)
+      + "</tbody></table></div></div>";
+  }
+
   /* ---------------- paint ---------------- */
   function render(el) {
     var c = cfg(), R = compute(c);
@@ -273,6 +319,7 @@
       + '<div class="kpi"><div class="l">What a rented CF costs us</div><div class="v">$' + R.perCFAll.toFixed(2) + '</div><div class="s">per CF per month, NJ + PA + CT, what was actually held</div></div>'
       + '<div class="kpi"><div class="l">Customer storage fees, 12 months</div><div class="v">' + moneyK(R.fees) + '</div><div class="s">contracted · the space earns this</div></div>'
       + "</div>"
+      + spendPanel(R)
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Own a facility, or keep renting — by state</span><span class="sp-sub">' + esc(winLabel) + ", per year · switch a state on to price a facility there; sizes and costs are the settings below</span></div>"
       + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Held in rented units</th><th class="num">Today: units + extra stops</th>'
       + '<th class="num">With a facility</th><th class="num">of it: overflow</th><th class="num">Difference</th><th class="num">Facility fill: avg / peak</th><th class="num">Break-even rent</th></tr></thead><tbody>'
@@ -312,7 +359,7 @@
       + "</tbody></table></div></div>"
       + unitsPanel(R)
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Month by month — what we held</span></div><div class="chartbox" style="height:300px"><canvas id="spChart"></canvas></div>'
-      + '<p class="sp-note">Bars: average CF on hand (our vaults, customers in rented units, long-distance goods in rented units). Line: self-storage rent that month.</p></div>'
+      + '<p class="sp-note">Bars: average CF on hand (our vaults, customers in rented units, long-distance goods in rented units). Line: storage spend that month — rented units, the NJ base and Tuji\'s unit.</p></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Settings</span><span class="sp-sub">kept in this browser</span><span class="spacer"></span><button class="btn" id="spReset">Back to the defaults</button></div>'
       + '<div class="sp-fields">' + Object.keys(DEF).filter(function (k) { return LABEL[k]; }).map(function (k) {
           return '<label class="sp-f"><span>' + esc(LABEL[k]) + '</span><input data-k="' + k + '" type="number" step="any" value="' + esc(String(c[k])) + '"></label>';
@@ -341,7 +388,7 @@
           { type: "bar", label: "Our vaults", data: months.map(function (m) { return Math.round(sum(m, "our")); }), backgroundColor: v2 ? RS.V2.navy : "#4a6285", stack: "s", yAxisID: "y" },
           { type: "bar", label: "Customers in rented units", data: months.map(function (m) { return Math.round(sum(m, "rent")); }), backgroundColor: v2 ? RS.V2.accentL : "#84aef0", stack: "s", yAxisID: "y" },
           { type: "bar", label: "Long-distance in rented units", data: months.map(function (m) { return Math.round(sum(m, "ld")); }), backgroundColor: v2 ? RS.V2.cat[4] : "#a78bfa", stack: "s", yAxisID: "y" },
-          { type: "line", label: "Rent $", data: months.map(function (m) { return R.rentByMonth[m] != null ? Math.round(R.rentByMonth[m]) : null; }), borderColor: v2 ? RS.V2.warn : "#fbbf24", backgroundColor: "transparent", yAxisID: "y2", tension: 0.2, spanGaps: false },
+          { type: "line", label: "Storage spend $", data: months.map(function (m) { return R.rentByMonth[m] != null ? Math.round(R.rentByMonth[m]) : null; }), borderColor: v2 ? RS.V2.warn : "#fbbf24", backgroundColor: "transparent", yAxisID: "y2", tension: 0.2, spanGaps: false },
         ] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } },
           scales: { y: { stacked: true, ticks: { callback: function (v) { return Math.round(v / 1000) + "k CF"; } } },
@@ -357,6 +404,7 @@
       + ".sp-note{font-size:12.5px;color:var(--muted);line-height:1.55;margin:10px 0 0;max-width:120ch}"
       + ".sp tr.sp-on td{background:var(--panel2,#F8FAFC)}"
       + ".sp tr.sp-tot td{border-top:2px solid var(--line-2)}"
+      + ".sp td.sp-last,.sp th.sp-last{background:var(--panel2,#F8FAFC)}"
       + ".sp-good{color:var(--pos);font-weight:600}.sp-bad{color:var(--neg);font-weight:600}"
       + ".sp-sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer}"
       + ".sp tr.sp-unitz td{background:var(--panel2,#F8FAFC);border-top:1px solid var(--line-2)}"
