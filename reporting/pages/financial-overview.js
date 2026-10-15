@@ -101,6 +101,10 @@ registerPage({
         ".fo .fo-grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}",
         "@media (max-width:980px){.fo .fo-grid2{grid-template-columns:minmax(0,1fr)}}",
         ".fo .panel{margin-bottom:14px}",
+        // what a panel cannot follow while the Filters panel is on (2026-10-15)
+        ".fo .fo-nf{margin:8px 0 0;padding:8px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);"
+          + "font-size:12.5px;line-height:1.5}",
+        ".fo .fo-nf b{color:var(--ink);font-weight:700}",
         ".fo .fo-proj{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:4px 0 10px}",
         ".fo .fo-proj .fo-pv{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}",
         ".fo .fo-proj .fo-pl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
@@ -186,7 +190,59 @@ registerPage({
     }
     const lo = (arr, v) => { let a = 0, b = arr.length; while (a < b) { const m = (a + b) >> 1; if (arr[m] < v) a = m + 1; else b = m; } return a; };
     const hi = (arr, v) => { let a = 0, b = arr.length; while (a < b) { const m = (a + b) >> 1; if (arr[m] <= v) a = m + 1; else b = m; } return a; };
-    const inWin = (co, from, to) => { const s = scoped(co); return s.rows.slice(lo(s.days, from), hi(s.days, to)); };
+
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: "apply it to montlhy report and other reports
+       too"): State, Local / Long distance and Source in the shell's right-hand Filters panel. The
+       picks live on S for this visit -- never in RS.state.multi, never in localStorage -- and every
+       window reads them: the picked days AND every month and year they are set against, so a
+       comparison is always filtered on both sides. Local / Long distance is the closing's Moving Type
+       (Local Moving vs Regular + Straight Moving, as on the Monthly Report); on a booking it is the
+       Moveboard Service Type, mapped only where it is plain: Local Moving, Long Distance. Refunds
+       follow the job they were paid on, as on the Monthly Report; fleet-card fuel that matched no
+       job has no state, type or source and is left out while a filter is on. Day and freshness
+       questions (which day opens, how far the sheet is filled) stay on the whole company. */
+    const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving"] };
+    const PF_BK_JOB = { "Local": ["Local Moving"], "Long distance": ["Long Distance"] };
+    const PF_NAME = { state: "State", job: "Local / Long distance", source: "Source" };
+    let PF = {}, PF_ON = false, PF_SIG = "";
+    function setPF(sel) {
+      PF = {};
+      if (sel.state.length) PF.state = new Set(sel.state);
+      if (sel.job.length && sel.job.length < Object.keys(PF_JOB).length) {
+        PF.movingType = new Set([].concat(...sel.job.map(v => PF_JOB[v] || [])));
+        PF.bkType = new Set([].concat(...sel.job.map(v => PF_BK_JOB[v] || [])));
+      }
+      if (sel.source.length) PF.source = new Set(sel.source);
+      PF_ON = Object.keys(PF).length > 0;
+      PF_SIG = JSON.stringify(Object.keys(PF).sort().map(k => [k, [...PF[k]].sort()]));
+    }
+    // the same test RS.filtered applies (a blank value is "—", so it never passes a pick)
+    const pfHas = (k, v) => !PF[k] || PF[k].has(v == null || v === "" ? "—" : String(v));
+    const pfJob = r => pfHas("state", r.State) && pfHas("movingType", r["Moving Type"]) && pfHas("source", r.Source);
+    const pfBk = r => pfHas("state", r.State) && pfHas("bkType", r["Service Type"]) && pfHas("source", r.Source);
+    const pfAct = () => ["state", "job", "source"].filter(k => PF[k === "job" ? "movingType" : k]);
+    const orList = a => a.length < 3 ? a.join(" or ") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
+    const pfGap = (keys, what) => { const hit = keys.filter(k => pfAct().includes(k));
+      return hit.length ? `<b>Not filtered by ${esc(orList(hit.map(k => PF_NAME[k])))}:</b> ${what}` : ""; };
+    const pfList = (a, n) => a.length <= n ? a.join(", ") : a.slice(0, n).join(", ") + " +" + (a.length - n) + " more";
+    // "Zip to Zip · State NJ · Long distance jobs", for the lines that name their scope
+    const pfTxt = sel => [PF.state ? "State " + pfList(sel.state, 4) : "", PF.movingType ? sel.job.join(" + ") + " jobs" : "",
+      PF.source ? "Source " + pfList(sel.source, 3) : ""].filter(Boolean).join(" · ");
+    const PF_NOTE = "Every comparison is filtered on both sides. Refunds follow their job's state and type through the "
+      + "request, and their own source. Fleet-card fuel that matched no job has no state, type or source, so gross profit "
+      + "leaves it out while a filter is on. Booked reads the Moveboard lead: Local / Long distance counts only leads "
+      + "typed Local Moving or Long Distance.";
+    const FSCOPE = new Map();
+    function fscoped(co) {            // scoped(co), less the rows the picks leave out
+      if (!PF_ON) return scoped(co);
+      const k = co + "|" + PF_SIG;
+      if (FSCOPE.has(k)) return FSCOPE.get(k);
+      const s = scoped(co), o = { rows: [], days: [] };
+      s.rows.forEach((r, i) => { if (pfJob(r)) { o.rows.push(r); o.days.push(s.days[i]); } });
+      FSCOPE.set(k, o);
+      return o;
+    }
+    const inWin = (co, from, to) => { const s = fscoped(co); return s.rows.slice(lo(s.days, from), hi(s.days, to)); };
 
     const bkDay = r => String(r["Booked Date"] || "").slice(0, 10);
     const BK = new Map();
@@ -198,7 +254,18 @@ registerPage({
       BK.set(co, o);
       return o;
     }
-    const bkWin = (co, from, to) => { const s = bkScoped(co); return s.rows.slice(lo(s.days, from), hi(s.days, to)); };
+    const BKF = new Map();
+    function bkFScoped(co) {
+      if (!PF_ON) return bkScoped(co);
+      const k = co + "|" + PF_SIG;
+      if (BKF.has(k)) return BKF.get(k);
+      const s = bkScoped(co), o = { rows: [], days: [] };
+      s.rows.forEach((r, i) => { if (pfBk(r)) { o.rows.push(r); o.days.push(s.days[i]); } });
+      BKF.set(k, o);
+      return o;
+    }
+    const bkWin = (co, from, to) => { const s = bkFScoped(co); return s.rows.slice(lo(s.days, from), hi(s.days, to)); };
+    // whether the company has a Moveboard account at all -- never a filter's question
     const hasBookings = co => bkScoped(co).rows.length > 0;
 
     /* ================= PHASE 2 (async): the gross-profit inputs ================= */
@@ -220,12 +287,23 @@ registerPage({
       } catch (e) { p2Err = e; console.error("financial-overview costs:", e); }
       if (host.isConnected && host.querySelector(".fo")) paint();
     })();
-    // fleet-card fuel that matched no job, dated by the swipe -- a period cost, never a job's
-    const unassignedCardIn = (co, from, to) => !P2 ? null : P2.card
+    // fleet-card fuel that matched no job, dated by the swipe -- a period cost, never a job's. It has
+    // no state, type or source, so while a filter is on it is left out (null: the cost table says "—")
+    const unassignedCardIn = (co, from, to) => !P2 || PF_ON ? null : P2.card
       .filter(x => !has(x.r["Unique Key"]) && x.d >= from && x.d <= to && (co === ALL || x.r.Company === co))
       .reduce((a, x) => a + num(x.r["Card Fuel"]), 0);
+    /* A refund has no State or Moving Type: while either is picked it follows its job (Request
+       Joinkey -> the company's closings the picks keep), exactly as the Monthly Report scopes it, so
+       one state's gross profit never loses the whole company's refunds. Source is the refund's own. */
+    const PFJK = new Map();
+    const pfJks = co => { const k = co + "|" + PF_SIG;
+      if (!PFJK.has(k)) PFJK.set(k, new Set(closing.filter(r => (co === ALL || r.Company === co) && pfJob(r))
+        .map(r => String(r["Request Joinkey"] || "")).filter(Boolean)));
+      return PFJK.get(k); };
+    const pfRefund = (co, r) => pfHas("source", r.Source)
+      && (!(PF.state || PF.movingType) || pfJks(co).has(String(r["Request Joinkey"] || "")));
     const refundsIn = (co, from, to) => !P2 ? null : P2.refunds
-      .filter(x => x.d >= from && x.d <= to && (co === ALL || x.r.Company === co))
+      .filter(x => x.d >= from && x.d <= to && (co === ALL || x.r.Company === co) && (!PF_ON || pfRefund(co, x.r)))
       .reduce((a, x) => a + num(x.r["Total refund"]), 0);
 
     /* ---------- how customers pay ----------
@@ -318,9 +396,14 @@ registerPage({
     const yesterday = addDays(njToday(), -1);
     const lastFilled = (co, upTo) => { const s = scoped(co);
       const i = hi(s.days, upTo) - 1; return i >= 0 ? s.days[i] : null; };
-    const dayCount = (co, d) => inWin(co, d, d).filter(r => r["Record Source"] === "closing").length;
+    // which day the page opens on is the whole company's question, whatever the Filters panel holds
+    const dayCount = (co, d) => { const s = scoped(co);
+      return s.rows.slice(lo(s.days, d), hi(s.days, d)).filter(r => r["Record Source"] === "closing").length; };
+    // ...how filled a day is, the filtered rows' (the day note reads it)
+    const dayCountF = (co, d) => inWin(co, d, d).filter(r => r["Record Source"] === "closing").length;
     const S = { co: COS.indexOf("Zip to Zip") >= 0 ? "Zip to Zip" : (COS[0] || ALL),
-                day: null, picked: false, pace: "rev", paceAll: false, brk: "Moving Type", missScope: "mtd" };
+                day: null, picked: false, pace: "rev", paceAll: false, brk: "Moving Type", missScope: "mtd",
+                pf: { state: [], job: [], source: [] } };
     function defaultDay() {
       if (dayCount(S.co, yesterday) > 0) return { day: yesterday, fell: false };
       const lf = lastFilled(S.co, yesterday);
@@ -361,6 +444,23 @@ registerPage({
       document.addEventListener("click", () =>
         document.querySelectorAll(".fo .rs-datepop").forEach(p => p.classList.add("hidden")));
     }
+
+    // the panel's values: the company's own closings and bookings, most common first
+    function pfFields() {
+      const g = { state: {}, source: {} };
+      const add = (k, v) => { if (v == null || v === "") return; g[k][v] = (g[k][v] || 0) + 1; };
+      scoped(S.co).rows.forEach(r => { add("state", r.State); add("source", r.Source); });
+      bkScoped(S.co).rows.forEach(r => { add("state", r.State); add("source", r.Source); });
+      const list = o => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n }));
+      const jobN = k => scoped(S.co).rows.filter(r => PF_JOB[k].indexOf(r["Moving Type"]) >= 0).length;
+      return [
+        { key: "state", label: PF_NAME.state, values: list(g.state) },
+        { key: "job", label: PF_NAME.job, values: Object.keys(PF_JOB).map(k => ({ v: k, l: k, n: jobN(k) })) },
+        { key: "source", label: PF_NAME.source, values: list(g.source) },
+      ];
+    }
+    // what a panel cannot follow while a filter is on, said where it shows
+    const nfLine = html => html ? `<p class="fo-nf">${html}</p>` : "";
 
     function seg(label, items, cur, onPick) {
       const w = document.createElement("div");
@@ -412,7 +512,7 @@ registerPage({
       const YT = P.years.map(p => Object.assign(agg(S.co, p.from, p.to), { p }));
       const LM = PMo[0] || null, LY = PYr[0] || null, YTD = YT[0], YTDLY = YT[1] || null;
       const coName = S.co || "All companies";
-      const recorded = dayCount(S.co, S.day);
+      const recorded = dayCountF(S.co, S.day);
       const lf = lastFilled(S.co, njToday());
 
       host.innerHTML = `<div class="fo">${head}
@@ -452,6 +552,12 @@ registerPage({
         onChange: v => { S.co = v;
           if (!S.picked) { const d0 = defaultDay(); S.day = d0.day; fell = d0.fell; }
           paint(); } });
+      // the Filters button ends the bar, as in the shell; the "Filtered by" line sits right under it
+      const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+      const fields = pfFields();
+      const apply = next => { S.pf = { state: [...next.state], job: [...next.job], source: [...next.source] }; setPF(S.pf); paint(); };
+      RSC.filterPanel(bar, { fields, selected: S.pf, note: PF_NOTE, onApply: apply });
+      bar.insertAdjacentElement("afterend", RSC.filterChips(null, { fields, selected: S.pf, onChange: apply }));
 
       const bkTxt = o => !hasBookings(S.co) ? "no Moveboard account" : fmtN(o.bkN) + " jobs · " + mC(o.bkV) + " quoted";
       const vs = (a, b, fn) => b ? (fn ? fn(a, b) : chgTxt(chg(a, b))) : "—";
@@ -555,12 +661,12 @@ registerPage({
     /* ---------- the day note: which day, why, and how filled it is ---------- */
     function dayNote(P, recorded, lf) {
       // how many closings a normal day of this weekday carries: the 4 same weekdays before it
-      const typ = [7, 14, 21, 28].map(k => dayCount(S.co, addDays(S.day, -k)));
+      const typ = [7, 14, 21, 28].map(k => dayCountF(S.co, addDays(S.day, -k)));
       const typAvg = typ.reduce((a, b) => a + b, 0) / typ.length;
       const parts = [];
       if (fell) parts.push(`No closings are recorded for <b>${esc(dLabel(yesterday))}</b> yet (the sheet is filled after the job), so this opens on <b>${esc(dLabel(S.day))}</b>, the newest day that has some.`);
       else parts.push(`Showing up to <b>${esc(dLabel(S.day))}</b>.`);
-      parts.push(`${esc(DOW[dow(S.day)])} ${esc(dShort(S.day))} has <b>${fmtN(recorded)}</b> closing${recorded === 1 ? "" : "s"} recorded for ${esc(S.co || "all companies")}; the four ${esc(DOW[dow(S.day)])}s before it averaged ${typAvg.toFixed(1)}.`);
+      parts.push(`${esc(DOW[dow(S.day)])} ${esc(dShort(S.day))} has <b>${fmtN(recorded)}</b> closing${recorded === 1 ? "" : "s"} recorded for ${esc((S.co || "all companies") + (PF_ON ? " · " + pfTxt(S.pf) : ""))}; the four ${esc(DOW[dow(S.day)])}s before it averaged ${typAvg.toFixed(1)}.`);
       if (recorded && typAvg && recorded < typAvg * 0.6) parts.push(`It may still be filling in.`);
       if (lf && S.day > lf) parts.push(`Closings are recorded only through <b>${esc(dLabel(lf))}</b>, so the days after it are empty, not zero.`);
       parts.push(`Every comparison uses the same days: 1–${P.sel.days} of each month.`);
@@ -587,6 +693,8 @@ registerPage({
         <div class="panel-head"><div class="panel-title">Month to date, day for day — days 1–${P.sel.days}</div></div>
         <p class="rs-hint">Each row is days 1–${P.sel.days} of that month (a shorter month stops at its last day).
           The last column is how ${esc(P.sel.label)} so far compares with that row: ▲ means ahead of it.</p>
+        ${PF.bkType ? nfLine(`<b>Booked under Local / Long distance</b> counts only the leads Moveboard types Local Moving
+          or Long Distance; labor, packing, flat-rate, storage and overnight leads follow neither.`) : ""}
         <div class="tabwrap"><table class="tab">${HEAD}<tbody>
           ${rowHtml(P.sel.label + " (picked)", A, null, "fo-sel")}
           ${PMo.length ? `<tr class="fo-grp"><td colspan="9">The 5 months before</td></tr>` : ""}
@@ -705,7 +813,7 @@ registerPage({
       }).filter(x => x.done && x.rev && isFinite(x.rev));
       const rest = { from: addDays(P.sel.to, 1), to: iso(P.Y, P.Mo, n) };
       const ahead = hasBookings(S.co)
-        ? bookings.filter(r => (S.co === ALL || r.Company === S.co)
+        ? bookings.filter(r => (S.co === ALL || r.Company === S.co) && (!PF_ON || pfBk(r))
             && String(r["Move Date"] || "").slice(0, 10) >= rest.from && String(r["Move Date"] || "").slice(0, 10) <= rest.to)
         : null;
       if (!ratios.length) return `<div class="panel"><div class="panel-head"><div class="panel-title">Month-end projection</div></div>
@@ -784,7 +892,8 @@ registerPage({
            is the helper sheet, matched to the job. A closing with no foreman pay recorded adds no foreman cost, so its
            profit reads high — see the missing-data panel. Fuel: since Aug 2026 the closing sheet carries cash fuel only;
            the fleet card comes from its export — on the job it was matched to, or on its own line when it matched no job
-           (dated by the swipe).${cardNote()}`)}</div>`;
+           (dated by the swipe).${cardNote()}`)}
+        ${nfLine(pfGap(["state", "job", "source"], "fleet-card fuel that matched no job — it has none of them, so it is left out of gross profit here (—). Refunds follow their job's state and type, and their own source."))}</div>`;
     }
 
     /* The card export is dropped by hand; when it is older than the window, the card lines stop early

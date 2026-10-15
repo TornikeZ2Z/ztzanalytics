@@ -47,19 +47,27 @@
 })();
 
 (function () {
-  var S = { rows: [], f: {}, page: 0, per: 50, opts: null };
+  var S = { rows: [], f: {}, pf: {}, page: 0, per: 50, opts: null };
 
+  // the bar's own dropdowns
   var FILTERS = [
     ["Received Month", "Month"],
+    ["Angi ID Match", "Angi ID"],
+  ];
+  /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
+     these eight left the bar for the right-hand panel the other reports have, each now
+     multi-select. S.pf holds a Set per column (empty or absent = every value), in this page's
+     memory only -- never RS.state.multi, never localStorage. Month, Angi ID, Duplicate leads and
+     Find stay in the bar; "Clear filters" there still clears everything, the panel's picks too. */
+  var PANEL = [
+    ["State", "State"],
     ["Angi Status", "Status"],
     ["Size of Move", "Size of move"],
-    ["State", "State"],
+    ["Sales Rep", "Sales rep"],
     ["Speed Bucket", "Response speed"],
     ["Reason", "Reason / outcome"],
-    ["Sales Rep", "Sales rep"],
-    ["Company", "Account"],
-    ["Angi ID Match", "Angi ID"],
     ["Disposition", "Rep disposition"],
+    ["Company", "Account"],
   ];
 
   /* Column widths as PERCENTAGES, because .rs-fixed is table-layout:fixed and without a
@@ -171,6 +179,9 @@
         if (hay.indexOf(q) < 0) return false;
       } else if (String(r[k] == null ? "" : r[k]) !== S.f[k]) return false;
     }
+    for (var c in S.pf) {
+      if (S.pf[c] && S.pf[c].size && !S.pf[c].has(String(r[c] == null ? "" : r[c]))) return false;
+    }
     return true;
   }
 
@@ -195,14 +206,15 @@
     if (!S.opts) {
       S.opts = {};
       var counts = {};
-      FILTERS.forEach(function (f) { counts[f[0]] = {}; });
+      var all = FILTERS.concat(PANEL);
+      all.forEach(function (f) { counts[f[0]] = {}; });
       S.rows.forEach(function (r) {
-        FILTERS.forEach(function (f) {
+        all.forEach(function (f) {
           var v = r[f[0]] == null ? "" : String(r[f[0]]);
           if (v) counts[f[0]][v] = (counts[f[0]][v] || 0) + 1;
         });
       });
-      FILTERS.forEach(function (f) {
+      all.forEach(function (f) {
         S.opts[f[0]] = Object.keys(counts[f[0]]).sort().map(function (v) {
           return { v: v, l: v, n: counts[f[0]][v] };
         });
@@ -259,7 +271,9 @@
       + '<span class="rs-spacer"></span>'
       + '<button class="rs-btn" id="agfClear">Clear filters</button>'
       + '<button class="rs-btn pri" id="agfCsv">Download CSV · ' + fmtN(view.length) + "</button>"
+      + '<div id="agfFilt" style="margin-left:auto"></div>'
       + "</div>"
+      + '<div id="agfChips"></div>'
 
       + '<div class="panel"><div class="panel-head">'
       + '<div class="panel-title">Leads</div>'
@@ -398,8 +412,21 @@
       var n = host.querySelector("#agfQ");
       if (n) { n.focus(); n.setSelectionRange(at, at); }
     };
+    // the panel: the same counts as the bar's lists, most common first
+    var fields = PANEL.map(function (f) {
+      return { key: f[0], label: f[1], values: optionsFor(f[0]).slice().sort(function (a, b) { return b.n - a.n; }) };
+    });
+    var apply = function (next) {
+      S.pf = {};
+      PANEL.forEach(function (f) { if (next[f[0]].size) S.pf[f[0]] = new Set(next[f[0]]); });
+      S.page = 0; paint(host);
+    };
+    RSC.filterPanel(host.querySelector("#agfFilt"), { fields: fields, selected: S.pf, onApply: apply,
+      note: "Every count, rate and the CSV follow these. Month, Angi ID, Duplicate leads and Find stay "
+        + "in the bar; <b>Clear filters</b> there clears these too." });
+    RSC.filterChips(host.querySelector("#agfChips"), { fields: fields, selected: S.pf, onChange: apply });
     host.querySelector("#agfClear").onclick = function () {
-      S.f = {}; S.page = 0; paint(host);
+      S.f = {}; S.pf = {}; S.page = 0; paint(host);
     };
     host.querySelector("#agfCsv").onclick = function () { downloadCsv(view); };
 

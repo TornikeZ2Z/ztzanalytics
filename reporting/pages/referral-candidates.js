@@ -83,6 +83,14 @@ registerPage({
     var S = window.__RF || (window.__RF = { q: "", co: "", plat: "", contact: false,
                                             src: "", mt: "", size: "", sp: "", unrated: false,
                                             from: null, to: null });
+    /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports
+     * too"): Source, Move type, Size, Sales person and Platform left the bar for the right-hand
+     * panel the other reports have, each now multi-select, and Pickup state joined them. Each is
+     * a Set here (empty = every value), in this session's page state only -- never
+     * RS.state.multi, never localStorage. Copy and CSV take exactly the filtered list. */
+    ["src", "mt", "size", "sp", "plat", "pst"].forEach(function (k) {
+      if (!(S[k] instanceof Set)) S[k] = new Set(S[k] ? [S[k]] : []);
+    });
     /* THE GATES (Tornike 2026-08-19, confirmed 2026-08-20): a five-star review alone is not
      * enough to ask for a referral. GOOD TO ASK = the customer rated the move 10/10 on the
      * closing AND the bill stayed within 25% (and $300) of the quote's top end.
@@ -150,15 +158,23 @@ registerPage({
           return p.replace(" (photo)", "");
         }).filter(Boolean);
       };
-      var allPlats = {}, allCos = {}, allSrc = {}, allMt = {}, allSize = {}, allSp = {};
-      rows.forEach(function (r) {
-        platsOf(r).forEach(function (p) { allPlats[p] = 1; });
-        if (r.Company) allCos[r.Company] = 1;
-        if (r["Lead Source"]) allSrc[r["Lead Source"]] = 1;
-        if (r["Move Type"]) allMt[r["Move Type"]] = 1;
-        if (r["Size of Move"]) allSize[r["Size of Move"]] = 1;
-        if (r["Sales Person"]) allSp[r["Sales Person"]] = 1;
-      });
+      var allCos = {};
+      rows.forEach(function (r) { if (r.Company) allCos[r.Company] = 1; });
+      // the panel's fields: [state key, label, the row's value(s)]
+      var PF = [
+        ["src", "Source", function (r) { return [r["Lead Source"]]; }],
+        ["mt", "Move type", function (r) { return [r["Move Type"]]; }],
+        ["size", "Size", function (r) { return [r["Size of Move"]]; }],
+        ["sp", "Sales person", function (r) { return [r["Sales Person"]]; }],
+        ["plat", "Platform", platsOf],
+        ["pst", "Pickup state", function (r) { return [r["Pickup State"]]; }],
+      ];
+      // a customer who reviewed on two platforms matches either one
+      var pfOk = function (r) {
+        return PF.every(function (f) {
+          return !S[f[0]].size || f[2](r).some(function (v) { return v && S[f[0]].has(String(v)); });
+        });
+      };
 
       function view() {
         return rows.filter(function (r) {
@@ -176,11 +192,7 @@ registerPage({
 
       function passes(r) {
         if (S.co && r.Company !== S.co) return false;
-        if (S.plat && platsOf(r).indexOf(S.plat) < 0) return false;
-        if (S.src && r["Lead Source"] !== S.src) return false;
-        if (S.mt && r["Move Type"] !== S.mt) return false;
-        if (S.size && r["Size of Move"] !== S.size) return false;
-        if (S.sp && r["Sales Person"] !== S.sp) return false;
+        if (!pfOk(r)) return false;
         // WHEN WE MOVED THEM. Both bounds are inclusive; r.Day is already 'YYYY-MM-DD',
         // so a string compare IS a date compare and no parsing (or timezone) enters into
         // it. One candidate in 1,929 has no move date on any closing and drops out of any
@@ -238,11 +250,6 @@ registerPage({
           // narrow the Monthly Report the next time it was opened.
           + '<div class="rs-fld"><span>Move date</span><div id="rfDateHost"></div></div>'
           + sel("rfCo")
-          + sel("rfPlat")
-          + sel("rfSrc")
-          + sel("rfMt")
-          + sel("rfSize")
-          + sel("rfSp")
           + '<div class="rs-tog' + (S.contact ? " on" : "") + '" id="rfContact"><i></i>Only with contact details</div>'
           + '<div class="rs-tog' + (S.unrated ? " on" : "") + '" id="rfUnrated"><i></i>Include unrated moves</div>'
           + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="rfQ" placeholder="Name, email, phone or request…" '
@@ -251,7 +258,9 @@ registerPage({
           + '<button class="rs-btn" id="rfMail">Copy emails · ' + withMail + "</button>"
           + '<button class="rs-btn" id="rfPhone">Copy phones · ' + withPhone + "</button>"
           + '<button class="rs-btn" id="rfCsv">Download CSV · ' + v.length + "</button>"
+          + '<div id="rfFilt" style="margin-left:auto"></div>'
           + "</div>"
+          + '<div id="rfChips"></div>'
           + '<div class="panel"><div class="panel-head"><div class="panel-title">The list</div>'
           + '<span class="n">' + v.length + "</span></div>"
           + '<div class="rs-hint">The automatic referral email no longer needs a review: since 30 Sep 2026 it goes to '
@@ -345,10 +354,7 @@ registerPage({
         // native dropdowns, and the state stays in S (never RS.state, which is the GLOBAL
         // filter bar). Every paint rebuilds the bar wholesale, so these mount fresh each
         // time with the current value.
-        [["rfCo", "co", "Company", allCos], ["rfPlat", "plat", "Platform", allPlats],
-         ["rfSrc", "src", "Source", allSrc], ["rfMt", "mt", "Move type", allMt],
-         ["rfSize", "size", "Size", allSize], ["rfSp", "sp", "Sales person", allSp]
-        ].forEach(function (pair) {
+        [["rfCo", "co", "Company", allCos]].forEach(function (pair) {
           var el = host.querySelector("#" + pair[0]);
           if (el && window.RSC && RSC.localSelect) {
             RSC.localSelect(el, {
@@ -360,6 +366,29 @@ registerPage({
             });
           }
         });
+        // the panel: values from this company's candidates (the bar's Company), most common first
+        var fields = PF.map(function (f) {
+          var g = {};
+          rows.forEach(function (r) {
+            if (S.co && r.Company !== S.co) return;
+            f[2](r).forEach(function (x) { if (x) g[x] = (g[x] || 0) + 1; });
+          });
+          return { key: f[0], label: f[1], values: Object.keys(g).sort(function (a, b) { return g[b] - g[a]; })
+            .map(function (x) { return { v: x, l: x, n: g[x] }; }) };
+        });
+        var sel0 = {};
+        PF.forEach(function (f) { sel0[f[0]] = S[f[0]]; });
+        var apply = function (next) {
+          PF.forEach(function (f) { S[f[0]] = new Set(next[f[0]]); });
+          paint();
+        };
+        var fh = host.querySelector("#rfFilt");
+        if (fh) RSC.filterPanel(fh, { fields: fields, selected: sel0, onApply: apply,
+          note: "<b>Platform</b>: a customer who reviewed on several platforms matches any one picked. "
+            + "<b>Pickup state</b> is the state of the move's pickup address. The list, its counts, Copy "
+            + "and the CSV all follow these." });
+        var ch = host.querySelector("#rfChips");
+        if (ch) RSC.filterChips(ch, { fields: fields, selected: sel0, onChange: apply });
         var dh = host.querySelector("#rfDateHost");
         if (dh && window.RSC && RSC.dateRange) {
           RSC.dateRange(dh, {

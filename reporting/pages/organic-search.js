@@ -66,7 +66,27 @@
                   "Blog", "Reviews / About", "Other"];
   var TOP_N = 100;
 
-  var S = { win: "12m", from: "", to: "", cmp: "on", qType: "", q: "", open: {}, cityAll: false };
+  var S = { win: "12m", from: "", to: "", cmp: "on", qType: "", q: "", open: {}, cityAll: false,
+            pf: { state: new Set(), fam: new Set() } };
+
+  /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
+     State and Page family, in the right-hand panel the other reports have; page memory only, never
+     RS.state.multi or localStorage. A State is the place a search NAMES or a page is ABOUT, so it
+     follows every place table, the searches that name a place and the pages about one. The site
+     totals cannot follow it (Google never says where the searcher was), nor can a search row
+     follow a Page family (it has no landing page) -- each such part says so where it stands.
+     The query-type dropdown stays inside Top searches: it is that table's own control (it
+     uncollapses the brand searches), not a page-wide cut. */
+  var PF_NAME = { state: "State", fam: "Page family" };
+  function pfSt(r) { return !S.pf.state.size || S.pf.state.has(String(r.State || "")); }
+  function pfFam(r) { return !S.pf.fam.size || S.pf.fam.has(String(r.Family || "")); }
+  // "Not filtered by State or Page family: <what>." -- only for the filters that are on
+  function nfLine(keys, what) {
+    var on = keys.filter(function (k) { return S.pf[k].size; });
+    if (!on.length) return "";
+    return '<p class="rs-hint"><b>Not filtered by ' + on.map(function (k) { return PF_NAME[k]; }).join(" or ")
+      + ":</b> " + what + ".</p>";
+  }
 
   /* ------------------------------------------------------------------ helpers ---- */
   function esc(s) { return RSC.esc(s == null ? "" : String(s)); }
@@ -284,7 +304,7 @@
     var h = "";
 
     /* ---- the bar: window + compare ---- */
-    h += '<div class="rs-bar" id="osBar"></div>';
+    h += '<div class="rs-bar" id="osBar"></div><div id="osChips"></div>';
 
     /* ---- the numbers for the tiles ---- */
     var cur = queryTotals(D, mset);
@@ -327,6 +347,8 @@
       + kpi(esc(new Date(D.lastDay + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })),
             "Last data day", "Google finalises a day about 3 days late")
       + "</div>";
+    h += nfLine(["state", "fam"], "these tiles and the line under them (site totals: Search Console never says "
+      + "where the searcher was, and a search carries no landing page)");
 
     h += '<div class="os-lede"><b>' + esc(winLabel(ms, D)) + ".</b> "
       + (cur.vis ? "Of the clicks Google names, <b>" + fmtP(brand / cur.vis, 0) + " are brand searches</b> — people who "
@@ -399,6 +421,23 @@
     var hint = document.createElement("span"); hint.className = "rs-hint"; hint.style.margin = "0";
     hint.textContent = "Clicks compare across years; impressions and position do not (Google's " + BREAK_NOTE + " change).";
     bar.appendChild(hint);
+    // the panel: every state the three marts name, and every page family, most rows first
+    var cnt = function (lists, col) {
+      var g = {};
+      lists.forEach(function (rs) { rs.forEach(function (r) { var v = String(r[col] || ""); if (v) g[v] = (g[v] || 0) + 1; }); });
+      return Object.keys(g).sort(function (a, b) { return g[b] - g[a]; }).map(function (v) { return { v: v, l: v, n: g[v] }; });
+    };
+    var fields = [{ key: "state", label: "State", values: cnt([D.Q, D.A, D.PG], "State") },
+                  { key: "fam", label: "Page family", values: cnt([D.PG], "Family") }];
+    var apply = function (next) { S.pf = { state: new Set(next.state), fam: new Set(next.fam) }; paint(bar.closest(".os"), D); };
+    // the right end of the bar, and still the right end when a narrow window wraps it
+    var fh = document.createElement("div"); fh.style.marginLeft = "auto"; bar.appendChild(fh);
+    RSC.filterPanel(fh, { fields: fields, selected: S.pf, onApply: apply,
+      note: "A <b>State</b> is the place a search names or a page is about: it narrows the state and city tables, the "
+        + "searches that name a place, and the pages about one (the home page, blog and service pages have no state). "
+        + "<b>Page family</b> narrows the page charts and tables. The site totals at the top follow neither, and a search "
+        + "follows no page family — each part that cannot follow says so." });
+    RSC.filterChips(bar.parentNode.querySelector("#osChips"), { fields: fields, selected: S.pf, onChange: apply });
   }
 
   /* ---- (b) who finds us: clicks by search type, every month on file ---- */
@@ -444,6 +483,8 @@
       + "* = a month not whole on file (the first began 25 May 2025; the latest runs to the last data day). "
       + "The long tail of rare searches is inside its own type. 'Town name only' is a lookup like 'broomall pa' — shown, never counted as demand.";
     host.appendChild(note);
+    var nf = nfLine(["state", "fam"], "this chart (every click on the site, by what was searched)");
+    if (nf) host.insertAdjacentHTML("beforeend", nf);
   }
 
   /* ---- (c) where the demand comes from: the state table ---- */
@@ -496,7 +537,7 @@
     });
   }
   function statePanel(D, mset, cset) {
-    var rows = areaRows(D, mset, cset, function (r) { return r.Level === "State"; });
+    var rows = areaRows(D, mset, cset, function (r) { return r.Level === "State" && pfSt(r); });
     var by = {};
     rows.forEach(function (r) { (by[r.State] = by[r.State] || []).push(r); });
     var sts = Object.keys(by).map(function (st) { return { st: st, z: sumArea(by[st]) }; })
@@ -506,13 +547,15 @@
     var h = '<div class="panel"><div class="panel-head"><span class="panel-title">Where the demand comes from — by state</span></div>'
       + '<p class="rs-hint">Only a search that <b>names a place</b> can be put in a state ("movers wilmington de", "moving company nj"), '
       + "plus the pages about a place — so these are floors. Click a state for its cities and counties.</p>"
+      + nfLine(["fam"], "the listing, city-page and location-page columns (this table counts its own three kinds of "
+        + "landing page, not page families)")
       + '<div class="rs-tablewrap"><table class="rs-table" id="osStates">' + areaHead("State") + "<tbody>";
     sts.forEach(function (o) {
       var open = !!S.open[o.st];
       h += '<tr class="rs-group' + (open ? " on" : "") + '" data-st="' + esc(o.st) + '"><td><span class="rs-caret">›</span> ' + esc(o.st) + "</td>" + areaCells(o.z) + "</tr>";
       if (open) h += '<tr class="rs-sub"><td colspan="10"><div class="rs-sub-card">' + stateDetail(D, mset, cset, o.st, o.z) + "</div></td></tr>";
     });
-    h += '<tr class="os-tot"><td>All states</td>' + areaCells(tot) + "</tr></tbody></table></div>"
+    h += '<tr class="os-tot"><td>' + (S.pf.state.size ? "These states" : "All states") + "</td>" + areaCells(tot) + "</tr></tbody></table></div>"
       + '<div class="os-legend"><span><i class="b1"></i>positions 1–3</span><span><i class="b2"></i>4–10 (page 1)</span>'
       + '<span><i class="b3"></i>11–20</span><span><i class="b4"></i>21+ (nobody scrolls there)</span>'
       + "<span>— the share of impressions at each rank</span></div>"
@@ -577,7 +620,7 @@
 
   /* ---- (d) are we winning it: the Keyword Planner cities ---- */
   function cityPanel(D, mset, cset, ms) {
-    var rows = areaRows(D, mset, cset, function (r) { return r.Level === "City" && r["Search Volume"] != null && r["Search Volume"] !== ""; });
+    var rows = areaRows(D, mset, cset, function (r) { return r.Level === "City" && r["Search Volume"] != null && r["Search Volume"] !== "" && pfSt(r); });
     var by = {};
     rows.forEach(function (r) { var k = r.State + "|" + r.City; (by[k] = by[k] || []).push(r); });
     var dsum = 0;
@@ -603,6 +646,7 @@
       + "<b>" + (perAll == null ? "—" : perAll.toFixed(2)) + " clicks per 1,000 searches</b> — " + tags.Winning + " winning, "
       + tags["Page 1"] + " on page 1, " + tags["Page 2"] + " on page 2, " + tags.Invisible + " invisible, "
       + (tags["Rarely shown"] + tags["Not shown"]) + " shown too rarely to judge.</p>"
+      + nfLine(["fam"], "this table (its clicks are searches that name the city, and a search has no landing page)")
       + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>City</th><th class="num">Searches a month</th>'
       + '<th class="num">Our clicks</th><th class="num">Impressions</th><th class="num">Position</th><th>Verdict</th>'
       + '<th class="num" title="our clicks per 1,000 Keyword Planner searches over the window">Clicks per 1,000 searches</th>'
@@ -638,6 +682,9 @@
       if (r.Query === "(long tail)") {
         var t = tail[r.Type] || (tail[r.Type] = { c: 0, i: 0 }); t.c += c; t.i += i; return;
       }
+      // a listed search follows the State filter by the place it names; the long tail and the
+      // hidden clicks above name none, so they stay whole (and the table says so)
+      if (!pfSt(r)) return;
       var a = agg[r.Query] || (agg[r.Query] = { q: r.Query, type: r.Type, st: r.State, city: r.City || r.County, c: 0, i: 0, pw: 0 });
       a.c += c; a.i += i; a.pw += pw;
     });
@@ -682,7 +729,9 @@
       + '<p class="rs-hint" style="margin:10px 0 0">A search is listed on its own when it earned a click or 50 impressions in a month; '
       + "the rest is its type's long tail. With no filter the rows add up to the site total (the searches past the top " + TOP_N
       + " are one grey row) — the last row is what Google counts but never names. "
-      + "Impressions and position count from " + monthLong(CLEAN_FROM) + ".</p>";
+      + "Impressions and position count from " + monthLong(CLEAN_FROM) + ".</p>"
+      + nfLine(["state"], "the long-tail and hidden-by-Google rows (they name no place, so they are the whole site's)")
+      + nfLine(["fam"], "this table (a search has no landing page)");
     host.innerHTML = h;
     RSC.localSelect(host.querySelector("#osQType"), {
       label: "Type", allLabel: "Every type (brand collapsed)",
@@ -710,7 +759,11 @@
   function famChart(host, D) {
     var by = {};
     D.months.forEach(function (m) { by[m] = {}; });
-    D.PG.forEach(function (r) { var m = ymOf(r); if (by[m]) by[m][r.Family] = (by[m][r.Family] || 0) + num(r.Clicks); });
+    D.PG.forEach(function (r) {
+      var m = ymOf(r);
+      if (by[m] && pfSt(r) && pfFam(r)) by[m][r.Family] = (by[m][r.Family] || 0) + num(r.Clicks);
+    });
+    var FAMS = FAMILIES.filter(function (f) { return !S.pf.fam.size || S.pf.fam.has(f); });
     RSC.chartCard(host, {
       title: "Which pages win — clicks by the page they landed on, every month on file", key: "os-fam",
       buildChart: function (canvas) {
@@ -721,7 +774,7 @@
         return new Chart(canvas, {
           type: "bar",
           data: { labels: D.months.map(function (m) { return monthLbl(m) + (D.complete[m] ? "" : "*"); }),
-                  datasets: FAMILIES.map(function (f) {
+                  datasets: FAMS.map(function (f) {
                     return { label: f, data: D.months.map(function (m) { return by[m][f] || 0; }), backgroundColor: col[f], stack: "p" };
                   }) },
           options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
@@ -729,11 +782,11 @@
         });
       },
       buildTable: function () {
-        return '<table class="rs-table"><thead><tr><th>Month</th>' + FAMILIES.map(function (f) { return '<th class="num">' + esc(f) + "</th>"; }).join("")
-          + '<th class="num">All pages</th></tr></thead><tbody>'
+        return '<table class="rs-table"><thead><tr><th>Month</th>' + FAMS.map(function (f) { return '<th class="num">' + esc(f) + "</th>"; }).join("")
+          + '<th class="num">' + (S.pf.state.size || S.pf.fam.size ? "These pages" : "All pages") + "</th></tr></thead><tbody>"
           + D.months.map(function (m) {
-            var t = 0; FAMILIES.forEach(function (f) { t += by[m][f] || 0; });
-            return "<tr><td>" + esc(monthLong(m)) + "</td>" + FAMILIES.map(function (f) { return '<td class="num">' + fmtN(by[m][f] || 0) + "</td>"; }).join("")
+            var t = 0; FAMS.forEach(function (f) { t += by[m][f] || 0; });
+            return "<tr><td>" + esc(monthLong(m)) + "</td>" + FAMS.map(function (f) { return '<td class="num">' + fmtN(by[m][f] || 0) + "</td>"; }).join("")
               + '<td class="num strong">' + fmtN(t) + "</td></tr>";
           }).join("") + "</tbody></table>";
       },
@@ -748,7 +801,7 @@
   }
 
   function listingPanel(D, ms) {
-    var rows = D.PG.filter(function (r) { return r.Family === "Business Profile listing"; });
+    var rows = D.PG.filter(function (r) { return r.Family === "Business Profile listing" && pfSt(r) && pfFam(r); });
     if (!rows.length) return "";
     var by = {}, first = {}, tags = {}, meta = {};
     rows.forEach(function (r) {
@@ -794,7 +847,7 @@
     var agg = {};
     D.PG.forEach(function (r) {
       var m = ymOf(r);
-      if (!mset[m]) return;
+      if (!mset[m] || !pfSt(r) || !pfFam(r)) return;
       var a = agg[r.Page] || (agg[r.Page] = { p: r.Page, f: r.Family, st: r.State, place: r.Place, c: 0, i: 0, pw: 0 });
       a.c += num(r.Clicks);
       if (cset[m]) { a.i += num(r.Impressions); a.pw += num(r.Position) * num(r.Impressions); }
@@ -824,6 +877,8 @@
       + '<p class="rs-hint">A \'movers\' search that names a town several of our states share, with no state in the search and no leads '
       + "to break the tie, is shown here and left out of the state table. Place matching reads about 5,800 town names and a stop list "
       + "(words like 'commercial' and 'wall' that are also towns).</p>"
+      + nfLine(["state"], "this list (these names are the ones that could not be put in one state)")
+      + nfLine(["fam"], "this list (a search has no landing page)")
       + (keys.length ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Name in the search</th><th class="num">Searches</th>'
         + '<th class="num">Clicks</th><th class="num">Impressions</th></tr></thead><tbody>'
         + keys.map(function (k) { return "<tr><td>" + esc(k) + '</td><td class="num">' + fmtN(amb[k].n) + '</td><td class="num">' + fmtN(amb[k].c)

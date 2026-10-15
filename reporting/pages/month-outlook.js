@@ -9,8 +9,9 @@
      done_est  a worked day whose closing is not filed yet -- the calendar estimate
      ahead     today onward from the calendar -- cash grand total x the learned increase
      ly / pm   the same month last year / the month before, as billed (reference only)
-   Page-local filters (month, company, state, city): the global bar's date logic would only confuse
-   a page about the future. */
+   Page-local filters (month, company, city on the bar; state, local / long distance, source and
+   salesperson in the Filters panel): the global bar's date logic would only confuse a page about
+   the future. */
 if (window.RS && RS.DATASETS && !RS.DATASETS.month_outlook) {
   RS.DATASETS.month_outlook = {
     table: "mart_month_outlook",
@@ -34,8 +35,25 @@ registerPage({
     host.innerHTML = `<div class="rs-loading" style="padding:30px">Reading the calendar…</div>`;
     const all = await RS.load("month_outlook");
     const months = [...new Set(all.map(r => r["Month"]))].sort();
-    const S = window.__MO_STATE = window.__MO_STATE || { month: months[0], co: "", st: "", city: "" };
+    const S = window.__MO_STATE = window.__MO_STATE || { month: months[0], co: "", city: "" };
     if (months.indexOf(S.month) < 0) S.month = months[0];
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: "apply it to montlhy report and other reports
+       too"): State (it was a single pick on the bar; now it is the panel's, and multi), Local /
+       Long distance, Source and Sales person, in the shell's right-hand Filters panel. They live
+       on S for this session -- never in RS.state.multi, never in localStorage. City stays on the bar:
+       it narrows within the picked states (all of them when none is picked), as it did within one.
+       LOCAL / LONG DISTANCE reads `Job Type`, which is the closing's Moving Type on a worked day and
+       the calendar's job type ahead. Measured on every calendar job matched to its closing
+       (2026-10-15): Standard 6,021 / Flat Rate 410 / Labor Work 126 closed as Local Moving, every
+       one; Regular and Straight Moving closed long distance (32 of 574 swapped between the two,
+       3 local). In-Home Estimate (15 local, 4 long distance) and a blank type are not mapped. */
+    const PF_JOB = { "Local": ["Local Moving", "Standard", "Flat Rate", "Labor Work"], "Long distance": ["Regular Moving", "Straight Moving"] };
+    const PF_NAME = { state: "State", job: "Local / Long distance", source: "Source", sales: "Sales person" };
+    if (!S.pf) S.pf = { state: [], job: [], source: [], sales: [] };
+    const PF_NOTE = "Local / Long distance reads each job's type: Local Moving, and the calendar's Standard, Flat Rate and "
+      + "Labor Work jobs (every one of those that has closed was a local move), are Local; Regular and Straight Moving are "
+      + "Long distance. In-home estimates and jobs with no type follow neither. Last year and last month are kept as company "
+      + "totals, with no state, city, type, source or salesperson, so the comparisons step aside while a filter is on.";
 
     const style = `<style id="mo-style">
       .mo-wrap{max-width:1280px}
@@ -109,13 +127,26 @@ registerPage({
     const C = RS.isV2() ? { done: RS.V2.navy, est: RS.V2.accentL, ahead: "#C9E68A" }
       : { done: "var(--brand-d, #6a8f12)", est: "color-mix(in srgb,var(--brand) 55%,transparent)", ahead: "color-mix(in srgb,var(--blue) 55%,transparent)" };
 
+    const isJob = r => ["done", "done_est", "ahead"].indexOf(r["Phase"]) >= 0;
     const paint = () => {
+      // the picks as Sets (empty = all); a blank value is "—", so it never passes a pick
+      const PF = {};
+      if (S.pf.state.length) PF.state = new Set(S.pf.state);
+      if (S.pf.job.length && S.pf.job.length < Object.keys(PF_JOB).length) PF.jobType = new Set([].concat(...S.pf.job.map(v => PF_JOB[v] || [])));
+      if (S.pf.source.length) PF.source = new Set(S.pf.source);
+      if (S.pf.sales.length) PF.sales = new Set(S.pf.sales);
+      const pfHas = (k, v) => !PF[k] || PF[k].has(v == null || v === "" ? "—" : String(v));
+      const pfJob = r => pfHas("jobType", r["Job Type"]) && pfHas("source", r["Source"]) && pfHas("sales", r["Sales Person"]);
+      const PF_ON = Object.keys(PF).length > 0;
       const inMonth = all.filter(r => r["Month"] === S.month && (!S.co || r["Company"] === S.co));
       const ref = inMonth.filter(r => r["Phase"] === "ly" || r["Phase"] === "pm");
-      let jobs = inMonth.filter(r => ["done", "done_est", "ahead"].indexOf(r["Phase"]) >= 0);
-      const states = [...new Set(jobs.map(r => r["State"]).filter(Boolean))].sort();
-      const cities = [...new Set(jobs.filter(r => !S.st || r["State"] === S.st).map(r => r["City"]).filter(Boolean))].sort();
-      if (S.st) jobs = jobs.filter(r => r["State"] === S.st);
+      let jobs = inMonth.filter(isJob);
+      const inStates = jobs.filter(r => pfHas("state", r["State"]));
+      const cities = [...new Set(inStates.map(r => r["City"]).filter(Boolean))].sort();
+      // jobs a Local / Long distance pick leaves out because their type is neither (said under the cards)
+      const untyped = !PF.jobType ? 0 : inStates.filter(r => pfHas("source", r["Source"]) && pfHas("sales", r["Sales Person"])
+        && (!S.city || r["City"] === S.city) && !Object.values(PF_JOB).some(a => a.indexOf(r["Job Type"]) >= 0)).length;
+      jobs = inStates.filter(pfJob);
       if (S.city) jobs = jobs.filter(r => r["City"] === S.city);
       const sum = (rs, c) => rs.reduce((a, r) => a + num(r[c]), 0);
       const done = jobs.filter(r => r["Phase"] === "done"), dest = jobs.filter(r => r["Phase"] === "done_est"),
@@ -124,7 +155,7 @@ registerPage({
                              rev: sum(ref.filter(r => r["Phase"] === ph), "Revenue") });
       const ly = refOf("ly"), pm = refOf("pm");
       const totRev = sum(jobs, "Revenue"), totProf = sum(jobs, "Profit");
-      const filtered = !!(S.st || S.city);
+      const filtered = !!(PF_ON || S.city);
       const cmp = (now, then, label) => !then ? "" : (() => { const d = (now - then) / then * 100;
         // v2: the one delta format -- the change first, then what it is against
         if (RS.isV2()) return `<div class="s"><span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}%</span> <span class="mo-vs">vs ${label[0].toLowerCase() + label.slice(1)}: ${moneyK(then)}</span></div>`;
@@ -177,7 +208,7 @@ registerPage({
         <div class="mo-bar">
           <div class="mo-seg" id="moMonth">${months.map(mm => `<button data-v="${mm}" class="${mm === S.month ? "on" : ""}">${esc(new Date(+mm.slice(0, 4), +mm.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" }))}</button>`).join("")}</div>
           <div class="mo-seg" id="moCo">${[["", "All"], ["Zip to Zip", "Zip to Zip"], ["Tuji", "Tuji"]].map(([v, l]) => `<button data-v="${v}" class="${v === S.co ? "on" : ""}">${l}</button>`).join("")}</div>
-          <div id="moSt"></div><div id="moCity"></div>
+          <div id="moCity"></div><span class="rs-spacer"></span><div id="moFilt"></div>
         </div>
         <div class="mo-hero">
           <div class="mo-card"><div class="k">Done so far</div><div class="v">${money(sum(done, "Revenue") + sum(dest, "Revenue"))}</div>
@@ -188,8 +219,10 @@ registerPage({
             <div class="s">estimated: cash total &times; ${up ? up.toFixed(2) : "—"} (the usual increase to the final bill)</div></div>
           <div class="mo-card total"><div class="k">${esc(label)} if nothing more is booked</div><div class="v">${money(totRev)}</div>
             <div class="s"><b>${jobs.length}</b> jobs &middot; gross profit <b>${money(totProf)}</b></div>
-            ${filtered ? `<div class="s">comparisons hidden while a location filter is on</div>` : cmp(totRev, ly.rev, "Same month last year (" + fmtN(ly.jobs) + " jobs)") + cmp(totRev, pm.rev, "Last month (" + fmtN(pm.jobs) + " jobs)")}</div>
+            ${filtered ? `<div class="s">${PF_ON ? "<b>Not compared while a filter is on:</b> last year and last month are kept as company totals, with no state, type, source or salesperson"
+              : "comparisons hidden while a location filter is on"}</div>` : cmp(totRev, ly.rev, "Same month last year (" + fmtN(ly.jobs) + " jobs)") + cmp(totRev, pm.rev, "Last month (" + fmtN(pm.jobs) + " jobs)")}</div>
         </div>
+        ${untyped ? `<div class="mo-note"><b>${fmtN(untyped)} job${untyped === 1 ? "" : "s"} left out by Local / Long distance:</b> an in-home estimate or no job type on the calendar, so neither local nor long distance.</div>` : ""}
         <div class="mo-sec">Day by day</div>
         <div class="mo-card"><div class="mo-days">${dayCols.join("")}</div><div class="mo-dlab">${dayLabs.join("")}</div>
           <div class="mo-leg"><span><i style="background:${C.done}"></i>Done, closing filed</span><span><i style="background:${C.est}"></i>Done, closing not filed (estimate)</span>
@@ -216,10 +249,28 @@ registerPage({
       </div>`;
       host.querySelectorAll("#moMonth button").forEach(b => b.onclick = () => { S.month = b.dataset.v; S.city = ""; paint(); });
       host.querySelectorAll("#moCo button").forEach(b => b.onclick = () => { S.co = b.dataset.v; paint(); });
-      RSC.localSelect(host.querySelector("#moSt"), { label: "State", allLabel: "All states", values: states.map(v => ({ v, l: v })),
-        value: S.st, onChange: v => { S.st = v; S.city = ""; paint(); } });
       RSC.localSelect(host.querySelector("#moCity"), { label: "City", allLabel: "All cities", values: cities.map(v => ({ v, l: v })),
         value: S.city, onChange: v => { S.city = v; paint(); } });
+      // the Filters button ends the bar; the "Filtered by" line sits right under it. Values: the
+      // company's own jobs on file (both months), most common first.
+      const mine = all.filter(r => isJob(r) && (!S.co || r["Company"] === S.co));
+      const counted = col => { const g = {};
+        mine.forEach(r => { const v = r[col]; if (v == null || v === "") return; g[v] = (g[v] || 0) + 1; });
+        return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })); };
+      const fields = [
+        { key: "state", label: PF_NAME.state, values: counted("State") },
+        { key: "job", label: PF_NAME.job, values: Object.keys(PF_JOB).map(k => ({ v: k, l: k, n: mine.filter(r => PF_JOB[k].indexOf(r["Job Type"]) >= 0).length })) },
+        { key: "source", label: PF_NAME.source, values: counted("Source") },
+        { key: "sales", label: PF_NAME.sales, values: counted("Sales Person") },
+      ];
+      const apply = next => {
+        S.pf = { state: [...next.state], job: [...next.job], source: [...next.source], sales: [...next.sales] };
+        // a city outside the picked states would leave the page empty with no visible reason
+        if (S.city && S.pf.state.length && !all.some(r => r["City"] === S.city && S.pf.state.indexOf(r["State"]) >= 0)) S.city = "";
+        paint();
+      };
+      RSC.filterPanel(host.querySelector("#moFilt"), { fields, selected: S.pf, note: PF_NOTE, onApply: apply });
+      host.querySelector(".mo-bar").insertAdjacentElement("afterend", RSC.filterChips(null, { fields, selected: S.pf, onChange: apply }));
     };
     paint();
   },

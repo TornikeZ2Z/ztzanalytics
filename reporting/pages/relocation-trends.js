@@ -130,6 +130,16 @@
         co: "", type: "",
         showFacility: false,  // the company's own warehouse, off by default
       });
+      /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports
+         too"): Origin state, Move type and Size of move, in the right-hand panel the other
+         reports have. Move type is the old bar dropdown moved in and made multi -- it always read
+         Distance Band, which holds exactly Local (Local Moving) and Long distance (Regular +
+         Straight Moving), so it is also the distance band; there is no second field for it.
+         Session page state only: never RS.state.multi, never localStorage. */
+      if (!(S.types instanceof Set)) S.types = new Set(S.type ? [S.type] : []);
+      delete S.type;
+      if (!(S.ost instanceof Set)) S.ost = new Set();
+      if (!(S.sizes instanceof Set)) S.sizes = new Set();
 
       injectStyle();
       host.innerHTML = '<div class="panel">Loading the relocation data…</div>';
@@ -161,11 +171,8 @@
         if (!S.year || years.indexOf(S.year) < 0) S.year = years[0];
         if (!S.base || years.indexOf(S.base) < 0) S.base = years[1] || years[0];
 
-        const cos = {}, types = {};
-        rows.forEach(r => {
-          if (r.Company) cos[r.Company] = 1;
-          if (r["Distance Band"]) types[r["Distance Band"]] = 1;
-        });
+        const cos = {};
+        rows.forEach(r => { if (r.Company) cos[r.Company] = 1; });
 
         /* THE LIKE-FOR-LIKE WINDOW. The comparison year runs to whatever calendar day the
            newest year has reached — never to the end of December, or a partial year is set
@@ -175,11 +182,14 @@
           return cur.length ? cur[cur.length - 1] : "12-31";
         }
 
+        // the panel's picks (an empty set is every value)
+        const PF = [["ost", "Origin State"], ["types", "Distance Band"], ["sizes", "Size of Move"]];
+        const pfOk = r => PF.every(p => !S[p[0]].size || S[p[0]].has(String(r[p[1]] || "")));
+
         function passes(r) {
           if (!S.showFacility && r.facility) return false;
           if (S.co && r.Company !== S.co) return false;
-          if (S.type && r["Distance Band"] !== S.type) return false;
-          return true;
+          return pfOk(r);
         }
 
         function inWindow(r, y) {
@@ -309,7 +319,7 @@
           const all = rows.filter(passes);
           const cur = all.filter(r => inWindow(r, S.year));
           const prev = all.filter(r => inWindow(r, S.base));
-          const hiddenFacility = rows.filter(r => r.facility
+          const hiddenFacility = rows.filter(r => r.facility && pfOk(r)
             && (inWindow(r, S.year) || inWindow(r, S.base))).length;
 
           const curMoves = cur.filter(r => r.isMove).length;
@@ -358,12 +368,13 @@
             + '<button data-w="full"' + (S.window === "full" ? ' class="on"' : "")
             + ">Full year</button></div></div>"
             + '<div id="rlcCo"></div>'
-            + '<div id="rlcType"></div>'
             + '<div class="rs-tog' + (S.showFacility ? " on" : "") + '" id="rlcFac"><i></i>'
             + "Include our own storage facility</div>"
             + '<span class="rs-spacer"></span>'
             + '<button class="rs-btn" id="rlcCsv">Download CSV · ' + cur.length + "</button>"
-            + "</div>";
+            + '<div id="rlcFilt" style="margin-left:auto"></div>'
+            + "</div>"
+            + '<div id="rlcChips"></div>';
 
           if (S.window === "full" && S.year === years[0]) {
             html += '<div class="rs-hint"><b class="em">' + S.year + " is not over.</b> "
@@ -528,7 +539,7 @@
 
         function wire(cur) {
           if (!alive()) return;
-          // the four dropdowns are kit slicers (RSC.localSelect) — no native <select> on
+          // the three dropdowns are kit slicers (RSC.localSelect) — no native <select> on
           // the portal. Option values stay the exact strings the old options carried.
           const y = host.querySelector("#rlcYear");
           if (y) RSC.localSelect(y, {
@@ -551,12 +562,29 @@
             allLabel: "All",
             onChange: function (v) { S.co = v; paint(); },
           });
-          const tp = host.querySelector("#rlcType");
-          if (tp) RSC.localSelect(tp, {
-            label: "Move type", values: Object.keys(types).sort(), value: S.type,
-            allLabel: "All",
-            onChange: function (v) { S.type = v; paint(); },
-          });
+          // the panel: values from this company's rows (the bar's Company), most common first
+          const cnt = col => {
+            const g = {};
+            rows.forEach(r => {
+              if (S.co && r.Company !== S.co) return;
+              const v = String(r[col] || ""); if (v) g[v] = (g[v] || 0) + 1;
+            });
+            return Object.keys(g).sort((a, b) => g[b] - g[a]).map(v => ({ v: v, l: v, n: g[v] }));
+          };
+          const pf = [
+            { key: "ost", label: "Origin state", values: cnt("Origin State") },
+            { key: "types", label: "Move type", values: cnt("Distance Band") },
+            { key: "sizes", label: "Size of move", values: cnt("Size of Move") },
+          ];
+          const pfSel = { ost: S.ost, types: S.types, sizes: S.sizes };
+          const apply = next => { S.ost = new Set(next.ost); S.types = new Set(next.types); S.sizes = new Set(next.sizes); paint(); };
+          const fh = host.querySelector("#rlcFilt");
+          if (fh) RSC.filterPanel(fh, { fields: pf, selected: pfSel, onApply: apply,
+            note: "<b>Move type</b> is the distance band: Local is Local Moving, Long distance is "
+              + "Regular + Straight Moving. Every figure on the page follows these, the year it is "
+              + "compared against included." });
+          const ch = host.querySelector("#rlcChips");
+          if (ch) RSC.filterChips(ch, { fields: pf, selected: pfSel, onChange: apply });
           const fac = host.querySelector("#rlcFac");
           if (fac) fac.onclick = () => { S.showFacility = !S.showFacility; paint(); };
 

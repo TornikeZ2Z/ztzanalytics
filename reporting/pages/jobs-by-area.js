@@ -91,6 +91,11 @@ registerPage({
     };
 
     const S = window.__JBA || (window.__JBA = { year: null, season: "summer", co: "" });
+    /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports
+       too"): State, in the same right-hand panel the other reports have. The pick lives in
+       this session's page state -- never in RS.state.multi (every other report reads it) and
+       never in localStorage. It narrows every number here, the totals and shares with it. */
+    if (!(S.states instanceof Set)) S.states = new Set();
     injectStyle();
     host.innerHTML = '<div class="jba"><div class="panel">Loading jobs…</div></div>';
     const mine = host.querySelector(".jba");
@@ -128,7 +133,8 @@ registerPage({
       function sumOf(list, co) {
         const key = {};
         list.forEach(m => { key[m.yr + "-" + m.mo] = 1; });
-        return rows.filter(r => key[r.yr + "-" + r.mo] && (!co || r.co === co));
+        return rows.filter(r => key[r.yr + "-" + r.mo] && (!co || r.co === co)
+          && (!S.states.size || S.states.has(r.st)));
       }
 
       function paint() {
@@ -190,7 +196,9 @@ registerPage({
           + "</div></div>"
           + '<div id="jbaYear"></div>'
           + (cos.length > 1 ? '<div id="jbaCo"></div>' : "")
+          + '<div id="jbaFilt" style="margin-left:auto"></div>'
           + "</div>"
+          + '<div id="jbaChips"></div>'
           + '<p class="rs-hint">A job is a <b>closing</b> — the same thing the Monthly Report '
           + "counts, so the two always agree. A move that came back (storage out, a split "
           + "load, a re-delivery) is work done twice and counts twice. A job belongs to the "
@@ -199,7 +207,8 @@ registerPage({
 
         if (!v.length) {
           h += '<div class="panel">Nothing in this slice — no jobs for '
-            + esc(label) + (S.co ? " under " + esc(S.co) : "") + ".</div>";
+            + esc(label) + (S.co ? " under " + esc(S.co) : "")
+            + (S.states.size ? " in " + esc([...S.states].join(", ")) : "") + ".</div>";
           mine.innerHTML = h;
           wire();
           return;
@@ -308,6 +317,18 @@ registerPage({
         mine.querySelectorAll("#jbaSeason button").forEach(b => {
           b.onclick = () => { S.season = b.dataset.s; paint(); };
         });
+        // the panel's State values: the pickup states of this company's jobs, most jobs first
+        const stN = {};
+        rows.forEach(r => { if (!S.co || r.co === S.co) stN[r.st] = (stN[r.st] || 0) + r.jobs; });
+        const pf = [{ key: "state", label: "State", values: Object.keys(stN)
+          .sort((a, b) => stN[b] - stN[a]).map(k => ({ v: k, l: k, n: stN[k] })) }];
+        const apply = next => { S.states = new Set(next.state); paint(); };
+        const fh = mine.querySelector("#jbaFilt");
+        if (fh) RSC.filterPanel(fh, { fields: pf, selected: { state: S.states }, onApply: apply,
+          note: "State is the <b>pickup</b> state. <b>No zip</b> is the jobs whose pickup zip never "
+            + "parsed, so they have no state." });
+        const ch = mine.querySelector("#jbaChips");
+        if (ch) RSC.filterChips(ch, { fields: pf, selected: { state: S.states }, onChange: apply });
       }
 
       paint();

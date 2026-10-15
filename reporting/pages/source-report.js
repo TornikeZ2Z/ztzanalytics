@@ -91,17 +91,26 @@
                   "Over 2000", "(no volume)"];
   var QB_ORDER = ["Not quoted", "$0 - $500", "$501 - $1,000", "$1,001 - $3,000",
                   "$3,001 - $5,000", "$5,001 - $10,000", "$10,001 - $20,000", "Over $20,000"];
-  var SIDES = [["Local", "Local"], ["Long distance", "Long distance"]];
+  var SIDES0 = [["Local", "Local"], ["Long distance", "Long distance"]];
   var THIN = 30;          // below this many qualified leads a rate is marked "small sample"
 
   /* Page state lives at module scope so a re-render (theme switch, a global filter change on
      another page) keeps the reader's picks. */
   var S = {
     fam: null, camp: "", co: "Zip to Zip", from: null, to: null, cmp: "ly",
-    states: new Set(), mt: "both", by: "month",
+    states: new Set(), mts: new Set(), sizes: new Set(), reps: new Set(), by: "month",
     list: { page: 0, per: 50, q: "", cat: "" },
     cols: null, bootDone: false,
   };
+  /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
+     Pickup state, Local / Long distance, Size of move and Rep, in the right-hand panel the other
+     reports have; Source and Campaign stay in the bar. Pickup state was the bar's own multi and
+     Local / Long distance the Breakdowns' three buttons -- both moved in. All four are Sets in this
+     module's memory (empty = every value), never RS.state.multi, never localStorage. Local / Long
+     distance is the lead's Moving Type: Service Type 'Long Distance' is Long distance, every other
+     service type Local (the page's own definition above). Return on ad spend follows the State
+     filter only; Spend and return follows none (the ledger has no state, size, rep or type). */
+  var PF_NAME = { state: "State", mt: "Local / Long distance", size: "Size of move", rep: "Rep" };
   var DATA = { ready: false, byFam: null, minDay: null, maxDay: null, ledgerEnd: null, formsDate: null };
   var FORMS_STALE_DAYS = 10;   // the export is due weekly (his call 2026-09-24); 10 days = one Monday missed
   var DETAIL = {};        // "fam|co|from|to" -> {rows: {jk: row}, capped, error} (or a Promise)
@@ -304,7 +313,22 @@
   function coOk(r) { return !S.co || r.Company === S.co; }
   function campOk(r) { return !S.camp || r.Campaign === S.camp; }
   function stOk(r) { return !S.states.size || S.states.has(r._st); }
-  function mtOk(r) { return S.mt === "both" || r["Moving Type"] === (S.mt === "ld" ? "Long distance" : "Local"); }
+  function mtOk(r) { return !S.mts.size || S.mts.has(r["Moving Type"]); }
+  // the one side picked, or null when the filter is off (none or both picked)
+  function mtOne() { return S.mts.size === 1 ? Array.from(S.mts)[0] : null; }
+  function sizeOk(r) { return !S.sizes.size || S.sizes.has(String(r["Size of Move"] || "")); }
+  function repOk(r) { return !S.reps.size || S.reps.has(String(r.Rep || "")); }
+  // every lead section reads the family's leads through this; Local / Long distance splits the
+  // two sides and slices the breakdowns and the list (sliceMt)
+  function leadOk(r) { return stOk(r) && sizeOk(r) && repOk(r); }
+  // "Not filtered by State or Rep: <what>." -- only for the filters that are on
+  function nfHtml(keys, what) {
+    var on = { state: S.states.size > 0, mt: !!mtOne(), size: S.sizes.size > 0, rep: S.reps.size > 0 };
+    var hit = keys.filter(function (k) { return on[k]; }).map(function (k) { return PF_NAME[k]; });
+    if (!hit.length) return "";
+    var or = hit.length < 3 ? hit.join(" or ") : hit.slice(0, -1).join(", ") + " or " + hit[hit.length - 1];
+    return '<div class="rs-hint"><b>Not filtered by ' + esc(or) + ":</b> " + what + ".</div>";
+  }
 
   /* the reading window [a, b]; `bEff` stops at the newest lead on file so a comparison
      window is day-matched instead of charging this year for days that have not happened */
@@ -493,7 +517,7 @@
     var w = win();
     var cw = cmpWin(w);
     var pack = famPack();
-    var leadsSt = pack.leads.filter(stOk);
+    var leadsSt = pack.leads.filter(leadOk);
     var isPC = S.fam === "Post Card";
 
     host.innerHTML = '<div class="sra">'
@@ -508,21 +532,18 @@
       + '<div class="rs-fld"><span>Compare</span><div class="rs-seg" id="sraCmp">'
       + '<button type="button" data-v="ly">vs last year</button>'
       + '<button type="button" data-v="prev">vs previous period</button></div></div>'
-      + '<div id="sraSt"></div>'
+      + '<div id="sraFilt" style="margin-left:auto"></div>'
       + "</div>"
+      + '<div id="sraChips"></div>'
       + formsStaleHtml()
       + '<div class="sra-h"><h2>Return on ad spend · every source, by state</h2>'
-      + '<span class="sra-sub">the company and period above · the source and state pickers do not apply here</span></div>'
+      + '<span class="sra-sub">the company and period above · the source picker does not apply here, a State filter does</span></div>'
       + '<div class="sra-roas" id="sraRoas"></div>'
       + '<div class="sra-h"><h2 id="sraOneH">One source in detail</h2></div>'
       + '<div class="rs-hint" id="sraLead"></div>'
       + '<div class="rs-grid2" id="sraSides"></div>'
       + '<div class="sra-h"><h2>Breakdowns</h2>'
-      + '<div class="rs-seg" id="sraMt"><button type="button" data-v="local">Local</button>'
-      + '<button type="button" data-v="ld">Long distance</button>'
-      + '<button type="button" data-v="both">Both</button></div>'
-      + '<span class="sra-sub">leads by create date · confirmed by booked date · the switch also '
-      + "drives the Analyze-by table and the lead list</span></div>"
+      + '<span class="sra-sub">leads by create date · confirmed by booked date</span></div>'
       + '<div class="rs-grid2 sra-grid" id="sraCharts"></div>'
       + '<div class="sra-h"><h2>Spend and return</h2><span id="sraSpendPills"></span></div>'
       + '<div id="sraSpend"></div>'
@@ -621,11 +642,18 @@
       return;
     }
     var R = roasCalc(w), st = SERVICE_STATES.concat([OTHER_ST]);
+    /* A STATE FILTER (2026-10-15) keeps only those states, spend and revenue on the same footing:
+       the spend placed in a state against the revenue of the same sources' jobs there. Spend no
+       rule can place has no state -- it may belong to these states or not -- so it stays named in
+       full (the Not placed row and column, Missing data), as does the all-sources return. */
+    var PS = S.states.size ? S.states : null;
+    var stIn = function (s0) { return !PS || PS.has(s0); };
+    var psTxt = PS ? st.filter(stIn).join(", ") : "";
     var famList = Object.keys(R.fams).filter(function (f) { return R.fams[f].sp > 0; })
       .sort(function (a, b) { return R.fams[b].sp - R.fams[a].sp; });
     // per state: only cells where spend IS placed count, so a source whose spend is unplaced never
     // inflates a state's return with revenue it did not pay for
-    var byS = {}, placed = 0, revPlaced = 0, revAll = 0;
+    var byS = {}, placed = 0, revPlaced = 0, revAll = 0, placedPS = 0, revPS = 0;
     st.forEach(function (s0) { byS[s0] = { sp: 0, rev: 0, jobs: 0, how: {} }; });
     famList.forEach(function (f) {
       Object.keys(R.fams[f].st).forEach(function (s0) {
@@ -633,6 +661,7 @@
         revAll += c.rev;
         if (!(c.sp > 0)) return;
         var B = byS[s0]; B.sp += c.sp; B.rev += c.rev; B.jobs += c.jobs; placed += c.sp; revPlaced += c.rev;
+        if (stIn(s0)) { placedPS += c.sp; revPS += c.rev; }
         Object.keys(c.how).forEach(function (h) { B.how[h] = (B.how[h] || 0) + c.how[h]; });
       });
     });
@@ -641,8 +670,10 @@
       + (R.clipped ? "up to <b>" + esc(niceDay(R.e)) + "</b>, the last day the advertising ledger is posted (revenue stops there too)" : "for the period")
       + ", by month. Return = revenue (Total Bill) of each source's jobs in a state ÷ that source's spend placed in the state. "
       + "Spend is placed from the source's label (post cards, Yelp-DE), Google's own state report, Thumbtack's cost per lead, "
-      + "Angi's and Google Local's leads by state, or your split; anything else waits under <b>Missing data</b> below.</div>";
-    var k = [
+      + "Angi's and Google Local's leads by state, or your split; anything else waits under <b>Missing data</b> below.</div>"
+      + nfHtml(["state"], "the all-sources return and the spend not placed yet (it has no state, so it stays whole and named)")
+      + nfHtml(["mt", "size", "rep"], "this section (the advertising ledger has no Local / Long distance split, size or rep)");
+    var k = !PS ? [
       { label: "Ad spend", value: money0(R.total), sub: famList.length + " paying sources" },
       { label: "Placed in a state", value: R.total ? pct1(placed / R.total) : "—", sub: money0(placed) + " of it" },
       { label: "Return where placed", value: placed > 0 ? (revPlaced / placed).toFixed(1) + "×" : "—",
@@ -651,8 +682,17 @@
         sub: money0(revAll) + " revenue ÷ every ad dollar" },
       { label: "Not placed yet", value: money0(unplTot), sub: unplFams.length ? unplFams.length + " source" + (unplFams.length === 1 ? "" : "s") + " — see Missing data" : "nothing missing",
         tone: unplTot > 0.5 ? "warn" : "" },
+    ] : [
+      { label: "Ad spend", value: money0(placedPS), sub: "placed in " + psTxt + " · " + money0(R.total) + " in all" },
+      { label: "Placed in a state", value: R.total ? pct1(placedPS / R.total) : "—", sub: "of all ad spend is placed in these states" },
+      { label: "Return where placed", value: placedPS > 0 ? (revPS / placedPS).toFixed(1) + "×" : "—",
+        sub: money0(revPS) + " revenue ÷ " + money0(placedPS) },
+      { label: "Return, all paying sources", value: R.total > 0 ? (revAll / R.total).toFixed(1) + "×" : "—",
+        sub: "every state: " + money0(revAll) + " ÷ every ad dollar" },
+      { label: "Not placed yet", value: money0(unplTot), sub: (unplFams.length ? unplFams.length + " source" + (unplFams.length === 1 ? "" : "s") + ", any state — see Missing data" : "nothing missing"),
+        tone: unplTot > 0.5 ? "warn" : "" },
     ];
-    var stRows = st.filter(function (s0) { return byS[s0].sp > 0 || byS[s0].rev > 0; });
+    var stRows = st.filter(function (s0) { return stIn(s0) && (byS[s0].sp > 0 || byS[s0].rev > 0); });
     var howTxt = function (how, sp) {
       return Object.keys(how).sort(function (a, b) { return how[b] - how[a]; })
         .map(function (h) { return (HOW_SHORT[h] || h) + " " + Math.round(100 * how[h] / (sp || 1)) + "%"; }).join(" · ");
@@ -666,20 +706,33 @@
             + '</td><td class="num">' + fmtN(B.jobs) + '</td><td class="num">' + xTxt(B.rev, B.sp) + '</td><td class="sra-np">'
             + esc(howTxt(B.how, B.sp)) + "</td></tr>";
         }).join("")
-      + (unplTot > 0.5 ? '<tr><td>Not placed</td><td class="num">' + money0(unplTot) + '</td><td class="num sra-np">—</td><td></td>'
+      + (unplTot > 0.5 ? '<tr><td>Not placed' + (PS ? ", any state" : "") + '</td><td class="num">' + money0(unplTot) + '</td><td class="num sra-np">—</td><td></td>'
           + '<td class="num sra-np">—</td><td class="sra-np">see Missing data</td></tr>' : "")
-      + '</tbody><tfoot><tr class="sra-tot"><td>All</td><td class="num">' + money0(R.total) + '</td><td class="num">' + money0(revPlaced)
-      + '</td><td></td><td class="num">' + xTxt(revPlaced, placed) + "</td><td></td></tr></tfoot></table></div></div>";
-    var cols = st.filter(function (s0) { return famList.some(function (f) { var c = R.fams[f].st[s0]; return c && (c.sp > 0 || c.rev > 0); }); });
+      + '</tbody><tfoot><tr class="sra-tot">' + (PS
+          ? '<td>These states</td><td class="num">' + money0(placedPS) + '</td><td class="num">' + money0(revPS)
+            + '</td><td></td><td class="num">' + xTxt(revPS, placedPS) + "</td><td></td>"
+          : '<td>All</td><td class="num">' + money0(R.total) + '</td><td class="num">' + money0(revPlaced)
+            + '</td><td></td><td class="num">' + xTxt(revPlaced, placed) + "</td><td></td>")
+      + "</tr></tfoot></table></div></div>";
+    var cols = st.filter(function (s0) { return stIn(s0) && famList.some(function (f) { var c = R.fams[f].st[s0]; return c && (c.sp > 0 || c.rev > 0); }); });
+    // under a State filter: the sources with something in these states, or spend nobody placed
+    var famRows = !PS ? famList : famList.filter(function (f) {
+      return R.fams[f].unpl > 0.5 || cols.some(function (s0) { var c = R.fams[f].st[s0]; return c && (c.sp > 0 || c.rev > 0); });
+    });
     var mx = '<div class="panel"><div class="panel-head"><span class="panel-title">Every source by state · return per $1</span>'
       + '<span class="sra-sub" style="margin-left:auto">hover a cell for spend and revenue · "—" = no spend placed there · grey = under $500 placed</span></div>'
-      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Source</th><th class="num">Spend</th>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Source</th><th class="num">' + (PS ? "Spend placed here" : "Spend") + "</th>"
       + cols.map(function (s0) { return '<th class="num">' + esc(s0 === OTHER_ST ? "Other" : s0) + "</th>"; }).join("")
-      + '<th class="num">Not placed</th><th class="num">All states</th></tr></thead><tbody>'
-      + famList.map(function (f) {
-          var F = R.fams[f], revF = 0;
-          Object.keys(F.st).forEach(function (s0) { revF += F.st[s0].rev; });
-          return "<tr><td>" + esc(f) + '</td><td class="num">' + money0(F.sp) + "</td>"
+      + '<th class="num">Not placed</th>' + (PS ? '<th class="num" title="revenue where spend is placed in these states ÷ that spend">These states</th>'
+                                                 : '<th class="num">All states</th>') + "</tr></thead><tbody>"
+      + famRows.map(function (f) {
+          var F = R.fams[f], revF = 0, spF = F.sp;
+          if (PS) {
+            // these states, where-placed footing: the same cells the by-state table counts
+            spF = 0;
+            cols.forEach(function (s0) { var c = F.st[s0]; if (c && c.sp > 0) { spF += c.sp; revF += c.rev; } });
+          } else Object.keys(F.st).forEach(function (s0) { revF += F.st[s0].rev; });
+          return "<tr><td>" + esc(f) + '</td><td class="num">' + money0(spF) + "</td>"
             + cols.map(function (s0) {
                 var c = F.st[s0];
                 if (!c || !(c.sp > 0)) return '<td class="num" title="' + (c && c.rev ? esc(money0(c.rev) + " revenue, no spend placed") : "") + '"><span class="sra-np">—</span></td>';
@@ -688,7 +741,7 @@
                 return '<td class="num" title="' + esc(money0(c.sp) + " spend · " + money0(c.rev) + " revenue · " + c.jobs + " jobs") + '">' + xTxt(c.rev, c.sp) + "</td>";
               }).join("")
             + '<td class="num">' + (F.unpl > 0.5 ? money0(F.unpl) : '<span class="sra-np">—</span>') + "</td>"
-            + '<td class="num" title="' + esc(money0(revF) + " revenue ÷ " + money0(F.sp) + " spend") + '">' + xTxt(revF, F.sp) + "</td></tr>";
+            + '<td class="num" title="' + esc(money0(revF) + " revenue ÷ " + money0(spF) + " spend") + '">' + xTxt(revF, spF) + "</td></tr>";
         }).join("")
       + "</tbody></table></div></div>";
     el.innerHTML = '<div class="panel">' + hint + '<div class="rs-kpis" id="sraRoasK"></div></div>'
@@ -854,19 +907,34 @@
       b.disabled = !!w.open;
       b.onclick = function () { S.cmp = b.dataset.v; paint(host); };
     });
-    var stc = {};
-    famPack().leads.forEach(function (r) { if (inR(r._cd, w.a, w.b)) stc[r._st] = (stc[r._st] || 0) + 1; });
-    RSC.localMulti(host.querySelector("#sraSt"), {
-      label: "Pickup state", emptyLabel: "All states",
-      values: SERVICE_STATES.concat([OTHER_ST]).map(function (k) { return { v: k, l: k, n: stc[k] || 0 }; }),
-      selected: S.states,
-      onChange: function (set) { S.states = new Set(set); S.list.page = 0; paint(host); },
-    });
-    var mt = host.querySelector("#sraMt");
-    mt.querySelectorAll("button").forEach(function (b) {
-      b.classList.toggle("on", b.dataset.v === S.mt);
-      b.onclick = function () { S.mt = b.dataset.v; S.list.page = 0; paint(host); };
-    });
+    // the Filters panel: values counted on this source's leads in the period (company and
+    // campaign as the bar has them), most first; a fixed list keeps its zeros, and a pick that
+    // counts nothing here stays listed so it can still be unticked
+    var lead0 = famPack().leads.filter(function (r) { return inR(r._cd, w.a, w.b); });
+    var pfVals = function (fixed, keyOf, sel) {
+      var g = {};
+      (fixed || []).forEach(function (v) { g[v] = 0; });
+      sel.forEach(function (v) { if (!(v in g)) g[v] = 0; });
+      lead0.forEach(function (r) { var v = keyOf(r); if (v) g[v] = (g[v] || 0) + 1; });
+      return Object.keys(g).sort(function (a, b) { return g[b] - g[a]; }).map(function (v) { return { v: v, l: v, n: g[v] }; });
+    };
+    var fields = [
+      { key: "state", label: "Pickup state", values: pfVals(SERVICE_STATES.concat([OTHER_ST]), function (r) { return r._st; }, S.states) },
+      { key: "mt", label: "Local / Long distance", values: pfVals(["Local", "Long distance"], function (r) { return r["Moving Type"]; }, S.mts) },
+      { key: "size", label: "Size of move", values: pfVals(null, function (r) { return r["Size of Move"]; }, S.sizes) },
+      { key: "rep", label: "Rep", values: pfVals(null, function (r) { return r.Rep; }, S.reps) },
+    ];
+    var sel = { state: S.states, mt: S.mts, size: S.sizes, rep: S.reps };
+    var apply = function (next) {
+      S.states = new Set(next.state); S.mts = new Set(next.mt); S.sizes = new Set(next.size); S.reps = new Set(next.rep);
+      S.list.page = 0; paint(host);
+    };
+    RSC.filterPanel(host.querySelector("#sraFilt"), { fields: fields, selected: sel, onApply: apply,
+      note: "Every lead count, rate, chart and the lead list follow these. <b>Return on ad spend</b> follows the "
+        + "State filter only: spend placed in a state against the revenue there; spend no rule can place has no "
+        + "state and stays named in full. <b>Spend and return</b> is the whole source: the advertising ledger has "
+        + "no state, Local / Long distance split, size or rep." });
+    RSC.filterChips(host.querySelector("#sraChips"), { fields: fields, selected: sel, onChange: apply });
   }
 
   /* ---- the website-form export's age (2026-09-24). The UTM tags that tell Google from Google
@@ -907,6 +975,8 @@
   function paintSides(host, w, cw, leadsSt) {
     var wrap = host.querySelector("#sraSides");
     var all = funnel(leadsSt, w.a, w.b);
+    // Local / Long distance in the panel shows the side(s) picked; the share stays of all leads
+    var SIDES = SIDES0.filter(function (s) { return !S.mts.size || S.mts.has(s[0]); });
     wrap.innerHTML = SIDES.map(function (s, i) {
       return '<div class="panel sra-side"><div class="panel-head"><span class="panel-title">'
         + esc(s[1]) + '</span><span class="rs-pill mute" data-share="' + i + '"></span></div>'
@@ -1046,7 +1116,7 @@
     var created = rows.filter(function (r) { return inR(r._cd, w.a, w.bEff); });
     var booked = rows.filter(function (r) { return inR(r._bd, w.a, w.bEff); });
     var D = dims();
-    var mtName = S.mt === "both" ? "" : (S.mt === "ld" ? " · long distance" : " · local");
+    var mtName = !mtOne() ? "" : (mtOne() === "Long distance" ? " · long distance" : " · local");
     [["month", "By month"], ["state", "By pickup state"], ["cf", "By volume band (cu ft)"],
      ["quote", "By quote band"]].forEach(function (spec) {
       var dim = D[spec[0]];
@@ -1216,7 +1286,7 @@
     pills.innerHTML = (led ? '<span class="rs-pill info">spend through ' + esc(niceDay(led)) + "</span> " : "")
       + (S.states.size ? '<span class="rs-pill warn" title="the ledger has no state, so the state '
          + 'filter does not apply to this section">source-wide</span> ' : "")
-      + (S.mt !== "both" ? '<span class="rs-pill mute" title="the ledger has no Local / long-distance '
+      + (mtOne() ? '<span class="rs-pill mute" title="the ledger has no Local / long-distance '
          + 'split">both moving types</span>' : "");
     var k = unposted ? [
       // 2026-09-23 review: zeros here read as real ("$0 spend, 0 leads") next to the September
@@ -1242,7 +1312,10 @@
         sub: prev && prev.per != null ? "before: $" + prev.per.toFixed(2) : "cash ÷ ad spend",
         tone: cur.per != null && cur.per < 1 ? "neg" : "" },
     ];
-    el.innerHTML = '<div class="panel"><div class="rs-hint">'
+    el.innerHTML = '<div class="panel">'
+      + nfHtml(["state", "mt", "size", "rep"], "this section (the advertising ledger has no state, Local / Long distance "
+          + "split, size or rep, so spend, cost per lead and cash are the whole source's)")
+      + '<div class="rs-hint">'
       + (unposted ? "<b>The advertising ledger is posted only to " + esc(niceDay(led)) + "</b>, before this "
           + "period starts, so there is no spend to set against these leads yet. " : "")
       + (unposted ? "" : everSpend
@@ -1340,7 +1413,7 @@
     var booked = rows.filter(function (r) { return inR(r._bd, w.a, w.bEff); });
     var g = groupBy(created, booked, dim.kc, dim.kb);
     var keys = ordered(g, dim, w);
-    var mtName = S.mt === "both" ? "Local and long distance" : (S.mt === "ld" ? "Long distance only" : "Local only");
+    var mtName = !mtOne() ? "Local and long distance" : (mtOne() === "Long distance" ? "Long distance only" : "Local only");
     host.querySelector("#sraPivot").innerHTML = '<div class="rs-hint">' + esc(mtName)
       + ". Confirmed and Booking rate are the headline basis (bookings made in the period). The "
       + "last four columns follow the leads in each row instead: how many of them are booked now, "
@@ -1443,7 +1516,7 @@
     }).then(function () {
       PREF.loaded = true; PREF.loading = false;
       var list = host.querySelector("#sraList");
-      if (list && host.isConnected) paintList(host, win(), famPack().leads.filter(stOk));
+      if (list && host.isConnected) paintList(host, win(), famPack().leads.filter(leadOk));
     });
   }
 
@@ -1495,7 +1568,7 @@
       DETAIL[key] = { rows: null, error: /mart_missing|not built/.test(String(e.message))
         ? "The contact columns arrive once the Source Analysis marts are built." : String(e.message) };
     }).then(function () {
-      if (host.isConnected && detailKey(win()) === key) paintList(host, win(), famPack().leads.filter(stOk));
+      if (host.isConnected && detailKey(win()) === key) paintList(host, win(), famPack().leads.filter(leadOk));
     });
     return DETAIL[key];
   }
@@ -1532,7 +1605,7 @@
     var catBtn = function (v, l) {
       return '<button type="button" data-cat="' + v + '"' + (S.list.cat === v ? ' class="on"' : "") + ">" + l + "</button>";
     };
-    var mtName = S.mt === "both" ? "" : (S.mt === "ld" ? " · long distance" : " · local");
+    var mtName = !mtOne() ? "" : (mtOne() === "Long distance" ? " · long distance" : " · local");
     el.innerHTML = '<div class="panel-head"><span class="panel-title">' + esc(S.fam || "") + mtName
       + '</span><span class="rs-pill mute">' + fmtN(rows.length) + " lead" + (rows.length === 1 ? "" : "s") + "</span></div>"
       + '<div class="rs-bar">'

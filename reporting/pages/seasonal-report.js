@@ -26,6 +26,71 @@ async function renderSeasonal(host) {
   if (!st.company) { try { st.company = String(localStorage.getItem("ztzSrCompany") || ""); } catch (e) { /* storage blocked */ } }
   // the company this page reports on (his ask 2026-09-14: "from where can the user choose Tuji or Zip?")
   const CO = st.company || "Zip to Zip", ZIP = CO === "Zip to Zip";
+  /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
+     State, Local / Long distance and Source in the shell's right-hand Filters panel -- the Monthly
+     Report's, built the same way. They live in `st` (this browser session), never in RS.state.multi
+     and never in localStorage; withWin folds them in beside the company and puts everything back.
+     Local / Long distance is closing's Moving Type: Local Moving vs Regular + Straight Moving, the
+     same split this page's own isLD() draws. */
+  const PF_SEL = st.filters || {};
+  const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving"] };
+  const PF = {};
+  if ((PF_SEL.state || []).length) PF.state = new Set(PF_SEL.state);
+  if ((PF_SEL.job || []).length && PF_SEL.job.length < Object.keys(PF_JOB).length)
+    PF.movingType = new Set([].concat(...PF_SEL.job.map(v => PF_JOB[v] || [])));
+  if ((PF_SEL.source || []).length) PF.source = new Set(PF_SEL.source);
+  const PF_ON = Object.keys(PF).length > 0;
+  // the same test RS.filtered applies (an empty value is "—"), for the rows this page folds by hand
+  const pfHas = (k, v) => !PF[k] || PF[k].has(v == null || v === "" ? "—" : String(v));
+  const pfJob = r => pfHas("state", r.State) && pfHas("movingType", r["Moving Type"]) && pfHas("source", r.Source);
+  /* WHAT A PART CANNOT FOLLOW (his call: show it unfiltered, with a note under the part's title). A
+     lead has no job type until it closes; calls, the ad and card ledgers, the foreman scorecard,
+     surge days and the review footprint have no state or job type. Claims, refunds and reviews are
+     NOT here: they follow the job they belong to (Request Joinkey). Listed per part, shown only for
+     the filters that are on. */
+  const PF_NAME = { state: "State", job: "Local / Long distance", source: "Source" };
+  const PF_ACT = ["state", "job", "source"].filter(k => PF[k === "job" ? "movingType" : k]);
+  const PF_FUEL = { f: ["state", "job", "source"], txt: "Gross profit here leaves out fleet-card fuel that is not tied to a job." };
+  const PF_GAPS = {
+    "The season at a glance": [{ f: ["job"], what: "qualified leads, the booking rate and confirmed jobs (a lead has no job type until it closes)" },
+      { f: ["state", "job", "source"], what: "the goals' missed calls, reviews per job (foreman scorecard) and leads turned away on surge days" },
+      { f: ["state", "job"], what: "the goal's cash collected per $1 of advertising (ad spend has no state or job type)" },
+      { f: ["job", "source"], what: "the goal's postcard conversion" }, PF_FUEL],
+    "Financials": [{ f: ["state", "job", "source"], what: "packing material bought (the card ledger has none of them; packing written does follow)" }],
+    "Reviews": [{ f: ["state", "job", "source"], what: "public reviews added and removed (listing totals, not tied to a job)" }],
+    "Demand": [{ f: ["job"], what: "leads, bookings and estimates (a lead has no job type until it closes)" },
+      { f: ["state", "job", "source"], what: "surge days (a day's jobs against the crews, company-wide)" }],
+    "Sales team": [{ f: ["job"], what: "leads, booking rates, estimates sold and confirmed jobs (a lead has no job type until it closes)" },
+      { f: ["state", "job", "source"], what: "outbound and inbound calls by teammate (RingCentral has no state, type or source)" }],
+    "Crew": [{ f: ["state", "job", "source"], what: "foreman scores, the assessment and the packing estimates in the commission what-if (the scorecard has none of them)" }],
+    "Marketing": [{ f: ["state", "job"], what: "ad spend (the ledger has no state or job type, so each return per $1 sets the filtered cash collected against all of that channel's spend)" },
+      { f: ["job"], what: "leads and booking rates" }, { f: ["job", "source"], what: "the post card tables" },
+      { f: ["state", "job", "source"], what: "inbound calls by company line (RingCentral)" },
+      { f: ["state", "job"], what: "tracked marketing numbers (CallRail calls have no state or job type)" }],
+    "What the season says": [{ f: ["state", "job", "source"], what: "the findings on calls, foreman scores and surge days, as in their cards" }],
+  };
+  // one sentence per set of filters missed: "Not filtered by State or Source: a; b."
+  const orList = a => a.length < 3 ? a.join(" or ") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
+  const pfGapHtml = title => {
+    const by = new Map(), txt = [];
+    (PF_GAPS[title] || []).forEach(g => {
+      const hit = g.f.filter(k => PF_ACT.includes(k));
+      if (!hit.length) return;
+      if (g.txt) { txt.push(esc(g.txt)); return; }
+      const k = hit.join("|");
+      by.set(k, (by.get(k) || []).concat(g.what));
+    });
+    return [...by.entries()].map(([k, w]) =>
+      `<b>Not filtered by ${orList(k.split("|").map(x => PF_NAME[x]))}:</b> ${esc(w.join("; "))}.`).concat(txt).join(" ");
+  };
+  const PF_NOTE = "Claims, refunds and reviews follow the job they belong to. A lead has no job type until it closes, and "
+    + "calls, ad spend, the foreman scorecard and surge days have no state — a part that cannot follow a filter says so under its title.";
+  // how the cover (and so the printout) names the filters: "State NJ, PA · Long distance jobs · Source Google"
+  const pfList = (a, n) => a.length <= n ? a.join(", ") : a.slice(0, n).join(", ") + " +" + (a.length - n) + " more";
+  const PF_PARTS = [];
+  if (PF.state) PF_PARTS.push("State " + pfList(PF_SEL.state, 4));
+  if (PF.movingType) PF_PARTS.push(PF_SEL.job.join(" + ") + " jobs");
+  if (PF.source) PF_PARTS.push("Source " + pfList(PF_SEL.source, 3));
 
   host.innerHTML = `<div class="srx"><div class="srx-loading">Reading every season on file…</div></div>`;
 
@@ -74,7 +139,22 @@ async function renderSeasonal(host) {
 
   const coRow = r => r.Company == null || String(r.Company) === CO;
   // fct_claims has no Company column — attribute each claim through the company's own closings
-  const coJk = new Set(closing.filter(r => String(r.Company) === CO).map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
+  // + 2026-10-15: and only the jobs the page's own filters keep, so claims follow State, Local / Long
+  // distance and Source through the job they were filed on
+  const coJk = new Set(closing.filter(r => String(r.Company) === CO && pfJob(r)).map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
+  // the same test for a row that carries its job's Request Joinkey (claims analysis, job overview, estimates)
+  const pfJk = r => !PF_ON || coJk.has(String(r["Request Joinkey"] || ""));
+  /* What RS.filtered cannot do from FIELDS alone, while the page's filters are on (the Monthly Report's
+     scope, plus reviews): a refund has no State or Moving Type, so it follows its job; card fuel that
+     matches no job belongs to no state, type or source and is left out. Reviews and negative reviews
+     always follow their job here -- their `Source` is the review PLATFORM ("Google PA", "Yelp NJ"),
+     not the lead source, so rows() reads them without the Source pick (VIA_JOB). Set and put back by
+     withWin. */
+  const VIA_JOB = new Set(["reviews_breakdown", "negative_reviews"]);
+  const PF_SCOPE = !PF_ON ? null : Object.assign(
+    (PF.state || PF.movingType) ? { refunds: r => coJk.has(String(r["Request Joinkey"] || "")) } : {},
+    { fuel_card: r => !!r["Unique Key"], reviews_breakdown: pfJk, negative_reviews: pfJk });
+  const PF_SCOPE_KEY = !PF_ON ? "" : "sr:" + CO + ":" + JSON.stringify(Object.keys(PF).sort().map(k => [k, [...PF[k]].sort()]));
 
   /* ---------- the season window ---------- */
   const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
@@ -92,7 +172,7 @@ async function renderSeasonal(host) {
   const YEARS = []; for (let y = 2023; y <= Y; y++) YEARS.push(y);   // 2023 cutoff: nothing earlier is on file
   // post cards (2026-09-16): cards mailed per state-month (typed on Post Card Expenditure), the usage-based cost
   // and the return. A season = the window months of that year. Cost is NULL until every mailed month has a unit cost.
-  const PCM = pcm || [];
+  const PCM = (pcm || []).filter(r => pfHas("state", r.State));   // a State filter keeps its states
   const pcIn = y => PCM.filter(r => String(r.Month).slice(0, 4) === String(y) && +String(r.Month).slice(5, 7) >= F && +String(r.Month).slice(5, 7) <= T);
   // only months WITH a mailed record count toward the return: a lead from an uncosted month is not a return on cards
   const pcAgg = rs => { const a = { mailed: 0, cogs: 0, unknown: false, leads: 0, booked: 0, jobs: 0, rev: 0, revOpen: 0, lost: 0, lostCost: 0 };
@@ -108,19 +188,27 @@ async function renderSeasonal(host) {
   const winMonths = (() => { const a = []; for (let m = F; m <= T; m++) a.push(m); return a; })();
 
   /* withWin: the Monthly Report's withMonth, widened to a window. Every RS.filtered call and every
-     composite measure (_msr reads the GLOBAL state) sees exactly [from..to] of year y and Zip to Zip. */
-  function withWin(y, fn, mFrom, mTo) {
-    const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo, m: S.multi };
+     composite measure (_msr reads the GLOBAL state) sees exactly [from..to] of year y and Zip to Zip.
+     2026-10-15: plus the page's OWN filters (PF) and their row scope. mode "noSource": a dataset whose
+     Source column is not the lead source (VIA_JOB); mode "whole": the company only, for the parts the
+     filters cannot reach (said under the part's title). */
+  function withWin(y, fn, mFrom, mTo, mode) {
+    const S = RS.state, sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo, m: S.multi, s: S.rowScope, k: S.rowScopeKey };
     const a = mFrom || F, b = mTo || T;
     S.dateFrom = `${y}-${pad(a)}-01`; S.dateTo = `${y}-${pad(b)}-${pad(lastDay(y, b))}`;
-    S.dayFrom = S.dayTo = null; S.multi = { company: new Set([CO]) };
-    try { return fn(); } finally { S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt; S.multi = sv.m; }
+    S.dayFrom = S.dayTo = null; S.multi = Object.assign({ company: new Set([CO]) }, mode === "whole" ? {} : PF);
+    if (mode === "noSource") delete S.multi.source;
+    S.rowScope = mode === "whole" ? null : PF_SCOPE; S.rowScopeKey = mode === "whole" ? "" : PF_SCOPE_KEY;
+    try { return fn(); } finally {
+      S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt; S.multi = sv.m; S.rowScope = sv.s; S.rowScopeKey = sv.k;
+    }
   }
   const _rc = new Map();
-  function rows(ds, y, dateColumn, mFrom, mTo) {
-    const key = [ds, y, dateColumn || "", mFrom || F, mTo || T].join("|");
+  function rows(ds, y, dateColumn, mFrom, mTo, whole) {
+    const mode = whole ? "whole" : VIA_JOB.has(ds) ? "noSource" : "";
+    const key = [ds, y, dateColumn || "", mFrom || F, mTo || T, mode].join("|");
     if (_rc.has(key)) return _rc.get(key);
-    const out = !DS[ds] || !DS[ds].length ? [] : withWin(y, () => RS.filtered(ds, DS[ds], dateColumn ? { dateColumn } : undefined), mFrom, mTo);
+    const out = !DS[ds] || !DS[ds].length ? [] : withWin(y, () => RS.filtered(ds, DS[ds], dateColumn ? { dateColumn } : undefined), mFrom, mTo, mode);
     _rc.set(key, out); return out;
   }
   const cl = (y, a, b) => rows("closing", y, null, a, b);
@@ -186,6 +274,16 @@ async function renderSeasonal(host) {
     .srx-pick .rs-slicer-btn .val{color:#fff}
     .srx-pick .rs-slicer-btn .chev{color:#a9b6c6}
     .srx-pick .rs-slicer-pop{z-index:70}
+    .srx-pick .rs-fbtn{background:transparent;color:#fff;border-color:#46607f}
+    .srx-cover .rs-pchips{padding:2px 0 4px}
+    body.rs-app .srx-cover .rs-pchips .rs-sum-l{color:#a9b6c6}
+    body.rs-app .srx-cover .rs-chip{background:rgba(183,226,59,.14);border-color:rgba(183,226,59,.45);color:#e8f5c8}
+    body.rs-app .srx-cover .rs-chip button{color:#e8f5c8}
+    body.rs-app .srx-cover .rs-chip.clear{background:transparent;border-color:#2c3e57;color:#a9b6c6}
+    .srx-cvfilt{display:none;color:#a9b6c6;font-size:12.5px;font-weight:600;margin-top:4px}
+    .srx-cvfilt b{color:#fff}
+    .srx-nf{margin:-8px 0 14px;padding:8px 12px;border-radius:9px;background:${WARN_BG};border:1px solid ${WARN_BD};color:${WARN};font-size:12.5px;line-height:1.45}
+    .srx-nf b{color:${INK};font-weight:700}
     .srx-print{position:absolute;top:22px;right:24px;background:transparent;color:#a9b6c6;border:1px solid #2c3e57;border-radius:9px;padding:9px 13px;font-size:12.5px;font-weight:700;cursor:pointer}
     .srx-print:hover{color:#fff;border-color:#46607f}
     .srx-banner{display:flex;gap:11px;align-items:flex-start;background:${WARN_BG};border:1px solid ${WARN_BD};border-left:4px solid ${WARN_A};border-radius:11px;padding:11px 15px;font-size:13px;color:${WARN};font-weight:600;margin-bottom:10px;line-height:1.5}
@@ -282,6 +380,7 @@ async function renderSeasonal(host) {
       .rs-side,.rs-filters,.rs-chips,.rs-topbar,header,.srx-toc,.srx-print,.srx-pick{display:none!important}
       .srx{background:#fff;padding:0}.srx-card,.srx-kpi,.srx-part{break-inside:avoid}
       .srx-vsw{display:none!important}.srx-pane.d[hidden]{display:flex!important}
+      .srx-cvfilt{display:block!important}
       *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }`;
     document.head.appendChild(s);
@@ -301,6 +400,9 @@ async function renderSeasonal(host) {
       `.srx-h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:#0F172A;margin:4px 0 4px}`,
       `.srx-h1 em{color:#14301F}`,
       `.srx-cvsub{color:#64748B;font-size:13px;font-weight:400}`,
+      `.srx-cvfilt{color:#64748B;font-weight:400}`, `.srx-cvfilt b{color:#0F172A;font-weight:600}`,
+      `.srx-cover .rs-pchips .rs-sum-l{color:#64748B}`, `.srx-cover .rs-chip.clear{border-color:#CBD5E1;color:#64748B}`,
+      `.srx-nf{background:#FFFBEB;border:1px solid #FDE68A;color:#78350F;border-radius:10px;font-size:13px}`, `.srx-nf b{color:#92400E;font-weight:600}`,
       `.srx-pick .rs-slicer-btn .val{color:#0F172A}`,
       `.srx-pick .rs-slicer-btn .chev{color:#64748B}`,
       `.srx-print{top:18px;right:20px;background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600;font-size:13px}`,
@@ -404,6 +506,9 @@ async function renderSeasonal(host) {
     partN++; const el = document.createElement("div"); el.className = "srx-part"; el.id = "srxp" + partN;
     el.innerHTML = `<div class="pl"><div class="pt">${esc(title)}</div><div class="ps">${esc(sub || "")}</div></div><div class="pn">${pad(partN)}</div>`;
     bodyEl.appendChild(el); tocItems.push({ n: partN, title, el });
+    // what this part cannot follow of the filters that are on (2026-10-15)
+    const gap = PF_ON ? pfGapHtml(title) : "";
+    if (gap) { const nf = document.createElement("div"); nf.className = "srx-nf"; nf.innerHTML = gap; bodyEl.appendChild(nf); }
     const g = document.createElement("div"); g.className = "srx-grid"; bodyEl.appendChild(g); return g;
   }
   function kgrid() { const g = document.createElement("div"); g.className = "srx-grid k"; bodyEl.appendChild(g); return g; }
@@ -700,12 +805,12 @@ async function renderSeasonal(host) {
     const f = String(r["Responsibility Family"] || "").trim(); if (f && f !== "Not assigned") return f;
     if (/nobody/i.test(String(r.Responsibility || ""))) return "Nobody's fault";
     return KWR[id] ? nb(KWR[id]) + " (from the thread)" : "Not recorded"; };
-  const CM = (cmart || []).filter(r => String(r.Company || "") === CO);
+  const CM = (cmart || []).filter(r => String(r.Company || "") === CO && pfJk(r));
   const claimsIn = (y, a, b) => CM.filter(r => inWin(r["Created Date"], y, a, b));
   const refundOf = rs => { const seen = new Set(); let t = 0; rs.forEach(r => { const jk = String(r["Request Joinkey"] || ""); if (seen.has(jk)) return; seen.add(jk); t += num(r["Refund $"]); }); return t; };
   const isOpenC = r => Number(r["Is Open"]) === 1, wentPublic = r => num(r["Negative Reviews"]) > 0;
   const median = a => { const s = a.filter(v => v != null && isFinite(v)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
-  const JO = (jov || []).filter(r => !r.Company || String(r.Company) === CO);
+  const JO = (jov || []).filter(r => (!r.Company || String(r.Company) === CO) && pfJk(r));
   const joIn = (y, a, b) => JO.filter(r => inWin(r["Job Date"], y, a, b));
   const elig = r => Number(r.Eligible) === 1;
   const nRev = r => num(r["Number of Reviews"]);
@@ -727,8 +832,10 @@ async function renderSeasonal(host) {
   cover.innerHTML = `<button class="srx-print" id="srPrint" title="Browser print">🖨 Print</button>
     <div class="srx-eyebrow">Seasonal Report · ${esc(CO)}</div>
     <div class="srx-h1">${esc(seasonName)} <em>${Y}</em></div>
-    <div class="srx-pick"><div id="srFrom"></div><div id="srTo"></div><div id="srYear"></div><div id="srCo"></div></div>
-    <div class="srx-cvsub">${MON[F]} 1 – ${MON[T]} ${lastDay(Y, T)}, ${Y}, compared with the same window in every season since 2023${latest ? ` · closings through ${esc(latest)}` : ""} · ${esc(CO)} only</div>`;
+    <div class="srx-pick"><div id="srFrom"></div><div id="srTo"></div><div id="srYear"></div><div id="srCo"></div><div id="srFilt" title="State, Local / Long distance and Source"></div></div>
+    <div class="srx-cvsub">${MON[F]} 1 – ${MON[T]} ${lastDay(Y, T)}, ${Y}, compared with the same window in every season since 2023${latest ? ` · closings through ${esc(latest)}` : ""} · ${esc(CO)} only</div>${PF_ON
+      // the printout's word for what is filtered (the chips under the bar are screen-only)
+      ? `<div class="srx-cvfilt">Filtered: <b>${esc(PF_PARTS.join(" · "))}</b></div>` : ""}`;
   root.appendChild(cover);
   const banner = (html, bad) => { const b = document.createElement("div"); b.className = "srx-banner" + (bad ? " bad" : ""); b.innerHTML = html; root.appendChild(b); };
   if (failures.length) banner(`<span>Some feeds did not load (<b>${esc(failures.join(", "))}</b>) — the cards that read them are incomplete. Reload the page to try again.</span>`, true);
@@ -880,7 +987,7 @@ async function renderSeasonal(host) {
     const weekly = y => { const W = Array.from({ length: nW }, () => ({ jobs: 0, fm: new Set(), hp: new Set() }));
       cl(y).forEach(r => { if (r["Record Source"] !== "closing") return; const i = wkOf(y, r._d || r.Date); if (i < 0 || i >= nW) return;
         W[i].jobs++; const f = String(r.Foreman || "").trim(); if (f) W[i].fm.add(f.toLowerCase()); });
-      (helperSal || []).forEach(h => { const c = clByUk.get(String(h["Unique Key"] || "")); if (!c || c["Record Source"] !== "closing" || String(c.Company) !== CO || !inWin(c._d || c.Date, y)) return;
+      (helperSal || []).forEach(h => { const c = clByUk.get(String(h["Unique Key"] || "")); if (!c || c["Record Source"] !== "closing" || String(c.Company) !== CO || !pfJob(c) || !inWin(c._d || c.Date, y)) return;
         const i = wkOf(y, c._d || c.Date); if (i < 0 || i >= nW) return; const n = String(h["Helper Name"] || "").trim(); if (n) W[i].hp.add(n.toLowerCase()); });
       return W.map(w => ({ jobs: w.jobs, fm: w.fm.size, hp: w.hp.size })); };
     const WT = weekly(Y), WL = H[LY] ? weekly(LY) : [];
@@ -983,7 +1090,8 @@ async function renderSeasonal(host) {
   const ledCut = ledTo != null && ledTo < T, ledLbl = ledTo == null ? "" : (ledTo === F ? MS[F] : MS[F] + "–" + MS[ledTo]);
   const packRow = y => { const c = cl(y), w = sumCol(c, "Material Total"), com = sumCol(c, "Material $");
     const wCut = ledTo == null ? 0 : sumCol(cl(y, F, ledTo), "Material Total");
-    const bought = ledTo == null ? 0 : sumCol(rows("card_expenses", y, null, F, ledTo).filter(r => Number(r["Is Packing Material Cost"]) === 1), "Amount"); return { w, com, wCut, bought }; };
+    // bought is the card ledger, which no filter can reach: the company's whole purchases (said under the part)
+    const bought = ledTo == null ? 0 : sumCol(rows("card_expenses", y, null, F, ledTo, true).filter(r => Number(r["Is Packing Material Cost"]) === 1), "Amount"); return { w, com, wCut, bought }; };
   const PKR = {}, pkr = y => PKR[y] || (PKR[y] = packRow(y));
   dual(g2, m => seasonCols(m, "Packing — written vs material bought", ledTo == null ? "packing written per season" : `per season · ${ledLbl}, like for like`,
       ledTo == null ? [{ label: "Written", vals: YEARS.map(y => pkr(y).w || null) }] : [{ label: "Written", vals: YEARS.map(y => pkr(y).wCut || null), color: INK }, { label: "Material bought", vals: YEARS.map(y => pkr(y).bought || null), color: BLUE }],
@@ -1253,7 +1361,8 @@ async function renderSeasonal(host) {
   // ESTIMATE vs ACTUAL (his 2026-09-16 ask, the underselling read): for the confirmed leads that reached a closing,
   // the estimate is the lead's Average Quote and the actual is every closing sheet filed for that request (a 2-day
   // job bills on two sheets). Leads without a closing yet are left out of both sides, so the pair is like for like.
-  const clByJk = grp(DS.closing || [], key("Request Joinkey"));
+  // + 2026-10-15: only the closings the page's filters keep, so a lead counts where its JOB does
+  const clByJk = grp((DS.closing || []).filter(pfJob), key("Request Joinkey"));
   const eaOf = leads => { let n = 0, est = 0, act = 0;
     leads.forEach(l => { const jk = key("Request Joinkey")(l); const cs = jk ? clByJk.get(jk) : null; if (!cs) return;
       const a = cs.reduce((t, c) => t + (Number(c["Total Bill"]) || 0), 0); const e = Number(l["Average Quote"]) || 0; if (!(a > 0) || !(e > 0)) return;
@@ -1286,7 +1395,7 @@ async function renderSeasonal(host) {
       { how: "Closed jobs only: the leads the rep confirmed in the window that reached a closing sheet. Estimate = their average quote; actual = every closing sheet filed for the request (a 2-day job counts both days). Gap = actual − estimate; + means the job billed more than quoted." }));
   // WHY the jobs billed more than quoted (his 2026-09-16 ask): packing sold on the job, more time than the rep sold,
   // or other. Needs the calendar estimate AND the final digital contract, so the split exists from Oct 2025 on.
-  const EAM = (eam || []).filter(r => !CO || String(r.Company) === CO);
+  const EAM = (eam || []).filter(r => (!CO || String(r.Company) === CO) && pfJk(r));
   const eamIn = y => EAM.filter(r => { const d = String(r["Booked Date"] || ""); const m = +d.slice(5, 7); return d.slice(0, 4) === String(y) && m >= F && m <= T; });
   const gapAgg = rs => { const d = rs.filter(r => +r.Detail === 1), s = (a, col) => sumCol(a, col);
     const o = { n: rs.length, est: s(rs, "Estimate"), act: s(rs, "Actual"), nd: d.length, estD: s(d, "Estimate"), actD: s(d, "Actual"),
@@ -1649,6 +1758,26 @@ async function renderSeasonal(host) {
   RSC.localSelect(cover.querySelector("#srTo"), { label: "To", values: monVals, value: String(T), required: true, onChange: v => { st.to = +v; if (st.from > st.to) st.from = st.to; reRender(); } });
   const coVals = [...new Set(["Zip to Zip", "Tuji", CO, ...closing.filter(r => inWin(r._d || r.Date, Y)).map(r => String(r.Company || "")).filter(Boolean)])].sort();
   RSC.localSelect(cover.querySelector("#srCo"), { label: "Company", values: coVals, value: CO, required: true, onChange: v => { st.company = v; st.year = 0; try { localStorage.setItem("ztzSrCompany", v); } catch (e) { /* storage blocked */ } reRender(); } });
+  // the page's own Filters panel (same look as the shell's); picks apply when it closes. Values: the
+  // company's own closings and leads, most common first.
+  const pfVals = cols => {
+    const g = {};
+    cols.forEach(([rs, col]) => (rs || []).forEach(r => {
+      if (!coRow(r)) return;
+      const v = r[col]; if (v == null || v === "") return;
+      g[v] = (g[v] || 0) + 1;
+    }));
+    return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n }));
+  };
+  const pfFields = [
+    { key: "state", label: PF_NAME.state, values: pfVals([[closing, "State"], [moveboard, "State"]]) },
+    { key: "job", label: PF_NAME.job, values: Object.keys(PF_JOB) },
+    { key: "source", label: PF_NAME.source, values: pfVals([[closing, "Source"], [moveboard, "Source"]]) },
+  ];
+  const pfSel = { state: PF_SEL.state || [], job: PF_SEL.job || [], source: PF_SEL.source || [] };
+  const pfApply = next => { st.filters = { state: [...next.state], job: [...next.job], source: [...next.source] }; reRender(); };
+  RSC.filterPanel(cover.querySelector("#srFilt"), { fields: pfFields, selected: pfSel, note: PF_NOTE, onApply: pfApply });
+  cover.querySelector(".srx-pick").insertAdjacentElement("afterend", RSC.filterChips(null, { fields: pfFields, selected: pfSel, onChange: pfApply }));
   const pb = cover.querySelector("#srPrint"); if (pb) pb.onclick = () => window.print();
 }
 

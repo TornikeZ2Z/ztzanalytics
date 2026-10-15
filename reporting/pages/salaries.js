@@ -134,6 +134,11 @@ registerPage({
         ".sal-fold[open]>summary{margin-bottom:8px}",
         ".sal-fold[open]>summary .sal-more{display:none}",
         ".sal .panel{margin-bottom:14px}",
+        // what a part cannot follow while the Filters panel is on (2026-10-15)
+        ".sal .sal-nf{margin:0 0 14px;padding:8px 12px;border-radius:10px;background:var(--warn-bg);"
+          + "color:var(--warn);font-size:12.5px;line-height:1.5}",
+        ".sal .panel .sal-nf{margin:8px 0 0}",
+        ".sal .sal-nf b{color:var(--ink);font-weight:700}",
         // DESIGN V2 ("Calm finance", 2026-10-06): green means only "good", so pay totals read in ink;
         // white hairline cards; nothing under 12px. Dark is untouched.
         "body.rs-app.light.v2 .sal .rs-kpis .kpi.pos .v{color:var(--ink)}",
@@ -207,9 +212,43 @@ registerPage({
       from: back(3), to: last,
       grp: "month", co: companies.includes("Zip to Zip") ? "Zip to Zip" : "", q: "",
       open: new Set(), sort: "net", dir: -1,
+      pf: { state: [], job: [], role: [] },
     };
     let qTimer = null;
     let cur = { people: [], role: "", keys: [] };
+
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: "apply it to montlhy report and other reports
+       too"): State, Local / Long distance and Role in the shell's right-hand Filters panel. Picks
+       live on S for this visit -- never in RS.state.multi, never in localStorage. State and Moving
+       Type are the JOB's (a refund row carries the job it was matched to), so the tie-out still ties
+       under them; Role is the slot's. Local / Long distance is the closing's Moving Type, as on the
+       Monthly Report: Local Moving vs Regular + Straight Moving. */
+    const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving"] };
+    const PF_NAME = { state: "State", job: "Local / Long distance", role: "Role" };
+    let PF = {};
+    const setPF = () => {
+      PF = {};
+      if (S.pf.state.length) PF.state = new Set(S.pf.state);
+      if (S.pf.job.length && S.pf.job.length < Object.keys(PF_JOB).length)
+        PF.movingType = new Set([].concat(...S.pf.job.map(v => PF_JOB[v] || [])));
+      if (S.pf.role.length) PF.role = new Set(S.pf.role);
+    };
+    const pfOn = () => Object.keys(PF).length > 0;
+    // a blank value is "—", as RS.filtered reads it, so a blank never passes a pick
+    const pfHas = (k, v) => !PF[k] || PF[k].has(v == null || v === "" ? "—" : String(v));
+    const pfJob = r => pfHas("state", r.State) && pfHas("movingType", r["Moving Type"]);
+    const pfRole = r => pfHas("role", r.Role);
+    const pfAct = () => ["state", "job", "role"].filter(k => PF[k === "job" ? "movingType" : k]);
+    const orList = a => a.length < 3 ? a.join(" or ") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
+    // "Not filtered by Role: ..." for the filters that are on and that a part cannot follow
+    const pfGap = (keys, what) => { const hit = keys.filter(k => pfAct().includes(k));
+      return hit.length ? `<p class="sal-nf"><b>Not filtered by ${esc(orList(hit.map(k => PF_NAME[k])))}:</b> ${esc(what)}</p>` : ""; };
+    const pfList = (a, n) => a.length <= n ? a.join(", ") : a.slice(0, n).join(", ") + " +" + (a.length - n) + " more";
+    const pfTxt = noRole => [PF.state ? "State " + pfList(S.pf.state, 4) : "", PF.movingType ? S.pf.job.join(" + ") + " jobs" : "",
+      PF.role && !noRole ? "Role " + pfList(S.pf.role, 3) : ""].filter(Boolean).join(" · ");
+    const PF_NOTE = "State and Local / Long distance are the job's: a refund follows the job it was matched to. "
+      + "The tie-out line follows them but not Role, because it adds every role up to the closing sheet. "
+      + "Refunds that match no job have no state, type or role, so they are listed whole.";
 
     const tab = () => TABS.find(t => t.key === S.tab) || TABS[0];
     const pkey = r => S.grp === "period" ? r["Pay Period"] : r.Month;
@@ -296,7 +335,10 @@ registerPage({
       charts.forEach(c => { try { c.destroy(); } catch (e) { /* gone with its canvas */ } });
       charts = [];
       const t = tab();
-      const sc = scoped();
+      // whole = the period and company; sj = + the job's filters (the tie-out's scope); sc = + Role
+      const whole = scoped();
+      const sj = pfOn() ? whole.filter(pfJob) : whole;
+      const sc = pfOn() ? sj.filter(pfRole) : sj;
       const isAll = !t.role, isBO = t.role === "Branch Owner";
       const rs = sc.filter(r => (isAll ? (r.Role && (isSlot(r) || isRef(r))) : t.roles.includes(r.Role)) && matchQ(r));
       const people = isAll ? byPersonAll(rs) : byPerson(rs);
@@ -325,10 +367,10 @@ registerPage({
       host.innerHTML = `<div class="sal">${head}
         <div class="rs-bar" id="salBar"></div>
         <div class="rs-kpis" id="salKpis"></div>
-        ${tieFold(sc)}
+        ${tieFold(sj, whole)}${pfGap(["role"], "the tie-out and refund lines, which add every role up to the closing sheet.")}
         ${isBO ? boNote(sc) + boTrendPanel() + boStatementPanel(sc) + boBreakPanel(rs) + boJobsPanel(rs) : tablePanel}
-        ${t.role === "Sales Person" ? loosePanel(sc) : ""}
-        ${isAll ? loosePanel(sc) : ""}
+        ${t.role === "Sales Person" ? loosePanel(whole) : ""}
+        ${isAll ? loosePanel(whole) : ""}
         ${lookPanel(rs, isAll ? "All" : t.role)}
         <p class="rs-hint sal-foot">Commission as recorded on the closing sheet, by move date. Refunds are the
           refunds sheet's "Sales Commission Reduced Amount", by refund date, matched to the job by request
@@ -356,23 +398,24 @@ registerPage({
 
     /* THE TIE-OUT AND REFUND LINES, FOLDED (his pick 2026-09-25): one line that still proves the
        sheet -- the pill turns red and the fold opens by itself when the tabs stop adding up. */
-    function tieFold(sc) {
+    // whole: the period and company only -- a refund that matched no job has no state or type to follow
+    function tieFold(sc, whole) {
       const slot = sc.filter(isSlot);
       const tot = sumPay(slot);
       const sheet = slot.reduce((a, r) => a + num(r["Sheet SP Salary"]), 0);
       const off = Math.round(tot - sheet);
       const refs = sc.filter(isRef);
       const refAmt = sumPay(refs.filter(r => r.Role));
-      const lone = refs.filter(r => !r.Role);
+      const lone = (whole || sc).filter(r => isRef(r) && !r.Role);
       const role = tab().role;
       const mine = role ? sumPay(refs.filter(r => tab().roles.includes(r.Role))) : null;
       return `<details class="sal-fold"${off !== 0 ? " open" : ""}><summary>${off === 0
           ? '<span class="rs-pill ok">ties to the closing sheet</span>'
           : `<span class="rs-pill bad">off the closing sheet by ${m0(Math.abs(off))}</span>`}
-        SP 1–3 salary <b>${m0(tot)}</b> for ${esc(S.co || "all companies")}, ${esc(perTxt())}
+        SP 1–3 salary <b>${m0(tot)}</b> for ${esc(S.co || "all companies")}, ${esc(perTxt(true))}
         · refunds <b class="sal-neg">${mS(refAmt)}</b>${mine != null ? ` (${mine ? mS(mine) : "none"} on this tab)` : ""}${lone.length
           ? ` · ${fmtN(lone.length)} (${m0(lone.reduce((a, r) => a + num(r["Refund Reduction"]), 0))}) deducted from nobody` : ""}
-        <span class="sal-more">details</span></summary>${tieOut(sc)}${refundLine(sc)}</details>`;
+        <span class="sal-more">details</span></summary>${tieOut(sc)}${refundLine(sc, whole)}</details>`;
     }
 
     /* ALL PEOPLE: a person's pay in every role on one line (his ask 2026-09-25). Rows with no Role
@@ -448,7 +491,7 @@ registerPage({
     const ymShift = (mk, k) => { const t = +mk.slice(0, 4) * 12 + (+mk.slice(5, 7) - 1) + k;
       return Math.floor(t / 12) + "-" + String(t % 12 + 1).padStart(2, "0"); };
     function boMonthly() {
-      const src = all.filter(r => (!S.co || r.Company === S.co) && boMine(r));
+      const src = all.filter(r => (!S.co || r.Company === S.co) && boMine(r) && pfJob(r) && pfRole(r));
       const end = S.to || last;
       const months12 = Array.from({ length: 12 }, (_, i) => ymShift(end, i - 11));
       const one = mk => {
@@ -655,8 +698,12 @@ registerPage({
       }
     }
 
-    function perTxt() {
-      return S.from === S.to ? mLabel(S.from) : mLabel(S.from) + " – " + mLabel(S.to);
+    // the period, and the panel's picks when any are on ("Jul 2026 – Sep 2026 · State NJ · Local jobs"),
+    // so every total that names its scope -- the tie-out, the printed statement -- names them too.
+    // noRole: the tie-out and refund lines, which follow the job's filters and never Role
+    function perTxt(noRole) {
+      const f = pfOn() ? pfTxt(noRole) : "";
+      return (S.from === S.to ? mLabel(S.from) : mLabel(S.from) + " – " + mLabel(S.to)) + (f ? " · " + f : "");
     }
 
     function kpis(rs, sc, role) {
@@ -727,7 +774,7 @@ registerPage({
       return `<div class="sal-tie">${part("Sales Person (CL partner and Yelp Team included)", sp, "Sales Person")}
         + ${part("Estimator", est, "Estimator")} + ${part("Branch Owner", bo, "Branch Owner")}
         = <b>${m0(tot)}</b>, the closing sheet's SP 1–3 salary for ${esc(S.co || "all companies")},
-        ${esc(perTxt())}. ${off === 0
+        ${esc(perTxt(true))}. ${off === 0
           ? '<span class="rs-pill ok">ties to the dollar</span>'
           : `<span class="rs-pill bad">the sheet says ${m0(sheet)}: off by ${m0(Math.abs(off))}</span>`}</div>`;
     }
@@ -735,14 +782,14 @@ registerPage({
     /* The refunds of the range, by role, on their own line: the tie-out above is commission only,
        so it keeps proving the sheet. A refund whose request has no paid slot is counted here and
        deducted from nobody. */
-    function refundLine(sc) {
+    function refundLine(sc, whole) {
       const refs = sc.filter(isRef);
-      if (!refs.length) return `<div class="sal-tie">No refund took commission back in ${esc(perTxt())} for ${esc(S.co || "all companies")}.</div>`;
+      const lone = (whole || sc).filter(r => isRef(r) && !r.Role);
+      if (!refs.length && !lone.length) return `<div class="sal-tie">No refund took commission back in ${esc(perTxt(true))} for ${esc(S.co || "all companies")}.</div>`;
       const by = {};
       refs.filter(r => r.Role).forEach(r => { by[r.Role] = (by[r.Role] || 0) + num(r.Pay); });
       const est = by["Estimator"] || 0, bo = by["Branch Owner"] || 0;
       const sp = SP_ROLES.reduce((a, k) => a + (by[k] || 0), 0);
-      const lone = refs.filter(r => !r.Role);
       const loneAmt = lone.reduce((a, r) => a + num(r["Refund Reduction"]), 0);
       const role = tab().role;
       const part = (label, v, r) => `<span class="${r === role ? "on" : ""}">${label} <b class="sal-neg">${mS(v)}</b></span>`;
@@ -894,6 +941,7 @@ registerPage({
         <p class="rs-hint">The refunds sheet took this commission back, but its request number matches no
           closing with a paid salesperson slot, so none of it is deducted above. The name the refunds
           sheet gives is shown, never charged: a mistyped request is fixed on the sheet.</p>
+        ${pfGap(["state", "job", "role"], "this list — these refunds match no job, so they have no state, type or role.")}
         <div class="rs-tablewrap"><table class="rs-table">
           <thead><tr><th>Refund date</th><th>Request #</th><th>Customer</th><th>Refunds sheet names</th>
             <th class="num">Commission taken back</th><th>Note</th></tr></thead>
@@ -1018,7 +1066,25 @@ registerPage({
       csv.textContent = "Download CSV";
       csv.onclick = () => downloadCsv(tab().roles || ALL_ROLES, tab().key);
       bar.appendChild(csv);
+      // the Filters button ends the bar, as in the shell; the "Filtered by" line sits right under it
+      const fields = pfFields();
+      const apply = next => { S.pf = { state: [...next.state], job: [...next.job], role: [...next.role] }; setPF(); S.open.clear(); paint(); };
+      RSC.filterPanel(bar, { fields, selected: S.pf, note: PF_NOTE, onApply: apply });
+      bar.insertAdjacentElement("afterend", RSC.filterChips(null, { fields, selected: S.pf, onChange: apply }));
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+    }
+    // the panel's values: the company's own rows, most common first (Local / Long distance keeps its order)
+    function pfFields() {
+      const mine = all.filter(r => !S.co || r.Company === S.co);
+      const counted = col => { const g = {};
+        mine.forEach(r => { const v = r[col]; if (v == null || v === "") return; g[v] = (g[v] || 0) + 1; });
+        return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })); };
+      const jobN = k => mine.filter(r => PF_JOB[k].includes(r["Moving Type"])).length;
+      return [
+        { key: "state", label: PF_NAME.state, values: counted("State") },
+        { key: "job", label: PF_NAME.job, values: Object.keys(PF_JOB).map(k => ({ v: k, l: k, n: jobN(k) })) },
+        { key: "role", label: PF_NAME.role, values: counted("Role") },
+      ];
     }
 
     /* The rows of ONE role under the current filters -- what an accountant pastes into a sheet.
@@ -1028,7 +1094,7 @@ registerPage({
        $26,748 (35 rows) into a Sales Person file whose tab showed $167,741 (Zip to Zip, Jul-Sep
        2026, measured 24 Sep). */
     function downloadCsv(roles, fileKey) {
-      const rs = scoped().filter(r => roles.includes(r.Role) && matchQ(r))
+      const rs = scoped().filter(r => roles.includes(r.Role) && matchQ(r) && pfJob(r) && pfRole(r))
         .sort((a, b) => String(a.Date || "").localeCompare(String(b.Date || "")));
       const head = ["Row", "Date", "Pay Period", "Pay Date", "Company", "Request #", "Customer", "Moving Type",
                     "Revenue", "Person", "Role", "SP Slot", "Name on the sheet", "Typed Rate", "Pay",

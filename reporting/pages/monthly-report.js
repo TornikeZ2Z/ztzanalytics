@@ -60,7 +60,7 @@ async function renderMonthly(host, MRCFG) {
     const PF_FUEL = { f: ["state", "job", "source"], txt: "Gross profit here leaves out card fuel that is not tied to a job." };
     const PF_GAPS = {
       "Executive Summary": [{ f: ["job"], what: "leads, booking rate and confirmed jobs (a lead has no job type until it closes)" },
-        { f: ["state", "job"], what: "reviews written (a review has no state or job type)" }, PF_FUEL],
+        { f: ["state", "job", "source"], txt: "Reviews written follow each review's job." }, PF_FUEL],
       "Revenue & Growth": [{ f: ["job"], what: "the booking-rate and confirmed-jobs lines" }, PF_FUEL],
       "Per-Job Profitability": [PF_FUEL],
       "Profitability & P&L": [PF_FUEL],
@@ -76,8 +76,8 @@ async function renderMonthly(host, MRCFG) {
         { f: ["source"], what: "RingCentral calls (the CallRail numbers do follow Source)" }],
       "Operations & Crew (Foreman)": [{ f: ["state", "job", "source"], what: "foreman quality scores and crew headcount" }],
       "Packing & Storage": [{ f: ["state", "job", "source"], what: "packing material cost and every storage card (packing written does follow)" }],
-      "Reviews Production": [{ f: ["state", "job"], what: "this section (reviews have no state or job type)" },
-        { f: ["source"], what: "the review footprint and goals (written and negative reviews do follow Source)" }],
+      "Reviews Production": [{ f: ["state", "job", "source"], what: "the review footprint and goals (a platform total, not a job)" },
+        { f: ["state", "job", "source"], txt: "Written and negative reviews follow their job; a review tied to no job is left out." }],
     };
     // one sentence per set of filters missed: "Not filtered by State or Source: a; b."
     const orList = a => a.length < 3 ? a.join(" or ") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
@@ -93,8 +93,8 @@ async function renderMonthly(host, MRCFG) {
       return [...by.entries()].map(([k, w]) =>
         `<b>Not filtered by ${orList(k.split("|").map(x => PF_NAME[x]))}:</b> ${esc(w.join("; "))}.`).concat(txt).join(" ");
     };
-    const PF_NOTE = "Refunds and claims follow each job's own state, type and source. A lead has no job type until it "
-      + "closes, and calls, reviews and ad spend have no state — a section that cannot follow a filter says so under its title.";
+    const PF_NOTE = "Refunds, claims and reviews follow each job's own state, type and source. A lead has no job type "
+      + "until it closes, and calls and ad spend have no state — a section that cannot follow a filter says so under its title.";
     // how the cover (and so the PDF) names the filters: "State NJ, PA · Long distance jobs · Source Google"
     const pfList = (a, n) => a.length <= n ? a.join(", ") : a.slice(0, n).join(", ") + " +" + (a.length - n) + " more";
     const PF_PARTS = [];
@@ -299,9 +299,25 @@ async function renderMonthly(host, MRCFG) {
        closings); without this, one state's gross profit lost the whole company's refunds. Card
        fuel that matches no job belongs to no state, type or source, so it is left out (the
        sections that show gross profit say so). Set and put back by withMonth. */
-    const PF_SCOPE = !PF_ON ? null : Object.assign(
-      (PF.state || PF.movingType) ? { refunds: r => coJk.has(String(r["Request Joinkey"] || "")) } : {},
-      { fuel_card: r => !!r["Unique Key"] });
+    /* SOURCE IS NOT A FIELDS FILTER HERE (fixed 2026-10-15, caught by the Seasonal Report batch):
+       FIELDS.source also maps onto reviews_breakdown / negative_reviews, whose `Source` is the
+       review PLATFORM ("Google PA"), so a Source = Google pick kept Google-platform reviews, not
+       reviews of Google-sourced jobs. Source is a row scope on the datasets whose Source is the
+       lead's own (closings, leads, refunds, ad spend, CallRail); reviews -- every written review and
+       most negative ones carry their job's Request Joinkey -- follow all three filters through
+       the job, like claims. A review tied to no job is left out while a filter is on. */
+    const SRC_DS = ["closing", "moveboard", "refunds", "card_expenses", "callrail"];
+    const byJob = r => coJk.has(String(r["Request Joinkey"] || ""));
+    const PF_SCOPE = !PF_ON ? null : (() => {
+      const sc = { fuel_card: r => !!r["Unique Key"], reviews_breakdown: byJob, negative_reviews: byJob };
+      if (PF.state || PF.movingType) sc.refunds = byJob;
+      if (PF.source) SRC_DS.forEach(ds => {
+        const prev = sc[ds];
+        sc[ds] = prev ? (r => prev(r) && pfHas("source", r.Source)) : (r => pfHas("source", r.Source));
+      });
+      return sc;
+    })();
+    const PF_MULTI = Object.assign({}, PF); delete PF_MULTI.source;   // State + Moving Type via FIELDS
     const PF_SCOPE_KEY = !PF_ON ? "" : "mr:" + CO + ":" + JSON.stringify(Object.keys(PF).sort().map(k => [k, [...PF[k]].sort()]));
 
     const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
@@ -369,7 +385,7 @@ async function renderMonthly(host, MRCFG) {
         // on this page, so ignore EVERY global slicer except Company. A Source/Foreman/State/Moving-Type
         // value left set on another page can no longer silently filter the report. The page owns time.
         // 2026-10-15: plus the page's OWN filters (PF), which the reader sets on this page's panel.
-        S.multi = Object.assign({ company: coSet }, PF);
+        S.multi = Object.assign({ company: coSet }, PF_MULTI);
         S.rowScope = PF_SCOPE; S.rowScopeKey = PF_SCOPE_KEY;
       } else {
         // lite themed dashboards keep their OWN visible filter bar → only neutralize the page-owned time
