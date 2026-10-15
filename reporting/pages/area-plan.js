@@ -7552,8 +7552,9 @@ registerPage({
          area to let the user know. we dont have any planning part more that that for tuji".
          So: the areas within 100 miles of Newark, DE, how each is doing for Tuji, which need
          attention and why. NO crews, desk or budget, and nothing here reaches the Zip-to-Zip plan.
-         Zip to Zip's own areas inside the ring (Philadelphia, South Jersey, Baltimore) are areas like
-         any other -- flagged the same way, no special marking (his call).
+         DELAWARE ONLY since 2026-10-15 (his call: "focus only on single state - DE ... the 100 miles
+         area stays but if the state is no longer DE - we are not interested in it") -- the mart keeps
+         only DE (TUJI_STATES), so PA / NJ / MD inside the ring are simply not in the rows.
          LAZY: the pane is an empty shell in paint(); tujiShow() reads mart_tuji_area the first time the
          tab opens, so the Zip panes never wait on it. A paint() rebuilds the host and with it the
          shell, so the next show draws again from the rows already read (TJ) -- one read per visit. */
@@ -7660,8 +7661,8 @@ registerPage({
         const T = tjTotals();
         const kpi = (v, l, s) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + l + "</span>" + (s ? "<small>" + s + "</small>" : "") + "</div>";
         const qtr = T.months.split(" vs ")[0];
-        return '<div class="ap-tj-head"><h2>Tuji · marketing within 100 miles of Newark, DE</h2>' +
-          "<p>Every county and zip code within 100 miles of Tuji’s base, how each one did for Tuji over the last 12 months, " +
+        return '<div class="ap-tj-head"><h2>Tuji · marketing in Delaware, within 100 miles of Newark</h2>' +
+          "<p>Every Delaware county and zip code within 100 miles of Tuji’s base, how each one did for Tuji over the last 12 months, " +
           "and which need attention now — and why. Tuji’s own leads and jobs; nothing on this tab is in the Zip to Zip plan.</p></div>" +
           '<div class="ap3-kpis ap-tj-kpis">' +
             kpi(fmtN(T.leads), "Leads · 12 months", "through " + esc(dayLabel(T.through)) +
@@ -7689,7 +7690,7 @@ registerPage({
         if (!r) {
           const lvl = TJ_S.mapLevel, R = TJ.rows.filter(x => x.Level === lvl);
           const by = t => R.filter(x => num(x.Tier) === t).length;
-          return '<div class="dh"><b>Tuji’s 100 miles</b><span>' + tjCount(TJ.rows.filter(x => x.Level === "County").length, "county", "counties") +
+          return '<div class="dh"><b>Tuji’s Delaware</b><span>' + tjCount(TJ.rows.filter(x => x.Level === "County").length, "county", "counties") +
               " · " + tjCount(TJ.rows.filter(x => x.Level === "Zip").length, "zip code", "zip codes") + "</span></div>" +
             '<div class="why" style="margin-top:8px">Click an area on the map, or a row below, for its numbers and why it is flagged.</div>' +
             '<div class="sec">' + (lvl === "Zip" ? "Zip codes" : "Counties") + " by tier</div>" +
@@ -7709,7 +7710,7 @@ registerPage({
           fl.map(f => '<div class="ap-tj-flag"><b>' + esc(f.label) + "</b><span>" + esc(r[f.why] || "") + "</span><small>What to do: " + esc(f.act) + "</small></div>").join("") +
           '<div class="sec">Tuji here · last 12 months</div>' +
           kv("Leads", fmtN(L12)) +
-          kv("Booked", L12 ? fmtN(num(r["Booked 12m"])) + " · " + tjPct(r["Booking Rate"]) : "—", "Tuji across the 100 miles: " + tjPct(r["Tuji Booking Rate"])) +
+          kv("Booked", L12 ? fmtN(num(r["Booked 12m"])) + " · " + tjPct(r["Booking Rate"]) : "—", "Tuji across Delaware: " + tjPct(r["Tuji Booking Rate"])) +
           kv("Jobs", fmtN(num(r["Jobs 12m"]))) +
           kv("Billed", money0(num(r["Revenue 12m"])), r["Avg Ticket"] != null ? money0(num(r["Avg Ticket"])) + " a job" : "") +
           (mix.length ? kv("Sources", mix.slice(0, 3).map(x => esc(x.k) + " " + Math.round(100 * x.n / (mixN || 1)) + "%").join(" · ")) : "") +
@@ -7792,7 +7793,7 @@ registerPage({
         const P = R.slice(TJ_S.page * TJ_PAGE, (TJ_S.page + 1) * TJ_PAGE);
         const right = c => c.f !== "name" && c.f !== "tier" && c.f !== "flags" && c.f !== "t";
         return '<div class="ap-tj-sech"><h3>All areas</h3><span>' + tjCount(R.length, lvl === "Zip" ? "zip code" : "county", lvl === "Zip" ? "zip codes" : "counties") +
-            " within 100 miles · click a column to sort, a row to find it on the map</span></div>" +
+            " in Delaware within 100 miles · click a column to sort, a row to find it on the map</span></div>" +
           '<div class="ap-tj-bar"><div class="ap3-bar" style="margin:0"><label>Show</label>' + tjSeg("tjtlvl", TJ_LEVELS, lvl) + "</div>" +
             '<span class="sp"></span><button type="button" class="rs-btn" id="apTjCsv">Download CSV</button></div>' +
           '<div class="rs-tablewrap ap-tj-tbl" data-noenh="1"><table class="rs-table" data-name="Tuji areas"><thead><tr>' +
@@ -7813,16 +7814,16 @@ registerPage({
         const lines = [cols.map(cell).join(",")].concat(R.map(r => cols.map(c => cell(r[c])).join(",")));
         const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "Tuji areas within 100 miles - " + (TJ_S.tblLevel === "Zip" ? "zip codes" : "counties") + ".csv"; a.click();
+        a.download = "Tuji Delaware areas - " + (TJ_S.tblLevel === "Zip" ? "zip codes" : "counties") + ".csv"; a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       }
       function tjHowHtml() {
         const r0 = TJ.rows[0] || {}, R = TJ_RULES;
         const med = lvl => { const r = TJ.rows.find(x => x.Level === lvl && x["Measured Median Per 10k"] != null); return r ? r1(num(r["Measured Median Per 10k"])) : "—"; };
         return '<details class="ap2-ref ap-tj-how"><summary>How this is calculated<small>windows, tiers, the three flags</small></summary><div class="panel ap2-note">' +
-          "<h4>The area</h4>Every county and zip code in the eight states we map whose centre is within <b>" + R.radius + " straight-line miles</b> of Tuji’s base, zip " +
+          "<h4>The area</h4>Every <b>Delaware</b> county and zip code whose centre is within <b>" + R.radius + " straight-line miles</b> of Tuji’s base, zip " +
             TJ_BASE.zip + " in Newark, DE. A county counts all of its zip codes and its centre is weighted by population. " +
-            "<b>Zip to Zip’s own areas inside the 100 miles</b> (Philadelphia, South Jersey, Baltimore) are included like any other area and can be flagged the same way." +
+            "Areas in other states are left out even inside the " + R.radius + " miles — Pennsylvania, New Jersey and Maryland are not looked at here, and every comparison below is against Delaware." +
           "<h4>The numbers</h4><ul><li><b>Leads</b>: Tuji leads by create date, by the move’s pickup zip, in the 12 months through " + esc(dayLabel(r0["Leads Through"])) +
             " (Tuji’s newest lead). Leads with no address are left out.</li>" +
             "<li><b>Booked</b>: the lead’s status is Confirmed. <b>Jobs</b> and <b>billed</b>: Tuji closings (last encounter) in the same 12 months, placed by the lead’s pickup zip.</li>" +
@@ -7831,12 +7832,12 @@ registerPage({
           "<h4>The tier — the same method as the Zip to Zip map, on Tuji’s numbers</h4><ul>" +
             "<li><b>Measured</b> when the area has at least " + R.measure.County + " leads (county) or " + R.measure.Zip + " (zip) in 12 months: a 0–100 score from the distance to Newark (30), " +
               "the booking rate (30), the average ticket (25) and cubic feet (15), each pulled toward Tuji’s average where the evidence is thin. Tier 1 from 72, Tier 2 from 64, Tier 3 from 56, else Tier 4.</li>" +
-            "<li><b>Market</b> otherwise: median income (45%), home value (35%) and home ownership (20%), each ranked against the other areas inside the 100 miles. Tier 1 from 80, Tier 2 from 55, Tier 3 from 30, else Tier 4.</li>" +
+            "<li><b>Market</b> otherwise: median income (45%), home value (35%) and home ownership (20%), each ranked against the other Delaware areas inside the 100 miles. Tier 1 from 80, Tier 2 from 55, Tier 3 from 30, else Tier 4.</li>" +
             "<li><b>Not rated</b>: too few leads and no Census figures (PO boxes, single buildings).</li></ul>" +
           "<h4>Needs attention — any of three reasons</h4><ul>" +
             "<li><b>Falling</b>: at least " + R.fallPrior.County + " leads (county) or " + R.fallPrior.Zip + " (zip) in those three months a year ago, and down " + Math.abs(R.fallPct) + "% or more.</li>" +
             "<li><b>Not converting</b>: at least " + R.convLeads.County + " leads (county) or " + R.convLeads.Zip + " (zip) in 12 months, booking under " + R.convShare +
-              " × Tuji’s rate across the 100 miles (" + tjPct(r0["Tuji Booking Rate"]) + ").</li>" +
+              " × Tuji’s rate across Delaware (" + tjPct(r0["Tuji Booking Rate"]) + ").</li>" +
             "<li><b>Untapped</b>: a strong market — a Tier 1–" + R.untapTier.County + " county with at least " + fmtN(R.untapMovers.County) +
               " movers a year, or a Tier " + R.untapTier.Zip + " zip code with at least " + fmtN(R.untapMovers.Zip) + " — sending fewer than " + Math.round(100 * R.untapShare) + "% of the leads per 10,000 movers that Tuji’s measured areas get (their median: " +
               med("County") + " for counties, " + med("Zip") + " for zip codes).</li></ul>" +
@@ -7883,15 +7884,18 @@ registerPage({
         if (box._tjMark) box._tjMark();
       }
       /* Leaflet measured a 0x0 box if the pane was hidden when the map was built: measure again, and
-         frame the 100-mile ring -- on every show until the reader moves the map himself (a frame
-         taken while the layout was still settling is corrected by the next call, never kept) */
+         frame the areas (Delaware since 2026-10-15; the whole 100-mile ring before) -- on every show
+         until the reader moves the map himself (a frame taken while the layout was still settling is
+         corrected by the next call, never kept) */
       function tjFit() {
         const box = host.querySelector("#apTjMap");
         if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
         box._map.invalidateSize();
         if (box._tjMoved) return;
         box._tjFitting = 1;
-        box._map.fitBounds(L.latLng(TJ.base.la, TJ.base.lo).toBounds(2 * TJ_RULES.radius * MI_PER_M), { padding: [6, 6], animate: false });
+        const pts = TJ.rows.filter(r => r.Level === "Zip" && num(r.Latitude) && num(r.Longitude)).map(r => [num(r.Latitude), num(r.Longitude)]);
+        box._map.fitBounds(pts.length > 1 ? L.latLngBounds(pts).pad(0.08)
+          : L.latLng(TJ.base.la, TJ.base.lo).toBounds(2 * TJ_RULES.radius * MI_PER_M), { padding: [6, 6], animate: false });
         box._tjFitting = 0;
       }
       /* THE MAP: the Map tab's ground (baseTiles), its county shapes (counties8.geojson via ensureGeo),

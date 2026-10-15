@@ -18,7 +18,14 @@
    foreman, driver, helper and sales pay, less car / fuel / hotel / tolls / truck / other, less the
    refunds DATED in the window (fct_refunds by Refund Date, the portal-wide refund basis).
    Bookings = the Booking Rate's numerator: Status Category 'Confirmed' by Booked Date, valued at
-   the Moveboard quote -- read from mart_fin_bookings, a narrow table with no customer on it. */
+   the Moveboard quote -- read from mart_fin_bookings, a narrow table with no customer on it.
+
+   HOW CUSTOMERS PAY (his ask 2026-10-14: "card payment vs cash payment comparison ... the idea is to
+   see whether people still prefer to do the cash payments or the tendency is increasing for card
+   payments"). His answers: money AND jobs; deposits ARE card ("all deposits are paid by card through
+   our CRM"); a section under The detail. Every job is quoted at two rates, and the card rate carries
+   20% (the price files' "By Card Subcharge": card price = cash price / 0.8), so a dollar of card is
+   not a dollar of cash -- the PREFERENCE is read off jobs, and money is also shown at cash rates. */
 if (window.RS && RS.DATASETS && !RS.DATASETS.fin_bookings) {
   RS.DATASETS.fin_bookings = {
     table: "mart_fin_bookings",
@@ -221,6 +228,40 @@ registerPage({
       .filter(x => x.d >= from && x.d <= to && (co === ALL || x.r.Company === co))
       .reduce((a, x) => a + num(x.r["Total refund"]), 0);
 
+    /* ---------- how customers pay ----------
+       Per closing with a bill: PAID = the bill less the balance still owed. CARD = the card payment plus
+       the deposit (every deposit is a card payment through the CRM), capped at what was paid -- a card can
+       be charged past the bill (a tip put on the card, say), and that excess is its own line, never cash.
+       CASH = the rest of what was paid. The CHOICE is the day's payment: a job is "card" when it was paid
+       by card only, "cash" when by cash only (its deposit still went on a card), "both" when split, and
+       "neither" when nothing was paid on the day (all on the deposit, or all still owed).
+       AT CASH RATES: the card payment carries the 20% card rate, so it is set back to the cash price
+       (x 0.8) before card and cash are compared as money; the deposit is a fixed sum and stays as it is. */
+    const CASH_RATE = 0.8;   // the price files' "By Card Subcharge" 20%: card price = cash price / 0.8
+    function payMix(rs) {
+      const o = { paid: 0, card: 0, dep: 0, cash: 0, due: 0, over: 0, cardAtCash: 0,
+                  n: { card: 0, cash: 0, mixed: 0, none: 0 }, bill: { card: 0, cash: 0, mixed: 0, none: 0 } };
+      rs.forEach(r => {
+        const bill = num(r["Total Bill"]);
+        if (!(bill > 0)) return;
+        const card = Math.max(0, num(r["Card Payment"])), dep = Math.max(0, num(r.Deposit));
+        const due = Math.min(bill, Math.max(0, num(r["Balance Due"])));
+        const paid = bill - due, d = Math.min(dep, paid), c = Math.min(card, paid - d), cash = paid - d - c;
+        o.paid += paid; o.card += c + d; o.dep += d; o.cash += cash; o.due += due;
+        o.over += Math.max(0, card + dep - paid); o.cardAtCash += c * CASH_RATE + d;
+        const k = card > 0 ? (cash > 1 ? "mixed" : "card") : (cash > 1 ? "cash" : "none");
+        o.n[k]++; o.bill[k] += bill;
+      });
+      o.jobs = o.n.card + o.n.cash + o.n.mixed + o.n.none;
+      const chose = o.n.card + o.n.cash + o.n.mixed;
+      o.cardJobsShare = chose ? (o.n.card + o.n.mixed) / chose : null;
+      o.cardShare = o.paid ? o.card / o.paid : null;
+      o.cardShareCash = (o.cardAtCash + o.cash) ? o.cardAtCash / (o.cardAtCash + o.cash) : null;
+      o.avgCard = o.n.card ? o.bill.card / o.n.card : null;
+      o.avgCash = o.n.cash ? o.bill.cash / o.n.cash : null;
+      return o;
+    }
+
     /* ---------- one window's numbers ---------- */
     function agg(co, from, to) {
       const rs = inWin(co, from, to);
@@ -231,6 +272,11 @@ registerPage({
       o.tipCust = sumC(rs, "Tip From the Customers"); o.tipCo = sumC(rs, "Tip from Company");
       o.disc = sumC(rs, "Discount Given"); o.discN = rs.filter(r => num(r["Discount Given"]) > 0).length;
       o.packing = M["Total Packing Written"].fn(rs);
+      const pm = o.pm = payMix(rs);
+      o.pCard = pm.card; o.pDep = pm.dep; o.pCash = pm.cash; o.pDue = pm.due; o.pOver = pm.over;
+      o.pCardShare = pm.cardShare; o.pCardShareCash = pm.cardShareCash; o.pCardJobsShare = pm.cardJobsShare;
+      o.pAvgCard = pm.avgCard; o.pAvgCash = pm.avgCash;
+      o.pnCard = pm.n.card; o.pnCash = pm.n.cash; o.pnMixed = pm.n.mixed;
       const bk = bkWin(co, from, to);
       o.bkN = bk.length; o.bkV = sumC(bk, "Average Quote");
       if (P2) {
@@ -384,6 +430,10 @@ registerPage({
         ${ytdPanel(P, YT)}
         ${projPanel(P, A)}
         <div class="fo-grid2">${moneyPanel(P, A, LM, LY, YTD, YTDLY)}${costPanel(P, A, LM, LY, YTD, YTDLY)}</div>
+        <div class="fo-sec">How customers pay · card vs cash</div>
+        <div class="rs-kpis" id="foKpiPay"></div>
+        <div id="foPay"></div>
+        ${payPanel(P, A, LM, LY, YTD, YTDLY)}
         ${breakPanel(P, A, LY)}
         <p class="rs-hint">Revenue, jobs, costs and gross profit are the portal's own measures, the same
           ones the Monthly Report uses, so a whole month here equals that month there. Revenue is the
@@ -454,6 +504,22 @@ registerPage({
         console.error("financial-overview pace:", e);
         const m = host.querySelector("#foPace");
         if (m) m.innerHTML = `<div class="panel"><div class="rs-loading">The pace chart could not draw (${esc(e.message || e)}).</div></div>`;
+      }
+      const pp = (a, b) => (a == null || b == null) ? "—" : ptsTxt(a, b);
+      RSC.kpis(host.querySelector("#foKpiPay"), [
+        { label: "Jobs paid by card", value: pct1(A.pCardJobsShare),
+          sub: "vs last month " + pp(A.pCardJobsShare, LM && LM.pCardJobsShare) + " · last year " + pp(A.pCardJobsShare, LY && LY.pCardJobsShare)
+            + " · YTD " + pct1(YTD.pCardJobsShare) + " vs " + pct1(YTDLY && YTDLY.pCardJobsShare) },
+        { label: "Card share of the money, at cash rates", value: pct1(A.pCardShareCash),
+          sub: "vs last month " + pp(A.pCardShareCash, LM && LM.pCardShareCash) + " · last year " + pp(A.pCardShareCash, LY && LY.pCardShareCash) },
+        { label: "Paid by card", value: mC(A.pCard), sub: "deposits included · paid in cash " + mC(A.pCash) },
+        { label: "Average bill", value: "card " + mC(A.pAvgCard), sub: "cash " + mC(A.pAvgCash) + " · card-only vs cash-only jobs" },
+      ]);
+      try { mountPay(P); }
+      catch (e) {
+        console.error("financial-overview pay:", e);
+        const m = host.querySelector("#foPay");
+        if (m) m.innerHTML = `<div class="panel"><div class="rs-loading">The card vs cash chart could not draw (${esc(e.message || e)}).</div></div>`;
       }
       host.querySelectorAll("[data-fo-brk]").forEach(b => b.onclick = () => { S.brk = b.dataset.foBrk; paint(); });
       host.querySelectorAll("[data-fo-miss]").forEach(b => b.onclick = () => { S.missScope = b.dataset.foMiss; paint(); });
@@ -678,6 +744,7 @@ registerPage({
       [LY ? LY.p.label + " 1–" + LY.p.days : "Last year", "LY"],
       ["YTD " + P.Y, "YTD"],
       ["YTD " + (P.Y - 1), "YTDLY"]];
+    const PTS = new Set(["gm", "pCardShare", "pCardShareCash", "pCardJobsShare"]);
     function lineTable(P, sets, lines, note) {
       const [A, LM, LY, YTD, YTDLY] = sets;
       const cs = cols5(P, LM, LY, YTDLY);
@@ -687,7 +754,7 @@ registerPage({
           const v = k => { const o = get[k]; return o ? o[key] : null; };
           const f = fmt || m0;
           return `<tr class="${cls || ""}"><td>${esc(label)}</td>${cs.map(c => `<td class="num">${v(c[1]) == null ? "—" : f(v(c[1]))}</td>`).join("")}
-            ${key === "gm" ? `<td class="num">${ptsTxt(v("A"), v("LY"))}</td>` : chgCell(chg(v("A"), v("LY")), inv)}</tr>`;
+            ${PTS.has(key) ? `<td class="num">${v("A") == null || v("LY") == null ? "—" : ptsTxt(v("A"), v("LY"))}</td>` : chgCell(chg(v("A"), v("LY")), inv)}</tr>`;
         }).join("")}
       </tbody></table></div>${note ? `<p class="rs-hint">${note}</p>` : ""}`;
     }
@@ -730,6 +797,83 @@ registerPage({
       return stale || S.day > P2.cardLast
         ? ` <b>Card fuel is on file only through ${esc(dLabel(P2.cardLast))}</b> — the export is dropped by hand into
             SharePoint 'Fuel Export'; days after that carry cash fuel only until the next drop.` : "";
+    }
+
+    function payPanel(P, A, LM, LY, YTD, YTDLY) {
+      return `<div class="panel"><div class="panel-head"><div class="panel-title">Card vs cash — the same days in each window</div></div>
+        ${lineTable(P, [A, LM, LY, YTD, YTDLY], [
+          ["Jobs paid by card only", "pnCard", fmtN], ["Jobs paid with both", "pnMixed", fmtN], ["Jobs paid in cash only", "pnCash", fmtN],
+          ["Jobs paid by card", "pCardJobsShare", pct1, "fo-tot"],
+          ["Paid by card", "pCard", null, "fo-sel"], ["of it, deposits (CRM)", "pDep"], ["Paid in cash", "pCash"],
+          ["Still owed", "pDue", 0, "", 1], ["Card share of the money", "pCardShare", pct1],
+          ["Card share at cash rates", "pCardShareCash", pct1, "fo-tot"],
+          ["Charged on cards above the bill", "pOver"],
+          ["Average bill, card-only jobs", "pAvgCard"], ["Average bill, cash-only jobs", "pAvgCash"]],
+          `<b>Jobs paid by card</b> is the share of jobs whose payment on the day included a card (card only or both), out of
+           the jobs that paid anything on the day — the deposit always goes on a card through the CRM, so it is not a choice
+           and does not count here. <b>Money:</b> paid = the bill less what is still owed; card = the card payment plus the
+           deposit; cash = the rest. Card money carries the 20% card rate, so a like-for-like comparison sets the card payment
+           back to the cash price (× 0.8): that is the share <b>at cash rates</b>. When a card was charged more than the bill
+           (a tip on the card, say) the extra sits on its own line, so card and cash always add up to what was paid.`)}</div>`;
+    }
+
+    /* the tendency: jobs by how they paid, month by month, the last 24 months up to the picked day */
+    function mountPay(P) {
+      const mount = host.querySelector("#foPay");
+      if (!mount) return;
+      const v2 = RS.isV2(), C = RS.V2, light = () => document.body.classList.contains("light");
+      const CARD = v2 ? C.accent : "#2f6fd0", BOTH = v2 ? C.accentL : "#8fb3e8", CASH = v2 ? C.other : (light() ? "#c6d0db" : "#3a4658");
+      const LINE = () => v2 ? C.ink : (light() ? "#0e1621" : "#e9eef6");
+      const firstMonth = P.first.slice(0, 7);
+      const months = [];
+      for (let k = 23; k >= 0; k--) {
+        const [y, m] = shiftM(P.Y, P.Mo, -k);
+        if (iso(y, m, 1).slice(0, 7) < firstMonth) continue;
+        const to = k === 0 ? P.sel.to : iso(y, m, dim(y, m));
+        months.push({ label: MON(m).slice(0, 3) + " " + String(y).slice(2) + (k === 0 && P.D < dim(y, m) ? " (1–" + P.D + ")" : ""),
+                      pm: payMix(inWin(S.co, iso(y, m, 1), to)) });
+      }
+      const pctOrNull = v => v == null ? null : Math.round(v * 1000) / 10;
+      RSC.chartCard(mount, {
+        title: "Card vs cash, month by month",
+        key: "fo-pay",
+        buildChart(canvas) {
+          return new Chart(canvas, {
+            data: { labels: months.map(x => x.label), datasets: [
+              { type: "line", label: "Jobs paid by card", data: months.map(x => pctOrNull(x.pm.cardJobsShare)), yAxisID: "y1",
+                borderColor: LINE(), backgroundColor: LINE(), borderWidth: 2.5, pointRadius: 2, tension: 0.2, order: 0 },
+              { type: "line", label: "Card share of the money, at cash rates", data: months.map(x => pctOrNull(x.pm.cardShareCash)), yAxisID: "y1",
+                borderColor: LINE(), backgroundColor: LINE(), borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, tension: 0.2, order: 0 },
+              { type: "bar", label: "Card only", data: months.map(x => x.pm.n.card), backgroundColor: CARD, stack: "j", order: 1 },
+              { type: "bar", label: "Both", data: months.map(x => x.pm.n.mixed), backgroundColor: BOTH, stack: "j", order: 1 },
+              { type: "bar", label: "Cash only", data: months.map(x => x.pm.n.cash), backgroundColor: CASH, stack: "j", order: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+              plugins: { legend: { position: "bottom" },
+                tooltip: { callbacks: { label: it => it.dataset.yAxisID === "y1"
+                  ? it.dataset.label + ": " + (it.parsed.y == null ? "—" : it.parsed.y.toFixed(1) + "%")
+                  : it.dataset.label + ": " + fmtN(it.parsed.y) + " jobs" } } },
+              scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, title: { display: true, text: "Jobs" } },
+                        y1: { position: "right", min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + "%" } } } },
+          });
+        },
+        buildTable() {
+          return `<table class="tab"><thead><tr><th>Month</th><th>Card only</th><th>Both</th><th>Cash only</th><th>Jobs paid by card</th>
+            <th>Paid by card</th><th>Paid in cash</th><th>Card share at cash rates</th><th>Avg bill, card only</th><th>Avg bill, cash only</th></tr></thead><tbody>`
+            + months.map(x => `<tr><td>${esc(x.label)}</td><td class="num">${fmtN(x.pm.n.card)}</td><td class="num">${fmtN(x.pm.n.mixed)}</td>
+              <td class="num">${fmtN(x.pm.n.cash)}</td><td class="num">${pct1(x.pm.cardJobsShare)}</td><td class="num">${m0(x.pm.card)}</td>
+              <td class="num">${m0(x.pm.cash)}</td><td class="num">${pct1(x.pm.cardShareCash)}</td>
+              <td class="num">${m0(x.pm.avgCard)}</td><td class="num">${m0(x.pm.avgCash)}</td></tr>`).join("")
+            + `</tbody></table>`;
+        },
+      });
+      const card = mount.querySelector(".panel");
+      if (card) {
+        const hint = document.createElement("p");
+        hint.className = "rs-hint";
+        hint.textContent = "Bars: jobs each month by how they paid on the day, by move date. Solid line: the share of them that paid by card. "
+          + "Dashed line: card's share of the money at cash rates. The last month runs to the picked day.";
+        card.insertBefore(hint, card.querySelector(".gview"));
+      }
     }
 
     /* ---------- breakdowns: the picked month so far against the same days last year ---------- */
