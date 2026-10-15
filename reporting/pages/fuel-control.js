@@ -78,6 +78,31 @@ registerPage({
       rows: null, view: "queue", month: "", q: "", showResolved: false,
       busy: "", msg: "", msgErr: false, msgFor: null, open: null, draft: {},
     });
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
+       report with its own bar): Company, Local / Long distance, Job state and Fuel kind, each a
+       multi (empty = all). In S for this session, never in RS.state.multi, never persisted.
+       Fuel kind is the swipe's own, so it filters every swipe. The other three are the JOB's, and
+       a swipe placed on no job has none of them -- it cannot follow, and dropping it would empty
+       the queue of exactly the swipes the page exists to surface. So those swipes stay, in every
+       view and count, and a line under the bar says how many and why (his rule: what cannot follow
+       a filter is shown unfiltered and named). Local / Long distance is the job's Moving Type,
+       split the way closing splits it: Local Moving vs Regular + Straight Moving -- plus "Long
+       Distance", which the mart writes on a swipe placed on a long-distance trip (read 2026-10-15). */
+    const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving", "Long Distance"] };
+    const PF_JOB_OF = {};
+    Object.keys(PF_JOB).forEach(k => PF_JOB[k].forEach(t => { PF_JOB_OF[t] = k; }));
+    const PF_KEYS = ["co", "job", "st", "kind"];
+    const PF_JOBKEYS = ["co", "job", "st"];
+    const PF_NAME = { co: "Company", job: "Local / Long distance", st: "Job state" };
+    if (!S.pf) S.pf = { co: [], job: [], st: [], kind: [] };
+    // the column each pick reads; an empty value is "—" (RS.filtered's convention)
+    const pfVal = (k, r) => {
+      const v = k === "co" ? r["Job Company"] : k === "job" ? PF_JOB_OF[r["Job Moving Type"]]
+        : k === "st" ? r["Job State"] : r["Fuel Kind"];
+      return v == null || v === "" ? "—" : String(v);
+    };
+    // a swipe the mart placed on a job carries that job's company, type and state
+    const onJob = r => !!r["Unique Key"];
 
     // THE KIT (assets/rs.css, "THE COMPONENT KIT") now supplies the KPI strip, the control
     // bar with its segments / select / find box / toggle, the reading hint, both data tables
@@ -237,6 +262,12 @@ registerPage({
     function scope() {
       let rs = S.rows || [];
       if (S.month) rs = rs.filter(r => r.Month === S.month);
+      const pf = {};
+      PF_KEYS.forEach(k => { if (S.pf[k].length) pf[k] = new Set(S.pf[k]); });
+      if (pf.kind) rs = rs.filter(r => pf.kind.has(pfVal("kind", r)));
+      // a job filter keeps the swipes on a matching job, and every swipe on no job (see above)
+      const jk = PF_JOBKEYS.filter(k => pf[k]);
+      if (jk.length) rs = rs.filter(r => !onJob(r) || jk.every(k => pf[k].has(pfVal(k, r))));
       if (S.q) {
         const q = S.q.toLowerCase();
         rs = rs.filter(r => [r.Foreman, r["Driver Raw"], r.Truck, r["Vehicle Raw"], r.Merchant,
@@ -281,10 +312,22 @@ registerPage({
         + "</div>"
         + '<div id="fuMonth"></div>'
         + '<input class="rs-inp" id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
+        + '<span class="rs-spacer"></span>'
         + (S.view === "queue"
-            ? '<span class="rs-spacer"></span><div class="rs-tog' + (S.showResolved ? " on" : "")
+            ? '<div class="rs-tog' + (S.showResolved ? " on" : "")
               + '" id="fuShowRes"><i></i>Show explained</div>' : "")
-        + "</div>";
+        + '<div id="fuFilt"></div>'
+        + '</div><div id="fuChips"></div>';
+      // what a job filter cannot reach: the swipes on no job, kept and counted (see PF_JOB above)
+      const jobOn = PF_JOBKEYS.filter(k => S.pf[k].length);
+      const noJob = jobOn.length ? rs.filter(r => !onJob(r)) : [];
+      if (noJob.length) {
+        const nm = jobOn.map(k => PF_NAME[k]);
+        h += '<p class="rs-hint"><b>Not filtered by ' + esc(nm.length < 3 ? nm.join(" or ") : nm.slice(0, -1).join(", ") + " or " + nm[nm.length - 1])
+          + ":</b> the " + fmtN(noJob.length) + " swipe" + (noJob.length === 1 ? "" : "s") + " placed on no job ("
+          + money0(noJob.reduce((a, r) => a + num(r["Net Cost"]), 0)) + "). A swipe with no job has no company, "
+          + "type or state, so they stay in every count here and in the queue until somebody explains them.</p>";
+      }
 
       h += '<div class="fu-msg' + (S.msg && !S.msgFor ? (S.msgErr ? " err" : " on") : "") + '">'
         + esc(S.msgFor ? "" : (S.msg || "")) + "</div>";
@@ -292,7 +335,7 @@ registerPage({
       // the guard above tests the whole feed; this one tests what the month and the search
       // actually left. It renders BELOW the bar on purpose -- an early return would have
       // wiped the search box the user is typing into (it did, and threw doing it).
-      if (!rs.length) h += '<div class="fu-empty">No card swipes match this month or search.</div>';
+      if (!rs.length) h += '<div class="fu-empty">No card swipes match this month, search or filters.</div>';
       else if (S.view === "queue") h += queueView(openQ, resolved);
       else if (S.view === "foremen") h += foremanView(rs);
       else if (S.view === "trucks") h += truckView(rs);
@@ -534,6 +577,16 @@ registerPage({
         allLabel: "Every month",
         onChange: v => { S.month = v; paint(); },
       });
+      // the Filters button at the bar's right end; its "Filtered by" chips right under the bar
+      const fields = pfFields();
+      const apply = next => { PF_KEYS.forEach(k => { S.pf[k] = [...(next[k] || [])]; }); paint(); };
+      const fh = main.querySelector("#fuFilt");
+      if (fh && RSC.filterPanel) RSC.filterPanel(fh, { fields, selected: S.pf, onApply: apply,
+        note: "Fuel kind is the swipe's own. Company, Local / Long distance and Job state are the job's: a swipe "
+          + "placed on no job has none, so under those filters it stays on the page, unfiltered, and the line "
+          + "under the bar counts it." });
+      const ch = main.querySelector("#fuChips");
+      if (ch && RSC.filterChips) RSC.filterChips(ch, { fields, selected: S.pf, onChange: apply });
       const q = main.querySelector("#fuQ");
       if (q) q.oninput = function () {
         S.q = this.value;
@@ -574,6 +627,26 @@ registerPage({
       main.querySelectorAll("[data-reopen]").forEach(b => {
         b.onclick = e => { e.stopPropagation(); reopen(b.dataset.reopen, b); };
       });
+    }
+
+    // the panel's fields: values from the loaded swipes, most common first; a job's fields count
+    // the swipes placed on a job only (the rest have no company, type or state to offer)
+    function pfFields() {
+      const g = { co: {}, job: {}, st: {}, kind: {} };
+      (S.rows || []).forEach(r => PF_KEYS.forEach(k => {
+        if (k !== "kind" && !onJob(r)) return;
+        const v = pfVal(k, r);
+        if (v !== "—") g[k][v] = (g[k][v] || 0) + 1;
+      }));
+      const vals = k => {
+        S.pf[k].forEach(v => { if (!(v in g[k])) g[k][v] = 0; });   // a pick stays untickable
+        return Object.keys(g[k]).sort((a, b) => g[k][b] - g[k][a] || a.localeCompare(b))
+          .map(v => ({ v, l: v, n: g[k][v] }));
+      };
+      return [{ key: "co", label: "Company", values: vals("co") },
+              { key: "job", label: "Local / Long distance", values: vals("job") },
+              { key: "st", label: "Job state", values: vals("st") },
+              { key: "kind", label: "Fuel kind", values: vals("kind") }];
     }
 
     function rowFor(k) { return (S.rows || []).filter(r => r["Line Key"] === k)[0]; }

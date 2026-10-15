@@ -76,6 +76,25 @@ registerPage({
       // "board" | "profile", and which man the profile is open on
       view: "board", fm: "", chkOnly: false,
     });
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
+       report with its own bar): Local / Long distance and Job type, each a multi (empty = all).
+       They narrow the WINDOW, exactly like Month and Company: every median, rank-sum test and
+       score is recomputed on the jobs left, so each foreman is compared with the other foremen's
+       jobs of the same kind -- the panel's note says so. In S for this session, never in
+       RS.state.multi, never persisted. Local / Long distance is the job's Moving Type, which on
+       this table reads "Local Moving" or "Long Distance Moving" (3,070 and 19 jobs, 38 blank, read
+       2026-10-15) -- the long-distance split lives in Job Type (Regular / Straight Moving). */
+    var PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Long Distance Moving"] };
+    var PF_JOB_OF = {};
+    Object.keys(PF_JOB).forEach(function (k) { PF_JOB[k].forEach(function (t) { PF_JOB_OF[t] = k; }); });
+    if (!S.pf) S.pf = { job: [], jt: [] };
+    function pfSets() {
+      return { job: S.pf.job.length ? new Set(S.pf.job) : null, jt: S.pf.jt.length ? new Set(S.pf.jt) : null };
+    }
+    function pfKeep(r, pf) {
+      return (!pf.job || pf.job.has(PF_JOB_OF[r["Moving Type"]]))
+        && (!pf.jt || pf.jt.has(r["Job Type"] == null || r["Job Type"] === "" ? "—" : String(r["Job Type"])));
+    }
 
     /* ================================================================ THE ENGINE
      * Three pure functions. Exposed on window.PKENG so they can be exercised directly with
@@ -714,11 +733,30 @@ registerPage({
     function invalidate() { S.memo = null; S.memoKey = ""; }
 
     function view() {
+      var pf = pfSets();
       return S.rows.filter(function (r) {
         if (S.month && monthOf(r.Day) !== S.month) return false;
         if (S.co && (r.Company || "—") !== S.co) return false;
-        return true;
+        return pfKeep(r, pf);
       });
+    }
+
+    // the panel's fields: values from the loaded jobs of the company on screen, most common first
+    function pfFieldList() {
+      var g = { job: {}, jt: {} };
+      S.rows.forEach(function (r) {
+        if (S.co && (r.Company || "—") !== S.co) return;
+        var j = PF_JOB_OF[r["Moving Type"]];
+        if (j) g.job[j] = (g.job[j] || 0) + 1;
+        if (r["Job Type"] != null && r["Job Type"] !== "") g.jt[r["Job Type"]] = (g.jt[r["Job Type"]] || 0) + 1;
+      });
+      var vals = function (k) {
+        S.pf[k].forEach(function (v) { if (!(v in g[k])) g[k][v] = 0; });   // a pick stays untickable
+        return Object.keys(g[k]).sort(function (a, b) { return g[k][b] - g[k][a] || a.localeCompare(b); })
+          .map(function (v) { return { v: v, l: v, n: g[k][v] }; });
+      };
+      return [{ key: "job", label: "Local / Long distance", values: vals("job") },
+              { key: "jt", label: "Job type", values: vals("jt") }];
     }
 
     /* ================================================================ paint */
@@ -737,7 +775,7 @@ registerPage({
       // The engine is ~140 rank-sum tests over every job in the window. The name box and the
       // sort buttons change WHICH profiles are shown, never what they contain -- so the result
       // is cached against the only two inputs that can change it.
-      var key = S.month + "|" + S.co;
+      var key = S.month + "|" + S.co + "|" + JSON.stringify(S.pf);   // + the panel's picks (2026-10-15)
       if (S.memoKey !== key || !S.memo) { S.memo = rollup(here); S.memoKey = key; }
       var profiles = S.memo;
       var fleet = profiles.length ? profiles[0].fleetAll : {};
@@ -822,7 +860,8 @@ registerPage({
             ? '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="pkQ" placeholder="'
               + (S.view === "board" ? "Find a foreman…" : "Foreman or customer…")
               + '" value="' + esc(S.q) + '"></label>' : "")
-        + "</div>";
+        + '<span class="rs-spacer"></span><div id="pkFilt"></div>'
+        + '</div><div id="pkChips"></div>';
 
       var tests = 0;
       profiles.forEach(function (p) { tests += p.tested; });
@@ -899,6 +938,20 @@ registerPage({
         value: S.fm,
         onChange: function (v) { S.fm = v; paint(); },
       });
+      // the Filters button at the bar's right end; its "Filtered by" chips right under the bar
+      var pfFields = pfFieldList();
+      var pfApply = function (next) {
+        S.pf = { job: Array.from(next.job || []), jt: Array.from(next.jt || []) };
+        invalidate(); paint();
+      };
+      RSC.filterPanel(main.querySelector("#pkFilt"), {
+        fields: pfFields, selected: S.pf, onApply: pfApply,
+        note: "<b>Filtering changes who each foreman is compared against.</b> Every median, peer test and "
+          + "score is rebuilt from the jobs these filters keep, so with Flat Rate ticked a foreman's flat-rate jobs "
+          + "are measured against the other foremen's flat-rate jobs only, and fewer men have enough jobs to be "
+          + "scored. Job check and Upcoming jobs follow the same filters.",
+      });
+      RSC.filterChips(main.querySelector("#pkChips"), { fields: pfFields, selected: S.pf, onChange: pfApply });
       wire(here, profiles);
       // the note under the bar says every card is read "over the window selected above" — so
       // the collapsed pill has to keep naming that window
@@ -907,6 +960,8 @@ registerPage({
           var labels = [];
           if (S.month) labels.push(monLab(S.month));
           if (S.co) labels.push(S.co);
+          if (S.pf.job.length) labels.push(S.pf.job.join(" + "));
+          if (S.pf.jt.length) labels.push("Job type");
           // ONLY NAME FILTERS THIS VIEW ACTUALLY APPLIES. The profile reads the whole
           // `profiles` list, so the board's flag toggle and name search do nothing there —
           // and neither control is on screen to inspect or clear. The pill claiming them
@@ -1190,12 +1245,14 @@ registerPage({
       // the rate the expectation is priced at: this window's own median -- gated on how
       // many jobs actually CARRY a rate, not on the row count, because zero-pack rows have
       // their rates nulled and a month of mostly-zeros would pass a row-count gate with a
-      // median resting on four values. Too thin -> the whole book, same company filter.
+      // median resting on four values. Too thin -> the whole book, same company filter
+      // (and the same panel filters: an LD job is priced against LD jobs).
       var widened = rateN(live) < 30;
+      var pf = pfSets();
       var base = widened ? S.rows.filter(function (r) {
         return !r["Calendar Only"] && r.Day && r.Day <= TODAY
           && !r["Packed By Owner"] && r["Recorded"]
-          && (!S.co || (r.Company || "—") === S.co);
+          && (!S.co || (r.Company || "—") === S.co) && pfKeep(r, pf);
       }) : live;
       var medUnit = median(base.map(function (r) { return r["USD per Unit"]; }));
       var med100 = median(base.map(function (r) { return r["USD per 100 CF"]; }));

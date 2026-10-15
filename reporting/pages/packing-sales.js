@@ -149,8 +149,18 @@ registerPage({
     const ymLab = ym => { const [y, m] = String(ym).split("-"); return MON3[+m] + " " + y; };
 
     const S = window.__PKS || (window.__PKS = {
-      period: "12m", co: "", cat: "", size: "", cf: "", sort: "usd", sizeBy: "cf", fm: "",
+      period: "12m", co: "", sort: "usd", sizeBy: "cf",
     });
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
+       report with its own bar). Category, Building size, Job CF and Foreman, each a multi (empty
+       = all) -- single dropdowns in the bar until now. In S for this session, never in
+       RS.state.multi (every other report reads that) and never persisted.
+       NO LOCAL / LONG DISTANCE: every contract both marts hold is a local move (the contract's
+       Moving Type is "LOCAL MOVING" on 3,445 of 3,445, read 2026-10-15), so that filter would
+       have one value. The panel's note says so. */
+    const PF_KEYS = ["cat", "size", "cf", "fm"];
+    if (!S.pf) S.pf = {};
+    PF_KEYS.forEach(k => { if (!Array.isArray(S.pf[k])) S.pf[k] = []; });
     injectStyle();
     host.innerHTML = '<div class="pks"><div class="panel">Loading the packing lines…</div></div>';
     const mine = host.querySelector(".pks");
@@ -207,7 +217,8 @@ registerPage({
       function applyMap() {
         lines.forEach(l => { l.mat = matOfRaw(l.raw); l.cat = catOfLine(l); });
         cats = [...new Set(lines.map(l => l.cat))].filter(Boolean).sort();
-        if (S.cat && cats.indexOf(S.cat) < 0) S.cat = "";   // a merge can empty the category being filtered on
+        // a merge can empty a category being filtered on
+        S.pf.cat = S.pf.cat.filter(c => cats.indexOf(c) >= 0);
         mapDirty = false;
       }
       jobs = (jobs || []).map(r => ({
@@ -226,9 +237,6 @@ registerPage({
 
       const yms = [...new Set(jobs.map(j => j.ym))].filter(Boolean).sort();
       const cos = [...new Set(jobs.map(j => j.co))].filter(Boolean).sort();
-      const sizes = [...new Set(jobs.map(j => j.size))].filter(Boolean).sort();
-      const cfbs = [...new Set(jobs.map(j => j.cfb))].filter(Boolean).sort();
-      const fms = [...new Set(jobs.filter(j => j.has).map(j => j.fm))].filter(Boolean).sort();
 
       /* the period resolves to a set of months; the running month stays IN the window
          (it is real, recent sales) but is marked and left out of per-month averages */
@@ -245,11 +253,16 @@ registerPage({
         if (!alive()) return;
         if (mapDirty) applyMap();   // BEFORE any aggregate: a saved merge has to move every table below
         const months = monthsFor(S.period);
+        // the panel's picks, as sets (empty = all); a contract filter narrows the contracts AND the
+        // lines (through jobSet), so every attach rate and per-job figure has both sides filtered
+        const pf = {};
+        PF_KEYS.forEach(k => { pf[k] = S.pf[k].length ? new Set(S.pf[k]) : null; });
         const jobOk = j => months.has(j.ym) && (!S.co || j.co === S.co)
-          && (!S.size || j.size === S.size) && (!S.cf || j.cfb === S.cf) && (!S.fm || j.fm === S.fm);
+          && (!pf.size || pf.size.has(j.size))
+          && (!pf.cf || pf.cf.has(j.cfb)) && (!pf.fm || pf.fm.has(j.fm));
         const J = jobs.filter(jobOk);
         const jobSet = new Set(J.map(j => j.cid));
-        const L = lines.filter(l => jobSet.has(l.cid) && (!S.cat || l.cat === S.cat));
+        const L = lines.filter(l => jobSet.has(l.cid) && (!pf.cat || pf.cat.has(l.cat)));
 
         // ---- the headline numbers ---------------------------------------------------- //
         const contracts = J.length;
@@ -349,8 +362,8 @@ registerPage({
           + '<div class="pks-seg" id="pksPeriod">' + PERIODS.map(p =>
               '<button class="rs-btn' + (S.period === p.k ? " pri" : "") + '" data-p="' + p.k + '">' + esc(p.lab) + "</button>").join("") + "</div>"
           + '<span class="rs-spacer"></span>'
-          + '<div id="pksCo"></div><div id="pksCat"></div><div id="pksSize"></div><div id="pksCf"></div><div id="pksFm"></div>'
-          + "</div>";
+          + '<div id="pksCo"></div><div id="pksFilt"></div>'
+          + '</div><div id="pksChips"></div>';
 
         h += '<div class="rs-kpis" style="--kpi-cols:6">'
           + kpi("Contracts", fmtN(contracts), periodLab + (S.co ? " · " + esc(S.co) : ""))
@@ -625,10 +638,44 @@ registerPage({
             onChange: function (v) { set(v); paint(); } });
         };
         sel("pksCo", "Company", cos, S.co, "All books", v => { S.co = v; });
-        sel("pksCat", "Category", cats, S.cat, "All categories", v => { S.cat = v; });
-        sel("pksSize", "Building size", sizes, S.size, "Any size", v => { S.size = v; });
-        sel("pksCf", "Job CF", cfbs.map(c => ({ v: c, l: c.replace(/^\d\s+/, "") })), S.cf, "Any CF", v => { S.cf = v; });
-        sel("pksFm", "Foreman", fms, S.fm, "All foremen", v => { S.fm = v; });
+        // the Filters button at the bar's right end, its "Filtered by" chips right under the bar;
+        // both hand back the whole { key: Set } and repaint through paint(), like every control here
+        const fields = pfFields();
+        const apply = next => { PF_KEYS.forEach(k => { S.pf[k] = [...(next[k] || [])]; }); paint(); };
+        const fh = mine.querySelector("#pksFilt");
+        if (fh) RSC.filterPanel(fh, { fields: fields, selected: S.pf, note: PF_NOTE, onApply: apply });
+        const ch = mine.querySelector("#pksChips");
+        if (ch) RSC.filterChips(ch, { fields: fields, selected: S.pf, onChange: apply });
+      }
+
+      // each field's values from the loaded rows of the company on screen, most common first
+      const PF_NOTE = "Building size, Job CF and Foreman narrow the contracts, so attach rates, per-job and "
+        + "per-100-CF figures have both sides filtered. <b>Category</b> narrows the materials only: Contracts and "
+        + "Bought materials still count every contract in the window, so an attach rate reads as the share of all "
+        + "contracts that bought from that category. The material-name editor at the bottom always lists every "
+        + "label, all time. There is no Local / Long distance filter: every contract here is a local move.";
+      function pfFields() {
+        const cj = jobs.filter(j => !S.co || j.co === S.co);
+        const tally = (rows, key, lab, k) => {
+          const g = {};
+          rows.forEach(r => { const v = key(r); if (v == null || v === "") return; g[v] = (g[v] || 0) + 1; });
+          S.pf[k].forEach(v => { if (!(v in g)) g[v] = 0; });   // a pick from another company stays untickable
+          return Object.keys(g).sort((a, b) => g[b] - g[a] || a.localeCompare(b))
+            .map(v => ({ v: v, l: lab ? lab(v) : v, n: g[v] }));
+        };
+        const coIds = new Set(cj.map(j => j.cid));
+        const catSeen = {};   // contracts that bought from a category, once each
+        const catRows = [];
+        lines.forEach(l => {
+          if (!coIds.has(l.cid) || !l.cat || catSeen[l.cat + "|" + l.cid]) return;
+          catSeen[l.cat + "|" + l.cid] = 1; catRows.push(l);
+        });
+        return [
+          { key: "cat", label: "Category", values: tally(catRows, l => l.cat, null, "cat") },
+          { key: "size", label: "Building size", values: tally(cj, j => j.size, null, "size") },
+          { key: "cf", label: "Job CF", values: tally(cj, j => j.cfb, c => c.replace(/^\d\s+/, ""), "cf") },
+          { key: "fm", label: "Foreman", values: tally(cj, j => j.fm, null, "fm") },
+        ];
       }
 
       paint();

@@ -172,15 +172,27 @@ registerPage({
 
     const months = [...new Set(all.map(r => r.Month).filter(Boolean))].sort();
     const companies = [...new Set(all.map(r => r.Company).filter(Boolean))].sort();
-    const foremen = [...new Set(all.map(r => r["Job Foreman"]).filter(Boolean))].sort();
-    const types = [...new Set(all.map(r => r["Moving Type"]).filter(Boolean))].sort();
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
+       report with its own bar): Local / Long distance, Seat and Foreman on the job, each a multi
+       (empty = all). The seat buttons, the Foreman-on-the-job dropdown and the Move type dropdown
+       moved out of the bar into the panel. They live in S like every other pick here -- never in
+       RS.state.multi, never persisted. Local / Long distance is the job's Moving Type, split the
+       way closing splits it: Local Moving vs Regular + Straight Moving. A trip leg comes from the
+       trips sheet -- the long-distance trips -- and carries no Moving Type (342 of 342 legs blank,
+       read 2026-10-15), so a leg counts as Long distance. */
+    const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving"] };
+    const JOB_OF = {};
+    Object.keys(PF_JOB).forEach(k => PF_JOB[k].forEach(t => { JOB_OF[t] = k; }));
+    const jobOf = r => num(r["Is Trip"]) ? "Long distance" : JOB_OF[r["Moving Type"]];
+    const PF_KEYS = ["job", "role", "fm"];
 
     // A payroll page opens on the LAST COMPLETE MONTH, not on all time: the question is
     // always "what did we pay this month", and 3.6 years of rows answers a different one.
     /* Opens on the LAST 3 MONTHS (his ask, 2026-09-01 -- was 6) and on Zip to Zip:
        that is the company he reads payroll for; Tuji stays one click away. */
-    const S = { role: "", from: months[Math.max(0, months.length - 3)] || "", to: months[months.length - 1] || "",
-                co: companies.includes("Zip to Zip") ? "Zip to Zip" : "", fm: "", type: "",
+    const S = { from: months[Math.max(0, months.length - 3)] || "", to: months[months.length - 1] || "",
+                co: companies.includes("Zip to Zip") ? "Zip to Zip" : "",
+                pf: { job: [], role: [], fm: [] },
                 q: "", sort: "pay", dir: -1, person: null,
                 page: 0, pageSize: 50, showAll: false };
     let qTimer = null;
@@ -189,13 +201,15 @@ registerPage({
 
     function rows() {
       const q = S.q.trim().toLowerCase();
+      const pf = {};
+      PF_KEYS.forEach(k => { pf[k] = S.pf[k].length ? new Set(S.pf[k]) : null; });
       return all.filter(r => {
-        if (S.role && r.Role !== S.role) return false;
+        if (pf.role && !pf.role.has(r.Role)) return false;
         if (S.from && (r.Month || "") < S.from) return false;
         if (S.to && (r.Month || "") > S.to) return false;
         if (S.co && r.Company !== S.co) return false;
-        if (S.fm && r["Job Foreman"] !== S.fm) return false;
-        if (S.type && r["Moving Type"] !== S.type) return false;
+        if (pf.fm && !pf.fm.has(r["Job Foreman"])) return false;
+        if (pf.job && !pf.job.has(jobOf(r))) return false;
         if (q && !String(r.Person || "").toLowerCase().includes(q)) return false;
         return true;
       });
@@ -294,11 +308,11 @@ registerPage({
           <p>Every person who worked a truck and what they were paid for it — foreman, driver
              and helper in one place, with tips kept separate from wage.</p></div>
 
-        <div class="crw-bar" id="crwBar"></div>
+        <div class="crw-bar" id="crwBar"></div><div id="crwChips"></div>
 
         <div class="rs-kpis" style="--kpi-cols:6">
           ${kpi("People paid", fmtN(people.length),
-                (S.role || "all roles") + " · " + fmtN(mKeys.length) + " month" + (mKeys.length === 1 ? "" : "s"))}
+                esc(S.pf.role.length ? S.pf.role.join(", ") : "all roles") + " · " + fmtN(mKeys.length) + " month" + (mKeys.length === 1 ? "" : "s"))}
           ${kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs"
                 + (tripLegs ? " · +" + fmtN(tripLegs) + " trip leg" + (tripLegs === 1 ? "" : "s") : ""))}
           ${kpi("Total paid", m0(pay), m0(pay / (jobs || 1)) + " a job")}
@@ -404,18 +418,6 @@ registerPage({
     function mountBar() {
       const bar = host.querySelector("#crwBar");
       if (!bar) return;
-      const seg = document.createElement("div");
-      seg.className = "rs-seg";
-      [["", "All seats"], ["Foreman", "Foremen"], ["Driver", "Drivers"], ["Helper", "Helpers"]]
-        .forEach(([v, l]) => {
-          const b = document.createElement("button");
-          b.textContent = l;
-          if (S.role === v) b.className = "on";
-          b.onclick = () => { if (S.role !== v) { S.role = v; S.page = 0; paint(); } };
-          seg.appendChild(b);
-        });
-      bar.appendChild(seg);
-
       const mLabel = m => m ? RS.monthName(+m.slice(5, 7)) + " " + m.slice(0, 4) : "";
       /* The SAME period control the other local pages wear (Area Plan, Truck Economics):
          preset chips + From/To month selects, instead of a bare pair of dropdowns. */
@@ -448,10 +450,6 @@ registerPage({
         onChange: v => { S.to = v; if (S.from > S.to) S.from = S.to; S.page = 0; paint(); } });
       RSC.localSelect(bar, { label: "Company", values: companies, value: S.co, allLabel: "All companies",
         onChange: v => { S.co = v; S.page = 0; paint(); } });
-      RSC.localSelect(bar, { label: "Foreman on the job", values: foremen, value: S.fm,
-        allLabel: "Any foreman", onChange: v => { S.fm = v; S.page = 0; paint(); } });
-      RSC.localSelect(bar, { label: "Move type", values: types, value: S.type, allLabel: "All types",
-        onChange: v => { S.type = v; S.page = 0; paint(); } });
 
       const q = document.createElement("input");
       q.className = "crw-in"; q.placeholder = "find a person…"; q.value = S.q;
@@ -460,6 +458,35 @@ registerPage({
         qTimer = setTimeout(() => { S.q = q.value; S._focus = 1; S.page = 0; paint(); }, 300); };
       bar.appendChild(q);
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+
+      // the Filters button at the bar's right end; its "Filtered by" chips right under the bar
+      const sp = document.createElement("span");
+      sp.className = "rs-spacer";
+      bar.appendChild(sp);
+      const fields = pfFields();
+      const apply = next => { PF_KEYS.forEach(k => { S.pf[k] = [...(next[k] || [])]; }); S.page = 0; paint(); };
+      RSC.filterPanel(bar, { fields, selected: S.pf, onApply: apply,
+        note: "Local / Long distance is the job's Moving Type. A trip leg (day rate, from the trips sheet) has "
+          + "none of its own and counts as Long distance." });
+      const chips = host.querySelector("#crwChips");
+      if (chips) RSC.filterChips(chips, { fields, selected: S.pf, onChange: apply });
+    }
+
+    // each field's values from the loaded rows of the company on screen, most common first
+    function pfFields() {
+      const cr = all.filter(r => !S.co || r.Company === S.co);
+      const tally = (key, k) => {
+        const g = {};
+        cr.forEach(r => { const v = key(r); if (v == null || v === "") return; g[v] = (g[v] || 0) + 1; });
+        S.pf[k].forEach(v => { if (!(v in g)) g[v] = 0; });   // a pick from another company stays untickable
+        return Object.keys(g).sort((a, b) => g[b] - g[a] || a.localeCompare(b))
+          .map(v => ({ v, l: v, n: g[v] }));
+      };
+      return [
+        { key: "job", label: "Local / Long distance", values: tally(jobOf, "job") },
+        { key: "role", label: "Seat", values: tally(r => r.Role, "role") },
+        { key: "fm", label: "Foreman on the job", values: tally(r => r["Job Foreman"], "fm") },
+      ];
     }
 
     /* ONE PERSON. Their months, their rate over time, and the jobs behind it — because the
