@@ -467,7 +467,8 @@
     }
     boot();
     if (!PREF.loaded && !PREF.loading) loadPrefs(host);
-    if (ROAS.amts == null && !ROAS.loadingAmts) loadAmounts(host);
+    // a read that failed (the table not built yet, a bridge hiccup) is tried again on the next render
+    if ((ROAS.amts == null || ROAS.amtErr) && !ROAS.loadingAmts) loadAmounts(host);
     paint(host);
   }
 
