@@ -319,6 +319,37 @@ window.RSC = (function () {
     return { button: btn, open };
   }
 
+  /* ------------- the panel's picks, said under the page's bar -------------
+     filterPanel's companion: the shell's "Filtered by" line (removable chips + Clear all) for a
+     page-owned filter set, so every report says what it is filtered by the same way.
+     fields/selected as filterPanel takes them; onChange(next) gets the whole new { key: Set }
+     after a chip's × or Clear all. Renders nothing while no filter is on. Returns the element. */
+  function filterChips(host, { fields, selected, onChange }) {
+    const sel = selected || {};
+    const wrap = el("div", "rs-chips rs-pchips");
+    const on = (fields || []).filter(f => sel[f.key] && (sel[f.key].size || sel[f.key].length));
+    if (!on.length) { wrap.classList.add("hidden"); if (host) host.appendChild(wrap); return wrap; }
+    const labelOf = f => {
+      const m = {};
+      (f.values || []).forEach(v => { if (typeof v === "object") m[v.v] = v.l; });
+      return v => m[v] != null ? m[v] : v;
+    };
+    wrap.innerHTML = '<span class="rs-sum-l">Filtered by</span>' + on.map(f => {
+      const vals = [...sel[f.key]], lo = labelOf(f);
+      return '<span class="rs-chip">' + esc(f.label + ": " + (vals.length <= 2 ? vals.map(lo).join(", ") : vals.length + " selected"))
+        + '<button type="button" data-k="' + esc(f.key) + '" title="Remove filter">×</button></span>';
+    }).join("") + '<button type="button" class="rs-chip clear">Clear all</button>';
+    const next = () => { const o = {}; (fields || []).forEach(f => { o[f.key] = new Set(sel[f.key] ? [...sel[f.key]] : []); }); return o; };
+    wrap.querySelectorAll("button[data-k]").forEach(b => b.onclick = () => {
+      const o = next(); o[b.dataset.k] = new Set(); if (onChange) onChange(o);
+    });
+    wrap.querySelector(".rs-chip.clear").onclick = () => {
+      const o = next(); Object.keys(o).forEach(k => { o[k] = new Set(); }); if (onChange) onChange(o);
+    };
+    if (host) host.appendChild(wrap);
+    return wrap;
+  }
+
   /* ------------- single-select slicer (always exactly one value chosen) ------------- */
   function singleSelect(host, { key, label, values, defaultValue, onChange }) {
     const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
@@ -1192,7 +1223,7 @@ window.RSC = (function () {
                     } });
   }
 
-  return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, filterPanel, dateBar, dateRange, datePresets,
+  return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, filterPanel, filterChips, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg, choice: choiceDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter, printView };

@@ -35,6 +35,15 @@
  *
  * ITS OWN FILTERS, NOT THE GLOBAL BAR: PAGE_DATASETS [] + BARE_CHROME. Company defaults to
  * Zip to Zip (Tuji is its own Moveboard account and its own picker value).
+ *
+ * RETURN ON AD SPEND BY STATE OPENS THE PAGE AGAIN (Tornike 2026-10-15: "in the source we had this
+ * ROA thing as the main start - why dont we have it any more ?" -- the original Source Analysis
+ * opened on revenue per $1 of ads; the 23 Sep rebuild started on one source instead). Every source,
+ * every state, for the period and company in the bar: revenue per $1 of ads, PER SOURCE (Angi spend
+ * in NJ against Angi jobs' revenue in NJ, summed per state), spend placed in a state by
+ * mart_source_state_spend (how each dollar was placed rides on the row), and the spend the data
+ * cannot place shown as missing, with a split per source he types in (mkt_state_split via
+ * /api/_mktsplit; one split per source and company, applying to every month).
  */
 (function () {
   if (!window.RS || !RS.DATASETS) return;
@@ -54,6 +63,13 @@
       table: "mart_source_job",
       cols: ["Unique Key", "Company", "Date", "Record Source", "Source", "Family", "Campaign",
              "State", "Moving Type", "Billed", "Cash", "Has Lead"],
+      dateCols: {}, defaultDate: null,
+    };
+  }
+  if (!RS.DATASETS.src_state_spend) {
+    RS.DATASETS.src_state_spend = {
+      table: "mart_source_state_spend",
+      cols: ["Month", "Company", "Family", "State", "How", "Spend"],
       dateCols: {}, defaultDate: null,
     };
   }
@@ -89,6 +105,11 @@
   var DATA = { ready: false, byFam: null, minDay: null, maxDay: null, ledgerEnd: null, formsDate: null };
   var FORMS_STALE_DAYS = 10;   // the export is due weekly (his call 2026-09-24); 10 days = one Monday missed
   var DETAIL = {};        // "fam|co|from|to" -> {rows: {jk: row}, capped, error} (or a Promise)
+  /* the ROAS section: placed spend rows, the typed splits ("co|fam" -> [{State, Pct, ...}]), and
+     which source's split editor is open */
+  var ROAS = { rows: null, err: null, splits: null, splitErr: null, edit: null, note: "" };
+  var SPLIT_STATES = ["NJ", "PA", "NY", "CT", "DE", "MD", "MA", "VA"];
+  var SMALL_SPEND = 500;   // a source x state cell with less placed spend is shown greyed, not rated
   var PREF = { loaded: false, loading: false, saved: null, note: "" };
   var saveTimer = null;
 
@@ -226,6 +247,17 @@
       + ".sra .sra-cols .sra-reset{margin-top:8px;width:100%}"
       + ".sra .sra-save{font-size:11.5px;color:var(--faint)}"
       + ".sra .sra-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
+      // the ROAS section (2026-10-15)
+      + ".sra .sra-roas .rs-table td.num small{display:block;color:var(--faint);font-size:11px;font-weight:600}"
+      + ".sra .sra-roas .sra-x{font-weight:700;font-variant-numeric:tabular-nums}"
+      + ".sra .sra-roas .sra-x.hi{color:var(--pos)}.sra .sra-roas .sra-x.lo{color:var(--neg)}"
+      + ".sra .sra-roas .sra-np{color:var(--faint)}"
+      + ".sra .sra-split{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 4px}"
+      + ".sra .sra-split label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted)}"
+      + ".sra .sra-split input{width:64px;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums}"
+      + ".sra .sra-split .sra-sum{font-weight:700;font-variant-numeric:tabular-nums}"
+      + ".sra .sra-split .sra-sum.bad{color:var(--neg)}"
+      + ".sra .sra-roas tr.sra-ed td{background:var(--panel-2)}"
       + "@media(max-width:700px){.sra .sra-fr{grid-template-columns:78px 1fr 110px}.sra .sra-exit{margin-left:0}}";
     document.head.appendChild(st);
   }
@@ -389,8 +421,13 @@
       host.innerHTML = '<div class="rs-loading">Reading every lead, job and ad dollar by source…'
         + '<div class="bar"><i></i></div></div>';
       try {
-        var got = await Promise.all([RS.load("src_lead"), RS.load("src_job"), RS.load("src_spend")]);
+        var got = await Promise.all([RS.load("src_lead"), RS.load("src_job"), RS.load("src_spend"),
+          RS.load("src_state_spend").catch(function (e) { ROAS.err = e; return null; })]);
         index(got[0] || [], got[1] || [], got[2] || []);
+        ROAS.rows = (got[3] || []).map(function (r) {
+          return { _m: String(r.Month || "").slice(0, 10), co: r.Company, fam: r.Family || "(no source)",
+                   st: r.State ? String(r.State).trim().toUpperCase() : "", how: r.How, sp: num(r.Spend) };
+        });
       } catch (e) {
         host.innerHTML = '<div class="panel"><div class="panel-head"><span class="panel-title">'
           + 'Source Analysis could not load</span></div><div class="rs-hint">' + esc(e.message)
@@ -404,6 +441,7 @@
     }
     boot();
     if (!PREF.loaded && !PREF.loading) loadPrefs(host);
+    if (ROAS.splits == null && !ROAS.loadingSplits) loadSplits(host);
     paint(host);
   }
 
@@ -460,8 +498,8 @@
 
     host.innerHTML = '<div class="sra">'
       + '<div class="rs-page-head"><h1>Source Analysis</h1>'
-      + "<p>One source, all of it: the leads it sent, how many booked, what they were worth and "
-      + "what the source cost.</p></div>"
+      + "<p>Return on ad spend for every source and state first; then one source, all of it: the leads "
+      + "it sent, how many booked, what they were worth and what it cost.</p></div>"
       + '<div class="rs-bar" id="sraBar">'
       + '<div id="sraFam"></div>'
       + (isPC ? '<div id="sraCamp"></div>' : "")
@@ -473,6 +511,10 @@
       + '<div id="sraSt"></div>'
       + "</div>"
       + formsStaleHtml()
+      + '<div class="sra-h"><h2>Return on ad spend · every source, by state</h2>'
+      + '<span class="sra-sub">the company and period above · the source and state pickers do not apply here</span></div>'
+      + '<div class="sra-roas" id="sraRoas"></div>'
+      + '<div class="sra-h"><h2 id="sraOneH">One source in detail</h2></div>'
       + '<div class="rs-hint" id="sraLead"></div>'
       + '<div class="rs-grid2" id="sraSides"></div>'
       + '<div class="sra-h"><h2>Breakdowns</h2>'
@@ -492,12 +534,263 @@
       + "</div>";
 
     mountBar(host, w);
+    try { paintRoas(host, w); }
+    catch (e) { var re = host.querySelector("#sraRoas"); if (re) re.innerHTML = '<div class="panel"><div class="rs-hint">The return-on-ad-spend view could not draw: ' + esc(e.message) + "</div></div>"; }
+    var oh = host.querySelector("#sraOneH"); if (oh) oh.textContent = (S.fam || "One source") + " in detail";
     paintLead(host, w, cw, pack, leadsSt);
     paintSides(host, w, cw, leadsSt);
     paintCharts(host, w, leadsSt);
     paintSpend(host, w, cw, pack);
     paintPivot(host, w, leadsSt);
     paintList(host, w, leadsSt);
+  }
+
+  /* ---- RETURN ON AD SPEND, EVERY SOURCE BY STATE (2026-10-15) ---- */
+  function loadSplits(host) {
+    ROAS.loadingSplits = true;
+    ZTZ.api("/api/_mktsplit").then(function (j) {
+      var m = {};
+      ((j && j.splits) || []).forEach(function (r) {
+        var k = r.Company + "|" + r.Family;
+        (m[k] = m[k] || []).push(r);
+      });
+      ROAS.splits = m; ROAS.splitErr = null;
+    }).catch(function (e) { ROAS.splits = {}; ROAS.splitErr = e; })
+      .then(function () { ROAS.loadingSplits = false; if (host.isConnected && host.querySelector("#sraRoas")) paintRoas(host, win()); });
+  }
+  var HOW_SHORT = { "From the source label": "label", "Google Ads state report": "Google report",
+                    "Thumbtack lead cost": "lead cost", "Split by leads": "by leads", "Your split": "your split" };
+  /* the period's numbers: spend placed per source and state (the typed splits applied to what the
+     data could not place), revenue of each paying source's jobs per state, what is still unplaced */
+  function roasCalc(w) {
+    var led = DATA.ledgerEnd, e = led && w.bEff > led ? led : w.bEff;
+    var m0 = w.a.slice(0, 8) + "01";
+    var fams = {}, unpl = {}, total = 0;
+    var cell = function (f, st) {
+      var F = fams[f] = fams[f] || { sp: 0, unpl: 0, st: {} };
+      return F.st[st] = F.st[st] || { sp: 0, rev: 0, jobs: 0, how: {} };
+    };
+    (ROAS.rows || []).forEach(function (r) {
+      if ((S.co && r.co !== S.co) || r._m < m0 || r._m > e) return;
+      total += r.sp;
+      var F = fams[r.fam] = fams[r.fam] || { sp: 0, unpl: 0, st: {} };
+      F.sp += r.sp;
+      if (r.how !== "Not placed") {
+        var c = cell(r.fam, stateKey(r.st)); c.sp += r.sp; c.how[r.how] = (c.how[r.how] || 0) + r.sp;
+        return;
+      }
+      var sp = ROAS.splits && ROAS.splits[r.co + "|" + r.fam];
+      if (sp && sp.length) {
+        sp.forEach(function (x) {
+          var part = r.sp * num(x.Pct) / 100, c2 = cell(r.fam, stateKey(x.State));
+          c2.sp += part; c2.how["Your split"] = (c2.how["Your split"] || 0) + part;
+        });
+        return;
+      }
+      F.unpl += r.sp;
+      var U = unpl[r.fam] = unpl[r.fam] || { sp: 0, months: {} };
+      U.sp += r.sp; U.months[r._m.slice(0, 7)] = 1;
+    });
+    // revenue: each paying source's jobs, by the closing's state, same company and days
+    var noState = { n: 0, rev: 0, rows: [] };
+    DATA.byFam.forEach(function (v, f) {
+      v.jobs.forEach(function (r) {
+        if (!coOk(r) || !inR(r._d, w.a, e)) return;
+        var blank = !String(r.State || "").trim();
+        if (blank && r["Record Source"] === "closing") { noState.n++; noState.rev += num(r.Billed); if (noState.rows.length < 25) noState.rows.push(r); }
+        if (!fams[f] || fams[f].sp <= 0) return;
+        var c = cell(f, stateKey(r.State));
+        c.rev += num(r.Billed);
+        if (r["Record Source"] === "closing") c.jobs++;
+      });
+    });
+    return { e: e, clipped: e < w.bEff, fams: fams, unpl: unpl, total: total, noState: noState };
+  }
+  function xTxt(rev, sp) {
+    if (!(sp > 0)) return '<span class="sra-np">—</span>';
+    var x = rev / sp;
+    return '<span class="sra-x ' + (x >= 5 ? "hi" : x < 2 ? "lo" : "") + '">' + x.toFixed(1) + "×</span>";
+  }
+  function paintRoas(host, w) {
+    var el = host.querySelector("#sraRoas");
+    if (!el) return;
+    if (ROAS.err && !ROAS.rows) {
+      el.innerHTML = '<div class="panel"><div class="rs-hint">' + (/404|unknown dataset|1146/i.test(String(ROAS.err.message))
+        ? "The spend-by-state table is not built yet — it arrives with the next data refresh."
+        : "The spend-by-state table could not be read: " + esc(ROAS.err.message)) + "</div></div>";
+      return;
+    }
+    var R = roasCalc(w), st = SERVICE_STATES.concat([OTHER_ST]);
+    var famList = Object.keys(R.fams).filter(function (f) { return R.fams[f].sp > 0; })
+      .sort(function (a, b) { return R.fams[b].sp - R.fams[a].sp; });
+    // per state: only cells where spend IS placed count, so a source whose spend is unplaced never
+    // inflates a state's return with revenue it did not pay for
+    var byS = {}, placed = 0, revPlaced = 0, revAll = 0;
+    st.forEach(function (s0) { byS[s0] = { sp: 0, rev: 0, jobs: 0, how: {} }; });
+    famList.forEach(function (f) {
+      Object.keys(R.fams[f].st).forEach(function (s0) {
+        var c = R.fams[f].st[s0];
+        revAll += c.rev;
+        if (!(c.sp > 0)) return;
+        var B = byS[s0]; B.sp += c.sp; B.rev += c.rev; B.jobs += c.jobs; placed += c.sp; revPlaced += c.rev;
+        Object.keys(c.how).forEach(function (h) { B.how[h] = (B.how[h] || 0) + c.how[h]; });
+      });
+    });
+    var unplTot = R.total - placed, unplFams = Object.keys(R.unpl).filter(function (f) { return R.unpl[f].sp > 0.5; });
+    var hint = '<div class="rs-hint">Spend '
+      + (R.clipped ? "up to <b>" + esc(niceDay(R.e)) + "</b>, the last day the advertising ledger is posted (revenue stops there too)" : "for the period")
+      + ", by month. Return = revenue (Total Bill) of each source's jobs in a state ÷ that source's spend placed in the state. "
+      + "Spend is placed from the source's label (post cards, Yelp-DE), Google's own state report, Thumbtack's cost per lead, "
+      + "Angi's and Google Local's leads by state, or your split; anything else waits under <b>Missing data</b> below.</div>";
+    var k = [
+      { label: "Ad spend", value: money0(R.total), sub: famList.length + " paying sources" },
+      { label: "Placed in a state", value: R.total ? pct1(placed / R.total) : "—", sub: money0(placed) + " of it" },
+      { label: "Return where placed", value: placed > 0 ? (revPlaced / placed).toFixed(1) + "×" : "—",
+        sub: money0(revPlaced) + " revenue ÷ " + money0(placed) },
+      { label: "Return, all paying sources", value: R.total > 0 ? (revAll / R.total).toFixed(1) + "×" : "—",
+        sub: money0(revAll) + " revenue ÷ every ad dollar" },
+      { label: "Not placed yet", value: money0(unplTot), sub: unplFams.length ? unplFams.length + " source" + (unplFams.length === 1 ? "" : "s") + " — see Missing data" : "nothing missing",
+        tone: unplTot > 0.5 ? "warn" : "" },
+    ];
+    var stRows = st.filter(function (s0) { return byS[s0].sp > 0 || byS[s0].rev > 0; });
+    var howTxt = function (how, sp) {
+      return Object.keys(how).sort(function (a, b) { return how[b] - how[a]; })
+        .map(function (h) { return (HOW_SHORT[h] || h) + " " + Math.round(100 * how[h] / (sp || 1)) + "%"; }).join(" · ");
+    };
+    var stTable = '<div class="panel"><div class="panel-head"><span class="panel-title">By state</span></div>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Spend placed</th>'
+      + '<th class="num">Revenue, same sources</th><th class="num">Jobs</th><th class="num">Return per $1</th><th>How the spend was placed</th></tr></thead><tbody>'
+      + stRows.sort(function (a, b) { return byS[b].sp - byS[a].sp; }).map(function (s0) {
+          var B = byS[s0];
+          return "<tr><td>" + esc(s0) + '</td><td class="num">' + money0(B.sp) + '</td><td class="num">' + money0(B.rev)
+            + '</td><td class="num">' + fmtN(B.jobs) + '</td><td class="num">' + xTxt(B.rev, B.sp) + '</td><td class="sra-np">'
+            + esc(howTxt(B.how, B.sp)) + "</td></tr>";
+        }).join("")
+      + (unplTot > 0.5 ? '<tr><td>Not placed</td><td class="num">' + money0(unplTot) + '</td><td class="num sra-np">—</td><td></td>'
+          + '<td class="num sra-np">—</td><td class="sra-np">see Missing data</td></tr>' : "")
+      + '</tbody><tfoot><tr class="sra-tot"><td>All</td><td class="num">' + money0(R.total) + '</td><td class="num">' + money0(revPlaced)
+      + '</td><td></td><td class="num">' + xTxt(revPlaced, placed) + "</td><td></td></tr></tfoot></table></div></div>";
+    var cols = st.filter(function (s0) { return famList.some(function (f) { var c = R.fams[f].st[s0]; return c && (c.sp > 0 || c.rev > 0); }); });
+    var mx = '<div class="panel"><div class="panel-head"><span class="panel-title">Every source by state · return per $1</span>'
+      + '<span class="sra-sub" style="margin-left:auto">hover a cell for spend and revenue · "—" = no spend placed there · grey = under $500 placed</span></div>'
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Source</th><th class="num">Spend</th>'
+      + cols.map(function (s0) { return '<th class="num">' + esc(s0 === OTHER_ST ? "Other" : s0) + "</th>"; }).join("")
+      + '<th class="num">Not placed</th><th class="num">All states</th></tr></thead><tbody>'
+      + famList.map(function (f) {
+          var F = R.fams[f], revF = 0;
+          Object.keys(F.st).forEach(function (s0) { revF += F.st[s0].rev; });
+          return "<tr><td>" + esc(f) + '</td><td class="num">' + money0(F.sp) + "</td>"
+            + cols.map(function (s0) {
+                var c = F.st[s0];
+                if (!c || !(c.sp > 0)) return '<td class="num" title="' + (c && c.rev ? esc(money0(c.rev) + " revenue, no spend placed") : "") + '"><span class="sra-np">—</span></td>';
+                // under $500 placed, a ratio says more about the denominator than the source
+                if (c.sp < SMALL_SPEND) return '<td class="num" title="' + esc("only " + money0(c.sp) + " of spend placed here (" + money0(c.rev) + " revenue) — too little to rate") + '"><span class="sra-np">' + (c.rev / c.sp).toFixed(1) + "×</span></td>";
+                return '<td class="num" title="' + esc(money0(c.sp) + " spend · " + money0(c.rev) + " revenue · " + c.jobs + " jobs") + '">' + xTxt(c.rev, c.sp) + "</td>";
+              }).join("")
+            + '<td class="num">' + (F.unpl > 0.5 ? money0(F.unpl) : '<span class="sra-np">—</span>') + "</td>"
+            + '<td class="num" title="' + esc(money0(revF) + " revenue ÷ " + money0(F.sp) + " spend") + '">' + xTxt(revF, F.sp) + "</td></tr>";
+        }).join("")
+      + "</tbody></table></div></div>";
+    el.innerHTML = '<div class="panel">' + hint + '<div class="rs-kpis" id="sraRoasK"></div></div>'
+      + '<div class="rs-grid2">' + stTable + missingHtml(R) + "</div>" + mx;
+    RSC.kpis(el.querySelector("#sraRoasK"), k);
+    wireSplits(host, el, R);
+  }
+  /* MISSING DATA: spend no rule can place (with the split editor), and jobs with no state */
+  function missingHtml(R) {
+    var fams = Object.keys(R.unpl).filter(function (f) { return R.unpl[f].sp > 0.5; })
+      .sort(function (a, b) { return R.unpl[b].sp - R.unpl[a].sp; });
+    var co = S.co;
+    var curOf = function (f) { return (ROAS.splits && ROAS.splits[co + "|" + f]) || []; };
+    var setFams = Object.keys(ROAS.splits || {}).filter(function (k) { return k.indexOf(co + "|") === 0; })
+      .map(function (k) { return k.slice(co.length + 1); });
+    var rows = fams.map(function (f) {
+      var U = R.unpl[f], ms = Object.keys(U.months).sort();
+      var open = ROAS.edit === f;
+      return "<tr" + (open ? ' class="sra-ed"' : "") + "><td>" + esc(f) + '</td><td class="num">' + money0(U.sp)
+        + '<small>' + ms.length + " month" + (ms.length === 1 ? "" : "s") + (ms.length ? ", " + esc(monthLbl(ms[0])) + (ms.length > 1 ? "–" + esc(monthLbl(ms[ms.length - 1])) : "") : "") + "</small></td>"
+        + '<td style="text-align:right">' + (co ? '<button type="button" class="rs-btn" data-split="' + esc(f) + '">' + (open ? "Close" : "Set split") + "</button>" : "") + "</td></tr>"
+        + (open ? '<tr class="sra-ed"><td colspan="3">' + splitForm(f, curOf(f)) + "</td></tr>" : "");
+    }).join("");
+    var set = setFams.filter(function (f) { return fams.indexOf(f) < 0; }).map(function (f) {
+      var c = curOf(f), by = c[0] || {};
+      var open = ROAS.edit === f;
+      return "<tr" + (open ? ' class="sra-ed"' : "") + "><td>" + esc(f) + '<small class="sra-np" style="display:block">'
+        + esc(c.map(function (x) { return x.State + " " + (+x.Pct) + "%"; }).join(" · ")) + "</small></td>"
+        + '<td class="num sra-np">your split<small>' + esc((by["Entered By"] || "").split("@")[0]) + (by["Entered At"] ? ", " + esc(niceDay(String(by["Entered At"]).slice(0, 10))) : "") + "</small></td>"
+        + '<td style="text-align:right"><button type="button" class="rs-btn" data-split="' + esc(f) + '">' + (open ? "Close" : "Change") + "</button></td></tr>"
+        + (open ? '<tr class="sra-ed"><td colspan="3">' + splitForm(f, c) + "</td></tr>" : "");
+    }).join("");
+    var NS = R.noState;
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Missing data</span></div>'
+      + '<div class="rs-hint">Spend no rule can place in a state. Set how a source splits across states (one split, used for every month) '
+      + "and its return counts by state at once. " + (co ? "" : "<b>Pick one company in the bar to set a split.</b> ")
+      + (ROAS.note ? "<b>" + esc(ROAS.note) + "</b> " : "")
+      + (ROAS.splitErr ? "Saved splits could not be read (" + esc(ROAS.splitErr.message) + "). " : "") + "</div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Source</th><th class="num">Not placed</th><th></th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="3" class="sra-np">Every ad dollar in the period is placed in a state.</td></tr>')
+      + (set ? '<tr><td colspan="3" class="sra-np" style="padding-top:12px">Splits you have set</td></tr>' + set : "")
+      + "</tbody></table></div>"
+      + '<div class="rs-hint" style="margin-top:10px">' + (NS.n
+          ? "<b>" + fmtN(NS.n) + " closing" + (NS.n === 1 ? "" : "s") + " with no state</b> (" + money0(NS.rev) + " billed) count toward no state: "
+            + NS.rows.slice(0, 12).map(function (r) { return esc((r["Unique Key"] || "") + " · " + niceDay(r._d)); }).join(", ") + (NS.n > 12 ? " …" : "")
+            + ". The state comes from the closing's pickup zip; fixing the zip on the closing sheet fixes it here."
+          : "Every closing in the period has a state.") + "</div></div>";
+  }
+  function splitForm(f, cur) {
+    var have = {}; cur.forEach(function (x) { have[x.State] = +x.Pct; });
+    return '<div class="sra-split" data-fam="' + esc(f) + '">'
+      + SPLIT_STATES.map(function (s0) {
+          return "<label>" + s0 + ' <input class="rs-inp" inputmode="decimal" data-st="' + s0 + '" value="' + (have[s0] != null ? have[s0] : "") + '">%</label>';
+        }).join("")
+      + '<span class="sra-sum">0%</span>'
+      + '<button type="button" class="rs-btn pri" data-save="1">Save split</button>'
+      + (cur.length ? '<button type="button" class="rs-btn" data-clear="1">Remove split</button>' : "")
+      + "</div>";
+  }
+  function wireSplits(host, el, R) {
+    el.querySelectorAll("[data-split]").forEach(function (b) {
+      b.onclick = function () { ROAS.edit = ROAS.edit === b.dataset.split ? null : b.dataset.split; ROAS.note = ""; paintRoas(host, win()); };
+    });
+    el.querySelectorAll(".sra-split").forEach(function (box) {
+      var fam = box.dataset.fam, sumEl = box.querySelector(".sra-sum");
+      var read = function () {
+        var out = [], t = 0;
+        box.querySelectorAll("input[data-st]").forEach(function (i) {
+          var v = parseFloat(String(i.value).replace(",", ".")); if (v > 0) { out.push({ state: i.dataset.st, pct: v }); t += v; }
+        });
+        return { parts: out, total: t };
+      };
+      var show = function () { var r = read(); sumEl.textContent = (Math.round(r.total * 10) / 10) + "%"; sumEl.classList.toggle("bad", Math.abs(r.total - 100) > 0.5); };
+      box.querySelectorAll("input").forEach(function (i) { i.addEventListener("input", show); });
+      show();
+      var send = function (parts) {
+        ROAS.note = "Saving…"; sumEl.textContent = "Saving…";
+        fetch(ZTZ.API + "/api/_mktsplit", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+          body: JSON.stringify({ company: S.co, family: fam, splits: parts }),
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok || j.error) {
+              if (j && j.code === "view_as_readonly") throw new Error("preview mode — splits are not saved while viewing as someone else");
+              throw new Error(j.error || ("HTTP " + r.status));
+            }
+            ROAS.note = parts.length ? fam + " split saved." : fam + " split removed.";
+            ROAS.edit = null;
+          });
+        }).catch(function (e) { ROAS.note = "Not saved: " + e.message; })
+          .then(function () { loadSplits(host); });
+      };
+      var sv = box.querySelector("[data-save]");
+      if (sv) sv.onclick = function () {
+        var r = read();
+        if (!r.parts.length || Math.abs(r.total - 100) > 0.5) { sumEl.textContent = "the shares must add up to 100%"; sumEl.classList.add("bad"); return; }
+        send(r.parts);
+      };
+      var cl = box.querySelector("[data-clear]");
+      if (cl) cl.onclick = function () { send([]); };
+    });
   }
 
   /* ---- the control bar ---- */

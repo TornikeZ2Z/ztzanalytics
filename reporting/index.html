@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="3fc7d7a184b18de58a10ae315dc11e88a31adba8">
+<meta name="ztz-ref" content="3dbb6f73bc35ed8a0ba3b61b6c4a48b6aba06f1a">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -87,7 +87,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=39">
+<link rel="stylesheet" href="assets/rs.css?v=40">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -185,7 +185,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=12"></script>
 <script src="assets/rs-core.js?v=60"></script>
-<script src="assets/rs-components.js?v=38"></script>
+<script src="assets/rs-components.js?v=39"></script>
 <script>
 /* ---------------- page registry ---------------- */
 window.PAGES = [];
@@ -239,6 +239,9 @@ const GROUP_OVERRIDE = {
   // Marketing — source attribution belongs with the marketing views
   // Source Analysis (2026-09-23): one source's leads, bookings, jobs and spend; first in the group
   "source-report": "marketing",
+  // Marketing Overview (2026-10-15): the one page for marketing; starts with its sources and
+  // whether each is up to date
+  "marketing-overview": "marketing",
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
   "packing-sales": "logistics",
@@ -302,7 +305,7 @@ const NAV_ORDER = {
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
-  "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
+  "marketing-overview": 6.5, "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
   "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
 
@@ -372,7 +375,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -859,6 +862,7 @@ const PAGE_DATASETS = {
   "data-quality": [],
   "data-migration": [],
   "source-trace": [],
+  "marketing-overview": [],    // loads mart_mkt_connector itself; no global slicer applies to a source list
   "source-report": [],         // loads its three mart_source_* marts itself; source/period/company/state live on the page
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
@@ -1171,6 +1175,8 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   "census-data",
   // Organic Search (2026-09-24) brings its own window + last-year compare bar
   "organic-search",
+  // Marketing Overview (2026-10-15): its source list has no date to slice
+  "marketing-overview",
   // Salaries (2026-09-24) brings its own tabs, period, pay-period, company and person bar
   "salaries",
   // Financial Overview (2026-09-25) brings its own day picker and company
@@ -1315,6 +1321,7 @@ const NAV_TITLES = {
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
   "data-migration": "Data Migration",
+  "marketing-overview": "Marketing Overview",
   "source-report": "Source Analysis",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
@@ -1401,6 +1408,7 @@ const SEARCH_ALIASES = {
   "sales-trackers": "sales trackers communication analysis call quality coaching rubric keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
   "estimate-accuracy": "estimate accuracy sales vs reality estimated vs actual sold real cf cubic feet inventory items time hours act minimum under over estimate bias foreman sold rep accuracy",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
+  "marketing-overview": "marketing overview sources connected connectors platforms status up to date fresh late google ads local services lsa analytics ga4 search console facebook instagram meta chatgpt openai tiktok reddit linkedin nextdoor semrush ahrefs brightlocal bank spend ledger callrail leads",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
@@ -1871,6 +1879,7 @@ const REPORT_LABELS = {
   "conversations": "Conversations (call transcripts)",
   "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
+  "marketing-overview": "Marketing Overview",
   "source-report": "Source Analysis",
   "source-trace": "Source Trace",
   "jobs-by-area": "Jobs by Area",
@@ -1980,7 +1989,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -2249,7 +2258,8 @@ registerPage({
 <script src="pages/things-to-do.js?v=4"></script>
 <script src="pages/conversations.js?v=13"></script>
 <script src="pages/source-trace.js?v=30"></script>
-<script src="pages/source-report.js?v=6"></script>
+<script src="pages/marketing-overview.js?v=1"></script>
+<script src="pages/source-report.js?v=7"></script>
 <script src="pages/meta-referrals.js?v=4"></script>
 <script src="pages/jobs-by-area.js?v=6"></script>
 <script src="pages/packing-sales.js?v=7"></script>
