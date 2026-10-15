@@ -34,7 +34,8 @@
     if (!RS.DATASETS.claim_links) {
       RS.DATASETS.claim_links = {
         table: "mart_claims_analysis",
-        cols: ["Monday Item Id", "Request Joinkey", "Monday Url", "State"],
+        // Company (2026-10-15): a claim's company is its JOB's, read here exactly as its State is
+        cols: ["Monday Item Id", "Request Joinkey", "Monday Url", "State", "Company"],
       };
     }
     if (!RS.DATASETS.claims_cases) {
@@ -91,6 +92,9 @@ registerPage({
           + "margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".rvc-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
         ".rvc-note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.6}",
+        // what a section cannot follow among the panel's filters, said under its title (2026-10-15)
+        ".rvc-nf{font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.5}",
+        ".rvc-nf b{color:var(--ink);font-weight:600}",
         ".rvc-stars{color:var(--warn);letter-spacing:1px}",
         // 1fr grid columns default to min-width:auto — a table inside forces the column
         // wider than the viewport (the classic grid blowout; measured 2385px vs 2048).
@@ -132,9 +136,10 @@ registerPage({
       return "";
     };
     const FLOW = RS.reviewFlow ? RS.reviewFlow(rcAll || []) : null;
-    const CLSTATE = {};
+    const CLSTATE = {}, CLCO = {};
     (clLinks || []).forEach(r => { const jk = String(r["Request Joinkey"] || "").trim(), st = ST_FULL[r.State];
-      if (jk && st) CLSTATE[jk] = st; });
+      if (jk && st) CLSTATE[jk] = st;
+      if (jk && r.Company) CLCO[jk] = String(r.Company); });
     // the board link, keyed by the item the claim already carries
     const URLBY = {};
     (clLinks || []).forEach(r => { const k = String(r["Monday Item Id"] || "");
@@ -180,7 +185,8 @@ registerPage({
        on This year as it opened on the current year before. */
     const _now = new Date();
     const S = { from: _now.getFullYear() + "-01-01", to: _now.toLocaleDateString("en-CA"),
-                st: "", q: "", nrPage: 0, clPage: 0, pageSize: 25 };
+                q: "", nrPage: 0, clPage: 0, pageSize: 25,
+                state: new Set(), company: new Set(), platform: new Set(), resp: new Set() };
     const ranged = () => !!(S.from || S.to);
     function rangeLabel() {
       const f = S.from || "", t = S.to || "";
@@ -231,6 +237,37 @@ registerPage({
       return null;
     };
 
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's Filters button and right-hand panel
+       on every report with its own bar). State moved in from the bar's buttons and is a multi now;
+       Company, Platform and Responsibility are new. Held in S for this visit only -- never
+       RS.state.multi, never stored. EACH REACHES ONLY THE LISTS THAT CARRY IT (his rule: a part
+       that cannot follow a filter shows unfiltered and says so):
+         · negative reviews: State (the listing's name), Company, Platform -- no responsibility;
+         · claims: State and Company of the claim's JOB (Claims Analysis's mart), Responsibility --
+           a claim has no platform;
+         · listings: State (name), Company and Platform of the listing -- no responsibility. */
+    const PFK = ["state", "company", "platform", "resp"];
+    const PF_NAME = { state: "State", company: "Company", platform: "Platform", resp: "Responsibility" };
+    const clJk = r => String(r["Request Joinkey"] || "").trim();
+    const respOf = r => String(r.Responsibility || "").trim() || "Not attributed";
+    const PF_OF = {
+      nr: { state: r => listingState(r.Source), company: r => String(r.Company || ""), platform: r => PLATFORM(r.Source) },
+      cl: { state: r => CLSTATE[clJk(r)] || "", company: r => CLCO[clJk(r)] || "", resp: respOf },
+      ls: { state: g => listingState(g.label), company: g => String(g.company || ""), platform: g => PLATFORM(g.label) },
+    };
+    // a list that has no such column passes the filter through (and says so where it is drawn)
+    const pfKeep = (list, r) => PFK.every(k => !S[k].size || !PF_OF[list][k] || S[k].has(PF_OF[list][k](r)));
+    // "Not filtered by Platform: <what>." for the filters that are on and that this list lacks;
+    // the count tiles carry the same words in their subtitle
+    const pfMiss = list => PFK.filter(k => S[k].size && !PF_OF[list][k]).map(k => PF_NAME[k]).join(" or ");
+    const pfGap = (list, what) => pfMiss(list)
+      ? `<div class="rvc-nf"><b>Not filtered by ${esc(pfMiss(list))}:</b> ${esc(what)}.</div>` : "";
+    const pfTile = list => pfMiss(list) ? " · not filtered by " + pfMiss(list) : "";
+    const PF_NOTE = "A claim has no platform, and a negative review or a listing has no responsibility: "
+      + "a list that cannot follow a filter shows whole and says so under its title. A claim's state and company "
+      + "are its job's. The negative-review board files every review under Zip to Zip, Tuji's listings included, "
+      + "so Company there reads the board's own column.";
+
     paint();
 
     /* CSV, the portal's one pattern: UTF-8 BOM + CRLF + the formula-injection guard
@@ -263,14 +300,13 @@ registerPage({
       const hit = (r, fields) => !q ||
         fields.some(f => String(r[f] || "").toLowerCase().includes(q));
       return {
-        nr: nrAll.filter(r => inRange(r["Written Date"]) && (!S.st || listingState(r.Source) === S.st)
+        nr: nrAll.filter(r => inRange(r["Written Date"]) && pfKeep("nr", r)
           && hit(r, ["Customer", "Source", "Status", "Case Owner", "Request No"])),
-        cl: clAll.filter(r => inRange(r["Created Date"])
-          && (!S.st || CLSTATE[String(r["Request Joinkey"] || "").trim()] === S.st)
+        cl: clAll.filter(r => inRange(r["Created Date"]) && pfKeep("cl", r)
           && hit(r, ["Customer", "Reason", "Status", "Responsibility", "Foreman", "Request No"])),
         // the undated-removed bucket a date filter silently drops — surfaced, not hidden
         nrUndated: ranged() ? nrAll.filter(r => !String(r["Written Date"] || "").trim()
-          && (!S.st || listingState(r.Source) === S.st)).length : 0,
+          && pfKeep("nr", r)).length : 0,
       };
     }
 
@@ -287,7 +323,7 @@ registerPage({
       const out = [];
       Object.values(FLOW.byPlat).forEach(g => {
         const st = listingState(g.label);
-        if (S.st && st !== S.st) return;
+        if (!pfKeep("ls", g)) return;
         const yms = Object.keys(g.steps).sort();
         let start = null, end = null, added = 0, removed = 0, recount = 0, prevReset = 0, any = false;
         yms.forEach(ym => { const x = g.steps[ym];
@@ -398,10 +434,10 @@ registerPage({
 
         <div class="rs-kpis" style="--kpi-cols:6">
           ${kpi("Negative reviews", fmtN(nr.length), yearLabel +
-            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, no date to place in the range)" : ""))}
+            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, no date to place in the range)" : "") + pfTile("nr"))}
           ${kpi("Still open", fmtN(nr.filter(r => String(r.Group).trim() === "Open").length),
             "the rest are removed / closed", "warn")}
-          ${kpi("Claims", fmtN(cl.length), yearLabel)}
+          ${kpi("Claims", fmtN(cl.length), yearLabel + pfTile("cl"))}
           ${kpi("Claims with a reason", pct(cl.filter(r =>
               String(r.Reason || "").trim()).length, cl.length),
             fmtN(cl.filter(r => !String(r.Reason || "").trim()).length) + " unspecified")}
@@ -412,8 +448,9 @@ registerPage({
         </div>
 
         <div class="panel" id="rvcPnlListings">
-          <div class="panel-head"><div class="panel-title">Public reviews by listing${S.st ? " — " + esc(S.st) : ""}</div>
+          <div class="panel-head"><div class="panel-title">Public reviews by listing${S.state.size ? " — " + esc([...S.state].join(", ")) : ""}</div>
             <div class="rs-spacer"></div><span class="rs-pill">+${fmtN(lsum("added"))} added · −${fmtN(lsum("removed"))} removed</span></div>
+          ${pfGap("ls", "the listings (a listing has no responsibility)")}
           ${LST.length ? `<div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Listing</th><th class="num">On file at the start</th><th class="num">On file now</th>
               <th class="num">Added</th><th class="num">Removed by the platform</th><th class="num">Recounted</th></tr></thead>
@@ -427,13 +464,14 @@ registerPage({
           <div class="rvc-note">Every listing's total as the review-counts sheet records it each month${lastSnap ? " (latest " + esc(lastSnap) + ")" : ""}.
             Added = the rises, positive and negative alike; the negative ones are the cases below. Removed = falls.
             Recounted = a platform resetting the listing and its rebound, counted as neither.
-            ${S.st ? "A listing with no state in its name (Birdeye, Angi, Google Local…) is in no state." : ""}</div>
+            ${S.state.size ? "A listing with no state in its name (Birdeye, Angi, Google Local…) is in no state." : ""}</div>
         </div>
 
         <div class="rs-grid2 rvc-grid">
           <div class="panel" id="rvcPnlWhere">
             <div class="panel-head"><div class="panel-title">Where they complain</div>
               <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)} reviews</span></div>
+            ${pfGap("nr", "the negative reviews (a review has no responsibility)")}
             ${nr.length ? shareRows(platRows, nr.length) :
               '<p class="rs-hint">No negative reviews in this window.</p>'}
             <div class="rvc-note">Platform families fold the per-state pages together
@@ -444,6 +482,7 @@ registerPage({
           <div class="panel" id="rvcPnlWhy">
             <div class="panel-head"><div class="panel-title">Why they claim</div>
               <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)} claims</span></div>
+            ${pfGap("cl", "the claims (a claim has no platform)")}
             ${cl.length ? shareRows(reasonRows, cl.length, "warn") :
               '<p class="rs-hint">No claims in this window.</p>'}
             <div class="rvc-note">Unspecified is shown as its own slice on purpose — hiding it
@@ -454,6 +493,7 @@ registerPage({
         <div class="rs-grid2 rvc-grid">
           <div class="panel" id="rvcPnlOverlap">
             <div class="panel-head"><div class="panel-title">The overlap</div></div>
+            ${pfGap("nr", "the negative reviews here")}${pfGap("cl", "the claims here")}
             <p class="rs-hint" style="max-width:64ch">
               <b>${pct(nrMatched.length, nr.length)}</b> of the negative reviews in ${yearLabel}
               (${fmtN(nrMatched.length)} of ${fmtN(nr.length)}) were written by customers who
@@ -480,6 +520,7 @@ registerPage({
 
           <div class="panel" id="rvcPnlFault">
             <div class="panel-head"><div class="panel-title">Whose fault, per the board</div></div>
+            ${pfGap("cl", "the claims (a claim has no platform)")}
             ${cl.length ? shareRows(respRows.map(([k, n]) => [k, n, ""]), cl.length, "warn") : ""}
             <div class="rvc-note">${(() => { /* said from the data: the old fixed sentence
               ("not attributed dominates") was false for Connecticut, where it is filled on most */
@@ -494,6 +535,7 @@ registerPage({
           <div class="panel-head"><div class="panel-title">Negative reviews — the cases</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(nr.length)}</span>
             <button class="rs-btn" data-dl="nr">Download CSV</button></div>
+          ${pfGap("nr", "these reviews (a review has no responsibility)")}
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Written</th><th>Customer</th><th>Platform</th><th>Raw label</th>
               <th>Review</th><th>Group</th><th>Status</th><th>Owner</th></tr></thead>
@@ -516,6 +558,7 @@ registerPage({
           <div class="panel-head"><div class="panel-title">Claims — the cases</div>
             <div class="rs-spacer"></div><span class="rs-pill">${fmtN(cl.length)}</span>
             <button class="rs-btn" data-dl="cl">Download CSV</button></div>
+          ${pfGap("cl", "these claims (a claim has no platform)")}
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Created</th><th>Customer</th><th>Reason</th><th>Status</th>
               <th>Responsibility</th><th>Foreman</th><th>Went public</th><th>Monday</th></tr></thead>
@@ -553,12 +596,13 @@ registerPage({
         // built from its own classes rather than the kit, so the PDF needs its CSS
         pageCss: "rvc-style",
         // the PDF's reader has no filter bar, so the window is stated in words
-        subtitle: rangeLabel() + (S.st ? " · " + S.st : "")
+        subtitle: rangeLabel() + PFK.filter(k => S[k].size).map(k => " · " + PF_NAME[k] + " " + [...S[k]].join(", ")).join("")
                 + (S.q.trim() ? ` · search "${S.q.trim()}"` : " · no search"),
         note: "Both boards read whole; the date filter is applied here, not in the warehouse. "
             + "A review or claim with no date sits outside every date range and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
-        drop: [".rvc-bar", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
+        // the "Filtered by" chips go too: the subtitle above already names every filter
+        drop: [".rvc-bar", ".rs-pchips", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
         // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
         // where they meet, then the cases behind them.
         pages: [
@@ -621,21 +665,6 @@ registerPage({
         });
       }
 
-      const sseg = document.createElement("div");
-      sseg.className = "rs-seg";
-      [""].concat(STATES).forEach(st => {
-        const b = document.createElement("button");
-        b.textContent = st || "All";
-        if (S.st === st) b.className = "on";
-        b.onclick = () => { if (S.st !== st) { S.st = st; S.nrPage = S.clPage = 0; paint(); } };
-        sseg.appendChild(b);
-      });
-      const swrap = document.createElement("div");
-      swrap.className = "rs-fld";
-      swrap.innerHTML = "<span>State</span>";
-      swrap.appendChild(sseg);
-      bar.appendChild(swrap);
-
       const q = document.createElement("input");
       q.className = "rvc-in"; q.placeholder = "find a customer, reason, platform…";
       q.value = S.q; q.style.flex = "0 1 260px";
@@ -643,6 +672,24 @@ registerPage({
         qTimer = setTimeout(() => { S.q = q.value; S.nrPage = S.clPage = 0;
           S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
+      // the page's own Filters panel at the bar's right end, the "Filtered by" line under the bar.
+      // Values from the loaded rows of whichever lists carry the field, the commonest first.
+      const tally = (g, v) => { if (v) g[v] = (g[v] || 0) + 1; };
+      const vals = k => {
+        const g = {};
+        nrAll.forEach(r => PF_OF.nr[k] && tally(g, PF_OF.nr[k](r)));
+        clAll.forEach(r => PF_OF.cl[k] && tally(g, PF_OF.cl[k](r)));
+        if (FLOW) Object.values(FLOW.byPlat).forEach(x => PF_OF.ls[k] && tally(g, PF_OF.ls[k](x)));
+        return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n }));
+      };
+      const fields = PFK.map(k => ({ key: k, label: PF_NAME[k], values: vals(k) }));
+      const selected = {}; PFK.forEach(k => { selected[k] = S[k]; });
+      const apply = next => { PFK.forEach(k => { S[k] = new Set(next[k] || []); }); S.nrPage = S.clPage = 0; paint(); };
+      if (window.RSC && RSC.filterPanel) {
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        RSC.filterPanel(bar, { fields, selected, onApply: apply, note: PF_NOTE });
+        bar.after(RSC.filterChips(null, { fields, selected, onChange: apply }));
+      }
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
   },

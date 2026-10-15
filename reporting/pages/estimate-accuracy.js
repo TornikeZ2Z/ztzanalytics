@@ -147,10 +147,19 @@ registerPage({
     /* ---------------- state ---------------- */
     const yr = new Date().getFullYear();
     const S = { from: yr + "-01-01", to: new Date().toLocaleDateString("en-CA"), types: new Set(), q: "",
+      reps: new Set(), fores: new Set(), soms: new Set(),
       tab: "sales", open: null, page: 0, per: 25, sort: "date", dir: -1 };
     let qTimer = null;
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's Filters button and right-hand panel
+       on every report with its own bar). Job type moved in from the bar, where it was already a
+       multi; sales person, foreman and size of move are new. Each is a column of the job row, so
+       every figure follows -- the team comparisons included ("team" = the jobs the filters keep).
+       Held in S for this visit only: never RS.state.multi, never localStorage. */
+    const PF = [["types", "Job type", r => r.type], ["reps", "Sales person", r => r.rep],
+                ["fores", "Foreman", r => r.fore], ["soms", "Size of move", r => r.som]];
+    const pfKeep = r => PF.every(([k, , f]) => !S[k].size || S[k].has(f(r)));
     const scoped = () => ROWS.filter(r => !isEx(r) && (!S.from || r.date >= S.from) && (!S.to || r.date <= S.to)
-      && (!S.types.size || S.types.has(r.type)));
+      && pfKeep(r));
 
     /* ---------------- figures ---------------- */
     function headline(rs) {
@@ -365,14 +374,25 @@ registerPage({
       const fld = label => { const w = document.createElement("div"); w.className = "rs-fld"; w.innerHTML = `<span>${label}</span>`; bar.appendChild(w); return w; };
       if (window.RSC && RSC.dateRange) RSC.dateRange(fld("Move dates"), {
         get: () => ({ from: S.from, to: S.to }), set: (f, t) => { S.from = f; S.to = t; }, onChange: () => { S.page = 0; S.open = null; paint(); } });
-      const types = {}; ROWS.forEach(r => { types[r.type] = (types[r.type] || 0) + 1; });
-      if (window.RSC && RSC.localMulti) RSC.localMulti(fld("Job type"), { label: "Job type",
-        values: Object.entries(types).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })), selected: S.types, emptyLabel: "All",
-        onChange: s => { S.types = new Set(s); S.page = 0; paint(); } });
       const q = document.createElement("input");
       q.className = "eav-in"; q.placeholder = "find a job, customer, person…"; q.value = S.q; q.style.flex = "0 1 240px";
       q.oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = q.value; S.page = 0; S.jobsOpen = true; S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
+      // the Filters button at the bar's right end, the "Filtered by" line right under the bar.
+      // Values from the loaded jobs, the commonest first; a job with no name has none to pick.
+      const fields = PF.map(([key, label, f]) => {
+        const g = {}; ROWS.forEach(r => { const v = f(r); if (v && v !== "—") g[v] = (g[v] || 0) + 1; });
+        return { key, label, values: Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })) };
+      });
+      const selected = {}; PF.forEach(([k]) => { selected[k] = S[k]; });
+      const apply = next => { PF.forEach(([k]) => { S[k] = new Set(next[k] || []); }); S.page = 0; S.open = null; paint(); };
+      if (window.RSC && RSC.filterPanel) {
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        RSC.filterPanel(bar, { fields, selected, onApply: apply,
+          note: "Every figure, table and list follows these filters, the team comparisons too: "
+            + "<b>team</b> means the jobs the filters keep. The excluded-jobs ledger under All jobs stays whole." });
+        bar.after(RSC.filterChips(null, { fields, selected, onChange: apply }));
+      }
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
 

@@ -206,32 +206,6 @@ registerPage({
         .rp-time .rs-slicer.rs-form .rs-slicer-pop{left:0;right:auto;width:auto;min-width:150px}
         .rp-range{font-size:11px;color:var(--muted);white-space:nowrap}
 
-        /* ---- multiselect: a checkbox popover with search and select-all. The kit bar has
-           single selects and segments; a multi-value filter is the page's own control. ---- */
-        .rp-ms-wrap{position:relative}
-        .rp-ms{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:10px;border:1px solid var(--line-2);
-          background:var(--panel-2);color:var(--ink);font-size:12.5px;font-family:inherit;cursor:pointer;outline:none}
-        .rp-ms:hover,.rp-ms.on{border-color:var(--brand)}
-        .rp-ms .lb{font-weight:600}
-        .rp-ms .ct{background:var(--brand);color:var(--brand-ink);font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center}
-        .rp-ms .all{color:var(--faint);font-size:11.5px}
-        .rp-ms .cv{opacity:.5;font-size:10px;margin-left:-2px}
-        .rp-pop{position:absolute;z-index:30;top:calc(100% + 5px);left:0;min-width:210px;max-width:280px;background:var(--panel);
-          border:1px solid var(--line-2);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:8px}
-        .rp-pop.hidden{display:none}
-        .rp-pop-s{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--line-2);
-          background:var(--panel-2);color:var(--ink);font-size:12.5px;font-family:inherit;outline:none;margin-bottom:6px}
-        .rp-pop-act{display:flex;gap:6px;margin-bottom:6px}
-        .rp-pop-act button{flex:1;border:1px solid var(--line-2);background:var(--panel-2);color:var(--muted);font-size:11px;font-weight:700;
-          border-radius:7px;padding:5px;cursor:pointer;font-family:inherit}
-        .rp-pop-act button:hover{border-color:var(--brand);color:var(--ink)}
-        .rp-pop-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
-        .rp-pop-i{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;font-size:12.5px}
-        .rp-pop-i:hover{background:var(--panel-2)}
-        .rp-pop-i input{accent-color:var(--brand);width:15px;height:15px;flex:0 0 auto}
-        .rp-pop-i span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .rp-pop-none{color:var(--faint);font-size:12px;padding:8px 7px}
-
         /* ---- the matrix. A kit table reads left-aligned rows of text; this one is a heat
            grid: every cell is a coloured band, two columns are frozen, the header sorts. ---- */
         /* 232px (and the 300px in the mobile block below) are pre-measurement fallbacks —
@@ -358,19 +332,6 @@ registerPage({
         body.rs-app.light.v2 .rp-time .rs-slicer.rs-form .rs-slicer-btn .val{font-weight:600}
         body.rs-app.light.v2 .rp-bdwk button{font-weight:600}
         body.rs-app.light.v2 .rp-bdwk b{font-weight:600}
-        body.rs-app.light.v2 .rp-ms{border-radius:999px;background:#FFFFFF;height:36px;padding:0 14px;font-size:13px}
-        body.rs-app.light.v2 .rp-ms:hover{border-color:#C9E68A}
-        body.rs-app.light.v2 .rp-ms.on{background:var(--blue-bg);border-color:#C9E68A}
-        body.rs-app.light.v2 .rp-ms .lb{font-weight:500;color:var(--faint)}
-        body.rs-app.light.v2 .rp-ms .all{font-size:13px;font-weight:600;color:var(--ink)}
-        body.rs-app.light.v2 .rp-ms .ct{background:#14301F;color:#FFFFFF;font-size:12px;font-weight:600}
-        body.rs-app.light.v2 .rp-ms .cv{font-size:12px}
-        body.rs-app.light.v2 .rp-pop{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
-        body.rs-app.light.v2 .rp-pop-s{background:#FFFFFF;font-size:13px}
-        body.rs-app.light.v2 .rp-pop-act button{font-size:12px;font-weight:600;background:#FFFFFF;border-radius:8px}
-        body.rs-app.light.v2 .rp-pop-act button:hover{border-color:#C9E68A}
-        body.rs-app.light.v2 .rp-pop-i{font-size:13px}
-        body.rs-app.light.v2 .rp-pop-none{font-size:12.5px}
         /* the matrix */
         body.rs-app.light.v2 .rp-mx thead th{background:#F8FAFC;color:var(--muted);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0}
         body.rs-app.light.v2 .rp-mx thead th.srt{color:var(--brand-d)}
@@ -425,6 +386,7 @@ registerPage({
       </div>
       <div class="rs-kpis" id="rpKpis"><div class="rs-loading">Loading jobs…</div></div>
       <div class="rs-bar rp-bar" id="rpBar"></div>
+      <div id="rpChips"></div>
       <div id="rpLegend" class="rp-legend"></div>
       <div class="rs-tablewrap rp-wrap" id="rpWrapEl"><div id="rpMatrix"></div></div>
       <div id="rpBoard" style="display:none"></div>
@@ -503,69 +465,7 @@ registerPage({
       } else { var el = document.getElementById("rpLive"); if (el) el.style.display = "none"; }
     }).catch(function () { var el = document.getElementById("rpLive"); if (el) el.style.display = "none"; });
 
-    var sources = [...new Set(rows.map(r => r["Job Source"]).filter(Boolean))].sort();
-    var statuses = [...new Set(rows.map(r => r["Final Status"]).filter(Boolean))].sort();
-    // Derived, NOT hardcoded — the literal list omitted 'Closing Pending' (job_overview.py emits
-    // it for any job whose closing isn't filed yet), so "Select all" on this filter silently
-    // deleted every unfiled job from the report (audit 2026-07-25).
-    var billcats = [...new Set(rows.map(r => r["Bill Increase Category"]).filter(Boolean))].sort();
-    var foremenAll = [...new Set(rows.map(r => r["Foreman"]).filter(Boolean))].sort();
-
-    // ---- multiselect popover component (unchanged pattern) ----
     var barEl = document.getElementById("rpBar");
-    var openPops = [];
-    function closePops(except) { openPops.forEach(p => { if (p.el !== except) p.el.classList.add("hidden"); }); }
-    document.addEventListener("click", function docClk(e) {
-      if (!barEl.isConnected) { document.removeEventListener("click", docClk); return; }
-      if (!e.target.closest(".rp-ms-wrap")) closePops(null);
-    });
-    function mkMulti(mount, cfg) {
-      var wrap = document.createElement("div"); wrap.className = "rp-ms-wrap";
-      var btn = document.createElement("button"); btn.type = "button"; btn.className = "rp-ms";
-      var pop = document.createElement("div"); pop.className = "rp-pop hidden";
-      wrap.appendChild(btn); wrap.appendChild(pop); mount.appendChild(wrap);
-      openPops.push({ el: pop });
-      function paintBtn() {
-        var n = cfg.sel.size;
-        var right = n === 0 ? `<span class="all">All</span>` : `<span class="ct">${n}</span>`;
-        btn.classList.toggle("on", n > 0);
-        btn.innerHTML = `<span class="lb">${esc(cfg.label)}</span>${right}<span class="cv">▾</span>`;
-      }
-      function paintPop(q) {
-        q = (q || "").toLowerCase();
-        var opts = cfg.options.filter(o => !q || o.label.toLowerCase().indexOf(q) >= 0);
-        pop.innerHTML =
-          (cfg.search ? `<input class="rp-pop-s" type="text" placeholder="Search ${esc(cfg.label.toLowerCase())}…" autocomplete="off">` : "") +
-          `<div class="rp-pop-act"><button type="button" data-a="all">Select all</button><button type="button" data-a="clear">Clear</button></div>` +
-          (opts.length ? `<div class="rp-pop-list">` + opts.map(o =>
-            `<label class="rp-pop-i"><input type="checkbox" value="${esc(o.v)}"${cfg.sel.has(o.v) ? " checked" : ""}><span>${esc(o.label)}</span></label>`).join("") + `</div>`
-            : `<div class="rp-pop-none">No matches.</div>`);
-        var s = pop.querySelector(".rp-pop-s");
-        // keep the caret where the user left it — a full re-render used to drop it to the end
-        if (s) { s.value = q; s.oninput = () => { var a = s.selectionStart, b = s.selectionEnd; paintPop(s.value);
-          var s2 = pop.querySelector(".rp-pop-s"); if (s2) { s2.focus(); try { s2.setSelectionRange(a, b); } catch (e) {} } };
-          setTimeout(() => s.focus(), 0); }
-        pop.querySelectorAll(".rp-pop-act button").forEach(b => b.onclick = () => {
-          if (b.dataset.a === "clear") cfg.sel.clear();
-          else opts.forEach(o => cfg.sel.add(o.v));
-          paintPop(q); paintBtn(); cfg.onChange();
-        });
-        pop.querySelectorAll(".rp-pop-i input").forEach(c => c.onchange = () => {
-          if (c.checked) cfg.sel.add(c.value); else cfg.sel.delete(c.value);
-          paintBtn(); cfg.onChange();
-        });
-      }
-      btn.onclick = e => {
-        e.stopPropagation();
-        var wasOpen = !pop.classList.contains("hidden");
-        closePops(pop);
-        if (wasOpen) { pop.classList.add("hidden"); return; }
-        paintPop(""); pop.classList.remove("hidden");
-      };
-      pop.onclick = e => e.stopPropagation();
-      paintBtn();
-      return { paintBtn };
-    }
 
     // ---- toolbar ----
     var bar = barEl;
@@ -614,16 +514,40 @@ registerPage({
       });
     }
     paintWinOpts();
-    var msControls = [
-      mkMulti(bar, { label: "Source", options: sources.map(s => ({ v: s, label: s })), sel: RP.sources, search: true, onChange: () => { closeDrawer(); repaint(); } }),
-      mkMulti(bar, { label: "Status", options: statuses.map(s => ({ v: s, label: s })), sel: RP.statuses, search: false, onChange: () => { closeDrawer(); repaint(); } }),
-      mkMulti(bar, { label: "Bill", options: billcats.map(s => ({ v: s, label: s })), sel: RP.billcats, search: false, onChange: () => { closeDrawer(); repaint(); } }),
-      mkMulti(bar, { label: "Foreman", options: foremenAll.map(s => ({ v: s, label: s })), sel: RP.foremen, search: true, onChange: () => { closeDrawer(); repaint(); } }),
-    ];
     var spring = document.createElement("span"); spring.className = "rs-spacer"; bar.appendChild(spring);
     var resetBtn = document.createElement("button"); resetBtn.type = "button"; resetBtn.className = "rs-btn"; resetBtn.textContent = "Reset";
     bar.appendChild(resetBtn);
-    // the four multiselects never announce themselves once the bar is shut, so the pill has to
+    /* THE FOUR FILTERS ARE THE FILTERS PANEL (his ask 2026-10-15: the shell's Filters button and
+       right-hand panel on every report with its own bar). Source, Status, Bill and Foreman were this
+       page's own checkbox popovers; they are the panel's four multis now, at the bar's right end,
+       with the "Filtered by" line under the bar. The picks stay where they always lived -- RP's
+       Sets, this session only, never RS.state.multi -- so filtered() and the collapsed bar's pill
+       read them unchanged. Remounted on every change so the button's count and the chips agree. */
+    var fHost = document.createElement("span"); bar.appendChild(fHost);
+    var PFK = [["sources", "Source", "Job Source"], ["statuses", "Status", "Final Status"],
+               ["billcats", "Bill", "Bill Increase Category"], ["foremen", "Foreman", "Foreman"]];
+    function mountFilters() {
+      // values from the loaded jobs, the commonest first (the live overlay can move a status).
+      // Derived, NOT hardcoded — a literal list once omitted 'Closing Pending' (job_overview.py
+      // emits it for any job whose closing isn't filed yet), so "Select all" on Bill silently
+      // deleted every unfiled job from the report (audit 2026-07-25).
+      var fields = PFK.map(function (f) {
+        var g = {}; rows.forEach(function (r) { var v = r[f[2]]; if (v) g[v] = (g[v] || 0) + 1; });
+        return { key: f[0], label: f[1], values: Object.keys(g).sort(function (a, b) { return g[b] - g[a]; }).map(function (v) { return { v: v, l: v, n: g[v] }; }) };
+      });
+      var selected = {}; PFK.forEach(function (f) { selected[f[0]] = RP[f[0]]; });
+      var apply = function (next) {
+        PFK.forEach(function (f) { RP[f[0]] = new Set(next[f[0]] || []); });
+        closeDrawer(); mountFilters(); repaint();
+      };
+      fHost.innerHTML = "";
+      RSC.filterPanel(fHost, { fields: fields, selected: selected, onApply: apply,
+        note: "Every tab follows these filters: the matrix and its drill-downs, the standings and the Support list." });
+      var ch = document.getElementById("rpChips");
+      if (ch) { ch.innerHTML = ""; RSC.filterChips(ch, { fields: fields, selected: selected, onChange: apply }); }
+    }
+    mountFilters();
+    // the four filters never announce themselves once the bar is shut, so the pill has to
     var barC = RSC.collapsible(barEl, "rsBarCollapsed:review-performance", {
       count: function () {
         var labels = [];
@@ -1404,7 +1328,7 @@ registerPage({
       RP.sources.clear(); RP.statuses.clear(); RP.billcats.clear(); RP.foremen.clear();
       RP.sortCol = null; RP.sortDir = "desc"; RP.offset = 0;
       closeDrawer();
-      msControls.forEach(c => c.paintBtn());
+      mountFilters();
       repaint();
     };
 

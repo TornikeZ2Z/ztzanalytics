@@ -333,6 +333,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-none-i{color:var(--faint);font-style:italic}",
         // the reason bar gains a % column, so the grid gets a 4th track
         ".rrp-card .rrp-bars{margin-bottom:0}",
+        // what a part cannot follow among the panel's filters (2026-10-15)
+        ".ra-nf{font-size:12.5px;color:var(--muted);line-height:1.5;margin:6px 2px 10px}",
+        ".ra-nf b{color:var(--ink);font-weight:600}",
 
         ".ra-pct{font-style:normal;font-size:11px;font-weight:700;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}",
         ".ra-ftbl tbody tr{cursor:pointer}",
@@ -1086,6 +1089,26 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       RRP._rmc = { data: RRP.data, model: model };
       return model;
     }
+    /* ---------- THE PAGE'S OWN FILTERS (Response Analysis) ----------
+       His ask 2026-10-15: the shell's Filters button and right-hand panel on every report with its
+       own bar. Foreman and Reason, both new; held in RRP.raFilt for this visit only -- never
+       RS.state.multi, never stored. They reach different parts of the page, and the page says so:
+         · Foreman reaches everything: the week's jobs (the reminder log names the foreman), the
+           answers and the chase list (review_responses names him too);
+         · Reason reaches the answers only. The week's jobs and the Needs-a-reason list come from the
+           reminder log, which carries no reason (a job has one only once it is answered), and the
+           chase list is a single reason by definition. */
+    function raFilt() { return RRP.raFilt || (RRP.raFilt = { fm: new Set(), reason: new Set() }); }
+    function raFm(v) { var f = raFilt().fm; return !f.size || f.has(foremanName(v)); }
+    function raReason(v) { var f = raFilt().reason; return !f.size || f.has(v || "—"); }
+    // the memo key of everything filtered here
+    function raSig() { var f = raFilt(); return [...f.fm].sort().join("|") + "#" + [...f.reason].sort().join("|"); }
+    // the week's jobs under the Foreman filter, in the model's order (wireWork indexes into this)
+    function raJobs() { return responseModelCached().jobs.filter(function (j) { return raFm(j.foreman); }); }
+    // "Not filtered by Reason: <what>." where a part cannot follow the Reason filter
+    function raGap(what) {
+      return raFilt().reason.size ? '<div class="ra-nf"><b>Not filtered by Reason:</b> ' + esc(what) + ".</div>" : "";
+    }
     // ---------- ANSWER STATISTICS (N3/N4/N5) ----------
     // ONE answer per job — the latest — which is exactly how the worklist above resolves a
     // job's explanation. Without this a job answered twice (Misho's LD18-0130 was) counts
@@ -1102,15 +1125,17 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         var k = jobKey(r.job) || ("ts:" + r.ts);
         if (!latest[k] || String(r.ts) > String(latest[k].ts)) latest[k] = r;
       });
-      return Object.keys(latest).map(function (k) { return latest[k]; });
+      // the panel's filters apply to the job's LATEST answer -- the one this page counts
+      return Object.keys(latest).map(function (k) { return latest[k]; })
+        .filter(function (r) { return raFm(r.foreman) && raReason(r.reason); });
     }
-    // same memo rule as responseModelCached, plus the period — the only other input it has
+    // same memo rule as responseModelCached, plus the period and the panel's filters
     function answerRowsCached() {
-      var per = RRP.raPeriod == null ? 30 : RRP.raPeriod;
+      var per = RRP.raPeriod == null ? 30 : RRP.raPeriod, sig = raSig();
       var c = RRP._arc;
-      if (c && c.data === RRP.data && c.per === per) return c.rows;
+      if (c && c.data === RRP.data && c.per === per && c.sig === sig) return c.rows;
       var rows = answerRows();
-      RRP._arc = { data: RRP.data, per: per, rows: rows };
+      RRP._arc = { data: RRP.data, per: per, sig: sig, rows: rows };
       return rows;
     }
     // The relay records whoever answered, and that is sometimes the raw email rather than the
@@ -1254,7 +1279,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       });
       var ix = RRP.contactIdx || {};
       var rows = Object.keys(latest).map(function (k) { return latest[k]; })
-        .filter(function (r) { return /promised to write/i.test(String(r.reason || "")); })
+        .filter(function (r) { return /promised to write/i.test(String(r.reason || "")) && raFm(r.foreman); })
         .map(function (r) {
           var k = jobKey(r.job), c = (k && ix[k]) || null, rv = reviewFor(k);
           var when = new Date(r.ts);
@@ -1288,6 +1313,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + '<span class="rs-pill">' + N(rows.length) + " customer" + (rows.length === 1 ? "" : "s")
         + (landed ? " · " + N(landed) + " already landed" : "") + " · all time</span>"
         + '<button class="rs-btn" id="pmDl" title="The whole chase list with phone and email">Download CSV</button></div>'
+        + raGap("this list (it is one reason by definition: the customer promised to write later)")
         + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Promised</th>'
         + '<th class="num">Age</th><th>Job</th><th>Customer</th><th>Contact</th><th>Foreman</th><th>Status</th>'
         + "</tr></thead><tbody>" + body + "</tbody></table></div>"
@@ -1318,7 +1344,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + foremanDrill(arows);
     }
     function viewResponse() {
-      var m = responseModelCached(), jobs = m.jobs;
+      var m = responseModelCached(), jobs = raJobs();
       var total = jobs.length, expd = jobs.filter(function (j) { return j.exp; }).length;
       var revJobs = jobs.filter(function (j) { return j.rev; });
       var revd = revJobs.length, revTot = revJobs.reduce(function (a, j) { return a + (j.rev.n || 1); }, 0);
@@ -1380,14 +1406,17 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       // ACTION lists — the waiting worklist first because it is today's work; the chase
       // list after, because a promise ages slower than an unanswered nudge.
       // #rrpStats / #rrpProm / #rrpWorkWrap are the scoped-repaint mount points.
-      return kp
+      // the page's own bar: just the Filters button at its right end (mounted in wireResponse),
+      // the "Filtered by" line under it; the period stays on the answers card it governs
+      return '<div class="rs-bar" id="raFbar"><span class="rs-spacer"></span></div>'
+        + kp + raGap("the week's jobs above (the reminder log carries no reason; a job has one only once it is answered)")
         + '<div id="rrpStats">' + statsSection() + "</div>"
         + '<div id="rrpWorkWrap">' + workCard() + "</div>"
         + '<div id="rrpProm">' + promisedCard() + "</div>";
     }
     // the recent-jobs worklist card — its pager and the optimistic reason save repaint ONLY this
     function workCard() {
-      var jobs = responseModelCached().jobs;
+      var jobs = raJobs();
       var waiting = jobs.filter(function (j) { return !j.exp && !j.rev; }).length;
       // Paginated 25/page (audit 2026-07-25) — this rendered every recent job at once. data-exi
       // carries the ABSOLUTE index into `jobs` so wireWork resolves the right job on any page.
@@ -1418,6 +1447,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         + "<h4>Needs a reason</h4>"
         + '<span class="rs-pill' + (waiting ? " warn" : "") + '">' + N(waiting)
         + " waiting · " + N(jobs.length) + " recent job" + (jobs.length === 1 ? "" : "s") + "</span></div>"
+        + raGap("this list (the reminder log carries no reason)")
         + '<div class="rs-tablewrap"><table class="rs-table" id="rrpWork"><thead><tr><th>Date</th><th>Job</th><th>Customer</th><th>Foreman</th><th>Status / Reason</th></tr></thead><tbody>'
         + (work || '<tr><td colspan="5" style="color:var(--faint);padding:14px">No jobs in the last 7 days. As the bot sends nudges, they land here.</td></tr>') + "</tbody></table></div>"
         + pager(jobs.length, rjFrom, rjShown.length, RRP.rjPage, rjPages, "rj") + "</div>" + revNote;
@@ -1530,7 +1560,29 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         };
       });
     }
-    function wireResponse() { wireStats(); wirePromised(); wireWork(); }
+    function wireFilters() {
+      var bar = root.querySelector("#raFbar"); if (!bar || !RSC.filterPanel) return;
+      // values from the loaded rows, the commonest first: foremen from the nudged jobs and the
+      // answers alike (by the name this page shows), reasons from the answers
+      var tally = function (g, v) { if (v) g[v] = (g[v] || 0) + 1; };
+      var fmG = {}, rsG = {};
+      cleanLog().forEach(function (r) { if (r.type === "mid" || r.type === "final") tally(fmG, foremanName(r.foreman)); });
+      ((RRP.data && RRP.data.responses) || []).forEach(function (r) { tally(fmG, foremanName(r.foreman)); tally(rsG, r.reason || "—"); });
+      var list = function (g) { return Object.keys(g).sort(function (a, b) { return g[b] - g[a]; }).map(function (v) { return { v: v, l: v, n: g[v] }; }); };
+      var fields = [{ key: "fm", label: "Foreman", values: list(fmG) }, { key: "reason", label: "Reason", values: list(rsG) }];
+      var f = raFilt(), selected = { fm: f.fm, reason: f.reason };
+      var apply = function (next) {
+        RRP.raFilt = { fm: new Set(next.fm || []), reason: new Set(next.reason || []) };
+        RRP.raForeman = null; RRP.rjPage = 0; RRP.pmPage = 0;
+        paintBody();
+      };
+      RSC.filterPanel(bar, { fields: fields, selected: selected, onApply: apply,
+        note: "<b>Foreman</b> reaches every part of the page. <b>Reason</b> reaches the answers only: the week's "
+          + "jobs and the Needs-a-reason list come from the reminder log, which carries no reason, and the chase "
+          + "list is one reason by definition &mdash; each says so while a Reason filter is on." });
+      bar.after(RSC.filterChips(null, { fields: fields, selected: selected, onChange: apply }));
+    }
+    function wireResponse() { wireFilters(); wireStats(); wirePromised(); wireWork(); }
 
     // ---------- REVIEW LINKS (editable control) ----------
     // canonical signature of "what actually gets sent" — active Google URL per state + platform

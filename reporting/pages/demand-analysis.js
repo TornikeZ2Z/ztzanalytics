@@ -99,13 +99,27 @@ registerPage({
     const S = window.__DEM || (window.__DEM = {
       rows: null, year: null, co: "", metric: "leads", day: null, err: "",
       // the per-lead layer: filters, the lazy rows, and the capacity input (his #5)
-      status: "", src: "", size: "", leads: null, leadsLoading: false, leadsErr: "",
+      status: new Set(), src: new Set(), size: new Set(), state: new Set(), job: new Set(),
+      leads: null, leadsLoading: false, leadsErr: "",
       cap: +(localStorage.getItem("ztzDemandCap") || 10) || 10,
       // the breakdown panel's view + last-year compare, remembered per viewer (2026-10-07)
       view: (() => { try { return localStorage.getItem("ztzDemandView") || "wd"; } catch (e) { return "wd"; } })(),
       cmp: (() => { try { return localStorage.getItem("ztzDemandCmp") !== "0"; } catch (e) { return true; } })(),
       wdMode: "wd",
     });
+    /* THE LEAD FILTERS LIVE IN THE FILTERS PANEL (his ask 2026-10-15: the shell's Filters button and
+       right-hand panel on every report with its own bar). Status, Source and Size moved in from the
+       bar's single pickers and are multis now (a Set, empty = all); State and Local / Long distance
+       are new. All five are columns of the per-lead layer, so any one of them switches the page onto
+       it (leadFilterOn). Session only, as before: window.__DEM, never RS.state.multi, never stored.
+       A pick left from before this change (a string) reads as a one-item set. */
+    const PFK = ["src", "status", "size", "state", "job"];
+    PFK.forEach(k => { if (!(S[k] instanceof Set)) S[k] = new Set(S[k] ? [S[k]] : []); });
+    // Local / Long distance off the lead's Moving Type -- the mart writes exactly two values
+    const JOB_OF = { "Local Moving": "Local", "Long Distance": "Long distance" };
+    const PF_COL = { src: l => l.Source || "", status: l => l.Status || "", size: l => l.Size || "",
+                     state: l => l.State || "", job: l => JOB_OF[l["Moving Type"] || ""] || "" };
+    const leadKeep = l => PFK.every(k => !S[k].size || S[k].has(PF_COL[k](l)));
 
     host.innerHTML = '<style id="dmCss">'
       + ".dm{font-variant-numeric:tabular-nums}"
@@ -408,7 +422,7 @@ registerPage({
     }
 
     /* ---------------- the per-lead layer (2026-08-20) --------------------------------- */
-    const leadFilterOn = () => !!(S.status || S.src || S.size);
+    const leadFilterOn = () => PFK.some(k => S[k].size > 0);
     function loadLeads() {
       if (S.leads || S.leadsLoading) return;
       S.leadsLoading = true;
@@ -427,9 +441,7 @@ registerPage({
       let ls = S.leads || [];
       if (S.co) ls = ls.filter(l => l.Company === S.co);
       if (S.year) ls = ls.filter(l => l.d.slice(0, 4) === S.year);
-      if (S.status) ls = ls.filter(l => (l.Status || "") === S.status);
-      if (S.src) ls = ls.filter(l => (l.Source || "") === S.src);
-      if (S.size) ls = ls.filter(l => (l.Size || "") === S.size);
+      if (leadFilterOn()) ls = ls.filter(leadKeep);
       return ls;
     }
     // the same size buckets the mart computes, read off the label the same way
@@ -582,25 +594,8 @@ registerPage({
         + Object.keys(METRIC).map(k => '<button data-m="' + k + '"'
             + (k === S.metric ? ' class="on"' : "") + ">" + esc(METRIC[k].lab) + "</button>").join("")
         + "</div>");
-      // the per-lead filters (his ask, 2026-08-19): status / source / size. Options come
-      // from the lead layer, so they show real values, not guesses; until it streams in
-      // they render disabled rather than empty-but-clickable. The control is the kit's
-      // localSelect (mounted in wire()), never a native dropdown — it carries its own
-      // label chip, so no .rs-fld caption wraps it. The loading placeholder is the same
-      // slicer button in the kit's rs-off state: dimmed, dashed, no popover.
-      const ldSel = (id, label, cur, key) => {
-        if (!S.leads) {
-          return '<div class="rs-slicer rs-off"><button type="button" class="rs-slicer-btn" disabled>'
-            + '<span class="lbl">' + esc(label) + '</span><span class="val">'
-            + (S.leadsErr ? "unavailable" : "loading…")
-            + '</span><span class="chev">▾</span></button></div>';
-        }
-        return '<div data-lf="' + id + '" data-lf-label="' + esc(label)
-          + '" data-lf-key="' + esc(key) + '"></div>';
-      };
-      h += ldSel("status", "Status", S.status, "Status")
-        + ldSel("src", "Source", S.src, "Source")
-        + ldSel("size", "Size", S.size, "Size");
+      // the per-lead filters (his ask, 2026-08-19: status / source / size; 2026-10-15: + state,
+      // local / long distance) are the Filters panel at the bar's right end, mounted in wire()
       h += "</div>";
       // the hint gets a line of its own instead of 11.5px grey squeezed against the right
       // edge of the bar -- his standing rule: a hint nobody can read is not a hint
@@ -610,7 +605,7 @@ registerPage({
         + (leadFilterOn()
             ? ' <span class="em">Filters are on — every card, every square and every list '
               + "below is recomputed from the individual leads.</span>"
-            : " Status, source and size filter the individual leads behind every number.")
+            : " Status, source, size, state and local / long distance filter the individual leads behind every number.")
         + "</p>";
     }
 
@@ -866,9 +861,7 @@ registerPage({
     }
     const inWin = (iso, y) => String(iso).slice(0, 4) === y && String(iso).slice(5, 10) < cutMD();
     const aggIn = y => (S.rows || []).filter(r => (!S.co || r.Company === S.co) && inWin(String(r["Move Date"]).slice(0, 10), y));
-    const leadsIn = y => (S.leads || []).filter(l => (!S.co || l.Company === S.co) && inWin(l.d, y)
-      && (!S.status || (l.Status || "") === S.status) && (!S.src || (l.Source || "") === S.src)
-      && (!S.size || (l.Size || "") === S.size));
+    const leadsIn = y => (S.leads || []).filter(l => (!S.co || l.Company === S.co) && inWin(l.d, y) && leadKeep(l));
     // calendar days of each weekday / month inside a year's window -- the per-day divisor
     function occ(y) {
       const wd = [0, 0, 0, 0, 0, 0, 0], mo = new Array(12).fill(0), cut = cutMD();
@@ -1083,17 +1076,34 @@ registerPage({
       main.querySelectorAll("[data-m]").forEach(b => {
         b.onclick = () => { S.metric = b.dataset.m; paint(); };
       });
-      // mount the kit's localSelect on each lead-filter host (values from the lead layer,
-      // same option strings the old <option>s carried; "" stays the All value)
-      main.querySelectorAll("[data-lf]").forEach(el => {
-        const id = el.dataset.lf;
-        const vals = [...new Set((S.leads || []).map(l => l[el.dataset.lfKey] || ""))]
-          .filter(Boolean).sort();
-        RSC.localSelect(el, {
-          label: el.dataset.lfLabel, values: vals, value: S[id], allLabel: "All",
-          onChange: v => { S[id] = v; paint(); },
+      // the Filters panel at the bar's right end, the "Filtered by" line right under the bar.
+      // Values from the lead layer (this book's leads when one book is picked), commonest first;
+      // until the layer streams in the button stays disabled rather than offering empty lists.
+      const bar = main.querySelector(".rs-bar");
+      if (bar && RSC.filterPanel) {
+        const NAME = { src: "Source", status: "Status", size: "Size", state: "State", job: "Local / Long distance" };
+        // 80k leads x five fields on every repaint is wasted work: kept until the layer or the book changes
+        const memo = S._pfVals;
+        const fields = memo && memo.leads === S.leads && memo.co === S.co ? memo.fields : PFK.map(k => {
+          const g = {};
+          (S.leads || []).forEach(l => { if (S.co && l.Company !== S.co) return; const v = PF_COL[k](l); if (v) g[v] = (g[v] || 0) + 1; });
+          return { key: k, label: NAME[k], values: Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })) };
         });
-      });
+        S._pfVals = { leads: S.leads, co: S.co, fields };
+        const selected = {}; PFK.forEach(k => { selected[k] = S[k]; });
+        const apply = next => { PFK.forEach(k => { S[k] = new Set(next[k] || []); }); paint(); };
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        const fp = RSC.filterPanel(bar, { fields, selected, onApply: apply,
+          note: "Any filter here switches the whole page onto the <b>individual leads</b>: every card, every "
+            + "square and every list is recomputed from them while a filter is on, the calendar's booked "
+            + "counts included (a lead counts as booked when its status is Confirmed). Clear the last one and "
+            + "the page is back on the daily totals." });
+        if (!S.leads) {
+          fp.button.disabled = true;
+          fp.button.title = S.leadsErr ? "The per-lead detail is unavailable" : "Loading the per-lead detail…";
+        }
+        bar.after(RSC.filterChips(null, { fields, selected, onChange: apply }));
+      }
       const cap = main.querySelector("#dmCap");
       if (cap) cap.onchange = () => {
         S.cap = Math.max(1, Math.round(+cap.value) || S.cap);   // a cleared box keeps the prior X

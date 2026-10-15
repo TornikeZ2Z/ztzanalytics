@@ -160,6 +160,9 @@ registerPage({
           + "margin:0 0 12px}",
         ".cln-say b{color:var(--ink)}",
         ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
+        // what the jobs cannot follow among the panel's filters, said where jobs are shown (2026-10-15)
+        ".cln-nf{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px}",
+        ".cln-nf b{color:var(--ink);font-weight:600}",
         ".cln-row{cursor:pointer} .cln-row:hover td{background:var(--panel-2)}",
         ".cln-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
         ".cln-mon:hover{text-decoration:underline}",
@@ -313,16 +316,18 @@ registerPage({
 
     /* ---------- state ----------
        TWO KINDS OF FILTER, AND THE WHOLE ANALYTICAL ARGUMENT OF THE PAGE IS THE DIFFERENCE.
-       from/to, jobType, sp and fm all exist ON THE CLOSING, so each narrows the jobs
+       from/to, the panel's state / company / job, sp and fm all exist ON THE CLOSING, so each narrows the jobs
        denominator as well as the claims -- a per-100 under them is a real rate. resp, extra
        and q exist only on the CLAIM, so they narrow the numerator alone and their per-100
        would be a lie. See RATE below. */
     const today = new Date();
     const iso = d => d.toISOString().slice(0, 10);
     const back = months => { const t = new Date(today); t.setMonth(t.getMonth() - months); return iso(t); };
-    const S = { from: back(6), to: iso(today), jobType: "", bo: "", sp: "", fm: "", resp: "",
+    const S = { from: back(6), to: iso(today), bo: "", sp: "", fm: "", resp: "",
                 extra: "", q: "", dim: "Family", page: 0, pageSize: 25,
-                openSp: "", openFm: "", allSp: 0, allFm: 0 };
+                openSp: "", openFm: "", allSp: 0, allFm: 0,
+                // the Filters panel's picks (see PFK below): empty = all
+                state: new Set(), company: new Set(), job: new Set(), fam: new Set() };
     let qTimer = null;
 
     /* WHAT WINDOW IS THIS? On screen the filter bar answers that; on a phone looking at a PDF
@@ -330,7 +335,7 @@ registerPage({
        gets named — an unnamed filter is how a screenshot starts an argument. */
     function printWindowLabel() {
       const bits = [`${S.from} to ${S.to}`];
-      if (S.jobType) bits.push(S.jobType);
+      PFK.forEach(k => { if (S[k].size) bits.push(PF_NAME[k].toLowerCase() + " " + [...S[k]].join(", ")); });
       if (S.bo) bits.push("branch owner " + S.bo);
       if (S.sp) bits.push("salesperson " + S.sp);
       if (S.fm) bits.push("foreman " + S.fm);
@@ -343,17 +348,37 @@ registerPage({
     // JOB TYPE COMES FROM THE CLOSING (his call 2026-09-03). The mart carries `Job Type`
     // derived from the closing's own Moving Type; the board's Service Type is not consulted
     // for a type, only for the extra services below.
-    const jobTypeOfClosing = r => {
-      const v = String(r["Move Type"] || "").trim().toUpperCase();
-      if (v === "LM") return "Local";
-      if (v === "LD") return "Long distance";
-      return "";
-    };
+    // 2026-10-15: the jobs side reads that same Moving Type (Local Moving = Local; Regular +
+    // Straight Moving = Long distance), not the LM/LD `Move Type` beside it. The two agree on
+    // every closing but four whose Move Type is blank and whose Moving Type says Local Moving;
+    // those were jobs with no type here, while a claim on them would have been Local.
+    const JOB_OF = { "Local Moving": "Local", "Regular Moving": "Long distance", "Straight Moving": "Long distance" };
+    const jobTypeOfClosing = r => JOB_OF[String(r["Moving Type"] || "").trim()] || "";
     // ...AND STORAGE IS AN EXTRA SERVICE, NOT A TYPE. "it is not related to job type - it is
     // kinda extra service that customer took". These live on the claim only, so they never
     // leave a rate standing.
     const EXTRAS = [["storage", "Storage", "Had Storage"], ["overnight", "Overnight", "Had Overnight"],
                     ["labor", "Labor only", "Was Labor"], ["tworeps", "Two salespeople", "Two Sales People"]];
+
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's Filters button and right-hand panel on
+       every report with its own bar). Local / Long distance moved in from the bar's Job type buttons
+       and is a multi now; State, Company and Reason family are new. Held in S for this visit only --
+       never RS.state.multi, never stored.
+       State, Company and Local / Long distance exist on the CLOSING as well as the claim, so like the
+       dates they narrow the jobs AND the claims and every rate stays a rate: a claim reads its job's
+       (the mart's State, Company, Job Type), a job its closing's own State Name, Company and Moving
+       Type. REASON FAMILY BELONGS TO THE CLAIM ALONE (a job has no reason): it narrows the claims and
+       never the jobs, so the rate under it is claims OF THOSE FAMILIES per 100 jobs -- the arithmetic
+       the Price and Damage columns already use -- and the page says so where it shows jobs. */
+    const PFK = ["state", "company", "job", "fam"];
+    const PF_NAME = { state: "State", company: "Company", job: "Local / Long distance", fam: "Reason family" };
+    const pfHas = (k, v) => !S[k].size || S[k].has(String(v == null ? "" : v));
+    const pfClaim = r => pfHas("state", r.State) && pfHas("company", r.Company)
+      && pfHas("job", r["Job Type"]) && pfHas("fam", famOf(r) || "—");
+    const pfJob = r => pfHas("state", r["State Name"]) && pfHas("company", r.Company) && pfHas("job", jobTypeOfClosing(r));
+    // "Not filtered by Reason family: <what>." where the page shows jobs
+    const famGap = what => S.fam.size
+      ? `<div class="cln-nf"><b>Not filtered by Reason family:</b> ${what}.</div>` : "";
 
     /* ---------- one paint ---------- */
     function paint() {
@@ -368,8 +393,8 @@ registerPage({
 
       const claims = claimsAll.filter(r => {
         if (!inWin(r["Created Date"])) return false;
-        // --- these four also narrow the jobs, so they keep the rate honest
-        if (S.jobType && r["Job Type"] !== S.jobType) return false;
+        // --- these also narrow the jobs, so they keep the rate honest (reason family: see PFK)
+        if (!pfClaim(r)) return false;
         if (!boOk(r["Request Joinkey"])) return false;
         // A REP IS CREDITED FOR EVERY JOB THEY SOLD, not only the ones where the sheet
         // happened to list them first. Matching on the claim's `Sales Person` (which is the
@@ -390,7 +415,7 @@ registerPage({
       // THE DENOMINATOR. The jobs are narrowed by exactly the filters the CLOSING can honour.
       const jobs = closing.filter(r => {
         if (!inWin(r.Date)) return false;
-        if (S.jobType && jobTypeOfClosing(r) !== S.jobType) return false;
+        if (!pfJob(r)) return false;
         if (!boOk(r["Request Joinkey"])) return false;
         if (S.sp && !(hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp)) return false;
         if (S.fm && r.Foreman !== S.fm) return false;
@@ -417,10 +442,10 @@ registerPage({
         const win = d => { const v = String(d || "").slice(0, 10); return v && v >= f && v <= t; };
         const spOk = r => !S.sp || (hasCredit ? soldBy(r["Request Joinkey"], S.sp) : r["Sales Person"] === S.sp);
         const c = claimsAll.filter(r => win(r["Created Date"])
-          && (!S.jobType || r["Job Type"] === S.jobType) && boOk(r["Request Joinkey"])
+          && pfClaim(r) && boOk(r["Request Joinkey"])
           && spOk(r) && (!S.fm || r.Foreman === S.fm)).length;
         const j = new Set(closing.filter(r => win(r.Date)
-          && (!S.jobType || jobTypeOfClosing(r) === S.jobType) && boOk(r["Request Joinkey"])
+          && pfJob(r) && boOk(r["Request Joinkey"])
           && spOk(r) && (!S.fm || r.Foreman === S.fm)).map(r => r["Request Joinkey"]).filter(Boolean)).size;
         return j ? { rate: c / j * 100, claims: c, jobs: j } : null;
       }
@@ -880,7 +905,7 @@ registerPage({
 
         <div class="panel cln-hero">
           <div>
-            <div class="lbl">Share of jobs that drew a claim</div>
+            <div class="lbl">Share of jobs that drew a claim${S.fam.size ? " · " + esc([...S.fam].join(", ")) : ""}</div>
             <div class="cln-big">${narrowed ? "&mdash;" : (nowRate == null ? "&mdash;" : nowRate.toFixed(1))}
               ${narrowed || nowRate == null ? "" : '<span class="u">% of jobs</span>'}</div>
             <div class="cln-deltas">${narrowed ? "" : dChip(prevWin, "previous period") + dChip(yoyWin, "a year earlier")}</div>
@@ -890,6 +915,7 @@ registerPage({
                  narrowed with them. Clear it to see the rate.`
               : `<b>${fmtN(n)}</b> claims on <b>${fmtN(nJobs)}</b> jobs done in this window.
                  ${prevWin || yoyWin ? "Direction is measured over the same length of time with the same filters." : ""}`}</div>
+            ${narrowed ? "" : famGap("the jobs (a reason belongs to a claim, not a job), so the share is claims of those families per 100 jobs")}
           </div>
           <div>
             ${trendSvg()}
@@ -918,6 +944,7 @@ registerPage({
             <div class="cln-dim-seg" id="clnDim">${DIMS.map(([d]) =>
               `<button data-dim="${esc(d)}" class="${S.dim === d ? "on" : ""}">${esc(d)}</button>`).join("")}</div>
           </div>
+          ${pivHasRate ? famGap("the jobs column (a job has no reason)") : ""}
           <div class="cln-say">One table, grouped however you need it. ${pivHasRate
             ? "This grouping exists on the closing too, so it carries a real rate."
             : "A rate needs the same grouping on a closing; only job type and company have one, so the other groupings show shares."}</div>
@@ -956,6 +983,7 @@ registerPage({
 
         <div class="panel" id="clnPnlSp" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Salespeople</div></div>
+          ${famGap("the jobs (a job has no reason): each % of jobs is claims of those families per 100 jobs")}
           <div class="cln-say">${hasCredit ? `A job sold by two people is credited to both in the share the closing sheet paid them, so a 50/50 job gives each half the job <b>and</b> half the claim &mdash; the percentage stays a percentage of their own work, and the credited claims still add up to the ${fmtN(n)} above &mdash; the total row at the foot
             states it, because the column prints one decimal and adding those by hand drifts. ` : ""}jobs sold in the window (the closing's salesperson), the claims on them, and — where the lead's quote and the contract's real CF exist — how far the bill and the volume ran past the estimate on the claimed jobs. Fewer than ${MIN_JOBS} credited jobs reads "small" and sorts below the rest &mdash; a rate on a handful of jobs is noise, so it is shown but never ranked first. <span class="cln-click"><b>Click any row</b> to see the claims behind its number and open each on the board.</span>
             <br><b>This is not the same number as Sales Team Command's own claim rate.</b> That page counts a claim against the rep who booked the lead and divides by closed leads; this one counts it against the salesperson on the closing and divides by jobs done. Two honest definitions — they will not tie out, and neither has been declared the right one.</div>
@@ -964,6 +992,7 @@ registerPage({
 
         <div class="panel" id="clnPnlFm" style="margin-top:12px">
           <div class="panel-head"><div class="panel-title">Foremen</div></div>
+          ${famGap("the jobs (a job has no reason): each % of jobs is claims of those families per 100 jobs")}
           <div class="cln-say">jobs run in the window (the closing's foreman) and the claims on them, split by family. A damage claim is what the customer said, not what an inspection found — read the thread before it counts against anyone. <span class="cln-click"><b>Click any row</b> to see the claims behind its number and open each on the board.</span></div>
           ${perTable(foremen, "Foreman", fmExtra, "clnFmBody", S.openFm, S.allFm)}
         </div>
@@ -1040,7 +1069,8 @@ registerPage({
         note: "Every per-person number is the share of that person's own jobs in this window "
             + "that drew a claim \u2014 never a count. Where a filter exists only on the claim, "
             + "the rate is withheld rather than guessed.",
-        drop: [".cln-bar", ".cln-pdf", ".cln-drawer", ".cln-pager", ".cln-click", "details", "#clnDl", ".cln-say", ".cln-cx"],
+        // the "Filtered by" chips go too: the subtitle (printWindowLabel) names every filter
+        drop: [".cln-bar", ".rs-pchips", ".cln-pdf", ".cln-drawer", ".cln-pager", ".cln-click", "details", "#clnDl", ".cln-say", ".cln-cx"],
         // ONE THEME PER SHEET, in the order somebody reads the argument: how often it
         // happens, then what it is about, then who, then the cases themselves.
         pages: [
@@ -1140,9 +1170,7 @@ registerPage({
           v => { S.from = v; S.to = iso(today); }));
       }
 
-      // 2. job type -- FROM THE CLOSING, and storage is not one of the options
-      bar.appendChild(fld("Job type", seg([["", "All"], ["Local", "Local"],
-        ["Long distance", "Long distance"]], S.jobType, v => { S.jobType = v; })));
+      // 2. job type -- FROM THE CLOSING: in the Filters panel since 2026-10-15 (Local / Long distance)
 
       // 2b. branch owner -- a job set the closing names, so it moves both sides of the rate
       if (BO_NAMES.length) {
@@ -1207,16 +1235,41 @@ registerPage({
         qTimer = setTimeout(() => { S.q = q.value; S.page = 0; S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
 
-      if (S.from !== back(6) || S.to !== iso(today) || S.jobType || S.bo || S.sp || S.fm || S.resp || S.extra || S.q) {
+      if (S.from !== back(6) || S.to !== iso(today) || PFK.some(k => S[k].size) || S.bo || S.sp || S.fm || S.resp || S.extra || S.q) {
         const clear = document.createElement("button");
         clear.className = "rs-btn"; clear.textContent = "Clear";
         clear.style.marginBottom = "1px";
         clear.onclick = () => {
-          S.from = back(6); S.to = iso(today); S.jobType = ""; S.bo = ""; S.sp = ""; S.fm = "";
+          S.from = back(6); S.to = iso(today); PFK.forEach(k => { S[k] = new Set(); }); S.bo = ""; S.sp = ""; S.fm = "";
           S.resp = ""; S.extra = ""; S.q = ""; S.page = 0; S.openSp = ""; S.openFm = "";
           paint();
         };
         bar.appendChild(clear);
+      }
+      // 8. the page's own Filters panel at the right end (PFK), the "Filtered by" line under the bar.
+      // Values from the loaded claims and closings, the commonest first.
+      if (window.RSC && RSC.filterPanel) {
+        const tally = (g, v) => { if (v) g[v] = (g[v] || 0) + 1; };
+        const count = (claimsF, jobsF) => { const g = {};
+          claimsAll.forEach(r => tally(g, claimsF(r)));
+          if (jobsF) closing.forEach(r => tally(g, jobsF(r)));
+          return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n })); };
+        const fields = [
+          { key: "state", label: PF_NAME.state, values: count(r => r.State, r => r["State Name"]) },
+          { key: "company", label: PF_NAME.company, values: count(r => r.Company, r => r.Company) },
+          { key: "job", label: PF_NAME.job, values: count(r => r["Job Type"], jobTypeOfClosing) },
+          { key: "fam", label: PF_NAME.fam, values: count(r => famOf(r) || "—") },
+        ];
+        const selected = {}; PFK.forEach(k => { selected[k] = S[k]; });
+        const apply = next => { PFK.forEach(k => { S[k] = new Set(next[k] || []); });
+          S.page = 0; S.openSp = ""; S.openFm = ""; paint(); };
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        RSC.filterPanel(bar, { fields, selected, onApply: apply,
+          note: "State, Company and Local / Long distance are on the closing too, so they narrow the jobs "
+            + "<b>and</b> the claims and every rate stays a rate (a claim's are its job's). Reason family "
+            + "belongs to the claim alone: it narrows the claims, never the jobs, so the rate under it is "
+            + "claims of those families per 100 jobs &mdash; the page says so where it shows jobs." });
+        bar.after(RSC.filterChips(null, { fields, selected, onChange: apply }));
       }
       if (S._focus) { S._focus = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
     }
