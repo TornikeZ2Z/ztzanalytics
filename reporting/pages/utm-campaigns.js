@@ -42,9 +42,9 @@
 })();
 
 (function () {
-  var S = { rows: [], f: {}, view: "campaign", page: 0, per: 50, opts: null };
+  var S = { rows: [], f: {}, pf: {}, view: "campaign", page: 0, per: 50, opts: null };
 
-  /* Page-specific ONLY, every rule namespaced under .wfu. Bar, field, select, input, button,
+  /* Page-specific ONLY, every rule namespaced under .wfu. Bar, field, slicer, input, button,
      table, pill, segmented control all come from rs.css and are not redeclared here. The two
      things the kit genuinely does not own are the KPI tone colours and a pager. */
   function injectStyle() {
@@ -69,14 +69,26 @@
     document.head.appendChild(st);
   }
 
-  var FILTERS = [
-    ["_month", "Lead month"],
+  /* THE PAGE'S FILTERS PANEL (his ask 2026-10-15: the shell's right-hand Filters panel on every
+     report that runs its own bar). The five dropdowns that used to sit in the bar, plus the
+     customer's From state, are multi-selects there: one Set per column in S.pf, empty = all.
+     They live in this module for the session -- never in RS.state.multi, which every other
+     report reads, and never in localStorage (the old dropdowns were not stored either). Every
+     number on the page is counted from the same rows, so nothing here is left unfiltered.
+     Lead month is the period and stays in the bar, as do Tagged link and Became a lead. */
+  var PF_FIELDS = [
     ["UTM Source", "UTM source"],
     ["UTM Campaign", "Campaign"],
     ["UTM Medium", "Medium"],
     ["Moveboard Booked Source", "Booked source"],
     ["Lead Status Category", "Lead status"],
+    ["Form From State", "From state"],
   ];
+  var PF_NOTE = "Every number on this page follows these filters. A submission that found no lead "
+    + "has no <b>Booked source</b> or <b>Lead status</b>, and an untagged one has no UTM values, "
+    + "so picking any of those keeps only the submissions that carry one. <b>From state</b> is "
+    + "the state the customer typed on the form.";
+  var pfVal = function (r, k) { return r[k] == null ? "" : String(r[k]); };
 
   var VIEWS = [["campaign", "By campaign"], ["submission", "Submissions"]];
 
@@ -103,11 +115,10 @@
   var mon = function (r) { return String(r["Lead Created"] || "").slice(0, 7); };
 
   function match(r) {
-    for (var i = 0; i < FILTERS.length; i++) {
-      var k = FILTERS[i][0], want = S.f[k];
-      if (!want) continue;
-      var got = k === "_month" ? mon(r) : (r[k] == null ? "" : String(r[k]));
-      if (got !== want) return false;
+    if (S.f._month && mon(r) !== S.f._month) return false;
+    for (var i = 0; i < PF_FIELDS.length; i++) {
+      var k = PF_FIELDS[i][0], want = S.pf[k];
+      if (want && want.size && !want.has(pfVal(r, k))) return false;
     }
     if (S.f._tagged === "yes" && !+r["Has UTM"]) return false;
     if (S.f._tagged === "no" && +r["Has UTM"]) return false;
@@ -123,28 +134,33 @@
     return true;
   }
 
-  function optionHtml(key) {
+  /* {v,l,n} items for the kit controls, built ONCE from every loaded row (S.rows never changes
+     after load). Lead month newest first; the panel's values most common first. */
+  function optionsFor(key) {
     if (!S.opts) {
       S.opts = {};
+      var keys = ["_month"].concat(PF_FIELDS.map(function (f) { return f[0]; }));
       var counts = {};
-      FILTERS.forEach(function (f) { counts[f[0]] = {}; });
+      keys.forEach(function (k) { counts[k] = {}; });
       S.rows.forEach(function (r) {
-        FILTERS.forEach(function (f) {
-          var v = f[0] === "_month" ? mon(r) : (r[f[0]] == null ? "" : String(r[f[0]]));
-          if (v) counts[f[0]][v] = (counts[f[0]][v] || 0) + 1;
+        keys.forEach(function (k) {
+          var v = k === "_month" ? mon(r) : pfVal(r, k);
+          if (v) counts[k][v] = (counts[k][v] || 0) + 1;
         });
       });
-      FILTERS.forEach(function (f) {
-        var keys = Object.keys(counts[f[0]]).sort();
-        if (f[0] === "_month") keys.reverse();
-        S.opts[f[0]] = keys.map(function (v) { return { v: v, n: counts[f[0]][v] }; });
+      keys.forEach(function (k) {
+        var c = counts[k];
+        var vs = Object.keys(c).sort();
+        if (k === "_month") vs.reverse();
+        else vs.sort(function (a, b) { return c[b] - c[a]; });   // stable: ties stay A-Z
+        S.opts[k] = vs.map(function (v) { return { v: v, l: v, n: c[v] }; });
       });
     }
-    return S.opts[key].map(function (o) {
-      return '<option value="' + esc(o.v) + '"' + (S.f[key] === o.v ? " selected" : "") + ">"
-        + esc(o.v) + " · " + RS.fmtN(o.n) + "</option>";
-    }).join("");
+    return S.opts[key];
   }
+
+  var TAGGED = [{ v: "yes", l: "Tagged only" }, { v: "no", l: "Untagged only" }];
+  var LEAD = [{ v: "yes", l: "Matched a lead" }, { v: "no", l: "No lead found" }];
 
   /* one row per campaign × source × medium, over TAGGED submissions only */
   function campaignRows(view) {
@@ -210,28 +226,16 @@
 
       + '<div class="rs-kpis" id="wfuKpis"></div>'
 
-      + '<div class="rs-bar">'
+      + '<div class="rs-bar" id="wfuBar">'
       + '<div class="rs-seg" id="wfuSeg">'
       + VIEWS.map(function (v) {
           return "<button" + (S.view === v[0] ? ' class="on"' : "") + ' data-v="'
             + v[0] + '">' + esc(v[1]) + "</button>";
         }).join("")
       + "</div>"
-      + FILTERS.map(function (f) {
-          return '<label class="rs-fld"><span>' + esc(f[1]) + "</span>"
-            + '<select class="rs-sel" data-k="' + esc(f[0]) + '"><option value="">All</option>'
-            + optionHtml(f[0]) + "</select></label>";
-        }).join("")
-      + '<label class="rs-fld"><span>Tagged link</span><select class="rs-sel" data-k="_tagged">'
-      + ['<option value="">All</option>',
-         '<option value="yes"' + (S.f._tagged === "yes" ? " selected" : "") + ">Tagged only</option>",
-         '<option value="no"' + (S.f._tagged === "no" ? " selected" : "") + ">Untagged only</option>"].join("")
-      + "</select></label>"
-      + '<label class="rs-fld"><span>Became a lead</span><select class="rs-sel" data-k="_lead">'
-      + ['<option value="">All</option>',
-         '<option value="yes"' + (S.f._lead === "yes" ? " selected" : "") + ">Matched a lead</option>",
-         '<option value="no"' + (S.f._lead === "no" ? " selected" : "") + ">No lead found</option>"].join("")
-      + "</select></label>"
+      /* localSelect mounts -- the kit slicer replaced the native <select>s; it carries its own
+         label, so there is no .rs-fld wrapper. The Filters button lands at the bar's right end. */
+      + '<div id="wfuMonth"></div><div id="wfuTagged"></div><div id="wfuLead"></div>'
       + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="wfuQ" '
       + 'placeholder="Customer, email, phone, campaign…" value="' + esc(S.f._q || "") + '"></label>'
       + '<span class="rs-spacer"></span>'
@@ -357,9 +361,31 @@
 
     if (window.RSC && RSC.fitScroller) RSC.fitScroller(host.querySelector("#wfuTbl"));
 
-    host.querySelectorAll(".rs-sel[data-k]").forEach(function (sel) {
-      sel.onchange = function () { S.f[sel.dataset.k] = sel.value; S.page = 0; paint(host); };
+    var setF = function (k) {
+      return function (v) { S.f[k] = v; S.page = 0; paint(host); };
+    };
+    RSC.localSelect(host.querySelector("#wfuMonth"), {
+      label: "Lead month", values: optionsFor("_month"), value: S.f._month || "",
+      allLabel: "All", onChange: setF("_month"),
     });
+    RSC.localSelect(host.querySelector("#wfuTagged"), {
+      label: "Tagged link", values: TAGGED, value: S.f._tagged || "",
+      allLabel: "All", onChange: setF("_tagged"),
+    });
+    RSC.localSelect(host.querySelector("#wfuLead"), {
+      label: "Became a lead", values: LEAD, value: S.f._lead || "",
+      allLabel: "All", onChange: setF("_lead"),
+    });
+    // the panel and its "Filtered by" line: picks apply when the panel closes, or on a chip's ×
+    var pfFields = PF_FIELDS.map(function (f) {
+      return { key: f[0], label: f[1], values: optionsFor(f[0]) };
+    });
+    var pfApply = function (next) { S.pf = next; S.page = 0; paint(host); };
+    var bar = host.querySelector("#wfuBar");
+    RSC.filterPanel(bar, { fields: pfFields, selected: S.pf, note: PF_NOTE, onApply: pfApply });
+    bar.parentNode.insertBefore(
+      RSC.filterChips(null, { fields: pfFields, selected: S.pf, onChange: pfApply }), bar.nextSibling);
+
     host.querySelectorAll("#wfuSeg button").forEach(function (b) {
       b.onclick = function () { S.view = b.dataset.v; S.page = 0; paint(host); };
     });
@@ -373,7 +399,8 @@
         if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
       }, 220);
     };
-    host.querySelector("#wfuClear").onclick = function () { S.f = {}; S.page = 0; S.opts = null; paint(host); };
+    // kept beside the chips' Clear all: this one also clears the bar's month, tag, lead and search
+    host.querySelector("#wfuClear").onclick = function () { S.f = {}; S.pf = {}; S.page = 0; paint(host); };
     host.querySelector("#wfuCsv").onclick = function () { csv(isCamp, view, camps); };
   }
 
