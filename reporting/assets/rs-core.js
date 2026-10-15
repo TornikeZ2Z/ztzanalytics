@@ -397,7 +397,7 @@ window.RS = (function () {
   let _fckSig = null, _fckSet = null;
   function _stateSig() {
     return JSON.stringify([state.dateFrom, state.dateTo, state.dayFrom, state.dayTo,
-      Object.entries(state.multi).map(([k, s]) => [k, s && s.size ? [...s].sort() : 0])]);
+      Object.entries(state.multi).map(([k, s]) => [k, s && s.size ? [...s].sort() : 0]), state.rowScopeKey || ""]);
   }
   function filteredClosingKeys() {
     const cl = _cache["closing"];
@@ -429,7 +429,14 @@ window.RS = (function () {
     const active = Object.entries(state.multi)
       .map(([k, set]) => ({ col: FIELDS[k] && FIELDS[k][ds], set }))
       .filter(f => f.col && f.set && f.set.size);
+    /* ROW SCOPE (2026-10-15): a page may set state.rowScope = { ds: row => bool } (and a
+       state.rowScopeKey naming it) for as long as it computes, then put it back -- the way the
+       Monthly Report scopes refunds to the jobs its State / Local-LD filter keeps, through each
+       refund's Request Joinkey, when refunds have no State column of their own. Nothing sets it
+       outside such a window, so every other page filters exactly as before. */
+    const scope = state.rowScope ? state.rowScope[ds] : null;
     return rows.filter(r => {
+      if (scope && !scope(r)) return false;
       let d = useDerived ? r._d : String(r[dcol] || "").slice(0, 10);
       if (state.dateFrom && (!d || d < state.dateFrom)) return false;
       if (state.dateTo && (!d || d > state.dateTo)) return false;

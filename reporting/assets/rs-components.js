@@ -255,6 +255,70 @@ window.RSC = (function () {
                       paint(); } };
   }
 
+  /* ------------- page-owned Filters button + side panel -------------
+     The shell's "Filters" button and right-hand panel (FILTERS v3) for a page that runs its
+     own bar and never sees the shell's (BARE_CHROME). His ask, 2026-10-15: "i tested this add
+     filters thing for some pages - and it is perfect ... apply it to montlhy report and other
+     reports too". Same look, same classes; the state is the CALLER's, never RS.state.multi,
+     because a page-owned pick written there would re-scope every other report.
+
+     fields: [{ key, label, values }] (values as localMulti takes them)
+     selected: { key: Set|array }  -- read once when the panel opens
+     onApply(next): called with { key: Set } when the panel closes AFTER a change. Picks apply
+       on close, not per tick: a page this size repaints whole, and a repaint per checkbox
+       would stall the panel under the reader's hand.
+     note: optional HTML under the filters (what the page cannot filter, and why).
+     Returns { button, open() }. One panel element is shared by every page that uses it. */
+  function filterPanel(host, { fields, selected, onApply, note, label }) {
+    const btn = el("button", "rs-fbtn");
+    btn.type = "button";
+    const sel = selected || {};
+    const on = (fields || []).reduce((a, f) => a + ((sel[f.key] && (sel[f.key].size || sel[f.key].length)) ? 1 : 0), 0);
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
+      + esc(label || "Filters") + '<span class="n' + (on ? "" : " hidden") + '">' + (on || "") + "</span>";
+    if (host) host.appendChild(btn);
+    const open = () => {
+      let scrim = document.getElementById("rsPfScrim"), panel = document.getElementById("rsPfPanel");
+      if (!panel) {
+        scrim = el("div", "rs-fscrim hidden"); scrim.id = "rsPfScrim";
+        panel = el("aside", "rs-fpanel hidden"); panel.id = "rsPfPanel";
+        panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); panel.setAttribute("aria-label", "Filters");
+        document.body.appendChild(scrim); document.body.appendChild(panel);
+        document.addEventListener("keydown", e => {
+          const p = document.getElementById("rsPfPanel");
+          if (e.key === "Escape" && p && !p.classList.contains("hidden") && p._close) p._close();
+        });
+      }
+      const next = {};
+      (fields || []).forEach(f => { next[f.key] = new Set(sel[f.key] ? [...sel[f.key]] : []); });
+      const sig = () => JSON.stringify((fields || []).map(f => [...next[f.key]].sort()));
+      const before = sig();
+      panel.innerHTML = '<div class="rs-fp-head"><h2>' + esc(label || "Filters") + '</h2>'
+        + '<button type="button" class="rs-fp-x" aria-label="Close filters">&times;</button></div>'
+        + '<div class="rs-fp-body"><div class="rs-fp-list"></div>'
+        + (note ? '<div class="rs-fp-note">' + note + "</div>" : "") + "</div>"
+        + '<div class="rs-fp-foot"><button type="button" class="rs-fp-clear">Clear all</button>'
+        + '<button type="button" class="rs-fp-done">Done</button></div>';
+      const list = panel.querySelector(".rs-fp-list");
+      const ctl = (fields || []).map(f => localMulti(list, { label: f.label, values: f.values, selected: next[f.key],
+        onChange: s => { next[f.key] = new Set(s); } }));
+      const close = () => {
+        panel.classList.add("hidden"); scrim.classList.add("hidden"); panel._close = null;
+        if (sig() !== before && onApply) onApply(next);
+      };
+      panel._close = close;
+      scrim.onclick = close;
+      panel.querySelector(".rs-fp-x").onclick = close;
+      panel.querySelector(".rs-fp-done").onclick = close;
+      panel.querySelector(".rs-fp-clear").onclick = () => {
+        (fields || []).forEach((f, i) => { next[f.key] = new Set(); ctl[i].set([]); });
+      };
+      panel.classList.remove("hidden"); scrim.classList.remove("hidden");
+    };
+    btn.onclick = e => { e.stopPropagation(); open(); };
+    return { button: btn, open };
+  }
+
   /* ------------- single-select slicer (always exactly one value chosen) ------------- */
   function singleSelect(host, { key, label, values, defaultValue, onChange }) {
     const items = values.map(v => typeof v === "object" ? v : { v: v, l: v });
@@ -1128,7 +1192,7 @@ window.RSC = (function () {
                     } });
   }
 
-  return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, dateBar, dateRange, datePresets,
+  return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, filterPanel, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg, choice: choiceDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter, printView };

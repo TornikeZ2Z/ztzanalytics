@@ -472,8 +472,7 @@
             + num(storWas) + " jobs in " + S.base + " and only " + num(stor) + " so far in "
             + S.year + ", while the storage register recorded a comparable number of "
             + "customers entering storage in both years — so the fall is the flag going "
-            + "unfilled, not demand falling. Storage Control is the report that owns this "
-            + "question.</div></div></div>";
+            + "unfilled, not demand falling.</div></div></div>";
 
           // ---- the panel nobody may skip
           html += '<div class="rlc-warn"><h3>Before any of this is published</h3>'

@@ -33,6 +33,74 @@ async function renderMonthly(host, MRCFG) {
              : ((RS.state.multi.company && RS.state.multi.company.size)
                 ? String([...RS.state.multi.company][0]) : MR_CO_DEFAULT);
     const coRow = r => r.Company == null || String(r.Company) === CO;
+    /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: State, Local / Long distance, Source in the same
+       right-hand Filters panel the other reports have). Main report only -- the themed dashboards
+       keep the shell's bar. They live in `st` (this browser session), never in RS.state.multi
+       (session-global: every other report reads it) and never in localStorage, so a report
+       opened tomorrow is the whole company again. withMonth folds them in beside the company.
+       Local / Long distance is closing's Moving Type: Local Moving vs Regular + Straight Moving,
+       the same split every Moving-Type breakdown on this page already shows (mtKey). */
+    const PF_SEL = (!MRCFG && st && st.filters) || {};
+    const PF_JOB = { "Local": ["Local Moving"], "Long distance": ["Regular Moving", "Straight Moving"] };
+    const PF = {};
+    if ((PF_SEL.state || []).length) PF.state = new Set(PF_SEL.state);
+    if ((PF_SEL.job || []).length && PF_SEL.job.length < Object.keys(PF_JOB).length)
+      PF.movingType = new Set([].concat(...PF_SEL.job.map(v => PF_JOB[v] || [])));
+    if ((PF_SEL.source || []).length) PF.source = new Set(PF_SEL.source);
+    const PF_ON = Object.keys(PF).length > 0;
+    // the same test RS.filtered applies (an empty value is "—"), for the rows this page folds by hand
+    const pfHas = (k, v) => !PF[k] || PF[k].has(v == null || v === "" ? "—" : String(v));
+    const pfJob = r => pfHas("state", r.State) && pfHas("movingType", r["Moving Type"]) && pfHas("source", r.Source);
+    /* WHAT A SECTION CANNOT FOLLOW (his call: show it unfiltered, with a note). A lead has no job
+       type until it closes; calls, reviews and the ad ledger have no state or job type; foreman
+       scores, crew headcount and storage are read whole. Listed per section, shown only for the
+       filters that are on. Claims and refunds are NOT here: they follow through their job. */
+    const PF_NAME = { state: "State", job: "Local / Long distance", source: "Source" };
+    const PF_ACT = ["state", "job", "source"].filter(k => PF[k === "job" ? "movingType" : k]);
+    const PF_FUEL = { f: ["state", "job", "source"], txt: "Gross profit here leaves out card fuel that is not tied to a job." };
+    const PF_GAPS = {
+      "Executive Summary": [{ f: ["job"], what: "leads, booking rate and confirmed jobs (a lead has no job type until it closes)" },
+        { f: ["state", "job"], what: "reviews written (a review has no state or job type)" }, PF_FUEL],
+      "Revenue & Growth": [{ f: ["job"], what: "the booking-rate and confirmed-jobs lines" }, PF_FUEL],
+      "Per-Job Profitability": [PF_FUEL],
+      "Profitability & P&L": [PF_FUEL],
+      "Repeat & Referral Business": [{ f: ["job"], what: "the booking-rate lines" }],
+      "Demand & Lead Funnel": [{ f: ["job"], what: "this section (a lead has no job type until it closes)" }],
+      "Leads Segments": [{ f: ["job"], what: "this section (a lead has no job type until it closes)" }],
+      "Sales Team Performance": [{ f: ["job"], what: "leads and booking rates" },
+        { f: ["state", "job", "source"], what: "the reps' answers" }],
+      "Marketing ROI": [{ f: ["state", "job"], what: "ad spend (the ledger has no state or job type, so each return per $1 here sets the filtered revenue against all of the spend)" },
+        { f: ["job", "source"], what: "the post card table" }],
+      "Lead Sources": [{ f: ["job"], what: "lead counts and booking rates" }],
+      "Phone & Response": [{ f: ["state", "job"], what: "this section (calls have no state or job type)" },
+        { f: ["source"], what: "RingCentral calls (the CallRail numbers do follow Source)" }],
+      "Operations & Crew (Foreman)": [{ f: ["state", "job", "source"], what: "foreman quality scores and crew headcount" }],
+      "Packing & Storage": [{ f: ["state", "job", "source"], what: "packing material cost and every storage card (packing written does follow)" }],
+      "Reviews Production": [{ f: ["state", "job"], what: "this section (reviews have no state or job type)" },
+        { f: ["source"], what: "the review footprint and goals (written and negative reviews do follow Source)" }],
+    };
+    // one sentence per set of filters missed: "Not filtered by State or Source: a; b."
+    const orList = a => a.length < 3 ? a.join(" or ") : a.slice(0, -1).join(", ") + " or " + a[a.length - 1];
+    const pfGapHtml = title => {
+      const by = new Map(), txt = [];
+      (PF_GAPS[title] || []).forEach(g => {
+        const hit = g.f.filter(k => PF_ACT.includes(k));
+        if (!hit.length) return;
+        if (g.txt) { txt.push(esc(g.txt)); return; }
+        const k = hit.join("|");
+        by.set(k, (by.get(k) || []).concat(g.what));
+      });
+      return [...by.entries()].map(([k, w]) =>
+        `<b>Not filtered by ${orList(k.split("|").map(x => PF_NAME[x]))}:</b> ${esc(w.join("; "))}.`).concat(txt).join(" ");
+    };
+    const PF_NOTE = "Refunds and claims follow each job's own state, type and source. A lead has no job type until it "
+      + "closes, and calls, reviews and ad spend have no state — a section that cannot follow a filter says so under its title.";
+    // how the cover (and so the PDF) names the filters: "State NJ, PA · Long distance jobs · Source Google"
+    const pfList = (a, n) => a.length <= n ? a.join(", ") : a.slice(0, n).join(", ") + " +" + (a.length - n) + " more";
+    const PF_PARTS = [];
+    if (PF.state) PF_PARTS.push("State " + pfList(PF_SEL.state, 4));
+    if (PF.movingType) PF_PARTS.push(PF_SEL.job.join(" + ") + " jobs");
+    if (PF.source) PF_PARTS.push("Source " + pfList(PF_SEL.source, 3));
     // the phone folds want an ALLOW-list, not a deny-list: a third company would sail past
     // "skip Tuji" and describe a business the rest of the page is not reporting on
     const rcCo = r => String(r.Company) === CO;
@@ -221,9 +289,20 @@ async function renderMonthly(host, MRCFG) {
     delete window.__mrFleetCache; delete window.__mrFleetCache2;
     delete window.__mrPackCache; delete window.__mrPackCache2;
     const DS = { closing, moveboard, storage, claims, refunds, card_expenses: cardEx, reviews_breakdown: reviews, negative_reviews: (negrev || []).map(r => Object.assign({}, r, { Company: /^tuji\s/i.test(String(r["Request Joinkey"] || "")) ? "Tuji" : (r.Company || MR_CO_DEFAULT) })), callrail, scorecard, review_counts: rcounts, review_goals: rgoals, helper_salaries: helperSalDs, sales_salaries: salesSalDs, headcount, fuel_card: fuelCard || [] };
-    const coJk = new Set((closing || []).filter(r => String(r.Company) === CO)
+    // + 2026-10-15: and only the jobs the page's own filters keep, so claims follow State, Local / Long
+    // distance and Source through the job they were filed on
+    const coJk = new Set((closing || []).filter(r => String(r.Company) === CO && pfJob(r))
       .map(r => String(r["Request Joinkey"] || "")).filter(Boolean));
     const jkCo = r => coJk.has(String(r["Request Joinkey"] || ""));
+    /* What RS.filtered cannot do from FIELDS alone, while the page's filters are on: a refund has
+       no State or Moving Type, so it follows them through its job (Request Joinkey -> the kept
+       closings); without this, one state's gross profit lost the whole company's refunds. Card
+       fuel that matches no job belongs to no state, type or source, so it is left out (the
+       sections that show gross profit say so). Set and put back by withMonth. */
+    const PF_SCOPE = !PF_ON ? null : Object.assign(
+      (PF.state || PF.movingType) ? { refunds: r => coJk.has(String(r["Request Joinkey"] || "")) } : {},
+      { fuel_card: r => !!r["Unique Key"] });
+    const PF_SCOPE_KEY = !PF_ON ? "" : "mr:" + CO + ":" + JSON.stringify(Object.keys(PF).sort().map(k => [k, [...PF[k]].sort()]));
 
     const latest = closing.reduce((a, r) => (coRow(r) && r._d && r._d > a ? r._d : a), "");
     if (!MRCFG && !st.company) {
@@ -279,7 +358,7 @@ async function renderMonthly(host, MRCFG) {
     // (y, m) names the LAST month of the window; the window reaches SP - 1 months back from it
     function rangeFor(y, m) { const [fy, fm] = shiftYM(y, m, -(SP - 1)), last = new Date(y, m, 0).getDate(); return [`${fy}-${String(fm).padStart(2, "0")}-01`, `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`]; }
     function withMonth(y, m, fn) {
-      const S = RS.state, savedMulti = S.multi;
+      const S = RS.state, savedMulti = S.multi, savedScope = S.rowScope, savedScopeKey = S.rowScopeKey;
       const sv = { f: S.dateFrom, t: S.dateTo, df: S.dayFrom, dt: S.dayTo };
       const [a, b] = rangeFor(y, m); S.dateFrom = a; S.dateTo = b; S.dayFrom = S.dayTo = null;
       // the resolved company flows into every RS.filtered call from here
@@ -289,7 +368,9 @@ async function renderMonthly(host, MRCFG) {
         // MAIN Monthly Report = MONTH-SELECTOR-ONLY (Tornike 2026-07-15): the whole filter bar is hidden
         // on this page, so ignore EVERY global slicer except Company. A Source/Foreman/State/Moving-Type
         // value left set on another page can no longer silently filter the report. The page owns time.
-        S.multi = { company: coSet };
+        // 2026-10-15: plus the page's OWN filters (PF), which the reader sets on this page's panel.
+        S.multi = Object.assign({ company: coSet }, PF);
+        S.rowScope = PF_SCOPE; S.rowScopeKey = PF_SCOPE_KEY;
       } else {
         // lite themed dashboards keep their OWN visible filter bar → only neutralize the page-owned time
         // slicers (Year/Month, which would else intersect the page's Month picker — the C31 zero-rows trap).
@@ -297,7 +378,7 @@ async function renderMonthly(host, MRCFG) {
       }
       try { return fn(); } finally {
         S.dateFrom = sv.f; S.dateTo = sv.t; S.dayFrom = sv.df; S.dayTo = sv.dt;
-        S.multi = savedMulti;
+        S.multi = savedMulti; S.rowScope = savedScope; S.rowScopeKey = savedScopeKey;
       }
     }
     // Month-scalar memo (perf): valueFor is called hundreds of times per render and its
@@ -310,7 +391,7 @@ async function renderMonthly(host, MRCFG) {
     const memoSerial = !MRCFG
       // must be CO, not the raw slicer: valueFor's own key has no company component, so a
       // serial that misses a company switch serves last company's scalars under this one's header
-      ? "mr-main:" + CO
+      ? "mr-main:" + CO + (PF_ON ? "|" + JSON.stringify(Object.keys(PF).sort().map(k => [k, [...PF[k]].sort()])) : "")
       : JSON.stringify(Object.entries(RS.state.multi)
           .filter(([k, s]) => k !== "year" && k !== "month" && s && s.size)
           .map(([k, s]) => [k, [...s].sort()]).sort());
@@ -614,6 +695,13 @@ async function renderMonthly(host, MRCFG) {
          the toc wins on DOM order, so an open Month/Year/Company popover slid UNDER the section
          bar. Lift only these popovers above it. */
       .mrx-cvpick .rs-slicer-pop{z-index:70}
+      /* the page's own filters: what is on (cover, so the PDF says it too) and what a section can't follow */
+      .mrx-cvfilt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:${DK_TXT}}
+      .mrx-cvfilt b{color:#fff}
+      .mrx-cvclear{background:transparent;color:${DK_TXT};border:1px solid ${DK_LINE};border-radius:8px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+      .mrx-nf{margin:0 0 12px;padding:8px 12px;border-radius:9px;background:${WARN_BG};border:1px solid ${WARN_BD};color:${WARN};font-size:12.5px;line-height:1.45}
+      .mrx-nf b{color:${INK};font-weight:700}
+      .mrx-sec.collapsed .mrx-nf{display:none}
       .mrx-lite-h{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid ${LINE};border-left:5px solid ${LIME};border-radius:12px;padding:13px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(14,22,33,.05)}
       .mrx-lite-tt{font-size:20px;font-weight:800;letter-spacing:-.4px;color:${INK}}
       .mrx-lite-tt b{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${LIMED}}
@@ -795,6 +883,8 @@ async function renderMonthly(host, MRCFG) {
         `.mrx-print2:hover{color:#0F172A;border-color:#94A3B8;background:#F8FAFC}`,
         `.mrx-cvpick .rs-slicer-btn .val{color:#0F172A}`,
         `.mrx-cvpick .rs-slicer-btn .chev{color:#64748B}`,
+        `.mrx-cvfilt{color:#64748B}`, `.mrx-cvfilt b{color:#0F172A}`,
+        `.mrx-cvclear{background:#FFFFFF;color:#0F172A;border-color:#CBD5E1}`,
         `.mrx-lite-h{border-left:1px solid #E2E8F0;border-radius:10px;box-shadow:none}`,
         `.mrx-lite-tt{font-weight:700}`,
         `.mrx-lite-tt b{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
@@ -985,6 +1075,8 @@ async function renderMonthly(host, MRCFG) {
         <span class="mrx-sec-tt"><span class="mrx-sec-t">${esc(title)}</span><span class="mrx-sec-s">${esc(sub || "")}</span></span>
         <span class="mrx-code">SEC ${n}</span><span class="mrx-caret">▼</span>
       </div><div class="mrx-rule"><i></i></div>`;
+      const gap = PF_ON ? pfGapHtml(title) : "";
+      if (gap) { const nf = document.createElement("div"); nf.className = "mrx-nf"; nf.innerHTML = gap; wrap.appendChild(nf); }
       const grid = document.createElement("div"); grid.className = "mrx-grid" + (klass ? " " + klass : ""); wrap.appendChild(grid);
       wrap.querySelector(".mrx-sec-h").addEventListener("click", () => {
         wrap.classList.toggle("collapsed");
@@ -1501,8 +1593,11 @@ async function renderMonthly(host, MRCFG) {
           <div id="mrMonth" class="mrx-ctl" title="Last month the report covers"></div>
           <div id="mrYear" class="mrx-ctl"></div>
           <div id="mrCo" class="mrx-ctl" title="Which company this report covers"></div>
+          <div id="mrFilt" class="mrx-ctl" title="State, Local / Long distance and Source"></div>
         </div>
-        <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>${orphanNote}`;
+        <div class="mrx-cvsub">${esc(freshness)} · ${esc(CO)} only</div>${PF_ON
+          ? `<div class="mrx-cvfilt"><span>Filtered: <b>${esc(PF_PARTS.join(" · "))}</b></span>`
+            + `<button type="button" class="mrx-ctl mrx-cvclear" id="mrFiltClear">Clear filters</button></div>` : ""}${orphanNote}`;
       root.appendChild(cover);
       // The pick lives on the PAGE, not in RS.state.multi: that object is session-global and read
       // by every other report, so writing it here would silently re-scope pages the user cannot
@@ -1517,6 +1612,31 @@ async function renderMonthly(host, MRCFG) {
           reRender();
         },
       });
+      // the page's own Filters panel (same look as the shell's); picks apply when it closes
+      const pfVals = cols => {
+        const g = {};
+        cols.forEach(([rows, col]) => (rows || []).forEach(r => {
+          if (!coRow(r)) return;
+          const v = r[col]; if (v == null || v === "") return;
+          g[v] = (g[v] || 0) + 1;
+        }));
+        return Object.entries(g).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ v, l: v, n }));
+      };
+      RSC.filterPanel(cover.querySelector("#mrFilt"), {
+        fields: [
+          { key: "state", label: "State", values: pfVals([[closing, "State"], [moveboard, "State"]]) },
+          { key: "job", label: "Local / Long distance", values: Object.keys(PF_JOB) },
+          { key: "source", label: "Source", values: pfVals([[closing, "Source"], [moveboard, "Source"]]) },
+        ],
+        selected: { state: PF_SEL.state || [], job: PF_SEL.job || [], source: PF_SEL.source || [] },
+        note: PF_NOTE,
+        onApply: next => {
+          st.filters = { state: [...next.state], job: [...next.job], source: [...next.source] };
+          reRender();
+        },
+      });
+      const pfClear = cover.querySelector("#mrFiltClear");
+      if (pfClear) pfClear.onclick = () => { st.filters = {}; reRender(); };
     }
 
     // completeness banner — closings awaiting return (blank Net Cash), with an expandable job list
@@ -2426,7 +2546,8 @@ async function renderMonthly(host, MRCFG) {
       // ===== POST CARDS ON USAGE (2026-09-16) =====
       // the ad ledger books the vendor when PAID; this reads the cards MAILED in the period (typed on Post Card
       // Expenditure) against the cumulative unit cost, and the leads / jobs / revenue with a Post Card source
-      if ((pcm || []).length) {
+      const pcmS = (pcm || []).filter(r => pfHas("state", r.State));   // a State filter keeps its states
+      if (pcmS.length) {
         const inP = r => spanYMs.includes(String(r.Month));
         const lyYMs = spanYMs.map(ym => (+ym.slice(0, 4) - 1) + ym.slice(4));
         // only months WITH a mailed record count toward the return; uncosted months are named beside the card
@@ -2437,13 +2558,13 @@ async function renderMonthly(host, MRCFG) {
             a.mailed += c; if (k == null) a.unknown = true; else a.cogs += k || 0;
             a.leads += num(r.Leads); a.booked += num(r.Booked); a.jobs += num(r.Jobs); a.rev += num(r.Revenue); });
           a.cost = a.unknown || !a.mailed ? null : a.cogs; return a; };
-        const cur = agg(pcm.filter(inP)), ly = agg(pcm.filter(r => lyYMs.includes(String(r.Month))));
-        const byS = new Map(); pcm.filter(inP).forEach(r => { const k = r.State || "—"; byS.set(k, (byS.get(k) || []).concat(r)); });
+        const cur = agg(pcmS.filter(inP)), ly = agg(pcmS.filter(r => lyYMs.includes(String(r.Month))));
+        const byS = new Map(); pcmS.filter(inP).forEach(r => { const k = r.State || "—"; byS.set(k, (byS.get(k) || []).concat(r)); });
         const sts = [...byS.entries()].map(([k, rs]) => [k, agg(rs)]).filter(([, a]) => a.mailed || a.rev || a.lost).sort((a, b) => b[1].rev - a[1].rev);
         const ln = (name, a, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${name}</td><td>${fmtN(a.mailed)}</td><td>${a.cost != null ? money(a.cost) : "—"}</td><td>${fmtN(a.leads)}</td><td>${a.mailed ? (a.leads / a.mailed * 1000).toFixed(2) : "—"}</td><td>${a.cost > 0 && a.leads ? money(a.cost / a.leads) : "—"}</td><td>${fmtN(a.jobs)}</td><td>${money(a.rev)}</td><td>${a.cost > 0 ? "$" + (a.rev / a.cost).toFixed(1) : "—"}</td><td>${a.lost ? fmtN(a.lost) + (a.lostCost ? ` <span class="dim">${money(a.lostCost)}</span>` : "") : "—"}</td></tr>`;
         tableCard(g, "Post cards — mailed, cost and return", `${spanLbl(curY, mo, true)} · by the state on the lead`,
           `<table class="mrx-tbl"><thead><tr><th>State</th><th>Mailed</th><th>Cost of mailed</th><th>Leads</th><th>per 1,000</th><th>$ / lead</th><th>Jobs</th><th>Revenue</th><th>Per $1</th><th>Lost</th></tr></thead><tbody>` +
-          sts.map(([k, a]) => ln(esc(k), a)).join("") + ln("All states", cur, "tot") + ln(`Same ${SPAN === 1 ? "month" : "months"} last year`, ly) + `</tbody></table>`,
+          sts.map(([k, a]) => ln(esc(k), a)).join("") + ln(PF.state ? "These states" : "All states", cur, "tot") + ln(`Same ${SPAN === 1 ? "month" : "months"} last year`, ly) + `</tbody></table>`,
           { headVal: fmtN(cur.mailed) + " cards", note: (cur.open ? "No mailed record for this period in " + cur.open + " state-month" + (cur.open > 1 ? "s" : "") + " that still had postcard leads or jobs (" + money(cur.revOpen) + " of revenue) — those are left out of the ratios; fill the grid on Post Card Expenditure and they count. " : "") + (cur.mailed && cur.cost == null
               ? "The cost of the cards mailed is not known yet: a purchase covering these months has no quantity typed on Post Card Expenditure. Leads, jobs and revenue are complete."
               : "Cards mailed per state and month are typed on Post Card Expenditure (Financial); cost of mailed = cards × the cumulative unit cost of the purchases (paid ÷ cards bought). The ad-spend cards above book the vendor when paid; this one books the cards when mailed.") });
