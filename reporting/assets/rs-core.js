@@ -1098,9 +1098,59 @@ window.RS = (function () {
   };
   const isV2 = () => document.body.classList.contains("v2");
 
+  /* SALES TEAM ROSTER (2026-10-16) -- who is on the sales team, as Ruso keeps it on
+     Sales > Sales team (bridge /api/_salesteam, table sales_rep_roster). A rep she switches
+     off is a FORMER rep: report pages group them under one collapsed "Former reps" line at the
+     bottom of a rep table, while their numbers still count in every total. Test / system
+     accounts (TEST TEST, Yelp Team ...) are their own set.
+
+     RS.salesTeam() -> Promise of { active, former, test: Sets of names exactly as the roster
+     spells them, rows, can_edit, ok }. Fetched once per page load and shared; it NEVER throws
+     -- signed out, an old bridge, a missing table or a network error all resolve to empty
+     sets, so a report renders exactly as it did before the roster existed.
+     RS.isFormerRep(name) answers from the last loaded result (false until one has loaded, or
+     for a name the roster has never seen). Names match the way the database matches them:
+     case, accents and extra spaces do not matter.
+     RS.salesTeam.invalidate() drops the shared copy; the Sales team page calls it after a
+     save so the next reader in this tab sees the switch. */
+  const _repKey = n => String(n == null ? "" : n).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ").trim().toLowerCase();
+  let _stPromise = null, _stLast = null;
+  function _stEmpty() {
+    return { active: new Set(), former: new Set(), test: new Set(), rows: [], can_edit: false,
+      ok: false, _former: new Set() };
+  }
+  function salesTeam() {
+    if (_stPromise) return _stPromise;
+    _stPromise = (async () => {
+      const out = _stEmpty();
+      try {
+        const tok = window.ZTZ && ZTZ.getToken && ZTZ.getToken();
+        if (!tok || !ZTZ.API) return out;
+        const r = await fetch(ZTZ.API + "/api/_salesteam", { headers: { Authorization: "Bearer " + tok } });
+        if (!r.ok) return out;
+        const j = await r.json();
+        (j && Array.isArray(j.rows) ? j.rows : []).forEach(x => {
+          if (!x || !x.rep) return;
+          out.rows.push(x);
+          if (String(x.kind || "rep") !== "rep") out.test.add(x.rep);
+          else if (+x.active === 1) out.active.add(x.rep);
+          else { out.former.add(x.rep); out._former.add(_repKey(x.rep)); }
+        });
+        out.can_edit = !!(j && j.can_edit);
+        out.ok = true;
+      } catch (e) { /* never break a report over the roster */ }
+      return out;
+    })().then(v => { _stLast = v; return v; });
+    return _stPromise;
+  }
+  salesTeam.invalidate = () => { _stPromise = null; };
+  const isFormerRep = name => !!(_stLast && _stLast._former.has(_repKey(name)));
+
   return { DATASETS, FIELDS, state, load, filtered, monthName, V2, isV2, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
-           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, sizeParts };
+           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, sizeParts,
+           salesTeam, isFormerRep };
 })();

@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="9b080882e61f3acfc1d2628e7c7cd0f62982bc27">
+<meta name="ztz-ref" content="b628a7f8eef29f82ce3ea9512d02a4bd4739af89">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -184,7 +184,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 </div>
 
 <script src="assets/portal.js?v=12"></script>
-<script src="assets/rs-core.js?v=62"></script>
+<script src="assets/rs-core.js?v=63"></script>
 <script src="assets/rs-components.js?v=39"></script>
 <script>
 /* ---------------- page registry ---------------- */
@@ -266,6 +266,9 @@ const GROUP_OVERRIDE = {
   // a sales tool AND a support tool: the same transcripts answer "did we call them back"
   // and "what did we actually say to this customer" (his ask 2026-09-04)
   "conversations": ["sales", "customer-service"], "sales-comms": "sales", "sales-trackers": "sales", "estimate-accuracy": "sales",
+  // Sales team (2026-10-16): the roster Ruso switches reps on and off in. Id "sales-roster":
+  // "sales-team" is the RETIRED legacy page below, and pages/sales-team.js is Sales Person Analysis
+  "sales-roster": "sales",
   // Marketing
   "mkt-roi": "marketing", "mkt-sources": "marketing", "mkt-phone": "marketing",
   // Logistics
@@ -294,7 +297,7 @@ const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
   "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
-  "sales-command": 0.5, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "estimate-accuracy": 0.95, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
+  "sales-command": 0.5, "sales-roster": 0.55, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "estimate-accuracy": 0.95, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
@@ -336,6 +339,8 @@ const ICONS = {
   doc:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   spark:     '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   search:    '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
+  // 2026-10-16 for Sales team; Team Directory had asked for "users" all along and drew the doc fallback
+  users:     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
 };
 const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
 /* page id / planned title → icon key */
@@ -370,7 +375,7 @@ const PAGE_ICONS = {
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
-  "sales-command": "gauge", "sales-of-the-month": "star", "support-of-the-month": "shield", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "estimate-accuracy": "trend", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
+  "sales-command": "gauge", "sales-roster": "users", "sales-of-the-month": "star", "support-of-the-month": "shield", "conversations": "chat", "sales-comms": "user", "sales-trackers": "activity", "estimate-accuracy": "trend", "sales-funnel": "funnel", "sales-perf": "user", "sales-geo": "pin", "demand-analysis": "calendar",
   "mkt-roi": "trend", "mkt-sources": "compass", "mkt-phone": "phone",
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
@@ -887,6 +892,8 @@ const PAGE_DATASETS = {
   "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
   "sales-command": ["lead_journey"],
+  // [] on purpose: the roster comes live from /api/_salesteam, never RS.load, and has no date
+  "sales-roster": [],
   // [] on purpose: the month picker on the page owns the window, and the score is a
   // monthly whole -- a global date range that cut a month in half would silently
   // re-rank everybody against a partial pool.
@@ -1177,6 +1184,8 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   "organic-search",
   // Marketing Overview (2026-10-15): its source list has no date to slice
   "marketing-overview",
+  // Sales team (2026-10-16): a list of people and switches, nothing a slicer could act on
+  "sales-roster",
   // Salaries (2026-09-24) brings its own tabs, period, pay-period, company and person bar
   "salaries",
   // Financial Overview (2026-09-25) brings its own day picker and company
@@ -1295,6 +1304,7 @@ async function renderPage() {
    what the nav item is CALLED (same pattern as GROUP_OVERRIDE). */
 const NAV_TITLES = {
   "support-of-the-month": "Support of the Month",
+  "sales-roster": "Sales team",
   "things-to-do": "Things to do",
   "analysis-by-category": "Custom Breakdown",
   "insights": "Recommendations",
@@ -1403,6 +1413,7 @@ const SEARCH_ALIASES = {
   "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
   "support-of-the-month": "support of the month customer service claims owner case owner mariam avto nikoloz best support person monthly score award winner escalation days to status callback missed calls support line",
   "sales-command": "sales person analysis sales team command lead journey 360 explorer call history timeline salesperson rep profile lead file important",
+  "sales-roster": "sales team roster reps salespeople active inactive former reps switch off turn off left departed daily lead email recipients ruso manage team members",
   "conversations": "conversations transcripts call recording ringsense what was said customer chat sms text thread talk speech summary",
   "sales-comms": "sales communication analysis call quality coaching rubric checklist what was said discovery deposit close objection talk ratio rep performance ringsense",
   "sales-trackers": "sales trackers communication analysis call quality coaching rubric keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
@@ -1876,6 +1887,7 @@ const REPORT_LABELS = {
   "hr-responses": "Responses & statistics",
   "hr-directory": "Team Directory",
   // Sales
+  "sales-roster": "Sales team (who is active)",
   "conversations": "Conversations (call transcripts)",
   "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
@@ -1988,7 +2000,7 @@ const ACL_DEPTS = [
   // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
-  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
+  { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
@@ -2041,6 +2053,9 @@ registerPage({
         note: "Set the questions logistics scores foremen on, and how the 40 points are split." },
       { id: "sales-answers-manager", label: "Close rep answers",
         note: "Close or dismiss the reps' answers on Sales Team Command › Rep answers (the sales manager). Admins can always." },
+      // 2026-10-16: who is on the sales team is the sales manager's call, not the whole department's
+      { id: "sales-team-manager", label: "Manage sales team",
+        note: "Switch sales reps on and off on Sales › Sales team (who gets the daily lead emails, and who reports group under Former reps). Admins can always." },
       // the "meta-referrals" lone-grant tile left with its page (RETIRED 2026-08-19): the
       // grant bought only the upload UI, and a grantee would now land on Source Trace
       // holding no tables for it. Existing grants keep working at the API; none are offered.
@@ -2252,6 +2267,7 @@ registerPage({
 <script src="pages/data-quality.js?v=16"></script>
 <script src="pages/refresh-log.js?v=31"></script>
 <script src="pages/sales-team.js?v=59"></script>
+<script src="pages/sales-roster.js?v=1"></script>
 <script src="pages/sales-comms.js?v=7"></script>
 <script src="pages/sales-trackers.js?v=10"></script>
 <script src="pages/estimate-accuracy.js?v=10"></script>
