@@ -113,7 +113,9 @@
        the measured costs; storage need per zone and where its units sit */
     RS.DATASETS.base_fleet = { table: "mart_base_fleet",
       cols: ["Kind", "Day", "Base", "Owned", "Rental", "Trucks", "Rental USD", "Rental Days", "Owned Fixed USD", "Fleet Paid",
-             "Units Active", "Units Damaged", "Units Potential", "Damaged List"],
+             "Units Active", "Units Damaged", "Units Potential", "Damaged List",
+             // a Flex-E-Rent truck carries our own trucks' insurance and parking (2026-10-16)
+             "Insurance USD", "Parking USD", "Cost Months"],
       dateCols: {}, defaultDate: null };
     if (!RS.DATASETS.storage_plan) RS.DATASETS.storage_plan = { table: "mart_storage_plan",
       cols: ["Kind", "Day", "Month", "Zone", "Customer Our CF", "Customer Rented CF", "LD CF", "Customer Fees",
@@ -741,6 +743,12 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-fleetnote{margin:4px 0 10px;line-height:1.55}
 .ap3-fleetsens,.ap3-fleetin{font-size:12.5px;color:var(--muted)}
 .ap3-fin{font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;background:var(--panel);color:var(--ink)}
+.ap3-fleetin .rs-seg{vertical-align:middle}
+.ap3-fleetin .rs-seg button{font-size:12px;padding:3px 10px}
+.ap3-fleet details.ap3-fx{font-size:12px;color:var(--muted)}
+.ap3-fleet details.ap3-fx summary{cursor:pointer}
+.ap3-fleet details.ap3-fx div{margin-top:3px;line-height:1.5}
+.ap4-plantbl td small.ap4-fx{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
 .ap3-fleettot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:2px 0 6px}
 .ap3-step .trk button{font:inherit;font-weight:800;line-height:1;width:22px;height:22px;border-radius:6px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
 .ap3-step .trk button:hover{border-color:var(--brand-d);color:var(--brand-d)}
@@ -1839,6 +1847,9 @@ registerPage({
         trkOwnYear: null, trkRentDay: null, storeCF: 2000, storeSet: {},
         // his "be more realistic" (2026-10-07): a rental is a trip, owning is worth something
         trkTrip: 120, trkBenefit: 3000, trkMonthly: null,
+        // Flex-E-Rent beside Enterprise (2026-10-16; additive keys): 36 or 60 months, level or rising pay;
+        // miles a working day null = Enterprise's estimate over a 26-day month
+        flexTerm: 36, flexRising: false, flexMiles: null,
       }, saved);
       /* THE WHAT-IF'S OWN STATE. Every lever starts at "change nothing", so the pane opens showing
          the plan as it stands and every number he then sees is something he moved himself. */
@@ -2054,6 +2065,46 @@ registerPage({
       const tripCost = () => num(inputs.trkTrip);
       const ownBenefit = () => num(inputs.trkBenefit);
       const monthlyRate = () => num(inputs.trkMonthly) || num((FC.trucks || {}).enterprise_per_truck_month) || 3050;
+      /* ENTERPRISE'S FLEX-E-RENT, BESIDE ENTERPRISE (his ask 2026-10-16: "add it kinda everywhere - it
+         should be listed alongside enterprise"). The quote is RS.FLEX (rs-core.js) and is never copied
+         here. A Flex truck = its months of rent + the days it works x miles a working day x the per-mile
+         rate + the insurance and parking one of our own trucks carries (his call). Fuel is the same
+         whoever owns the truck, so it is left out. Priced by Truck Economics' rule (flexCost below), so
+         the two pages agree. Every Flex figure on this page is a comparison: no owned count, rental
+         price, pick or budget moves because of it. */
+      const FLX = RS.FLEX;
+      const flexTerm = () => +inputs.flexTerm === 60 ? 60 : 36;
+      const flexRising = () => !!inputs.flexRising;
+      // their miles-a-month estimate over a six-day working month (26 days), unless he types his own
+      const flexMiles = () => inputs.flexMiles == null || inputs.flexMiles === "" ? FLX.milesMonth / 26 : Math.max(0, num(inputs.flexMiles));
+      const flexMonth = () => FLX.month(flexTerm(), flexRising());
+      const flexPlan = () => (flexTerm() / 12) + "-year " + (flexRising() ? "rising" : "level");
+      /* insurance and parking a truck-year: the cost row's sums (mart_truck_cost, the window of Owned
+         Fixed USD) made a year and spread over the trucks we pay for -- Truck Economics' arithmetic.
+         Until the loader adds the columns, the figures the Flex-E-Rent analysis used, and the page says so. */
+      const FLEX_FIX = (() => { const C = FLEET.cost || {}, fp = num(C["Fleet Paid"]), mo = num(C["Cost Months"]) || 12;
+        const has = C["Insurance USD"] != null && C["Parking USD"] != null && fp > 0;
+        return { ins: has ? num(C["Insurance USD"]) / mo * 12 / fp : 14384, park: has ? num(C["Parking USD"]) / mo * 12 / fp : 2088, measured: has }; })();
+      const flexFixedYear = () => FLX.minMonths * flexMonth() + FLEX_FIX.ins + FLEX_FIX.park;
+      /* ONE TRUCK SLOT ON FLEX over `span` months, Truck Economics' flexCost: a lease a year, never less
+         than one (the minimum term). A slot needed in fewer months pays the minimum or is handed back
+         after them for the true-up, whichever rent is cheaper; insurance and parking run while it is
+         held, mileage only on the days it works. `say` is the line under the figure. */
+      function flexCost(days, used, span) {
+        const M = flexMonth(), leases = Math.max(1, span / 12), per = Math.min(12, used / leases);
+        const early = per < FLX.minMonths && per * M + FLX.trueUp < FLX.minMonths * M;
+        const held = early ? per : Math.max(FLX.minMonths, per);
+        const total = leases * (held * M + (early ? FLX.trueUp : 0)) + leases * held / 12 * (FLEX_FIX.ins + FLEX_FIX.park) +
+          days * flexMiles() * FLX.perMile;
+        const minimum = !early && per < FLX.minMonths, mo = Math.round(leases * held);
+        return { total, early, held: mo, leases, minimum,
+                 say: early ? mo + " mo + true-up" + (leases > 1 ? "s" : "") : mo + " mo" + (minimum ? " minimum" : "") };
+      }
+      /* A TRUCK NEEDED ONLY FOR THE SEASON: its months and days on Flex, and beside it what the 12-month
+         minimum would be, so the minimum is always on the screen */
+      const flexSeason = (months, days) => ({ pick: flexCost(days, months, 12), min12: flexCost(days, FLX.minMonths, 12), miles: days * flexMiles() });
+      const flexSeasonSay = f => money0(f.pick.total) + " a truck (" + f.pick.say + ")" +
+        (f.pick.early ? ", cheaper than its " + FLX.minMonths + "-month minimum (" + money0(f.min12.total) + ")" : "");
       /* WHAT ONE TRUCK "SLOT" COSTS TO RENT FOR A YEAR (his "be more realistic", 2026-10-07): slot k
          is the k-th truck a base has out. Month by month it is rented the cheaper way -- by the day
          ($/day x days + one collect-and-return trip per rental streak) or for the whole month (the
@@ -2068,7 +2119,9 @@ registerPage({
           const daily = o.days * rentDay() + o.runs * tripCost(), whole = monthlyRate() + tripCost();
           if (whole < daily) { usd += whole; monthsMonthly++; } else usd += daily;
           daysTot += o.days; runsTot += o.runs; });
-        return { usd, days: daysTot, runs: runsTot, monthsMonthly, ownNet: ownYear() - (benefit == null ? ownBenefit() : benefit) };
+        // `used`: the months the slot is needed at all -- what a Flex lease handed back early pays for
+        return { usd, days: daysTot, runs: runsTot, monthsMonthly, used: Object.values(months).filter(o => o.days).length,
+                 ownNet: ownYear() - (benefit == null ? ownBenefit() : benefit) };
       }
       /* one site: its daily need, the owned count, the rentals and the year's cost both ways */
       /* OWNED TRUCKS ARE HIS NUMBERS (2026-10-07): "1 truck on EACH state - 2 truck in total in CT
@@ -2084,7 +2137,8 @@ registerPage({
         const H = FLEET.hist[pool] || [];
         const peak = H.reduce((a, x) => Math.max(a, x.n), 0);
         const own0 = crews ? (ownFix != null ? ownFix : 1) : 0;
-        if (!crews || !peak) return { own: own0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - own0), cost: own0 * ownYear(), allRent: 0, slots: [] };
+        if (!crews || !peak) return { own: own0, std: 0, hi: crews || 0, rentStd: 0, rentHi: Math.max(0, (crews || 0) - own0), cost: own0 * ownYear(), allRent: 0, slots: [],
+                                      rentUsd: 0, rentFlex: 0, rentN: 0, flexWins: 0, allFlex: 0, costFlex: own0 * ownYear() };
         const need = H.map(x => ({ d: x.d, n: Math.round(x.n * crews / peak) }));
         const slots = [];
         for (let k = 1; k <= crews; k++) slots.push(Object.assign({ k }, slotRent(need, k, benefit)));
@@ -2095,8 +2149,13 @@ registerPage({
         const season = need.filter(x => { const m = +x.d.slice(5, 7); return m >= 5 && m <= 9 && x.n > 0; }).map(x => x.n).sort((a, b) => a - b);
         const std = season.length ? season[Math.floor(season.length / 2)] : 0;
         const rentUsd = slots.slice(own).reduce((a, s) => a + s.usd, 0);
+        // each slot on Flex-E-Rent over the year, beside its rental (a comparison: `cost` is unchanged)
+        slots.forEach(s => { s.fx = flexCost(s.days, s.used, 12); s.flex = s.fx.total; });
+        const rented = slots.slice(own), rentFlex = rented.reduce((a, s) => a + s.flex, 0);
         return { own, std, hi: crews, rentStd: Math.max(0, std - own), rentHi: Math.max(0, crews - own), slots,
-                 cost: own * ownYear() + rentUsd, allRent: slots.reduce((a, s) => a + s.usd, 0) };
+                 cost: own * ownYear() + rentUsd, allRent: slots.reduce((a, s) => a + s.usd, 0),
+                 rentUsd, rentFlex, rentN: rented.length, flexWins: rented.filter(s => s.flex < s.usd).length,
+                 allFlex: slots.reduce((a, s) => a + s.flex, 0), costFlex: own * ownYear() + rentFlex };
       }
       const ZONE_OF_GROUP = { NJ: "NJ", NY: "NJ", PA: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT", RI: "CT", DE: "DE" };
       const zoneOf = st => ZONE_OF_GROUP[st] || st;
@@ -2165,6 +2224,8 @@ registerPage({
           const ns = old ? null : (sites.find(s => s.ns) || {}).ns;
           return { g, sites, ownAt, own: sum("own"), std: sum("std"), hi: sum("hi"), rentStd: sum("rentStd"), rentHi: sum("rentHi"),
                    cost: sum("cost"), allRent: sum("allRent"), store: ns ? ns.store : storeLabel(g),
+                   rentUsd: sum("rentUsd"), rentFlex: sum("rentFlex"), rentN: sum("rentN"), flexWins: sum("flexWins"),
+                   allFlex: sum("allFlex"), costFlex: sum("costFlex"),
                    storeKey: ns ? (sites.find(s => s.ns) || {}).x.cand : g.base, cf: ns ? ns.cf : null,
                    zone: ns ? ns.zone : zoneOf(g.base), zoneHome: ns ? ns.home : true };
         });
@@ -2198,6 +2259,31 @@ registerPage({
       /* " · P+S · 3 own + 2–4 rent" -- the flag's and the card's one line */
       const fleetLine = (f, store) => !f ? "" : " · " + (store === "PS" ? "P+S" : "P") + " · " + fmtN(f.own) + " own" +
         (f.rentHi ? " + " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + " rent" : "");
+      /* a base's RENTED slots, each a year rented (the cheaper way, month by month) beside the same slot
+         on Flex-E-Rent and its basis, flagged where Flex is cheaper (2026-10-16):
+         "#4 150d $21,900 vs $43,100 (8 mo + true-up)" */
+      const flexSlotTxt = slots => (slots || []).filter(s => !s.owned).map(s => "#" + s.k + " " + fmtN(s.days) + "d " + money0(s.usd) + " vs " + money0(s.flex) +
+        " (" + s.fx.say + ")" + (s.flex < s.usd ? " <b>Flex cheaper</b>" : "")).join(" · ");
+      const flexSumTxt = f => "Rented slots a year: Enterprise <b>" + money0(f.rentUsd) + "</b> · Flex-E-Rent <b>" + money0(f.rentFlex) + "</b>" +
+        (f.flexWins ? " · <b>Flex cheaper on " + fmtN(f.flexWins) + " of " + fmtN(f.rentN) + "</b>" : "");
+      /* the plan table's "Trucks $/yr" cell, with the same trucks' year when each rented slot is on Flex */
+      const flexCell = f => f && f.rentN ? '<small class="ap4-fx">with Flex ' + money0(f.costFlex) + "</small>" : "";
+      /* the term / pay-plan switch on the Settings line: the kit's segmented control */
+      const flexSeg = opts => '<span class="rs-seg" role="group">' + opts.map(([k, l, on]) => '<button type="button" data-flex="' + k + '" class="' +
+        (on ? "on" : "") + '" aria-pressed="' + (on ? "true" : "false") + '">' + l + "</button>").join("") + "</span>";
+      /* how a Flex slot is priced, and the days a year it would have to work to beat renting by the day */
+      const flexNote = () => {
+        const net = rentDay() - flexMiles() * FLX.perMile;
+        const be = net > 0 ? flexFixedYear() / net : null;
+        return "<b>Flex-E-Rent</b> (Enterprise's long-term rental, quoted " + dayLabel(FLX.quoted) + ", expires " + dayLabel(FLX.expires) +
+          ") is listed beside renting and changes nothing above: a rented slot on Flex is leased at " + money0(flexMonth()) + " a month (" + flexPlan() +
+          " pay) and kept for the " + FLX.minMonths + "-month minimum, or handed back after the months it is needed for the " + money0(FLX.trueUp) +
+          " true-up, whichever is cheaper (the brackets say which) — plus " + money2(FLX.perMile) + " a mile at about " + r1(flexMiles()) +
+          " miles a working day, plus the " + money0(FLEX_FIX.ins) + " insurance and " + money0(FLEX_FIX.park) + " parking a year one of our own trucks carries, while it is held" +
+          (FLEX_FIX.measured ? "" : " (until the next data refresh)") + "; fuel is the same either way and left out. " +
+          (be != null ? "Against renting by the day it pays only for a slot that works more than about " + fmtN(be) + " days a year" +
+            (be > 365 ? " — more days than a year has" : "") + ". " : "");
+      };
       function planEnd() { PLAN = null; Object.keys(NB_CAP).forEach(k => delete NB_CAP[k]); }
       /* the plan's own places leave the candidate list only on Reset / Forecast: when another lever
          takes the plan over, "the bases stay" */
@@ -3095,12 +3181,20 @@ registerPage({
           }).join("") + "</div>" +
           '<div class="ap2-note" style="margin-top:10px">' + esc(R.vintage || "") + ". Licensing per state (a real gate on MD/VA/CT/MA expansion) is in the memo.</div>";
       }
+      /* Flex-E-Rent beside renting and buying (2026-10-16): a truck-year before mileage, at the page's settings */
+      function trucksFlexSay() {
+        return "<b>Flex-E-Rent</b>, Enterprise's long-term rental (quoted " + dayLabel(FLX.quoted) + ", expires " + dayLabel(FLX.expires) + "): a truck-year costs " +
+          money0(flexFixedYear()) + " before mileage — " + FLX.minMonths + " months at " + money0(flexMonth()) + " (" + flexPlan() +
+          " pay, its minimum term) and the " + money0(FLEX_FIX.ins) + " insurance and " + money0(FLEX_FIX.park) + " parking our own trucks carry" +
+          (FLEX_FIX.measured ? "" : " (until the next data refresh)") + " — plus " + money2(FLX.perMile) + " a mile. A comparison: the Map tab's Plan by base prices every rented truck slot both ways.";
+      }
       function trucksHtml() {
         const tc = model.truck_costs_by_year || {}; const t = R.trucks;
         return '<div class="rs-tablewrap"><table data-name="Trucks - rent vs buy" class="rs-table" style="max-width:560px"><thead><tr><th>Year</th><th class="num">Rental</th><th class="num">Financing</th><th class="num">Repair</th></tr></thead><tbody>' +
           Object.entries(tc).map(([y, b]) => '<tr><td class="strong">' + y + (y === String(new Date().getFullYear()) ? " (to date)" : "") + '</td><td class="num">' + money(b.rental) + '</td><td class="num">' + money(b.financing) + '</td><td class="num">' + money(b.repair) + "</td></tr>").join("") +
           "</tbody></table></div>" +
           '<div class="ap2-note" style="margin-top:10px">Owned fleet <b>' + fmtN((model.fleet || {}).owned_trucks) + "</b> · insurance <b>" + money((model.fleet || {}).insurance_yearly_total) + "/yr</b> · parking <b>" + money((model.fleet || {}).parking_monthly_total) + "/mo</b> — the whole vehicles register; the paid-for fleet and per-day economics live on Truck Economics.</div>" +
+          '<div class="ap2-note" id="apTrkFx" style="margin-top:6px">' + trucksFlexSay() + "</div>" +
           (t ? '<div class="ap2-callout"><b>The +2 answer, priced from live market research:</b> a used 26-ft box truck runs <b>' + money(t.used_low) + "–" + money(t.used_high) + "</b> (typical " + money(t.used_typical) + "; fleet sell-offs ~" + money(t.selloff_typical) + "). All-in, one more owned truck ≈ <b>$" + t.owned_truck_year_allin + "/yr</b>. Against a ~$140k/yr rental run-rate, <b>two owned trucks displace renting at better than 2:1</b>.<br><b>Spec:</b> " + esc(t.gvwr_note) + "<br><b>Live candidate:</b> " + esc(t.local_candidate) + ".</div>" : "");
       }
       function seasonHtml() {
@@ -3258,7 +3352,7 @@ registerPage({
             const FF = forecastFleet(N) || [];
             return '<table class="rs-table"><thead><tr><th>Base</th><th class="num">Foremen</th><th class="num">Own</th><th class="num">Rent std–busiest</th><th>Storage</th><th class="num">Trucks $/yr</th></tr></thead><tbody>' +
               FF.map(f => "<tr><td>" + esc(f.base) + (f.isNew ? " (new)" : "") + '</td><td class="num">' + fmtN(f.fm) + '</td><td class="num">' + fmtN(f.own) +
-                '</td><td class="num">' + (f.rentHi ? fmtN(f.rentStd) + "–" + fmtN(f.rentHi) : "—") + "</td><td>" + esc(STORE_TXT[f.store] || "") + '</td><td class="num">' + money0(f.cost) + "</td></tr>").join("") +
+                '</td><td class="num">' + (f.rentHi ? fmtN(f.rentStd) + "–" + fmtN(f.rentHi) : "—") + "</td><td>" + esc(STORE_TXT[f.store] || "") + '</td><td class="num">' + money0(f.cost) + flexCell(f) + "</td></tr>").join("") +
               "</tbody></table>" + fleetNote(FF);
           };
           const doc = document.createElement("div");
@@ -3601,6 +3695,13 @@ registerPage({
         rentWays.sort((a, b) => b.usd - a.usd);
         const rentPick = rentWays[0] || { k: "everyday", usd: 0, label: "", how: "" };
         const rentTotal = rentPick.usd;
+        /* FLEX-E-RENT, A FOURTH LINE BESIDE THE THREE (2026-10-16) and never in the pick above: the same
+           rented trucks on Flex for the season, each the cheaper of its 12-month minimum or the season's
+           months + the true-up, with mileage on every season day (the every-day line's truck-days) */
+        const flexS = flexSeason(core.length || 4, coreDays);
+        const rentFlex = { k: "flex", label: "Flex-E-Rent", usd: rentTrucks * flexS.pick.total, per: flexS,
+          how: fmtN(rentTrucks) + " trucks × " + flexSeasonSay(flexS) + "; at " + money0(flexMonth()) + " a month (" + flexPlan() + " pay), " +
+               fmtN(flexS.miles) + " miles a truck over the " + coreDays + " season days at " + money2(FLX.perMile) + ", and our own trucks' insurance and parking while it is held" };
         const jobsAll = rows.reduce((a, r) => a + r.jobs, 0);      // rent follows the work, state by state
         /* SALES PAY IS ALREADY INSIDE JOB EXPENSE -- SHOWN, NEVER TAKEN OFF TWICE (his call 2026-09-22).
            On 2026-09-20 it was added as its own line ("add it - yet explain that it includes sales
@@ -3637,7 +3738,7 @@ registerPage({
                       salesPay: rows.some(r => r.salesPay != null) ? sum("salesPay") : null, salesPct: SALES_PCT,
                       gross: rows.some(r => r.gross != null) ? sum("gross") : null };
         tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
-        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut, perBase };
+        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, rentFlex, nb: nbOut, perBase };
       }
       function nextHtml() {
         if (!FC.year) return '<div class="ap2-note">The forecast block is not in the model yet — it appears after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
@@ -3735,6 +3836,7 @@ registerPage({
         return '<div class="ap2-note" style="margin-bottom:8px">' +
           (N.rentPick && N.rentWays.length > 1 ? "<b>Truck rent</b> is priced three ways and the plan takes the dearest — " +
             N.rentWays.map((w, i) => (i ? "" : "<b>") + esc(w.label) + " " + money0(w.usd) + (i ? "" : "</b>")).join(" · ") +
+            (N.rentFlex && N.rentFlex.usd > 0 ? " · <i>Flex-E-Rent " + money0(N.rentFlex.usd) + "</i> (comparison only — not in the budget: " + N.rentFlex.how + ")" : "") +
             ". <b>Sales pay</b> (" + r1((N.tot.salesPct || 0) * 100) + "% of revenue, commission and bonus) is <b>already inside job expense</b> — the closing sheet’s Total Expense carries the salespeople’s salary lines — so it is shown as <i>of which</i> and never taken off twice. " : "") +
           "Revenue, job expense and truck rent come from the jobs forecast (same method, same dials). <b>Marketing</b> = every lead the jobs need × what a lead really cost last season, the whole advertising ledger with post cards inside it. <b>Post cards mailed there</b> is last season's actual mailing, shown beside the budget and not taken out of it. Net = gross − marketing, before overhead. " + go("apMethod", "How this is calculated") + "</div>" +
           '<table data-name="The season in money" class="rs-table ap2-next"><thead><tr>' + th("State", "") + th("Jobs") + th("Revenue") + th("Job expense") + th("Truck rent") + th('Sales pay<small title="commission and bonus, about 7.5% of revenue — already inside job expense (the closing sheet’s Total Expense carries the salespeople’s salary lines), so it is shown here and never taken off again"> of which, inside expense</small>') + th("Gross") + th("Leads needed") + th("$ / lead") + th("Marketing") + th('Post cards mailed there<small> 2026 actual</small>') + th("Net") + "</tr></thead><tbody>" +
@@ -4431,7 +4533,9 @@ registerPage({
                N.rentTrucks
                  ? "Rentals are what the peak needs minus what we own: " + fmtN(N.tot.trucks) +
                    " needed against " + fmtN(N.owned) + " owned. Priced the dearest of the three " +
-                   "quotes we hold, over " + N.coreDays + " season days."
+                   "quotes we hold, over " + N.coreDays + " season days." +
+                   (N.rentFlex && N.rentFlex.usd > 0 ? " On Enterprise's Flex-E-Rent the same trucks would cost " + money0(N.rentFlex.usd) +
+                     " (comparison only — not in the budget)." : "")
                  : "We own more trucks than the peak needs, so nothing is rented.") +
           chip("salespeople at peak", fmtN(N.sales.peak), esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each",
                "The desk peaks a month ahead of the crews, because leads land about a month before the move." +
@@ -4618,6 +4722,9 @@ registerPage({
         SURGE_CAP: 55,            // jobs lost to capacity in the worst measured season (2026)
         TRUCK_SEASON: 13400,      // one more crew, one season: 4.39 Enterprise cycles x $3,050
       };
+      /* THE SAME CREW'S TRUCK ON FLEX-E-RENT (2026-10-16), beside TRUCK_SEASON and never instead of it:
+         its 12-month minimum, or the season's months + the true-up -- the cheaper, named (flexSeason) */
+      const flexCrewSay = N => "on Flex-E-Rent " + flexSeasonSay(flexSeason((N && N.core.length) || 4, (N && N.coreDays) || 0));
       /* LEADS PER JOB FOR A CAPTURE STATE (2026-09-24): the state's OWN last-season ratio whenever it
          ran a season of jobs (10+), not only past the plan's 40-job gate. Maryland ran 23 jobs on 192
          Apr-Jul leads -- 8.3 a job, and the Elkridge listing's leads book about 10% -- so pricing its
@@ -4750,7 +4857,7 @@ registerPage({
           const cost = cr * SCN.TRUCK_SEASON;
           dRent += cost;
           moves.push({ k: "crews", l: (cr > 0 ? "+" : "") + cr + " crew" + (Math.abs(cr) === 1 ? "" : "s") + " for the season",
-            why: "no jobs attached: crews did not cap the season. " + money0(SCN.TRUCK_SEASON) + " of truck each",
+            why: "no jobs attached: crews did not cap the season. " + money0(SCN.TRUCK_SEASON) + " of truck each (" + flexCrewSay(N) + ", comparison only)",
             jobs: 0, usd: -cost });
         }
 
@@ -5239,7 +5346,7 @@ registerPage({
               fld("elast", "Jobs response to it", "measured \u22120.06, i.e. nil. 1.0 would mean 10% more money = 10% more jobs", 'step="0.1"') +
               fld("surgeDays", "Peak days to surge", "about 15 month-end dates are where work was turned away", 'min="0" step="1"') +
               fld("surgeCrews", "Extra crews on those days", "capped at " + SCN.SURGE_CAP + " jobs a season", 'min="0" step="1"') +
-              fld("crews", "Crews for the whole season", money0(SCN.TRUCK_SEASON) + " of truck each, no jobs attached", 'step="1"') + "</div>" +
+              fld("crews", "Crews for the whole season", money0(SCN.TRUCK_SEASON) + " of truck each, no jobs attached · " + flexCrewSay(S.N) + ", comparison only", 'step="1"') + "</div>" +
           "</div>" +
           '<div class="ap2-scnbar"><button type="button" class="rs-btn" id="apScnReset">Reset every lever</button>' +
             '<input class="ap2-in" id="apScnName" placeholder="name this scenario" style="width:170px">' +
@@ -5266,7 +5373,8 @@ registerPage({
           note("Revenue and job expense follow the jobs at the plan\u2019s own average, so a scenario cannot quietly change what a job is worth. " +
                "Driving is priced at <b>" + SCN.ROAD_MI_USD + " a road mile</b> (fuel at 7 mpg on the WEX price, tolls, +10%) over <b>" + SCN.ROAD_PER_STRAIGHT +
                "</b> road miles per straight-line mile, which is how crews are actually dispatched today; crew pay does not move with distance until the travel passes about 120 road miles. " +
-               "A crew costs " + money0(SCN.TRUCK_SEASON) + " of truck for the season. Nothing here is saved to the warehouse.");
+               "A crew costs " + money0(SCN.TRUCK_SEASON) + " of truck for the season, rented from Enterprise; " + flexCrewSay(S.N) +
+               " — listed beside it, never used (" + money0(flexMonth()) + " a month on " + flexPlan() + " pay, about " + r1(flexMiles()) + " miles a working day, our own trucks' insurance and parking). Nothing here is saved to the warehouse.");
       }
 
       function repaintScn() {
@@ -5455,7 +5563,8 @@ registerPage({
           return '<div class="ap3-fleet"><div class="r st">' +
             '<button type="button" class="ap3-store ' + f.store.toLowerCase() + '" data-store="' + esc(f.base) + '" title="' +
               (f.isNew ? "its jobs need ~" + fmtN(Math.round(f.cf || 0)) + " CF of storage on a typical day · " : "") + 'Click to switch Parking / Parking + Storage">' + STORE_TXT[f.store] + "</button>" +
-            "<span title=\"what the year's truck-days say to own, and to rent on a standard season day – the busiest (see All bases below)\">suggested <b>" + fmtN(f.own) + " own</b> · rent " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</span></div></div>"; };
+            "<span title=\"what the year's truck-days say to own, and to rent on a standard season day – the busiest (see All bases below)\">suggested <b>" + fmtN(f.own) + " own</b> · rent " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</span></div>" +
+            (f.rentN ? '<details class="ap3-fx"><summary>' + flexSumTxt(f) + "</summary><div>" + flexSlotTxt(f.slots) + "</div></details>" : "") + "</div>"; };
         const step = (kind, pool, label, shown, plan, cls, extra) => {
           const drv = SC.kind === kind && (kind !== "fm" || SC.pool === pool);
           return '<div class="ap3-step' + (drv ? " drv" : "") + (cls ? " " + cls : "") + '"><span>' + label + (drv ? "<em>you set this</em>" : "") + "</span>" +
@@ -5524,13 +5633,20 @@ registerPage({
           " trucks today (" + fmtN(act) + " active + " + fmtN(dmg) + " marked damaged" + (C["Damaged List"] ? ": " + esc(C["Damaged List"]) : "") + ")" +
           (paid ? " → " + (diff > 0 ? "<b>add " + fmtN(diff) + "</b>" : diff < 0 ? "<b>" + fmtN(-diff) + " fewer</b>" : "<b>the same number</b>") : "") +
           "</span><span>rent " + fmtN(T("rentStd")) + " on a standard day – " + fmtN(T("rentHi")) + " on the busiest</span><span><b>" + money0(T("cost")) +
-          "/yr</b> own + rent · all rented " + money0(T("allRent")) + "</span></div>" +
+          "/yr</b> own + rent · all rented " + money0(T("allRent")) + " · all on Flex-E-Rent " + money0(T("allFlex")) + "</span>" +
+          /* the rented slots both ways, every base together (a comparison: the year above is unchanged) */
+          (T("rentN") ? "<span>" + flexSumTxt({ rentUsd: T("rentUsd"), rentFlex: T("rentFlex"), flexWins: T("flexWins"), rentN: T("rentN") }) +
+            (T("flexWins") ? "" : " · Flex is cheaper on none of the " + fmtN(T("rentN"))) + "</span>" : "") + "</div>" +
           '<div class="ap3-fleettot ap3-fleetin"><b>Settings</b><span>rental trip $' + inp("trkTrip", tripCost()) + " per rental</span><span>monthly rental $" +
-          inp("trkMonthly", monthlyRate(), 80) + "</span></div>" +
+          inp("trkMonthly", monthlyRate(), 80) + "</span>" +
+          /* Flex-E-Rent's term and pay plan, kit controls; saved with the other inputs (defaults 3 years, level) */
+          "<span>Flex-E-Rent " + flexSeg([["t36", "3 years", flexTerm() === 36], ["t60", "5 years", flexTerm() === 60]]) + " " +
+            flexSeg([["level", "level", !flexRising()], ["rising", "rising", flexRising()]]) + "</span><span>miles a working day " + inp("flexMiles", Math.round(flexMiles() * 10) / 10) + "</span></div>" +
           '<div class="ap2-note ap3-fleetnote"><b>Owned trucks are set per base:</b> one at every base, new ones included; two at the CT main base; three each at the NJ and PA main bases. ' +
           "Every other truck a day needs is rented. An owned truck costs " + money0(ownYear()) + " a year (what we paid). " +
           "Renting is priced month by month the cheaper way: " + money0(rentDay()) + " a day (what we paid) plus " + money0(tripCost()) +
           " for every collect-and-return trip (<b>an assumption</b>), or " + money0(monthlyRate()) + " for the whole month. " +
+          flexNote() +
           "The #1 · #2 · #3 line is how many days each truck at that base worked over the last year, scaled to the plan's crews. " +
           "<b>Rent</b> = trucks rented on a standard season day – on the busiest day. " +
           "<b>Parking + Storage</b> where the zone typically needs more than " + fmtN(storeCut()) + " CF of rented space (Storage tab), at the base nearest the units it rents today; " +
@@ -5563,7 +5679,7 @@ registerPage({
             const cf = f.store === "PS" ? "~" + fmtN(Math.round(f.cf != null ? f.cf : STORE.need[f.zone] || 0)) + " CF of storage on a typical day" : "";
             return '<tr class="ap4-grp"><td colspan="2"><button type="button" class="ap4-tg" data-grptg="' + gi + '" aria-expanded="false" title="Show the truck working">▸</button>' +
                 "<b>" + esc(g.base) + " base</b><small>covers " + esc(g.states.join(" + ")) + (today != null ? " · " + fmtN(today) + " truck" + (today === 1 ? "" : "s") + " here today" : "") + "</small></td>" +
-                td(fmtN(crew)) + td(fmtN(f.own)) + td(rentTxt(f)) + td("", "") + td(money0(f.cost)) + "</tr>" +
+                td(fmtN(crew)) + td(fmtN(f.own)) + td(rentTxt(f)) + td("", "") + td(money0(f.cost) + flexCell(f)) + "</tr>" +
               g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null, sf = f.sites[si] || {};
                 const st = sf.ns ? storeBtn(x.cand, sf.ns.store) : (!x.cand && !x.la ? storeBtn(f.storeKey || g.base, f.store) : STORE_TXT.P);
                 return '<tr class="ap4-site"><td><span class="nm">' + esc(x.name) + "</span>" +
@@ -5572,15 +5688,20 @@ registerPage({
                   td(x.cand || x.la ? '<span class="ap4-chip new">New</span>' : '<span class="ap4-chip old">Existing</span>', "") +
                   td('<span class="ap4-stp"><button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
                      '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></span>') +
-                  td(fmtN(sf.own || 0)) + td(rentTxt(sf)) + td(st, "") + td(money0(sf.cost || 0)) + "</tr>"; }).join("") +
+                  td(fmtN(sf.own || 0)) + td(rentTxt(sf)) + td(st, "") + td(money0(sf.cost || 0) + flexCell(sf)) + "</tr>"; }).join("") +
               '<tr class="ap4-det" data-grpd="' + gi + '" hidden><td colspan="7">' +
                 (slots ? "<b>Days each truck works a year</b> (scaled to the plan's crews): " + slots + "<br>" : "") +
                 "Standard season day " + fmtN(f.std) + " out · busiest " + fmtN(f.hi) + " · all rented would cost " + money0(f.allRent) + " a year" +
-                (cf ? " · " + cf : "") + "</td></tr>"; }).join("");
+                " (all on Flex-E-Rent " + money0(f.allFlex) + ")" + (cf ? " · " + cf : "") +
+                /* each rented slot, rented vs on Flex-E-Rent (2026-10-16) */
+                (f.rentN ? "<br>" + flexSumTxt(f) + ": " + f.sites.filter(x => x.rentN).map(x => (f.sites.length > 1 ? esc(x.x.name.split(" ·")[0]) + " " : "") +
+                  flexSlotTxt(x.slots)).join("; ") : "") + "</td></tr>"; }).join("");
           return '<div class="rs-tablewrap ap4-plantbl"><table class="rs-table" data-name="Plan by base"><thead><tr>' +
-              '<th>Base</th><th></th><th class="num">Foremen</th><th class="num">Own</th><th class="num" title="rented on a standard season day – on the busiest">Rent std–busiest</th><th>Storage</th><th class="num">Trucks $/yr</th>' +
+              '<th>Base</th><th></th><th class="num">Foremen</th><th class="num">Own</th><th class="num" title="rented on a standard season day – on the busiest">Rent std–busiest</th><th>Storage</th>' +
+              '<th class="num" title="owned + rented, a year; under it, the same trucks with every rented slot on Flex-E-Rent instead (a comparison)">Trucks $/yr</th>' +
             '</tr></thead><tbody>' + body + '</tbody><tfoot><tr class="ap2-tot"><td colspan="2"><b>All bases</b></td>' +
-              td("<b>" + fmtN(all) + "</b>") + td("<b>" + fmtN(T("own")) + "</b>") + td("<b>" + fmtN(T("rentStd")) + "–" + fmtN(T("rentHi")) + "</b>") + td("", "") + td("<b>" + money0(T("cost")) + "</b>") +
+              td("<b>" + fmtN(all) + "</b>") + td("<b>" + fmtN(T("own")) + "</b>") + td("<b>" + fmtN(T("rentStd")) + "–" + fmtN(T("rentHi")) + "</b>") + td("", "") +
+              td("<b>" + money0(T("cost")) + "</b>" + flexCell({ rentN: T("rentN"), costFlex: T("costFlex") })) +
             "</tr></tfoot></table></div>" + fleetNote(PF) + shortNote;
         }
         return '<div class="ap3-plan">' + PLAN.groups.map((g, gi) => {
@@ -6132,7 +6253,13 @@ registerPage({
         }; });
         host.querySelectorAll("#apScn [data-fk]").forEach(inp => { inp.onchange = () => {
           inputs[inp.dataset.fk] = inp.value === "" ? null : +inp.value; save(); repaintPlan();
+          if (/^flex/.test(inp.dataset.fk)) repaintScn();          // the What-if quotes a crew's truck on Flex
           const mb = host.querySelector("#apMapBox"); if (mb && mb._flags) mb._flags(); }; });
+        /* Flex-E-Rent's term and pay plan (2026-10-16): a comparison, so only the Flex figures move */
+        host.querySelectorAll("#apScn [data-flex]").forEach(b => { b.onclick = () => {
+          const k = b.dataset.flex;
+          if (k === "t36" || k === "t60") inputs.flexTerm = k === "t60" ? 60 : 36; else inputs.flexRising = k === "rising";
+          save(); repaintPlan(); repaintScn(); }; });
         host.querySelectorAll("#apScn [data-store]").forEach(b => { b.onclick = () => {
           const key = b.dataset.store; if (!key) return;
           const cur = NB_CANDS.some(c => c.label === key) ? newStore(key, nextCalc(), (planSite(key) || {}).fm).store : storeLabel({ base: key });
@@ -8209,6 +8336,7 @@ registerPage({
         /* the formula and the map's chips quote the same plan, so they move with it (they did not) */
         const fm = host.querySelector("#apFormula"); if (fm && !fm.contains(document.activeElement)) { fm.innerHTML = formulaHtml(); wireFormula(); }
         const ch = host.querySelector("#apChips"); if (ch) ch.innerHTML = fleetChips();
+        const tf = host.querySelector("#apTrkFx"); if (tf) tf.innerHTML = trucksFlexSay();
         const xp = host.querySelector("#apXp"); if (xp) { xp.innerHTML = expansionHtml(); wireXp(); }
         /* the Maryland block reads only the model, so a plan edit cannot change it; repainted anyway so
            its chip and tables can never lag the expansion card above it */
