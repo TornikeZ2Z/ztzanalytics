@@ -254,7 +254,9 @@
     host.innerHTML = '<div class="rs-loading" style="padding:22px">Reading the calls…</div>';
     var S = { rep: null, call: null, rows: [] };
 
-    RS.load("sales_call_score").then(function (d) {
+    // the roster rides along (cached, never throws), for the Former reps line in By rep
+    Promise.all([RS.load("sales_call_score"), RS.salesTeam()]).then(function (r) {
+      var d = r[0];
       S.rows = (d && (d.rows || d)) || [];
       paint(host, S);
     }).catch(function (e) {
@@ -449,13 +451,13 @@
           return '<th class="num" title="' + esc(f[2]) + '">' + esc(f[1]) + "</th>";
         }).join("") + "</tr>";
 
-    var body = reps.map(function (rep) {
+    var row = function (rep, a) {
       var rows = byRep[rep];
       // BELOW THE FLOOR WE PRINT WORDS, NOT A NUMBER. A rate over twenty calls looks exactly
       // as authoritative as one over seven hundred and is not, and the natural management
       // instinct with a new hire is to want the number anyway.
       if (rows.length < MIN_CALLS) {
-        return "<tr><td>" + esc(rep) + '</td><td class="num">' + rows.length + "</td>"
+        return "<tr" + a + "><td>" + esc(rep) + '</td><td class="num">' + rows.length + "</td>"
           + '<td colspan="' + (CHECKS.length + FLAGS.length + 2) + '"><span class="scx-thin">'
           + "not enough calls to show a rate — under " + MIN_CALLS + " scored quote calls"
           + "</span></td></tr>";
@@ -464,23 +466,28 @@
         return /out/i.test(String(r.Direction || ""));
       }).length, rows.length);
       var fc = pct(rows.filter(function (r) { return +r["First Contact"]; }).length, rows.length);
-      return "<tr><td class=\"strong\">" + esc(rep) + "</td>"
+      return "<tr" + a + "><td class=\"strong\">" + esc(rep) + "</td>"
         + '<td class="num">' + rows.length + "</td>"
         + '<td class="num">' + ob + "%</td>"
         + '<td class="num">' + fc + "%</td>"
         + CHECKS.map(function (c) { return rateCell(rows, c[0]); }).join("")
         + FLAGS.map(function (f) { return flagCell(rows, f[0]); }).join("")
         + "</tr>";
-    }).join("");
+    };
 
     // the shared line, below the rule and labelled, so nobody reads it as a colleague
+    var sharedRow = "";
     if (shared.length) {
-      body += '<tr class="scx-shared"><td>Support Zip To Zip</td>'
+      sharedRow = '<tr class="scx-shared"><td>Support Zip To Zip</td>'
         + '<td class="num">' + shared.length + "</td>"
         + '<td colspan="' + (CHECKS.length + FLAGS.length + 2) + '"><span class="scx-thin">'
         + "a shared queue with no identifiable person on the record — its calls are excluded "
         + "from every rate above</span></td></tr>";
     }
+    // reps Ruso switched off: a collapsed "Former reps" line under the shared line (his
+    // "Grouped as 'Former reps'", 2026-10-16)
+    var body = RSC.repRows(reps, function (rep) { return rep; }, row,
+      { id: "scx-reps", cols: CHECKS.length + FLAGS.length + 4, mid: sharedRow });
 
     /* AUTO LAYOUT, NOT rs-fixed. The kit's fixed layout divides the width evenly and clips
        with an ellipsis, which is right for a handful of wide columns and wrong for twenty

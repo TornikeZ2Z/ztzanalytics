@@ -386,8 +386,9 @@ registerPage({
     function load() {
       wrap.innerHTML = "<div class='sm-empty'>Reading the record…</div>";
       // RS.load takes ONE dataset key and resolves to its rows — there is no RS.rows()
-      // accessor to read them back out afterwards.
-      RS.load("sotm").then(rows => {
+      // accessor to read them back out afterwards. The sales roster rides along (cached, never
+      // throws) for the Former reps line under the cards.
+      Promise.all([RS.load("sotm"), RS.salesTeam()]).then(([rows]) => {
         // ONLY SALES REPS ARE SCORED (2026-10-07): the mart keeps a row for anyone else who
         // was assigned leads, `In Pool` 0, so a name the Sales Person List does not know can be
         // named below the cards instead of vanishing. Those rows never become cards.
@@ -516,14 +517,20 @@ registerPage({
           + "this spelling to SalesTranslator, in Complementary Data.</div>"
         : "";
 
+      // A REP RUSO SWITCHED OFF KEEPS THE MONTHS THEY WORKED, rank and all, under a collapsed
+      // "Former reps" line below the cards (his "Grouped as 'Former reps'", 2026-10-16); a
+      // search that finds one opens the line.
       wrap.innerHTML = hero + bar
-        + (shown.length ? shown.map(card).join("")
+        + (shown.length ? (RSC.repRows
+                            ? RSC.repRows(shown, r => String(r["Sales Person"] || ""), card,
+                                          { id: "sotm", open: !!q })
+                            : shown.map(r => card(r)).join(""))
                         : "<div class='sm-empty'>No salesperson matches “" + esc(S.q) + "”.</div>")
         + offNote;
       wire();
     }
 
-    function card(r) {
+    function card(r, grp) {
       const name = String(r["Sales Person"] || "");
       const rank = num(r["Rank"]), score = num(r["Score"]), w = num(r["Weight Measured"]);
       const open = S.open === name;
@@ -538,7 +545,7 @@ registerPage({
 
       const pv = prevBit(r);
 
-      return "<div class='sm-card" + (open ? " on" : "") + "' data-n='" + esc(name) + "'>"
+      return "<div class='sm-card" + (open ? " on" : "") + "'" + (grp || "") + " data-n='" + esc(name) + "'>"
         + "<div class='sm-head'>"
         + "<div class='sm-rk" + rkCls + "'" + (why ? " title='" + esc(why) + "'" : "") + ">"
         + (rank == null ? "–" : rank) + "</div>"

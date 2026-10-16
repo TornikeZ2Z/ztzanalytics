@@ -272,6 +272,7 @@
       api("/api/_trackers"),
       RS.load("sales_tracker_eval").catch(function () { return { rows: [] }; }),
       RS.load("sales_call_score").catch(function () { return { rows: [] }; }),
+      RS.salesTeam(),   // the roster, for the Former reps line (cached, never throws)
     ]).then(function (r) {
       S.meta = r[0];
       S.evals = (r[1] && (r[1].rows || r[1])) || [];
@@ -424,13 +425,15 @@
       return (sa - sb) || (byRep[b].length - byRep[a].length);
     });
     if (!reps.length) return "";
-    var rows = reps.map(function (rep) {
+    // reps Ruso switched off: a collapsed "Former reps" line under everyone else, the shared line
+    // included (his "Grouped as 'Former reps'", 2026-10-16)
+    var rows = RSC.repRows(reps, function (rep) { return rep; }, function (rep, a) {
       var list = byRep[rep];
       var isShared = !!sharedName[rep];
       var who = isShared
         ? esc(rep) + '<div class="stx-scope">shared support line — not a person</div>'
         : esc(rep);
-      var trOpen = isShared ? '<tr class="stx-shared">' : "<tr>";
+      var trOpen = isShared ? "<tr" + a + ' class="stx-shared">' : "<tr" + a + ">";
       if (list.length < MIN_CALLS) {
         return trOpen + "<td>" + who + '</td><td class="num">' + list.length + "</td>"
           + '<td colspan="' + cols.length + '"><span class="stx-thin">not enough checked '
@@ -447,7 +450,7 @@
       }
       return trOpen + '<td class="strong">' + who + '</td><td class="num">'
         + list.length + "</td>" + cols.map(cell).join("") + "</tr>";
-    }).join("");
+    }, { id: "stx-" + String(t.key || "").replace(/[^\w-]/g, ""), cols: cols.length + 2 });
     return '<div class="rs-tablewrap"><table class="rs-table">'
       + "<thead><tr><th>Rep</th><th class=\"num\">"
       + (isKw ? "Checked calls" : "Applicable calls") + "</th>"

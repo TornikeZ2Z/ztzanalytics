@@ -61,15 +61,23 @@ window.RSC = (function () {
       + (i.n != null ? `<span class="on">${Number(i.n).toLocaleString()}</span>` : "")
       + `</label>`;
     const live = items.filter(i => !i.retired), gone = items.filter(i => i.retired);
+    // A retired item may carry its own divider (`div`), so the Sales Person slicer can say
+    // "Former reps" where every other slicer keeps this wording (2026-10-16); the sections come
+    // in the order their first item does.
+    const RETIRED_DIV = "No longer in use — kept so history stays selectable";
+    const sects = [];
+    gone.forEach(i => {
+      const d = i.div || RETIRED_DIV;
+      let s = sects.find(x => x.d === d);
+      if (!s) sects.push(s = { d, items: [] });
+      s.items.push(i);
+    });
     const rowsHtml = () => `
       <div class="tools"><input type="text" class="q" placeholder="Search…">
         <button class="mini" data-a="all">All</button><button class="mini" data-a="none">Clear</button></div>
       <div class="opts">` +
       live.map(opt).join("") +
-      (gone.length
-        ? `<div class="opt-div">No longer in use — kept so history stays selectable</div>`
-          + gone.map(opt).join("")
-        : "") +
+      sects.map(s => `<div class="opt-div">${esc(s.d)}</div>` + s.items.map(opt).join("")).join("") +
       `</div>` +
       // the numbers are raw data records (closing + moveboard rows) — say so, or people
       // will quote them as jobs or leads
@@ -86,11 +94,13 @@ window.RSC = (function () {
       const q = e.target.value.toLowerCase();
       pop.querySelectorAll(".opt").forEach(o => o.classList.toggle("hidden", !o.textContent.toLowerCase().includes(q)));
       // a divider with nothing under it is a heading for an empty section
-      const div = pop.querySelector(".opt-div");
-      if (div) {
-        const anyLeft = [...pop.querySelectorAll(".opt.retired")].some(o => !o.classList.contains("hidden"));
+      pop.querySelectorAll(".opt-div").forEach(div => {
+        let anyLeft = false;
+        for (let o = div.nextElementSibling; o && !o.classList.contains("opt-div"); o = o.nextElementSibling) {
+          if (!o.classList.contains("hidden")) { anyLeft = true; break; }
+        }
         div.classList.toggle("hidden", !anyLeft);
-      }
+      });
     });
     pop.querySelectorAll(".mini").forEach(b => b.onclick = () => {
       const on = b.dataset.a === "all";
@@ -254,6 +264,92 @@ window.RSC = (function () {
                       pop.querySelectorAll(".opt input").forEach(cb => cb.checked = set.has(cb.value));
                       paint(); } };
   }
+
+  /* ------------- FORMER REPS: one collapsed line (2026-10-16) -------------
+     Tornike's decision for the roster Ruso keeps on Sales > Sales team: a rep she switches off
+     is "Grouped as 'Former reps'" in the reports -- not hidden, and not taken out of any total.
+     A per-rep table lists its active reps exactly as before; the switched-off ones move under
+     one collapsed "Former reps (n)" line at the bottom that opens on a click, and test / system
+     accounts under their own "Test / system (n)" line -- the roster page's two groups, so a
+     name sits in the same place everywhere. The page awaits RS.salesTeam() once as it renders;
+     with no roster (signed out, an old bridge, the call failed) every name is active and the
+     page renders exactly as it did before the roster existed.
+
+     repGroups(list, nameOf)   -> { active, former, test }, each in the list's own order.
+                                  nameOf returns the name, or an array of one rep's spellings.
+     repRows(list, nameOf, row, { id, cols, mid, open })
+                               -> the active rows, then `mid`, then each group's line and its
+                                  rows. row(item, attrs) must put `attrs` on every element it
+                                  returns. cols = the table's column count (the line is a
+                                  <tr>); without it the line is a <div>, for a list of cards.
+                                  open:true shows both groups (a search that matched inside one).
+     repOptions(values, nameOf) -> a picker's values with the former / test names moved under
+                                  {div} headings for localSelect; the same array when no group.
+                                  nameOf gets each {v, l} item (default: its v).
+     One delegated listener opens and closes every line and remembers it per id, so a page that
+     repaints on a filter change does not slam an opened group shut. */
+  const REP_GROUPS = [
+    ["former", "Former reps", "switched off on Sales team — still counted in every total"],
+    ["test", "Test / system", "test, training and routing accounts"],
+  ];
+  const REP_OPEN = new Set();
+  function repGroups(list, nameOf) {
+    const out = { active: [], former: [], test: [] };
+    const kindOf = (window.RS && RS.repKind) || (() => "");
+    (list || []).forEach(x => {
+      let k = "";
+      for (const n of [].concat(nameOf ? nameOf(x) : x)) { k = kindOf(n); if (k) break; }
+      out[k === "former" || k === "test" ? k : "active"].push(x);
+    });
+    return out;
+  }
+  function repRows(list, nameOf, row, opts) {
+    opts = opts || {};
+    const g = repGroups(list, nameOf);
+    let h = g.active.map(x => row(x, "")).join("") + (opts.mid || "");
+    REP_GROUPS.forEach(([k, label, note]) => {
+      if (!g[k].length) return;
+      const key = (opts.id || "reps") + ":" + k;
+      const open = !!opts.open || REP_OPEN.has(key);
+      const line = `<span class="rs-caret">›</span>${esc(label)} (${g[k].length})`
+        + `<span class="rs-rg-note">${esc(note)}</span>`;
+      const a = ` data-rs-grp="${esc(key)}" tabindex="0" aria-expanded="${open}"`;
+      h += opts.cols
+        ? `<tr class="rs-group rs-rg${open ? " on" : ""}"${a}><td colspan="${opts.cols}">${line}</td></tr>`
+        : `<div class="rs-rg-line${open ? " on" : ""}"${a}>${line}</div>`;
+      const inA = ` data-rs-in="${esc(key)}"${open ? "" : " hidden"}`;
+      h += g[k].map(x => row(x, inA)).join("");
+    });
+    return h;
+  }
+  function repOptions(values, nameOf) {
+    const items = (values || []).map(v => typeof v === "object" ? v : { v: v, l: v });
+    const g = repGroups(items, nameOf || (i => i.v));
+    if (!g.former.length && !g.test.length) return values;
+    let out = g.active.slice();
+    REP_GROUPS.forEach(([k, label]) => { if (g[k].length) out = out.concat([{ div: label }], g[k]); });
+    return out;
+  }
+  function repFlip(h) {
+    const key = h.getAttribute("data-rs-grp"), open = !h.classList.contains("on");
+    if (open) REP_OPEN.add(key); else REP_OPEN.delete(key);
+    h.classList.toggle("on", open);
+    h.setAttribute("aria-expanded", String(open));
+    [...(h.parentElement ? h.parentElement.children : [])].forEach(x => {
+      if (x.getAttribute("data-rs-in") === key) x.hidden = !open;
+    });
+  }
+  document.addEventListener("click", e => {
+    const h = e.target && e.target.closest && e.target.closest("[data-rs-grp]");
+    if (h) repFlip(h);
+  });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if ((e.key === "Enter" || e.key === " ") && t && t.matches && t.matches("[data-rs-grp]")) {
+      e.preventDefault();
+      repFlip(t);
+    }
+  });
 
   /* ------------- page-owned Filters button + side panel -------------
      The shell's "Filters" button and right-hand panel (FILTERS v3) for a page that runs its
@@ -1226,5 +1322,6 @@ window.RSC = (function () {
   return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, filterPanel, filterChips, dateBar, dateRange, datePresets,
            kpis, chartCard, table, matrix,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg, choice: choiceDlg,
-           collapsible, fitScroller, fit, reflow, reflowAfter, printView };
+           collapsible, fitScroller, fit, reflow, reflowAfter, printView,
+           repGroups, repRows, repOptions };
 })();

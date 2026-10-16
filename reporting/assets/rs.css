@@ -670,6 +670,22 @@ body.rs-app.light .rs-cpill{border-color:rgba(127,163,43,.4);color:var(--brand-d
   transition:transform .12s;transform-origin:45% 50%}
 .rs-group.on .rs-caret,.rs-group2.on .rs-caret{transform:rotate(90deg);color:var(--brand)}
 
+/* FORMER REPS (2026-10-16) -- RSC.repRows' collapsed "Former reps (n)" / "Test / system (n)"
+   line, his "Grouped as 'Former reps'". The same group row as above, but in ANY page's rep
+   table (st-tbl, mrx-tbl, eav-t...), and as .rs-rg-line between cards. Its rows carry `hidden`
+   until the line is opened, whatever display a page gives its rows. */
+tr.rs-group.rs-rg>td{background:var(--panel-2);font-weight:800;text-align:left;
+  border-bottom:1px solid var(--line-2);cursor:pointer}
+tr.rs-group.rs-rg:hover>td{background:var(--line)}
+.rs-rg-line{display:flex;align-items:baseline;margin:12px 0 8px;padding:11px 14px;
+  background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;font-weight:800;
+  color:var(--ink);cursor:pointer}
+.rs-rg-line:hover{background:var(--line)}
+.rs-rg-line.on .rs-caret{transform:rotate(90deg);color:var(--brand)}
+.rs-rg-note{font-weight:500;font-size:12.5px;color:var(--muted);margin-left:8px}
+[data-rs-grp]:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+[data-rs-in][hidden]{display:none!important}
+
 /* the opened detail. padding on the CELL, card on the inner wrapper: a nested table with no
    card of its own reads as more rows of the parent, which is exactly the confusion a pivot
    is supposed to remove */
@@ -847,6 +863,11 @@ body.rs-app.light.v2 .rs-table tbody tr.rs-group>td{font-weight:600;background:#
 body.rs-app.light.v2 .rs-table tbody tr.rs-group:hover>td{background:#F1F5F9}
 body.rs-app.light.v2 .rs-table tbody tr.rs-group2>td{font-weight:600;background:#FFFFFF}
 body.rs-app.light.v2 .rs-table tbody tr.rs-group2:hover>td{background:#F8FAFC}
+body.rs-app.light.v2 tr.rs-group.rs-rg>td{font-weight:600;background:#F8FAFC}
+body.rs-app.light.v2 tr.rs-group.rs-rg:hover>td{background:#F1F5F9}
+body.rs-app.light.v2 .rs-rg-line{font-weight:600;background:#F8FAFC;border-color:#E2E8F0}
+body.rs-app.light.v2 .rs-rg-line:hover{background:#F1F5F9}
+body.rs-app.light.v2 .rs-rg-line.on .rs-caret{color:var(--brand-d)}
 body.rs-app.light.v2 .rs-pill.ok{color:#166534}
 body.rs-app.light.v2 .rs-pill.warn{color:#92400E}
 body.rs-app.light.v2 .rs-pill.bad{color:#991B1B}

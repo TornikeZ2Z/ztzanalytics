@@ -1361,7 +1361,8 @@
       <th>No contact</th><th>Calls</th><th>Talk</th><th>Revenue</th><th>$ / lead</th><th>Δ est→act</th><th>Flags</th>`;
     const COMPACT_COLS = `<th>Salesperson</th><th>Score</th><th>Leads</th><th>Qualified</th>
       <th>Confirms in period</th><th>Booking %</th><th>No contact</th><th>Revenue</th><th>Flags</th>`;
-    const drow = p => `<tr class="click" data-sp="${esc(p.name)}">
+    // `a` = the Former reps group's attributes for a switched-off rep's row (RSC.repRows)
+    const drow = (p, a = "") => `<tr${a} class="click" data-sp="${esc(p.name)}">
       <td><b>${esc(p.name)}</b></td>
       <td>${p.score != null ? `<b>${p.score}</b>` : `<span style="color:var(--faint)">—</span>`}</td>
       <td>${RS.fmtN(p.leads)}</td><td>${RS.fmtN(p.qual)}</td>
@@ -1375,7 +1376,7 @@
       <td>${money0(p.rev)}</td><td>${money0(p.revLead)}</td>
       <td>${p.avgGap != null ? (p.avgGap > 0 ? "+" : "") + pct1(p.avgGap) : "—"}</td>
       <td>${flagCell(p)}</td></tr>`;
-    const crow = p => `<tr class="click" data-sp="${esc(p.name)}">
+    const crow = (p, a = "") => `<tr${a} class="click" data-sp="${esc(p.name)}">
       <td><b>${esc(p.name)}</b></td>
       <td>${p.score != null ? `<b>${p.score}</b>` : `<span style="color:var(--faint)">—</span>`}</td>
       <td>${RS.fmtN(p.leads)}</td><td>${RS.fmtN(p.qual)}</td><td>${RS.fmtN(p.confEv)}</td>
@@ -1410,7 +1411,10 @@
         </div>
         <div style="overflow-x:auto"><table class="st-tbl"><thead><tr>${dense === "compact" ? COMPACT_COLS : DETAIL_COLS}</tr></thead>
         <tbody>${people.length
-            ? people.map(dense === "compact" ? crow : drow).join("")
+            // reps Ruso switched off sit under a collapsed "Former reps" line at the bottom, still
+            // in every total and score above (his "Grouped as 'Former reps'", 2026-10-16)
+            ? RSC.repRows(people, p => p.name, dense === "compact" ? crow : drow,
+                { id: "st-team", cols: dense === "compact" ? 9 : 16 })
             : `<tr><td colspan="${dense === "compact" ? 9 : 16}" class="st-dim" style="padding:26px 13px">`
               + `No salesperson clears the ${th.minLeads}-lead floor in this filter — widen the date range, `
               + `or lower "Min leads to rank" in Thresholds.</td></tr>`}</tbody></table></div>
@@ -1568,7 +1572,7 @@
       }
     };
     RSC.localSelect(host.querySelector("#saRep"), { label: "Rep", allLabel: "All reps",
-      values: reps.map(v => ({ v, l: v })), value: st.rep, onChange: v => { st.rep = v; paint(); } });
+      values: RSC.repOptions(reps.map(v => ({ v, l: v }))), value: st.rep, onChange: v => { st.rep = v; paint(); } });
     RSC.localSelect(host.querySelector("#saSrc"), { label: "Source", allLabel: "All sources",
       values: srcs.map(v => ({ v, l: v })), value: st.src, onChange: v => { st.src = v; paint(); } });
     host.querySelector("#saQ").oninput = e => { st.q = e.target.value; paint(); };
@@ -1884,6 +1888,21 @@
    *     when a customer called and reached this rep, what happened (accepted/missed/vm).
    * Plus a ranked "Strong sides" read comparing the rep against the whole team. */
 
+  /* FORMER REPS IN THE PICKERS (his "Grouped as 'Former reps'", 2026-10-16). A rep Ruso
+     switched off on Sales > Sales team moves under a "Former reps" heading at the bottom of the
+     Rep Profile / Compare pickers, and a picker with nothing chosen opens on the biggest ACTIVE
+     book. The ranking pool is untouched, so no active rep's number moves. The roster keeps
+     Moveboard's spelling while these lists show the phone system's (Taryn Crafton / Crofton),
+     so a rep is looked up under every spelling that folds into the name shown. */
+  const spellings = (ctx, canon) => {
+    const cmap = ctx.repCanon || {}, c = String(canon || "").toLowerCase();
+    return [canon].concat(Object.keys(cmap).filter(k => String(cmap[k]).toLowerCase() === c));
+  };
+  const activeFirst = (ctx, reps) => {
+    const g = RSC.repGroups(reps, p => spellings(ctx, p.name));
+    return g.active.concat(g.former, g.test);
+  };
+
   function repCanonMap(repStats) {
     const m = {};
     (repStats || []).forEach(r => {
@@ -2131,13 +2150,15 @@
     // remembered across renders; default to the two biggest books so the tab is never empty
     // a remembered rep who has dropped out of the current filter falls back rather than
     // rendering an empty column
-    if (!ST_CMP_A || !reps.some(p => p.name === ST_CMP_A)) ST_CMP_A = reps[0].name;
+    const ordered = activeFirst(ctx, reps);   // switched-off reps last (2026-10-16)
+    if (!ST_CMP_A || !reps.some(p => p.name === ST_CMP_A)) ST_CMP_A = ordered[0].name;
     if (!ST_CMP_B || ST_CMP_B === ST_CMP_A || !reps.some(p => p.name === ST_CMP_B)) {
-      ST_CMP_B = (reps.find(p => p.name !== ST_CMP_A) || reps[0]).name;
+      ST_CMP_B = (ordered.find(p => p.name !== ST_CMP_A) || ordered[0]).name;
     }
 
     // option VALUES stay the bare rep names — ST_CMP_A/B comparisons depend on them
-    const repOpts = reps.map(p => ({ v: p.name, l: `${p.name} — ${RS.fmtN(p.leads)} leads` }));
+    const repOpts = RSC.repOptions(reps.map(p => ({ v: p.name, l: `${p.name} — ${RS.fmtN(p.leads)} leads` })),
+      o => spellings(ctx, o.v));
 
     // MONTHS THE DATA ACTUALLY HAS, newest first — offering a month with nothing in it is
     // offering an empty column.
@@ -2200,9 +2221,9 @@
            compare it against.</div>`;
         return;
       }
-      if (!ST_CMP_WHO || !reps.some(p => p.name === ST_CMP_WHO)) ST_CMP_WHO = reps[0].name;
+      if (!ST_CMP_WHO || !reps.some(p => p.name === ST_CMP_WHO)) ST_CMP_WHO = ordered[0].name;
       RSC.localSelect(host.querySelector("#cmpWho"), {
-        label: "Rep", values: reps.map(p => p.name), value: ST_CMP_WHO,
+        label: "Rep", values: RSC.repOptions(reps.map(p => p.name), o => spellings(ctx, o.v)), value: ST_CMP_WHO,
         form: true, required: true,
         onChange: v => { ST_CMP_WHO = v; reRender(); },
       });
@@ -2373,7 +2394,10 @@
         });
         if (keep.size) RS.state.multi.sales = keep;
       }
-    } else if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = reps[0].name;
+    } else if (!ctx.repSel || !reps.some(p => p.name === ctx.repSel)) ctx.repSel = activeFirst(ctx, reps)[0].name;
+    const grp = RSC.repGroups(reps, p => spellings(ctx, p.name));
+    const gone = [grp.former.length ? grp.former.length + " former" : "",
+                  grp.test.length ? grp.test.length + " test / system" : ""].filter(Boolean);
 
     /* THE PROFILE CARRIES ITS OWN PICKER (2026-08-12). It used to say "pick anyone with the
      * Sales Person filter at the top" and nothing else — so the one control that chooses the
@@ -2384,14 +2408,14 @@
     host.innerHTML = `
       <div class="st-bar">
         <div id="rpWho"></div>
-        <span class="st-dim" style="font-size:12.5px">${reps.length} active on the team · the Sales Person filter follows this</span>
+        <span class="st-dim" style="font-size:12.5px">${grp.active.length} active on the team${gone.length ? " · " + gone.join(" · ") : ""} · the Sales Person filter follows this</span>
         <span style="flex:1"></span>
         <button class="st-chip" id="rpJump">Open their leads in Explorer →</button></div>
       <div id="rpBody"></div>`;
     // "rep", not "profile" — TABS keys this tab "rep", and a key that matches nothing falls
     // through to the Explorer, which would have thrown you off the page you were reading
     RSC.localSelect(host.querySelector("#rpWho"), {
-      label: "Rep", values: reps.map(p => p.name), value: ctx.repSel, required: true,
+      label: "Rep", values: RSC.repOptions(reps.map(p => p.name), o => spellings(ctx, o.v)), value: ctx.repSel, required: true,
       onChange: v => jumpToRepLeads(ctx, v, "rep"),
     });
     host.querySelector("#rpJump").onclick = () => { ST_LAST_TAB = "explorer"; ctx.go("explorer"); };
@@ -2952,6 +2976,9 @@
         return renderExplorer(hostEl, ctx);
       };
       paintTabs();
+      // the sales roster, once (cached, never throws): every tab's rep table and picker puts
+      // the reps Ruso switched off under "Former reps" (2026-10-16)
+      await RS.salesTeam();
       // honour the remembered tab — the rep->Explorer jump and any global-filter
       // re-render both rely on this (hardcoding "team" made ST_LAST_TAB dead).
       await go(TABS.some(t => t[0] === active) ? active : "team");

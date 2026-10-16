@@ -1111,6 +1111,9 @@ window.RS = (function () {
      RS.isFormerRep(name) answers from the last loaded result (false until one has loaded, or
      for a name the roster has never seen). Names match the way the database matches them:
      case, accents and extra spaces do not matter.
+     RS.repKind(name) is the same lookup with the answer spelled out: "active", "former",
+     "test", or "" for a name the roster has never seen (and before one has loaded). The
+     report pages group their rep tables by it through RSC.repRows (2026-10-16).
      RS.salesTeam.invalidate() drops the shared copy; the Sales team page calls it after a
      save so the next reader in this tab sees the switch. */
   const _repKey = n => String(n == null ? "" : n).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -1118,7 +1121,7 @@ window.RS = (function () {
   let _stPromise = null, _stLast = null;
   function _stEmpty() {
     return { active: new Set(), former: new Set(), test: new Set(), rows: [], can_edit: false,
-      ok: false, _former: new Set() };
+      ok: false, _former: new Set(), _test: new Set(), _active: new Set() };
   }
   function salesTeam() {
     if (_stPromise) return _stPromise;
@@ -1133,8 +1136,8 @@ window.RS = (function () {
         (j && Array.isArray(j.rows) ? j.rows : []).forEach(x => {
           if (!x || !x.rep) return;
           out.rows.push(x);
-          if (String(x.kind || "rep") !== "rep") out.test.add(x.rep);
-          else if (+x.active === 1) out.active.add(x.rep);
+          if (String(x.kind || "rep") !== "rep") { out.test.add(x.rep); out._test.add(_repKey(x.rep)); }
+          else if (+x.active === 1) { out.active.add(x.rep); out._active.add(_repKey(x.rep)); }
           else { out.former.add(x.rep); out._former.add(_repKey(x.rep)); }
         });
         out.can_edit = !!(j && j.can_edit);
@@ -1146,11 +1149,17 @@ window.RS = (function () {
   }
   salesTeam.invalidate = () => { _stPromise = null; };
   const isFormerRep = name => !!(_stLast && _stLast._former.has(_repKey(name)));
+  const repKind = name => {
+    if (!_stLast) return "";
+    const k = _repKey(name);
+    return _stLast._former.has(k) ? "former" : _stLast._test.has(k) ? "test"
+      : _stLast._active.has(k) ? "active" : "";
+  };
 
   return { DATASETS, FIELDS, state, load, filtered, monthName, V2, isV2, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
            bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, sizeParts,
-           salesTeam, isFormerRep };
+           repKind, salesTeam, isFormerRep };
 })();

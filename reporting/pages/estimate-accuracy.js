@@ -112,7 +112,8 @@ registerPage({
       { headers: Object.assign({ Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" }, (opt || {}).headers || {}) }))
       .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }));
     const [raw, exRes] = await Promise.all([RS.load("estimate_accuracy"),
-      authed("/api/_eaex").catch(() => ({ rows: [], can_edit: false }))]);
+      authed("/api/_eaex").catch(() => ({ rows: [], can_edit: false })),
+      RS.salesTeam()]);   // the roster, for the Former reps line (cached, never throws)
 
     /* ---------------- one row per job ---------------- */
     const ROWS = (raw || []).map(r => {
@@ -268,15 +269,17 @@ registerPage({
       const ps = personStats(rs, r => r.rep).filter(p => p.det >= 5).sort((a, b) => (b.sr || 0) - (a.sr || 0) || b.det - a.det);
       if (!ps.length) return '<div class="eav-note">No sales person has 5+ finished contracts in this window.</div>';
       const mx = Math.max(...ps.map(p => p.sr || 0), 0.01);
-      const body = ps.map(p => {
+      // reps Ruso switched off: a collapsed "Former reps" line at the bottom, still in the team
+      // figures (his "Grouped as 'Former reps'", 2026-10-16)
+      const body = RSC.repRows(ps, p => p.name, (p, a) => {
         const on = S.open === "r:" + p.name;
         const tr = p.trend == null ? "<span style=\"color:var(--faint)\">—</span>" : Math.abs(p.trend) < 3 ? "≈" : `<span class="${p.trend > 0 ? "eav-up" : "eav-dn"}">${p.trend > 0 ? "▲" : "▼"} ${Math.abs(p.trend)} pts</span>`;
-        return `<tr class="pp${on ? " on" : ""}${p.det < 20 ? " faint" : ""}" data-open="r:${esc(p.name)}"><td class="nm">${esc(p.name)}</td><td>${int(p.det)}</td>
+        return `<tr${a} class="pp${on ? " on" : ""}${p.det < 20 ? " faint" : ""}" data-open="r:${esc(p.name)}"><td class="nm">${esc(p.name)}</td><td>${int(p.det)}</td>
           <td><span class="eav-sb"><i style="width:${((p.sr || 0) / mx * 70).toFixed(0)}px"></i>${pctS(p.sur, p.det)}</span></td>
           <td>${usdS(p.extra)}</td><td><span class="eav-drv">${p.driver}</span></td><td>${p.items ? sgn(p.items) : "—"}</td>
           <td class="${p.cr != null && H.rO != null && p.cr > (H.rS + H.rO) / 2 ? "eav-up" : ""}">${p.cr == null ? "—" : (Math.round(p.cr * 1000) / 10) + "%"}</td><td>${tr}</td></tr>`
-          + (on ? `<tr class="eav-dr"><td colspan="8">${drill(p, rs, "rep")}</td></tr>` : "");
-      }).join("");
+          + (on ? `<tr${a} class="eav-dr"><td colspan="8">${drill(p, rs, "rep")}</td></tr>` : "");
+      }, { id: "eav-reps", cols: 8 });
       return `<table class="eav-t"><thead><tr><th>Sales person</th><th>Jobs</th><th>Billed 20%+ over</th><th>Extra / job</th><th>Main driver</th><th>Items vs listed</th><th>Claims</th><th>Last 90 days</th></tr></thead><tbody>${body}</tbody></table>
         <div class="eav-note">Team: <b>${team == null ? "—" : Math.round(team * 100) + "%"}</b> billed 20%+ over, <b>${H.det.length ? usdS(H.extra / H.det.length) : "—"}</b> extra a job. Jobs = finished contracts; faint rows have fewer than 20. "Last 90 days" = change in the 20%+ share against the rest of the window. Click a person for their pattern.</div>`;
     }
