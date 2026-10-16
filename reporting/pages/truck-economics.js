@@ -82,6 +82,9 @@
     .tec-fields .l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
       color:var(--muted);margin-bottom:5px}
     .tec-fields .h{font-size:11.5px;color:var(--faint);margin-top:4px;max-width:230px;line-height:1.45}
+    /* Flex-E-Rent is a quote, never spend: a dashed card, and the basis under each cell */
+    .tec-vend.quote{border-style:dashed}
+    .tec-fx{display:block;font-size:11px;color:var(--faint);font-weight:500;white-space:nowrap}
     /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, a white verdict card with an
        accent tint instead of a thick bar, nothing under 12px. Dark is untouched. */
     body.rs-app.light.v2 .tec-eyebrow,body.rs-app.light.v2 .tec-vend .n,body.rs-app.light.v2 .tec-fields .l{
@@ -95,6 +98,7 @@
     body.rs-app.light.v2 .tec-vend{border-radius:10px}
     body.rs-app.light.v2 .tec-vend .v{font-weight:600}
     body.rs-app.light.v2 .tec-vend .s,body.rs-app.light.v2 .tec-fields .h{font-size:12px}
+    body.rs-app.light.v2 .tec-fx{font-size:12px}
     `;
     document.head.appendChild(st);
   }
@@ -106,6 +110,10 @@
   // Penske North Bergen, spec'd under 26,000 lbs GVWR so NJ needs $300k liability, not
   // $1.5M. Editable on the page — this is the seed, not a law.
   const BUY = { price: 43750, ins: 15000, park: 2400, maint: 6000 };
+  /* FLEX-E-RENT (his ask 2026-10-16: "it should be listed alongside enterprise"): Enterprise's
+     lease quote, read from RS.FLEX in rs-core and never copied here. A comparison only — the
+     verdict, the net and the buy payback do not look at it. Term and pay plan are settings. */
+  const FLEX_DEF = { term: 36, rising: false };
   const LS_KEY = "ztzTruckEcon.v1";
 
   registerPage({
@@ -129,13 +137,17 @@
       injectStyle();
       host.innerHTML = '<div class="panel">Loading…</div>';
 
-      let S = { from: null, to: null, buy: Object.assign({}, BUY) };
+      let S = { from: null, to: null, buy: Object.assign({}, BUY),
+                flex: Object.assign({}, FLEX_DEF) };
       try {
         const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
         if (saved && saved.buy) S.buy = Object.assign({}, BUY, saved.buy);
+        // a state saved before Flex existed has no `flex`: the defaults stand
+        if (saved && saved.flex) S.flex = { term: saved.flex.term === 60 ? 60 : 36,
+                                            rising: saved.flex.rising === true };
       } catch (e) { /* a blocked store must never break the page */ }
       const save = () => {
-        try { localStorage.setItem(LS_KEY, JSON.stringify({ buy: S.buy })); }
+        try { localStorage.setItem(LS_KEY, JSON.stringify({ buy: S.buy, flex: S.flex })); }
         catch (e) { /* ignore */ }
       };
 
@@ -267,13 +279,73 @@
           const overDays = D.filter(d =>
             (num(d["Owned Used"]) + num(d["Rental Used"])) > Math.round(working)).length;
           const idle = Math.max(0, fleet - working);
+
+          // ---- Flex-E-Rent, priced next to renting and owning (RS.FLEX) ----
+          const FX = RS.FLEX;
+          const flexMonth = FX.month(S.flex.term, S.flex.rising);
+          // insurance and parking as our own trucks: the owned stack's per-truck-year lines
+          const insYr = fleet ? (ins / months * 12) / fleet : 0;
+          const parkYr = fleet ? (park / months * 12) / fleet : 0;
+          // their miles-a-month estimate over a six-day working month (26 days)
+          const flexMiDay = FX.milesMonth / 26;
+          const flexMileDay = flexMiDay * FX.perMile;
+          const flexFixedYear = FX.minMonths * flexMonth + insYr + parkYr;
+          /* One truck slot on Flex over `span` months: a lease a year, never less than one (the
+             minimum term). A slot needed in fewer months pays the minimum or is handed back
+             after them for the true-up, whichever is cheaper; insurance and parking run while it
+             is held, mileage only on the days it works. */
+          function flexCost(days, used, span) {
+            const leases = Math.max(1, span / 12);
+            const per = Math.min(12, used / leases);
+            const early = per < FX.minMonths
+              && per * flexMonth + FX.trueUp < FX.minMonths * flexMonth;
+            const held = early ? per : Math.max(FX.minMonths, per);
+            const total = leases * (held * flexMonth + (early ? FX.trueUp : 0))
+              + leases * held / 12 * (insYr + parkYr) + days * flexMileDay;
+            return { total, early, held: Math.round(leases * held), leases,
+                     minimum: !early && per < FX.minMonths };
+          }
+          // the months in the period a slot is needed: months whose busiest day reached it
+          const topNeed = {}, topRent = {};
+          D.forEach(d => {
+            const x = num(d["Owned Used"]) + num(d["Rental Used"]);
+            const r = num(d["Rental Used"]);
+            if (!(topNeed[d._ym] >= x)) topNeed[d._ym] = x;
+            if (!(topRent[d._ym] >= r)) topRent[d._ym] = r;
+          });
+          const usedMonths = (top, n) => Object.keys(top).filter(k => top[k] >= n).length;
+          // truck N on Flex, beside renting its days and owning it; the cheapest of the three
+          marg.forEach(m => {
+            m.used = usedMonths(topNeed, m.n);
+            m.flex = flexCost(m.days, m.used, months);
+            m.cheapest = [["own", m.cost], ["flex", m.flex.total]]
+              .reduce((a, o) => o[1] < a[1] ? o : a, ["rent", m.displaced])[0];
+          });
+          /* the rented truck-days on Flex: slot k works the days at least k rentals were out,
+             so the slots add up to exactly this period's rental truck-days */
+          const flexSlots = Math.max(0, ...D.map(d => num(d["Rental Used"])));
+          let flexRentTotal = 0;
+          for (let k = 1; k <= flexSlots; k++) {
+            flexRentTotal += flexCost(D.filter(d => num(d["Rental Used"]) >= k).length,
+                                      usedMonths(topRent, k), months).total;
+          }
+          // break-even against renting by the day, in days a year
+          const ownBreakEven = rentPerDay ? ownPerTruckYear / rentPerDay : null;
+          const flexBreakEven = rentPerDay > flexMileDay
+            ? flexFixedYear / (rentPerDay - flexMileDay) : null;
+          // the buy case's truck on Flex, a year of it (annualized like the buy case)
+          const flexNext = nextTruck.days ? flexCost(nextTruck.days / months * 12,
+            Math.min(12, (nextTruck.used || 0) / months * 12), 12) : null;
+
           return { D, C, U, months, rent, rentTotal, ins, park, maint, fin, fuel, fleet,
                    working, overDays, idle,
                    ownedDays, rentalDays, jobs, ownedJobs, rentalJobs,
                    jobsPerOwnedDay, rentPerDay, ownedTotal, ownPerTruckYear, ownPerDay,
                    hist, maxNeed, marg, best, buyYear, buyDisplacedYear, buyNet,
                    paybackMonths, nextTruck,
-                   truck2, pairDisplacedYear, pairNet, pairPayback, lagMonths };
+                   truck2, pairDisplacedYear, pairNet, pairPayback, lagMonths,
+                   flexMonth, insYr, parkYr, flexMiDay, flexMileDay, flexFixedYear,
+                   flexSlots, flexRentTotal, ownBreakEven, flexBreakEven, flexNext };
         }
 
         function paint() {
@@ -322,10 +394,16 @@
                 ${M.idle >= 1 ? `<b>${n1(M.idle)} trucks are paid for and not working</b> —
                   that is ${money(M.idle * M.ownPerTruckYear * (M.months / 12))} of this
                   period's cost buying no capacity at all.` : ""}
+                Enterprise's Flex-E-Rent quote would cost <b>${money(M.flexFixedYear)}</b> a
+                truck-year before mileage — ${M.flexBreakEven == null
+                  ? "never cheaper than renting by the day"
+                  : `cheaper than renting by the day only for a truck out more than
+                     ${fmtN(M.flexBreakEven)} days a year${M.flexBreakEven > 365
+                       ? ", more days than a year has" : ""}`}.
               </div>
             </div>
 
-            <div class="rs-kpis">
+            <div class="rs-kpis" style="--kpi-cols:5">
               <div class="kpi"><span class="k">Cost of a rented truck-day</span>
                 <span class="v tec-bad">${money1(M.rentPerDay)}</span>
                 <span class="s">${fmtN(M.rentalDays)} rental truck-days ·
@@ -341,6 +419,10 @@
                 <span class="v">${money(M.ownPerTruckYear)}</span>
                 <span class="s">insurance, parking, repairs, financing, fuel ÷
                   ${n1(M.fleet)} trucks paid for</span></div>
+              <div class="kpi"><span class="k">Flex-E-Rent, per truck-year</span>
+                <span class="v">${money(M.flexFixedYear)}</span>
+                <span class="s">a quote: ${money1(M.flexMonth)} a month + our insurance
+                  and parking, + $${RS.FLEX.perMile.toFixed(2)} a mile</span></div>
               <div class="kpi"><span class="k">Trucks worth owning</span>
                 <span class="v ${M.best > fleetR ? "tec-warn" : "tec-good"}">${M.best}</span>
                 <span class="s">${workR} on the road · ${n1(M.fleet)} paid for ·
@@ -355,13 +437,30 @@
                 Enterprise can be priced at all: it has no published rate we hold, and it
                 is the company we now rent from most.</div>
               <div class="tec-vendors">
-                ${vendors.map(v => `
+                ${(() => {
+                  const cards = vendors.map(v => `
                   <div class="tec-vend"><div class="n">${esc(v)}</div>
                     <div class="v">${money(M.rent[v])}</div>
                     <div class="s">${pct(M.rentTotal ? M.rent[v] / M.rentTotal : 0)}
-                      of rental spend</div></div>`).join("")
-                  || '<div class="tec-note">No rental spend in this period.</div>'}
+                      of rental spend</div></div>`);
+                  // Flex-E-Rent sits beside Enterprise, the company that quoted it
+                  const at = vendors.indexOf("Enterprise");
+                  if (M.flexSlots) cards.splice(at < 0 ? cards.length : at + 1, 0, `
+                  <div class="tec-vend quote"><div class="n">Flex-E-Rent (quote)</div>
+                    <div class="v">${money(M.flexRentTotal)}</div>
+                    <div class="s">not spend · ${M.flexSlots} trucks for the
+                      ${fmtN(M.rentalDays)} rented days</div></div>`);
+                  return (vendors.length ? ""
+                    : '<div class="tec-note">No rental spend in this period.</div>') + cards.join("");
+                })()}
               </div>
+              ${M.flexSlots ? `<div class="tec-note" style="margin-top:8px">The dashed card is
+                not money we spent: it is what the same rented truck-days would have cost on
+                Enterprise's Flex-E-Rent lease instead — one leased truck per rental slot (the
+                days at least 1, 2, 3… rentals were out), each kept for the
+                ${RS.FLEX.minMonths}-month minimum or handed back after the months it was needed
+                for the ${money(RS.FLEX.trueUp)} true-up, whichever is cheaper, plus mileage,
+                insurance and parking.</div>` : ""}
             </div>
 
             <div class="panel">
@@ -394,7 +493,8 @@
                 <table class="rs-table">
                   <thead><tr><th>Truck</th><th class="r">Days it would work</th>
                     <th class="r">Renting it replaces</th><th class="r">Cost to own</th>
-                    <th class="r">Net</th><th>Verdict</th></tr></thead>
+                    <th class="r">On Flex-E-Rent (quote)</th>
+                    <th class="r">Net</th><th>Verdict</th><th>Cheapest of the three</th></tr></thead>
                   <tbody>${M.marg.map(m => `
                     <tr${m.n === fleetR ? ' style="background:var(--panel-2)"' : ""}>
                       <td class="strong">#${m.n}${m.n === fleetR
@@ -402,15 +502,36 @@
                       <td class="r">${fmtN(m.days)}</td>
                       <td class="r">${money(m.displaced)}</td>
                       <td class="r">${money(m.cost)}</td>
+                      <td class="r">${money(m.flex.total)}<span class="tec-fx">${m.flex.early
+                        ? m.flex.held + " mo + true-up" + (m.flex.leases > 1 ? "s" : "")
+                        : m.flex.held + " mo" + (m.flex.minimum ? " minimum" : "")}</span></td>
                       <td class="r ${m.net >= 0 ? "tec-good" : "tec-bad"}">
                         ${m.net >= 0 ? "+" : "−"}${money(Math.abs(m.net)).replace("$", "$")}</td>
                       <td>${m.net >= 0
                         ? '<span class="rs-pill ok">worth owning</span>'
                         : '<span class="rs-pill mute">rent instead</span>'}</td>
+                      <td>${{ rent: '<span class="rs-pill mute">rent</span>',
+                              own: '<span class="rs-pill ok">own</span>',
+                              flex: '<span class="rs-pill info">Flex-E-Rent</span>' }[m.cheapest]}</td>
                     </tr>`).join("")}
                   </tbody>
                 </table>
               </div>
+              <div class="tec-note" style="margin-top:8px"><b>On Flex-E-Rent</b> is a quote,
+                not spend: that truck leased from Enterprise for the period at
+                ${money1(M.flexMonth)} a month (${S.flex.term / 12} years, ${S.flex.rising
+                  ? "rising each year — the average" : "level"}), kept for the
+                ${RS.FLEX.minMonths}-month minimum or — if it is needed in fewer months —
+                handed back after them for the ${money(RS.FLEX.trueUp)} true-up, whichever is
+                cheaper (the line under each figure says which), plus
+                $${RS.FLEX.perMile.toFixed(2)} a mile at about ${fmtN(M.flexMiDay)} miles a
+                working day, plus insurance and parking as our own trucks
+                (${money(M.insYr + M.parkYr)} a truck-year). The verdict stays owning against
+                renting; the last column weighs all three. Against renting by the day, owning
+                pays past <b>${M.ownBreakEven == null ? "—" : fmtN(M.ownBreakEven)}</b> days a
+                year; ${M.flexBreakEven == null ? "Flex-E-Rent never does"
+                  : `Flex-E-Rent only past <b>${fmtN(M.flexBreakEven)}</b> days${M.flexBreakEven > 365
+                    ? " — more days than a year has" : ""}`}.</div>
             </div>
 
             <div class="panel">
@@ -433,6 +554,14 @@
                 <div><div class="l">Repairs / year</div>
                   <input class="rs-num" id="tecMaint" type="number" step="500"
                          value="${S.buy.maint}" style="width:130px"></div>
+                <div><div class="l">Flex-E-Rent term</div>
+                  <div class="rs-seg" id="tecFlexTerm">${[36, 60].map(t =>
+                    `<button type="button" data-v="${t}"${S.flex.term === t ? ' class="on"' : ""}>${t / 12} years</button>`).join("")}</div></div>
+                <div><div class="l">Flex-E-Rent pay</div>
+                  <div class="rs-seg" id="tecFlexPay">${[["level", "Level"], ["rising", "Rising"]].map(([v, l]) =>
+                    `<button type="button" data-v="${v}"${(v === "rising") === S.flex.rising ? ' class="on"' : ""}>${l}</button>`).join("")}</div>
+                  <div class="h">${money1(M.flexMonth)} a month${S.flex.rising
+                    ? " on average over the term" : ""} · compared only, the payback ignores it</div></div>
               </div>
               <div class="rs-kpis">
                 <div class="kpi"><span class="k">It would work</span>
@@ -462,6 +591,15 @@
                   : "<b>the second truck does not pay at this period's demand" +
                     " — buy one, keep renting the peak</b>"}
                 (both at the same purchase price and running cost as above).</div>
+              ${M.flexNext ? `<div class="tec-note" style="margin-top:8px"><b>On
+                Flex-E-Rent instead (a quote):</b> the same truck would cost
+                ${money(M.flexNext.total)}/yr — ${M.flexNext.early
+                  ? `${M.flexNext.held} months of rent, then handed back for the
+                     ${money(RS.FLEX.trueUp)} true-up`
+                  : `${M.flexNext.held} months of rent${M.flexNext.minimum
+                     ? " (the minimum term)" : ""}`}, plus mileage, insurance and parking —
+                against ${money(M.buyDisplacedYear)}/yr of renting it replaces and
+                ${money(M.buyYear)}/yr to run if we buy it.</div>` : ""}
             </div>
 
             <div class="panel">
@@ -547,6 +685,13 @@
               S.buy[key] = isNaN(v) ? BUY[key] : Math.max(0, v);
               save(); paint();
             };
+          });
+          // ---- Flex-E-Rent term and pay plan (kit segments) ----
+          host.querySelectorAll("#tecFlexTerm button").forEach(b => {
+            b.onclick = () => { S.flex.term = +b.dataset.v; save(); paint(); };
+          });
+          host.querySelectorAll("#tecFlexPay button").forEach(b => {
+            b.onclick = () => { S.flex.rising = b.dataset.v === "rising"; save(); paint(); };
           });
         }
 
