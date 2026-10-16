@@ -1086,26 +1086,6 @@ window.RS = (function () {
      from JS (chart datasets, inline styles) read V2 at RENDER time via isV2(), so the theme
      button, which re-renders the page, switches them too. CAT is the categorical order:
      dark -> bright, separable by brightness alone. Green/red are never categories. */
-  /* ENTERPRISE FLEX-E-RENT, THE QUOTE (2026-10-12, expires 2026-11-12; Joseph Mulholland, Enterprise
-     Truck Rental, to Ramaz). A 26' International box truck, ~1,800 CF, arriving in April, on a 12-60
-     month term. Tornike, 2026-10-16: "add it kinda everywhere - it should be listed alongside
-     enterprise". ONE copy here so Seasonal Planning and Truck Economics price it the same way.
-     Included: maintenance, roadside, a replacement truck, Geotab, WEX. NOT included: insurance (his
-     call: the same as our own trucks) and fuel (the same whoever owns the truck, so it is left out
-     of every comparison). Analysis write-up: https://claude.ai/artifact/HLRmrPV7Uvzr3AhwrQ7PVa */
-  const FLEX = {
-    name: "Flex-E-Rent", quoted: "2026-10-12", expires: "2026-11-12",
-    level: 3150,                              // $ a month, level pay, any term 12-60 months
-    rising: [2850, 2993, 3142, 3299, 3464],   // $ a month, annual-increase pay (+5% a year)
-    perMile: 0.12, milesMonth: 4000,          // their estimate: 4,000 miles a month
-    minMonths: 12, trueUp: 3564,              // the early-termination true-up
-    // average $ a month over a term: level pay, or the rising schedule's first N years
-    month(term, rising) {
-      const y = Math.max(1, Math.min(5, Math.round((term || 36) / 12)));
-      return rising ? FLEX.rising.slice(0, y).reduce((a, b) => a + b, 0) / y : FLEX.level;
-    },
-  };
-
   const V2 = {
     ink: "#0F172A", ink2: "#334155", muted: "#475569", faint: "#64748B", line: "#E2E8F0", line2: "#CBD5E1",
     bg: "#F6F7F9", panel: "#FFFFFF", panel2: "#F8FAFC",
@@ -1118,7 +1098,7 @@ window.RS = (function () {
   };
   const isV2 = () => document.body.classList.contains("v2");
 
-  return { DATASETS, FIELDS, state, load, filtered, monthName, V2, isV2, FLEX, M, value, yoy, groupBy, moneyC,
+  return { DATASETS, FIELDS, state, load, filtered, monthName, V2, isV2, M, value, yoy, groupBy, moneyC,
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
