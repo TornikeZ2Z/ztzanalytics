@@ -56,8 +56,26 @@
  *   A comparison is drawn only when the platform already had data on the comparison's first day.
  *   The cost a panel shows is the same live spend the channel table reads for that family.
  *
- * Plan of record: docs/plans/2026-10-15-marketing-overview.md. The website (GA4) and search
- * panels come next.
+ * THE REDESIGN (2026-10-17). His verdict on the stacked page: "its ugly, it is not analytical, and the
+ * metrics team asked us to track - is not there", and "whats live and what is not is something we
+ * should have on separate tab, lets say settings". Approved from the canvas prototype as FIVE TABS on
+ * one Company / Period / Compare bar (the tab is remembered per viewer):
+ *   * OVERVIEW -- the KPI row, WHAT STANDS OUT (fixed checks on the period's numbers, his "Yes,
+ *     rule-based": platform conversions far above our real leads, one platform's cost per booking
+ *     1.8x another's, spend up while bookings fall, organic clicks or the Ahrefs estimate sliding, a
+ *     tracked city outside Google's top 100, the ledger behind), cost per booking by platform, the
+ *     PLATFORM SCOREBOARD (each platform's own claim beside our leads and bookings; platforms with
+ *     no connector keep a row with the bank's spend), Google Ads spend and conversions over time,
+ *     and every channel.
+ *   * PAID ADS -- the four platform panels above, each carrying the metrics his team listed, plus a
+ *     card per platform not connected yet (Reddit, Nextdoor, LinkedIn, TikTok).
+ *   * SEARCH AND SEO -- Search Console (ext_gsc_site_day, the monthly query mart), Ahrefs and
+ *     BrightLocal's weekly rank reports (ext_brightlocal_rank, src/brightlocal_api.py).
+ *   * WEBSITE -- GA4: active users, engagement time, bounce rate, sources, locations (the month x
+ *     region mart) and demographics, under a banner whenever GA4 saw fewer users than we got leads.
+ *   * SETTINGS -- the data sources, as before, out of the way.
+ *
+ * Plan of record: docs/plans/2026-10-15-marketing-overview.md.
  */
 (function () {
   if (!window.RS || !RS.DATASETS) return;
@@ -91,10 +109,24 @@
     mkt_lsa_cost: { table: "ext_lsa_cost_day", cols: ["Date", "Cost", "Impressions", "Clicks"] },
     mkt_lsa_lead: { table: "mart_mkt_lsa_lead_day", cols: ["Date", "Lead Type", "Service", "Charge", "Leads"] },
     mkt_meta: { table: "ext_meta_ads_day",
-                cols: ["Date", "Campaign Id", "Campaign", "Objective", "Impressions", "Clicks", "Spend",
-                       "Leads", "Results", "Result Indicator"] },
+                cols: ["Date", "Campaign Id", "Campaign", "Objective", "Impressions", "Reach", "Clicks",
+                       "Spend", "Post Engagement", "Leads", "Results", "Result Indicator"] },
     mkt_gpt: { table: "ext_chatgpt_ads_day",
                cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks", "Spend", "Conversions"] },
+    // the Search and SEO tab
+    mkt_gsc: { table: "ext_gsc_site_day", cols: ["Date", "Clicks", "Impressions", "Position"] },
+    mkt_gscq: { table: "mart_gsc_query", cols: ["Date", "Query", "Type", "Clicks", "Impressions", "Position"] },
+    mkt_ahd: { table: "ext_ahrefs_day", cols: ["Date", "Domain Rating", "Org Keywords", "Org Keywords Top 3",
+                                              "Org Traffic", "Backlinks Live", "Ref Domains Live"] },
+    mkt_ahm: { table: "ext_ahrefs_month", cols: ["Month", "Domain Rating", "Org Traffic"] },
+    mkt_bl: { table: "ext_brightlocal_rank", cols: ["Report Id", "Location", "Postcode", "Run Date", "Keyword",
+                                                    "Engine", "Rank", "Listings"] },
+    // the Website tab
+    mkt_ga4: { table: "ext_ga4_site_day", cols: ["Date", "Sessions", "Engaged Sessions", "Active Users",
+                                                "Engagement Seconds", "Key Events"] },
+    mkt_ga4ch: { table: "ext_ga4_channel_day", cols: ["Date", "Channel Group", "Sessions"] },
+    mkt_ga4demo: { table: "ext_ga4_demo_month", cols: ["Month", "Age", "Gender", "Active Users"] },
+    mkt_ga4geo: { table: "mart_mkt_ga4_geo_month", cols: ["Month", "Country", "Region", "Active Users"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -103,7 +135,9 @@
 
 (() => {
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const LS_PERIOD = "mkoPeriod", LS_CMP = "mkoCmp";
+  const LS_PERIOD = "mkoPeriod", LS_CMP = "mkoCmp", LS_TAB = "mkoTab";
+  const TABS = [["ov", "Overview"], ["paid", "Paid ads"], ["seo", "Search and SEO"], ["web", "Website"],
+                ["set", "Settings"]];
   const PAID_LOOKBACK = 365;         // days before the period's end that still make a channel paid
   const LIVE_CO = "Zip to Zip";      // every live ad account is Zip to Zip's
   const THIN = 5;                    // fewer booked jobs than this: the cost per booked is a guess
@@ -117,11 +151,12 @@
   const PILL = { "Up to date": "ok", "Behind": "warn", "No data": "bad", "Not connected": "mute" };
 
   // module memory: survives a theme re-render, not a page load
-  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", booted: false };
+  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", tab: "ov", booted: false };
   const D = { ready: false, conn: [], connErr: null, rows: [], chErr: null,
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
-  const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], first: {}, last: {}, err: {} };
+  const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
+              ga4: [], ga4ch: [], demo: [], geo: [], first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
   const META_OBJ = { OUTCOME_LEADS: "Leads", OUTCOME_AWARENESS: "Awareness", OUTCOME_ENGAGEMENT: "Engagement",
@@ -249,12 +284,56 @@
       + ".mko .mko-nm{font-size:13px;line-height:1.55;color:var(--ink)}"
       + ".mko .mko-nm b{font-weight:700}"
       + ".mko .mko-nm p{margin:0 0 8px}"
+      // the redesign: tabs, the status chip, two equal columns, insights, bars, cards, ranks
+      + ".mko .mko-tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin:6px 0 16px}"
+      + ".mko .mko-tabs button{font:inherit;font-size:14px;font-weight:600;color:var(--muted);background:none;border:0;"
+      + "border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 14px;cursor:pointer}"
+      + ".mko .mko-tabs button:hover{color:var(--ink)}"
+      + ".mko .mko-tabs button.on{color:var(--ink);border-bottom-color:var(--brand)}"
+      + ".mko .mko-chip{font:inherit;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px;"
+      + "padding:8px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);"
+      + "cursor:pointer;margin-left:auto;align-self:flex-end}"
+      + ".mko .mko-chip:hover{border-color:var(--brand)}"
+      + ".mko .mko-g2e{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:14px;align-items:start}"
+      + ".mko .mko-ins{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line);"
+      + "font-size:13.5px;line-height:1.55}"
+      + ".mko .mko-ins:last-child{border-bottom:0}"
+      + ".mko .mko-ins b{font-weight:700}"
+      + ".mko .mko-ins-i{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;"
+      + "justify-content:center;font-weight:800;font-size:13px;background:var(--panel-2);color:var(--ink)}"
+      + ".mko .mko-ins-i.warn{background:rgba(217,119,6,.16);color:#B45309}"
+      + ".mko .mko-ins-i.bad{background:rgba(220,38,38,.13);color:var(--neg)}"
+      + ".mko .mko-ins button{font:inherit;font-size:12.5px;font-weight:600;background:none;border:0;padding:0;"
+      + "margin-left:4px;color:var(--ink);cursor:pointer;border-bottom:1px dotted currentColor}"
+      + ".mko .mko-ins button:hover{color:var(--brand)}"
+      + ".mko .mko-hbar{display:grid;grid-template-columns:minmax(90px,150px) minmax(0,1fr) 72px;gap:10px;"
+      + "align-items:center;margin:9px 0;font-size:13px}"
+      + ".mko .mko-hbar b{font-weight:700;text-align:right}"
+      + ".mko .mko-hbar .mko-sub{display:block;margin:0}"
+      + ".mko .mko-track{display:block;height:16px;border-radius:5px;background:var(--line)}"
+      + ".mko .mko-track i{display:block;height:16px;border-radius:5px;background:var(--brand)}"
+      + ".mko .mko-track i.bad{background:var(--neg)}.mko .mko-track i.thin{opacity:.4}"
+      + ".mko .mko-ours{background:rgba(127,127,127,.06)}"
+      + ".mko .mko-offs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:12px}"
+      + ".mko .mko-off{border:1px dashed var(--line-2);border-radius:12px;padding:14px 16px;font-size:12.5px;"
+      + "line-height:1.55;color:var(--muted);display:flex;flex-direction:column;gap:6px}"
+      + ".mko .mko-off b{font-size:14px;font-weight:700;color:var(--ink)}"
+      + ".mko .mko-warn{background:rgba(217,119,6,.10);border:1px solid rgba(217,119,6,.35);border-radius:10px;"
+      + "padding:11px 14px;font-size:13px;line-height:1.55;margin:0 0 12px}"
+      + ".mko .mko-h3{margin:14px 0 2px;font-size:14px;font-weight:700;color:var(--ink)}"
+      + ".mko .mko-rk{font-weight:700}.mko .mko-rk.top{color:var(--pos)}.mko .mko-rk.low{color:var(--muted)}"
       + "@media(max-width:600px){.mko .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}"
       + ".mko .rs-kpis .kpi{padding:10px 12px}}"
       + "body.rs-app.light.v2 .mko .mko-sub,body.rs-app.light.v2 .mko .mko-note,"
       + "body.rs-app.light.v2 .mko .mko-met,body.rs-app.light.v2 .mko .mko-foot,"
       + "body.rs-app.light.v2 .mko .mko-feed,body.rs-app.light.v2 .mko .mko-cov,"
-      + "body.rs-app.light.v2 .mko .mko-pnav,body.rs-app.light.v2 .mko .mko-empty{color:#64748B}"
+      + "body.rs-app.light.v2 .mko .mko-pnav,body.rs-app.light.v2 .mko .mko-empty,"
+      + "body.rs-app.light.v2 .mko .mko-off,body.rs-app.light.v2 .mko .mko-tabs button,"
+      + "body.rs-app.light.v2 .mko .mko-rk.low{color:#64748B}"
+      + "body.rs-app.light.v2 .mko .mko-tabs button.on{color:#0F172A;border-bottom-color:#3F7D20}"
+      + "body.rs-app.light.v2 .mko .mko-track i{background:#3F7D20}"
+      + "body.rs-app.light.v2 .mko .mko-track i.bad{background:#B42318}"
+      + "body.rs-app.light.v2 .mko .mko-rk.top{color:#17733F}"
       + "body.rs-app.light.v2 .mko .mko-share i{background:#3F7D20}"
       + "body.rs-app.light.v2 .mko .mko-d{font-weight:600}";
     document.head.appendChild(st);
@@ -396,6 +475,8 @@
     }
     const c = lsGet(LS_CMP);
     if (c === "ly" || c === "prev") S.cmp = c;
+    const t = lsGet(LS_TAB);
+    if (TABS.some(x => x[0] === t)) S.tab = t;
   }
   // a preset by NAME (so "This month" moves with the calendar), anything else by its dates
   function savePeriod() {
@@ -561,7 +642,7 @@
       const kind = ind || (leads ? "lead" : "");
       return { d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
         obj: r.Objective || "", cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks),
-        leads, kind, res: ind ? num(r.Results) : leads };
+        reach: num(r.Reach), eng: num(r["Post Engagement"]), leads, kind, res: ind ? num(r.Results) : leads };
     });
     indexPlat("gpt", gpt, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
       cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
@@ -571,6 +652,29 @@
     const ll = [P.last.lsaC, P.last.lsaL].filter(Boolean).sort();
     P.first.lsa = lf.length === 2 ? lf[1] : null;
     P.last.lsa = ll.length === 2 ? ll[0] : null;
+  }
+  // the search and website tables: the day ones go through indexPlat (so platWin cuts them like a
+  // platform), the monthly ones keep their month
+  function indexWeb(t) {
+    indexPlat("gsc", t.gsc, r => ({ d: d10(r.Date), clk: num(r.Clicks), imp: num(r.Impressions),
+      pos: r.Position == null ? null : num(r.Position) }));
+    indexPlat("ga4", t.ga4, r => ({ d: d10(r.Date), ses: num(r.Sessions), eng: num(r["Engaged Sessions"]),
+      users: num(r["Active Users"]), secs: num(r["Engagement Seconds"]), kev: num(r["Key Events"]) }));
+    indexPlat("ga4ch", t.ga4ch, r => ({ d: d10(r.Date), grp: r["Channel Group"] || "", ses: num(r.Sessions) }));
+    const m7 = v => String(v || "").slice(0, 7);
+    P.gscq = (t.gscq || []).map(r => ({ m: m7(r.Date), q: r.Query || "", type: r.Type || "Other",
+      clk: num(r.Clicks), imp: num(r.Impressions), pos: r.Position == null ? null : num(r.Position) }));
+    P.ahd = (t.ahd || []).map(r => ({ d: d10(r.Date), dr: r["Domain Rating"] == null ? null : num(r["Domain Rating"]),
+      kw: num(r["Org Keywords"]), kw3: num(r["Org Keywords Top 3"]), traffic: num(r["Org Traffic"]),
+      bl: num(r["Backlinks Live"]), rd: num(r["Ref Domains Live"]) })).sort((a, b) => (a.d < b.d ? -1 : 1));
+    P.ahm = (t.ahm || []).map(r => ({ m: m7(r.Month), dr: r["Domain Rating"] == null ? null : num(r["Domain Rating"]),
+      traffic: num(r["Org Traffic"]) })).filter(r => r.m).sort((a, b) => (a.m < b.m ? -1 : 1));
+    P.bl = (t.bl || []).map(r => ({ rep: String(r["Report Id"]), loc: r.Location || "", post: r.Postcode || "",
+      d: d10(r["Run Date"]), kw: r.Keyword || "", eng: r.Engine || "", rank: r.Rank == null ? null : num(r.Rank) }))
+      .filter(r => r.d && r.kw);
+    P.demo = (t.demo || []).map(r => ({ m: m7(r.Month), age: r.Age || "", sex: r.Gender || "", users: num(r["Active Users"]) }));
+    P.geo = (t.geo || []).map(r => ({ m: m7(r.Month), country: r.Country || "", region: r.Region || "",
+      users: num(r["Active Users"]) }));
   }
 
   const inRange = (rows, a, b) => rows.filter(r => r.d >= a && r.d <= b);
@@ -782,13 +886,17 @@
       + '<span class="mko-sub">every campaign that showed an ad in the period, most cost first</span></div>'
       + adsCampTable(rows, cur) + "</div>";
     return { html, wire(host) {
+      const f = famStat("Google", pw.a, pw.b);
       RSC.kpis(host.querySelector("#mkoK-ads"), [
-        kp("Cost", cur.cost, prev.cost, money, null, "", pw),
-        kp("Clicks", cur.clk, prev.clk, fmtN, false, compact(cur.imp) + " impr.", pw),
+        kp("Impressions", cur.imp, prev.imp, compact, false, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
         kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
         kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "cost ÷ clicks", pw),
+        kp("Cost", cur.cost, prev.cost, money, null, "", pw),
         kp("Conversions", cur.conv, prev.conv, fmtN, false, "Google's count", pw),
         kp("Cost per conv.", cpa(cur), cmp ? cpa(prev) : undefined, money0, true, "", pw),
+        { label: "Cost per booking", value: f && f.cpb != null ? money0(f.cpb) : "—",
+          sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " Google leads" : "our side" },
       ]);
       costCard(host.querySelector("#mkoC-ads"), "ads", "Cost", pw, rows, cmp,
                { label: "Conversions", val: r => r.conv, fmt: fmtN });
@@ -952,6 +1060,8 @@
     const cmp = pw.cw ? inRange(P.meta, pw.cw.a, pw.cw.b) : null;
     const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
     cur.leads = sum(rows, "leads"); prev.leads = cmp ? sum(cmp, "leads") : undefined;
+    cur.reach = sum(rows, "reach"); prev.reach = cmp ? sum(cmp, "reach") : undefined;
+    cur.eng = sum(rows, "eng"); prev.eng = cmp ? sum(cmp, "eng") : undefined;
     const html = head
       + '<div class="rs-kpis" id="mkoK-meta"></div>'
       + '<p class="rs-hint">The account runs on Los Angeles time, so a Meta day ends three hours after '
@@ -966,13 +1076,20 @@
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
       + metaCampTable(rows, cur) + "</div>";
     return { html, wire(host) {
+      // a result of one kind is compared only with the same kind in the other period
+      const mr = metaResult(rows), pm = cmp && mr
+        ? sum(cmp.filter(r => r.kind === mr.top.k), "res") : undefined;
       RSC.kpis(host.querySelector("#mkoK-meta"), [
-        kp("Spend", cur.cost, prev.cost, money, null, "", pw),
-        kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+        kp("Impressions", cur.imp, prev.imp, compact, false, "", pw),
         kp("Clicks", cur.clk, prev.clk, fmtN, false, "all clicks", pw),
         kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
-        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
-        kp("Leads", cur.leads, prev.leads, fmtN, false, "Meta's lead count", pw),
+        kp("Reach", cur.reach, prev.reach, compact, false, "summed per day", pw),
+        kp("Engagement", cur.eng, prev.eng, compact, false, "post engagements", pw),
+        kp("Cost per click", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        mr ? kp("Results", mr.top.res, pm, compact, false, metaKind(mr.top.k)
+               + (mr.others ? " · +" + mr.others + " other kind" + (mr.others > 1 ? "s" : "") : ""), pw)
+           : { label: "Results", value: "—", sub: "no campaign returned one" },
+        kp("Cost", cur.cost, prev.cost, money, null, "", pw),
       ]);
       costCard(host.querySelector("#mkoC-meta"), "meta", "Spend", pw, rows, cmp,
                { label: "Leads", val: r => r.leads, fmt: fmtN });
@@ -1058,11 +1175,12 @@
       + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>";
     return { html, wire(host) {
       const k = [
-        kp("Spend", cur.cost, prev.cost, money, null, "", pw),
         kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
         kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
         kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
         kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        kp("Avg CPM", cur.cpm, prev.cpm, cents, true, "spend per 1,000 impressions", pw),
+        kp("Spend", cur.cost, prev.cost, money, null, "", pw),
         tracked ? kp("Conversions", cur.conv, prev.conv, fmtN, false, "ChatGPT's count", pw)
           : { label: "Conversions", value: '<span class="mko-cov">not measured</span>',
               sub: "no conversion event set up" },
@@ -1098,14 +1216,13 @@
 
   /* the whole middle section; `wire` runs once the markup is in the page */
   function platformsSection(w, cw) {
-    const head = '<div class="mko-h" id="mkoPlatforms"><h2>Ad platforms</h2><span class="mko-sub">'
-      + "Each platform's own numbers for the period: what it charged, what it showed and what it "
-      + "counts as a result.</span></div>";
+    const head = '<p class="rs-hint" id="mkoPlatforms">Each platform\'s own numbers for the period: what it '
+      + "charged, what it showed and what it counts as a result, with the metrics your team tracks.</p>";
     if (S.co === "Tuji") {
       return { html: head + '<div class="panel"><div class="mko-nm">Every live ad account here (Google '
         + "Ads, Local Services, Meta, ChatGPT) is Zip to Zip's. Tuji has none: its spend reaches us "
-        + "through the bank ledger only, in the Channels table above. Pick Zip to Zip or Both companies "
-        + "to see the platforms.</div></div>", wire() {} };
+        + "through the bank ledger only, in the Overview's channel table. Pick Zip to Zip or Both "
+        + "companies to see the platforms.</div></div>", wire() {} };
     }
     const parts = [["ads", "Google Ads", adsSection], ["lsa", "Local Services", lsaSection],
                    ["meta", "Meta", metaSection], ["gpt", "ChatGPT Ads", gptSection]]
@@ -1127,7 +1244,539 @@
     };
   }
 
-  /* --- the data sources (bottom) --- */
+  /* ------------------------------------------------------------------ the five tabs ---- */
+  // a channel family's numbers on Zip to Zip only (every live ad account is Zip to Zip's)
+  function withCo(co, fn) {
+    const keep = S.co;
+    S.co = co;
+    try { return fn(); } finally { S.co = keep; }
+  }
+  function famStat(fam, a, b) { return withCo(LIVE_CO, () => aggregate(a, b).find(f => f.fam === fam) || null); }
+  const upDown = d => (d >= 0 ? "up " : "down ") + Math.abs(d * 100).toFixed(Math.abs(d) < 0.1 ? 1 : 0) + "%";
+  // a change of a rate, in points (bounce rate, CTR)
+  function deltaPts(cur, prev, lowerIsBetter) {
+    if (cur == null || prev == null || isNaN(cur) || isNaN(prev)) return "";
+    const d = (cur - prev) * 100;
+    if (Math.abs(d) < 0.05) return '<span class="mko-d eq">± 0 pts</span>';
+    const good = lowerIsBetter ? d < 0 : d > 0;
+    return '<span class="mko-d ' + (good ? "up" : "dn") + '" title="change in percentage points">'
+      + (d > 0 ? "▲ " : "▼ ") + Math.abs(d).toFixed(1) + " pts</span>";
+  }
+  const dur = s => s == null || isNaN(s) ? "—" : s < 60 ? Math.round(s) + "s"
+    : Math.floor(s / 60) + "m " + Math.round(s % 60) + "s";
+  // an average search position moves in places, and down the list is better
+  function posDelta(cur, prev) {
+    if (cur == null || prev == null) return "";
+    const d = prev - cur;
+    if (Math.abs(d) < 0.05) return '<span class="mko-d eq">± 0</span>';
+    return '<span class="mko-d ' + (d > 0 ? "up" : "dn") + '" title="change in average position">'
+      + (d > 0 ? "▲ " : "▼ ") + Math.abs(d).toFixed(1) + (d > 0 ? " better" : " worse") + "</span>";
+  }
+  const months = (a, b) => { const out = []; for (let m = a.slice(0, 7); m <= b.slice(0, 7);) {
+    out.push(m); const y = +m.slice(0, 4), mo = +m.slice(5, 7); m = mo === 12 ? (y + 1) + "-01" : y + "-" + String(mo + 1).padStart(2, "0"); }
+    return out; };
+  const monthWord = m => MON[+m.slice(5, 7) - 1] + " " + m.slice(0, 4);
+  const monthSpan = list => !list.length ? "" : list.length === 1 ? monthWord(list[0])
+    : monthWord(list[0]) + " to " + monthWord(list[list.length - 1]);
+  const pill = (s, cls) => '<span class="rs-pill ' + cls + '">' + esc(s) + "</span>";
+
+  /* Meta's result for a set of rows: one kind is a number; several kinds are never added, so the
+     kind the most money bought speaks, and the line says how many others there were */
+  function metaResult(rows) {
+    const kinds = groupBy(rows.filter(r => r.kind), r => r.kind)
+      .map(x => ({ k: x.k, res: sum(x.rows, "res"), cost: sum(x.rows, "cost") }))
+      .filter(x => x.res).sort((a, b) => b.cost - a.cost);
+    return kinds.length ? { top: kinds[0], others: kinds.length - 1 } : null;
+  }
+
+  /* --- the platform scoreboard: each ad platform's own claim beside what we booked from it --- */
+  const AD_PLATFORMS = [["ads", "Google Ads", "Google"], ["lsa", "Local Services", "Google Local"],
+                        ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"]];
+  // the ad platforms with no connector yet, and the family their leads are filed under
+  const OFF_ADS = { reddit: "Reddit", nextdoor: "Nextdoor", linkedin: "LinkedIn", tiktok: "TikTok" };
+  const OFF_KEYS = { tiktok: "parked", semrush: "not upgrading" };
+  function scoreRows(w) {
+    const out = [];
+    AD_PLATFORMS.forEach(([k, name, fam]) => {
+      const pw = platWin(k, w, null);
+      const o = { k, name, fam, live: true, spend: null, imp: null, clk: null, ctr: null, cpc: null, says: "—" };
+      if (pw && !pw.before && !pw.after) {
+        if (k === "lsa") {
+          const c = clickStats(inRange(P.lsaC, pw.a, pw.b));
+          const ch = sum(inRange(P.lsaL, pw.a, pw.b).filter(r => r.chg === "Charged"), "n");
+          Object.assign(o, { spend: c.cost, imp: c.imp, clk: c.clk, ctr: c.ctr, cpc: c.cpc,
+                             says: fmtN(ch) + " charged leads" });
+        } else {
+          const rows = inRange(P[k], pw.a, pw.b), c = clickStats(rows);
+          Object.assign(o, { spend: c.cost, imp: c.imp, clk: c.clk, ctr: c.ctr, cpc: c.cpc });
+          if (k === "ads") o.says = fmtN(sum(rows, "conv")) + " conversions";
+          if (k === "meta") { const m = metaResult(rows); o.says = m ? compact(m.top.res) + " " + metaKind(m.top.k) : "no result"; }
+          if (k === "gpt") o.says = P.gpt.some(r => r.conv > 0) ? fmtN(sum(rows, "conv")) + " conversions" : "not measured";
+        }
+      }
+      const f = famStat(fam, w.a, w.bEff);
+      Object.assign(o, { leads: f ? f.leads : 0, booked: f ? f.booked : 0, cpb: f ? f.cpb : null,
+                         thin: !f || f.cBooked < THIN, uncov: !!(f && f.uncov) });
+      out.push(o);
+    });
+    D.conn.filter(r => OFF_ADS[r.Key] && r.Connection === "Not connected").forEach(r => {
+      const f = famStat(OFF_ADS[r.Key], w.a, w.bEff);
+      out.push({ k: r.Key, name: r.Platform, fam: OFF_ADS[r.Key], live: false,
+                 state: OFF_KEYS[r.Key] || "waiting", bank: r["Bank Spend"], year: r["Bank Year"],
+                 leads: f ? f.leads : 0, booked: f ? f.booked : 0 });
+    });
+    return out;
+  }
+  function scoreboardHtml(rows) {
+    const live = rows.filter(r => r.live), off = rows.filter(r => !r.live);
+    const dash = '<span class="mko-sub">—</span>';
+    const tr = r => "<tr><td class=\"mko-name\"><b>" + esc(r.name) + "</b> "
+      + (r.live ? pill("live", "ok") : pill(r.state, r.state === "waiting" ? "warn" : "mute")) + "</td>"
+      + '<td class="mko-num">' + (r.live ? money0(r.spend) : r.bank != null
+        ? money0(+r.bank) + '<div class="mko-sub">bank ' + esc(r.year || "") + "</div>" : dash) + "</td>"
+      + '<td class="mko-num">' + (r.live ? compact(r.imp) : dash) + "</td>"
+      + '<td class="mko-num">' + (r.live ? fmtN(r.clk) : dash) + "</td>"
+      + '<td class="mko-num">' + (r.live ? pct2(r.ctr) : dash) + "</td>"
+      + '<td class="mko-num">' + (r.live ? cents(r.cpc) : dash) + "</td>"
+      + '<td class="mko-num">' + (r.live ? esc(r.says) : dash) + "</td>"
+      + '<td class="mko-num mko-ours">' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</td>"
+      + '<td class="mko-num mko-ours">' + fmtN(r.booked) + "</td>"
+      + '<td class="mko-num mko-ours"><b>' + (r.live && r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "") : "—") + "</b></td></tr>";
+    return '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr>'
+      + "<th>Platform</th>"
+      + '<th class="mko-num">Spend</th><th class="mko-num" title="impressions">Impr.</th>'
+      + '<th class="mko-num">Clicks</th><th class="mko-num">CTR</th><th class="mko-num">CPC</th>'
+      + '<th class="mko-num" title="what the platform counts as its result">Platform says</th>'
+      + '<th class="mko-num mko-ours" title="Moveboard leads filed under this source">Our leads</th>'
+      + '<th class="mko-num mko-ours" title="of those leads, how many booked">Booked</th>'
+      + '<th class="mko-num mko-ours" title="spend ÷ booked jobs, as in the Channels table">Cost / booking</th>'
+      + "</tr></thead><tbody>" + live.map(tr).join("") + off.map(tr).join("") + "</tbody></table></div>"
+      + '<p class="rs-hint">Platforms with no connector yet show what the bank ledger paid them this '
+      + "year, so they stay on the board. * ChatGPT leads include visitors from chatgpt.com answers.</p>";
+  }
+  // cost per booking, one bar per live platform, cheapest first; the dearest is drawn red when it
+  // costs at least 1.8 times the cheapest, a thin sample is drawn faint
+  function cpbBarsHtml(rows) {
+    const list = rows.filter(r => r.live && r.cpb != null).sort((a, b) => a.cpb - b.cpb);
+    if (!list.length) return '<div class="mko-empty">No platform booked a job in this period.</div>';
+    const max = list[list.length - 1].cpb, min = list[0].cpb;
+    return list.map((r, i) => {
+      const cls = r.thin ? "thin" : i === list.length - 1 && list.length > 1 && max >= 1.8 * min ? "bad" : "";
+      return '<div class="mko-hbar"><span>' + esc(r.name) + (r.thin ? '<span class="mko-sub">few bookings</span>' : "")
+        + '</span><span class="mko-track"><i class="' + cls + '" style="width:' + Math.max(3, Math.round(100 * r.cpb / max))
+        + '%"></i></span><b>' + money0(r.cpb) + "</b></div>";
+    }).join("") + '<p class="rs-hint">Spend ÷ the bookings of leads filed under each platform. Lower is better.</p>';
+  }
+
+  /* --- what stands out: fixed checks on this period's numbers, most important first --- */
+  function insights(w, cw, score) {
+    const out = [];
+    const add = (rank, tone, icon, html, tab) => out.push({ rank, tone, icon, html, tab });
+    if (S.co !== "Tuji") {
+      const pw = platWin("ads", w, cw);
+      if (pw && !pw.before && !pw.after) {
+        const conv = sum(inRange(P.ads, pw.a, pw.b), "conv"), f = famStat("Google", pw.a, pw.b);
+        if (f && conv >= 30 && conv >= 1.3 * f.leads) {
+          const pc = pw.cw ? sum(inRange(P.ads, pw.cw.a, pw.cw.b), "conv") : 0;
+          add(1, "warn", "!", "Google Ads counts <b>" + fmtN(conv) + " conversions</b>"
+            + (pc ? ", " + upDown(conv / pc - 1) + " on the " + esc(pw.cw.label) : "")
+            + ", but Moveboard got " + fmtN(f.leads) + " Google leads and " + fmtN(f.booked)
+            + " bookings. Performance Max counts calls and site visits as conversions, so judge it on "
+            + "cost per booking.", "paid");
+        }
+      }
+      const ok = score.filter(r => r.live && r.cpb != null && !r.thin).sort((a, b) => a.cpb - b.cpb);
+      if (ok.length >= 2) {
+        const lo = ok[0], hi = ok[ok.length - 1];
+        if (hi.cpb >= 1.8 * lo.cpb) {
+          add(2, "bad", "$", esc(hi.name) + " costs <b>" + money0(hi.cpb) + " per booking</b>, "
+            + (hi.cpb / lo.cpb).toFixed(1) + " times " + esc(lo.name) + " (" + money0(lo.cpb) + "), on "
+            + money(hi.spend) + " of spend against " + money(lo.spend) + ".", "paid");
+        }
+      }
+      const gp = score.find(r => r.k === "gpt");
+      if (gp && gp.spend > 0 && !P.gpt.some(r => r.conv > 0)) {
+        add(8, "info", "i", "ChatGPT Ads spent " + money0(gp.spend) + " with no conversion event set up, so "
+          + "it reports 0 conversions. Read its leads on our side instead.", "paid");
+      }
+    }
+    if (cw) {
+      const cur = totals(aggregate(w.a, w.bEff)), prev = totals(aggregate(cw.a, cw.b, cw));
+      if (prev.spend > 0 && prev.booked > 0 && cur.spend / prev.spend - 1 >= 0.15 && cur.booked / prev.booked - 1 <= -0.05) {
+        add(3, "bad", "↕", "Ad spend is <b>" + upDown(cur.spend / prev.spend - 1) + "</b> on the " + esc(cw.label)
+          + " while bookings are " + upDown(cur.booked / prev.booked - 1) + ".");
+      }
+    }
+    const gw = platWin("gsc", w, cw);
+    if (gw && gw.cw && !gw.before && !gw.after) {
+      const c = sum(inRange(P.gsc, gw.a, gw.b), "clk"), p = sum(inRange(P.gsc, gw.cw.a, gw.cw.b), "clk");
+      if (p > 0 && c / p - 1 <= -0.15) {
+        add(4, "bad", "↓", "Organic search is sliding: Search Console clicks are <b>" + upDown(c / p - 1)
+          + "</b> on the " + esc(gw.cw.label) + ".", "seo");
+      }
+    }
+    const am = P.ahm.slice(-7);
+    if (am.length >= 4) {
+      const peak = am.slice(0, -1).reduce((a, r) => (r.traffic > a.traffic ? r : a), am[0]);
+      const last = am[am.length - 1];
+      if (peak.traffic > 0 && last.traffic / peak.traffic - 1 <= -0.35) {
+        add(5, "warn", "↓", "The Ahrefs organic traffic estimate is <b>" + upDown(last.traffic / peak.traffic - 1)
+          + "</b> from " + esc(monthWord(peak.m)) + " (" + fmtN(peak.traffic) + " to " + fmtN(last.traffic) + " a month).", "seo");
+      }
+    }
+    blLatest().forEach(loc => {
+      const g = loc.kws.filter(k => k.Google != null);
+      const maps = loc.kws.map(k => k.Maps).filter(v => v != null).sort((a, b) => a - b);
+      if (loc.kws.length && !g.length) {
+        add(6, "warn", "⌖", esc(loc.loc) + " is <b>not in Google's top 100</b> for any of its " + loc.kws.length
+          + " tracked keywords" + (maps.length ? "; in Maps it ranks " + maps[0] + (maps.length > 1 ? " to " + maps[maps.length - 1] : "")
+          + " for " + maps.length + " of them" : ", nor in Maps") + ".", "seo");
+      }
+    });
+    if (D.ledgerEnd && dayCount(D.ledgerEnd, today()) > 40) {
+      add(7, "info", "i", "The bank ledger runs through " + esc(day(D.ledgerEnd)) + ": Yelp, Angi, postcards "
+        + "and the other ledger channels have no spend after that day until the next paste.", "set");
+    }
+    return out.sort((a, b) => a.rank - b.rank).slice(0, 5);
+  }
+  function insightsHtml(list) {
+    if (!list.length) return '<div class="mko-empty">Nothing unusual in this period.</div>';
+    const go = { paid: "See Paid ads", seo: "See Search and SEO", set: "See Settings", web: "See Website" };
+    return list.map(x => '<div class="mko-ins"><span class="mko-ins-i ' + x.tone + '" aria-hidden="true">'
+      + esc(x.icon) + "</span><div>" + x.html
+      + (x.tab ? ' <button type="button" data-tab="' + x.tab + '">' + go[x.tab] + "</button>" : "")
+      + "</div></div>").join("");
+  }
+
+  /* a plain bar chart card of one measure per bucket, with its table twin */
+  function barCard(host, key, title, keys, g, vals, fmt, color) {
+    RSC.chartCard(host, {
+      title, key: "mko-" + key,
+      buildChart(canvas) {
+        const C = palette();
+        return new Chart(canvas, {
+          type: "bar",
+          data: { labels: keys.map(k => bucketLabel(k, g)), datasets: [{ label: title, data: vals,
+            backgroundColor: C[color] || C.main, borderRadius: 3, maxBarThickness: 26 }] },
+          options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt(c.raw) } } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => fmt(v) } },
+                      x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } } },
+        });
+      },
+      buildTable() {
+        return '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>'
+          + esc(GRAIN_WORD[g][0].toUpperCase() + GRAIN_WORD[g].slice(1)) + '</th><th class="mko-num">'
+          + esc(title) + "</th></tr></thead><tbody>" + keys.map((k, i) => "<tr><td>" + esc(bucketLabel(k, g))
+          + '</td><td class="mko-num">' + fmt(vals[i]) + "</td></tr>").join("") + "</tbody></table></div>";
+      },
+    });
+  }
+
+  /* === OVERVIEW === */
+  function overviewTab(w, cw) {
+    if (D.chErr) {
+      return { html: '<div class="panel">The channel numbers could not load — ' + esc(D.chErr)
+        + (/404|unknown dataset|not granted/i.test(D.chErr)
+          ? " (they arrive with the next pipeline run, or a <b>mkt-overview</b> rebuild)" : "") + "</div>" };
+    }
+    const score = S.co === "Tuji" ? [] : scoreRows(w);
+    const fams = aggregate(w.a, w.bEff);
+    const past = D.ledgerEnd && w.bEff > D.ledgerEnd;
+    const apw = S.co === "Tuji" ? null : platWin("ads", w, null);
+    const html = '<div class="rs-kpis" id="mkoKpis"></div>'
+      + '<p class="rs-hint hidden" id="mkoKpiHint"></p>'
+      + '<div class="mko-g2e">'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">What stands out</span>'
+      + '<span class="mko-sub">read from this period\'s numbers</span></div>' + insightsHtml(insights(w, cw, score)) + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Cost per booking by platform</span></div>'
+      + (S.co === "Tuji" ? '<div class="mko-empty">Every ad platform here is Zip to Zip\'s.</div>' : cpbBarsHtml(score)) + "</div>"
+      + "</div>"
+      + (S.co === "Tuji" ? "" : '<div class="panel"><div class="panel-head"><span class="panel-title">Platform scoreboard</span>'
+        + '<span class="mko-sub">what each platform claims, beside what we booked from it</span></div>'
+        + scoreboardHtml(score) + "</div>")
+      + (apw && !apw.before && !apw.after ? '<div class="mko-g2e"><div id="mkoGw1"></div><div id="mkoGw2"></div></div>' : "")
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Every channel</span>'
+      + '<span class="mko-sub">the ad platforms and every bank-ledger source</span></div>'
+      + '<p class="rs-hint">Booked = leads created in the period that booked. Spend is live from Google Ads, '
+      + "Local Services, Meta and ChatGPT; every other channel is the bank ledger"
+      + (D.ledgerEnd ? ", which runs through " + esc(day(D.ledgerEnd)) : "")
+      + (past ? "; a * marks cost figures read on the leads whose spend is in" : "")
+      + ". Click a channel to open it in Source Analysis.</p>" + channelsHtml(fams) + "</div>";
+    return { html, wire(host) {
+      const k = host.querySelector("#mkoKpis");
+      if (k) kpisFor(k, w, cw);
+      const kh = host.querySelector("#mkoKpiHint");
+      if (kh) {
+        const bits = [];
+        if (fams.some(f => f.paid && f.uncov)) {
+          bits.push("The bank ledger runs through " + day(D.ledgerEnd) + ": for later days the cost figures "
+            + "count only the channels with live spend (Google Ads, Local Services, Meta, ChatGPT)"
+            + (cw ? ", in both periods" : "") + ".");
+        }
+        if (cw) {
+          bits.push("The " + cw.label + "'s bookings are counted as they stood on " + day(cw.asOf)
+            + ", so a young cohort is not set against one that had longer to book.");
+        }
+        kh.innerHTML = bits.map(esc).join(" ");
+        kh.classList.toggle("hidden", !bits.length);
+      }
+      if (apw && !apw.before && !apw.after) {
+        const rows = inRange(P.ads, apw.a, apw.b), keys = bucketsOf(apw.a, apw.b, apw.g);
+        barCard(host.querySelector("#mkoGw1"), "gw-cost", "Google Ads spend by " + GRAIN_WORD[apw.g], keys, apw.g,
+                seriesOf(rows, keys, apw.g, r => r.cost).map(v => +v.toFixed(2)), money0, "main");
+        barCard(host.querySelector("#mkoGw2"), "gw-conv", "Conversions Google counts by " + GRAIN_WORD[apw.g], keys, apw.g,
+                seriesOf(rows, keys, apw.g, r => r.conv).map(v => +v.toFixed(1)), fmtN, "alt");
+      }
+    } };
+  }
+
+  /* === PAID ADS === */
+  function offCardsHtml(w) {
+    const rows = D.conn.filter(r => OFF_ADS[r.Key] && r.Connection === "Not connected");
+    if (!rows.length) return "";
+    return '<div class="mko-h"><h2>Not connected yet</h2><span class="mko-sub">each card fills itself the day '
+      + "its connector lands; until then it shows what the bank paid</span></div>"
+      + '<div class="mko-offs">' + rows.map(r => {
+        const f = S.co === "Tuji" ? null : famStat(OFF_ADS[r.Key], w.a, w.bEff);
+        const st = OFF_KEYS[r.Key] || "waiting";
+        return '<div class="mko-off"><div><b>' + esc(r.Platform) + "</b> " + pill(st, st === "waiting" ? "warn" : "mute")
+          + "</div><div>" + esc(r.Metrics || "") + "</div>"
+          + "<div>Bank " + esc(r["Bank Year"] || "") + ": <b>" + (r["Bank Spend"] != null ? money0(+r["Bank Spend"]) : "—") + "</b>"
+          + (f && f.leads ? " · " + fmtN(f.leads) + " leads filed under it in the period" : "") + "</div>"
+          + (r["Next Step"] ? "<div>Next: " + esc(r["Next Step"]) + "</div>" : "") + "</div>";
+      }).join("") + "</div>";
+  }
+  function paidTab(w, cw) {
+    const plat = platformsSection(w, cw);
+    return { html: plat.html + offCardsHtml(w), wire: plat.wire };
+  }
+
+  /* === SEARCH AND SEO === */
+  // BrightLocal: each location's newest run, one row per keyword with a rank per engine, and the
+  // run before it for the change
+  function blLatest() {
+    const out = [];
+    groupBy(P.bl, r => r.rep).forEach(g => {
+      const runs = Array.from(new Set(g.rows.map(r => r.d))).sort();
+      const last = runs[runs.length - 1], prev = runs.length > 1 ? runs[runs.length - 2] : null;
+      const at = d => { const m = {}; g.rows.filter(r => r.d === d).forEach(r => { (m[r.kw] = m[r.kw] || {})[r.eng] = r.rank; }); return m; };
+      const cur = at(last), before = prev ? at(prev) : {};
+      const engines = Array.from(new Set(g.rows.filter(r => r.d === last).map(r => r.eng)));
+      const kws = Object.keys(cur).sort().map(kw => Object.assign({ kw, prev: before[kw] || null }, cur[kw]));
+      out.push({ rep: g.k, loc: g.rows[0].loc, post: g.rows[0].post, run: last, prevRun: prev, engines, kws });
+    });
+    return out.sort((a, b) => String(a.loc).localeCompare(String(b.loc)));
+  }
+  const ENGINE_ORDER = ["Google", "Google mobile", "Local pack", "Maps", "Bing", "Bing local pack"];
+  function rankCell(v, was) {
+    if (v == null) return '<span class="mko-sub">—</span>' + (was != null ? '<div class="mko-sub">was ' + was + "</div>" : "");
+    const cls = v <= 3 ? "top" : v <= 10 ? "mid" : "low";
+    const ch = was == null ? "" : was === v ? "" : was > v ? ' <span class="mko-d up">▲ ' + (was - v) + "</span>"
+      : ' <span class="mko-d dn">▼ ' + (v - was) + "</span>";
+    return '<span class="mko-rk ' + cls + '">' + v + "</span>" + ch;
+  }
+  function blHtml() {
+    if (P.err.bl) return '<div class="mko-empty">BrightLocal could not load — ' + esc(P.err.bl) + "</div>";
+    const locs = blLatest();
+    if (!locs.length) return '<div class="mko-empty">BrightLocal rankings arrive with the first weekly pull.</div>';
+    return '<div class="mko-g2e">' + locs.map(L => {
+      const engines = ENGINE_ORDER.filter(e => L.engines.includes(e)).concat(L.engines.filter(e => !ENGINE_ORDER.includes(e)));
+      const maps = L.kws.map(k => k.Maps).filter(v => v != null);
+      const g = L.kws.filter(k => k.Google != null).length;
+      const sumLine = (maps.length ? "Maps: average rank " + (maps.reduce((a, b) => a + b, 0) / maps.length).toFixed(1)
+        + ", " + maps.filter(v => v <= 10).length + " of " + L.kws.length + " keywords in the top 10" : "Maps: no keyword ranked")
+        + " · Google: " + g + " of " + L.kws.length + " in the top 100";
+      return "<div><h3 class=\"mko-h3\">" + esc(L.loc || "Location") + (L.post ? " " + esc(L.post) : "") + "</h3>"
+        + '<div class="mko-sub">run ' + esc(day(L.run)) + (L.prevRun ? " · change against " + esc(shortDay(L.prevRun)) : "") + "</div>"
+        + '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight"><thead><tr><th>Keyword</th>'
+        + engines.map(e => '<th class="mko-num">' + esc(e) + "</th>").join("") + "</tr></thead><tbody>"
+        + L.kws.map(k => '<tr><td class="mko-name">' + esc(k.kw) + "</td>" + engines.map(e => '<td class="mko-num">'
+          + rankCell(k[e] == null ? null : k[e], k.prev ? (k.prev[e] == null ? null : k.prev[e]) : null) + "</td>").join("") + "</tr>").join("")
+        + "</tbody></table></div><p class=\"rs-hint\">" + esc(sumLine) + ". — means not in the top 100.</p></div>";
+    }).join("") + "</div>";
+  }
+  function seoTab(w, cw) {
+    const gw = platWin("gsc", w, cw);
+    const gRows = gw && !gw.before && !gw.after ? inRange(P.gsc, gw.a, gw.b) : [];
+    const gPrev = gw && gw.cw ? inRange(P.gsc, gw.cw.a, gw.cw.b) : null;
+    const stat = rows => { const clk = sum(rows, "clk"), imp = sum(rows, "imp");
+      let pw = 0; rows.forEach(r => { pw += (r.pos || 0) * r.imp; }); return { clk, imp, pos: imp ? pw / imp : null }; };
+    const cur = stat(gRows), prev = gPrev ? stat(gPrev) : {};
+    const snap = P.ahd.length ? P.ahd[P.ahd.length - 1] : null;
+    // the query mart is monthly: the months the period touches
+    const ms = gw && !gw.before && !gw.after ? months(gw.a, gw.b) : [];
+    const qs = groupBy(P.gscq.filter(r => ms.includes(r.m) && r.type !== "Hidden by Google"), r => r.q).map(x => {
+      const imp = sum(x.rows, "imp"); let pw = 0; x.rows.forEach(r => { pw += (r.pos || 0) * r.imp; });
+      return { q: x.k, type: x.rows[0].type, clk: sum(x.rows, "clk"), imp, pos: imp ? pw / imp : null };
+    }).sort((a, b) => b.clk - a.clk || b.imp - a.imp);
+    const allClk = sum(qs, "clk"), brandClk = sum(qs.filter(q => q.type === "Brand"), "clk");
+    const gate = platGate("Search Console", "gsc", gw, gRows);
+    const html = '<div class="rs-kpis" id="mkoK-seo"></div>'
+      + '<div class="mko-g2e">'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Search Console</span>'
+      + '<span class="mko-sub">Google search' + (gw && gw.last ? " · data through " + esc(day(gw.last)) : "") + "</span></div>"
+      + (gate || '<div id="mkoC-gsc"></div>'
+        + '<h3 class="mko-h3">Top queries</h3><div class="mko-sub">' + esc(monthSpan(ms)) + " (the query list is monthly)"
+        + (allClk ? " · searches for our name bring " + pct(brandClk / allClk) + " of the clicks" : "") + "</div>"
+        + ptable([
+          { h: "Query", name: true, cell: q => esc(q.q) + " " + pill(q.type === "Brand" ? "brand" : q.type, q.type === "Brand" ? "mute" : "ok") },
+          { h: "Clicks", num: true, cell: q => fmtN(q.clk) },
+          { h: "Impr.", num: true, tip: "impressions", cell: q => fmtN(q.imp) },
+          { h: "Position", num: true, tip: "average, weighted by impressions", cell: q => q.pos == null ? "—" : q.pos.toFixed(1) },
+        ], qs.slice(0, 10), null, true))
+      + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Ahrefs</span>'
+      + '<span class="mko-sub">' + (snap ? "snapshot " + esc(day(snap.d)) : "no snapshot yet") + "</span></div>"
+      + (P.err.ahd ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap ? "" :
+        '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
+        + '<p class="rs-hint">Ahrefs\' own estimates from its crawler and keyword panel, not our measured '
+        + "traffic (that is Search Console and Analytics).</p>")
+      + "</div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Local rankings · BrightLocal</span>'
+      + '<span class="mko-sub">weekly rank reports, Mondays</span></div>' + blHtml()
+      + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so citations are not '
+      + "pulled. Semrush: not upgrading (your call, 16 Oct); Ahrefs covers its numbers.</p></div>";
+    return { html, wire(host) {
+      const on = !!(gw && gw.cw);
+      RSC.kpis(host.querySelector("#mkoK-seo"), [
+        kp("Search clicks", cur.clk, on ? prev.clk : undefined, fmtN, false, "Search Console", gw),
+        kp("Search impressions", cur.imp, on ? prev.imp : undefined, compact, false, "", gw),
+        { label: "Avg position", value: (cur.pos == null ? "—" : cur.pos.toFixed(1))
+            + (on && prev.pos ? posDelta(cur.pos, prev.pos) : ""),
+          sub: (on && prev.pos ? (S.cmp === "prev" ? "previous" : "last year") + ": " + prev.pos.toFixed(1) + " · " : "") + "lower is better" },
+        { label: "Domain rating", value: snap && snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "Ahrefs, out of 100" },
+        { label: "Organic keywords", value: snap ? fmtN(snap.kw) : "—", sub: snap ? fmtN(snap.kw3) + " in the top 3 · Ahrefs" : "" },
+      ]);
+      if (!gate && host.querySelector("#mkoC-gsc")) {
+        const keys = bucketsOf(gw.a, gw.b, gw.g);
+        barCard(host.querySelector("#mkoC-gsc"), "gsc-clk", "Search clicks by " + GRAIN_WORD[gw.g], keys, gw.g,
+                seriesOf(gRows, keys, gw.g, r => r.clk), fmtN, "main");
+      }
+      if (snap && host.querySelector("#mkoK-ah")) {
+        RSC.kpis(host.querySelector("#mkoK-ah"), [
+          { label: "Organic traffic", value: fmtN(snap.traffic), sub: "estimate a month" },
+          { label: "Backlinks", value: fmtN(snap.bl), sub: "live" },
+          { label: "Referring domains", value: fmtN(snap.rd), sub: "live" },
+        ]);
+        const hist = P.ahm.slice(-12);
+        if (hist.length) {
+          RSC.chartCard(host.querySelector("#mkoC-ah"), {
+            title: "Organic traffic estimate by month", key: "mko-ah-traffic",
+            buildChart(canvas) {
+              const C = palette();
+              return new Chart(canvas, { type: "line",
+                data: { labels: hist.map(r => monthWord(r.m)), datasets: [{ label: "Organic traffic", data: hist.map(r => r.traffic),
+                  borderColor: C.main, backgroundColor: C.main, borderWidth: 2, pointRadius: 2, cubicInterpolationMode: "monotone" }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true } } } } });
+            },
+            buildTable() {
+              return ptable([{ h: "Month", cell: r => esc(monthWord(r.m)) },
+                { h: "Organic traffic", num: true, cell: r => fmtN(r.traffic) },
+                { h: "Domain rating", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) }], hist.slice().reverse());
+            },
+          });
+        }
+      }
+    } };
+  }
+
+  /* === WEBSITE (GA4) === */
+  function webTab(w, cw) {
+    const pw = platWin("ga4", w, cw);
+    const gate = platGate("Google Analytics", "ga4", pw, pw ? inRange(P.ga4, pw.a, pw.b).map(r => ({ cost: r.ses })) : []);
+    if (gate) return { html: '<div class="panel">' + gate + "</div>" };
+    const rows = inRange(P.ga4, pw.a, pw.b), cmp = pw.cw ? inRange(P.ga4, pw.cw.a, pw.cw.b) : null;
+    const st = rs => { const users = sum(rs, "users"), ses = sum(rs, "ses"), eng = sum(rs, "eng");
+      return { users, ses, eng, secs: sum(rs, "secs"), kev: sum(rs, "kev"),
+               per: users ? sum(rs, "secs") / users : null, bounce: ses ? 1 - eng / ses : null }; };
+    const cur = st(rows), prev = cmp ? st(cmp) : {};
+    const leads = withCo(LIVE_CO, () => totals(aggregate(pw.a, pw.b)).leads || 0);
+    const ch = groupBy(inRange(P.ga4ch, pw.a, pw.b), r => r.grp).map(x => ({ k: x.k || "(other)", v: sum(x.rows, "ses") }))
+      .filter(x => x.v).sort((a, b) => b.v - a.v);
+    const chMax = ch.length ? ch[0].v : 0;
+    const ms = months(pw.a, pw.b);
+    // our own office is in Tbilisi: the country Georgia is left out (the US state is "Georgia" too,
+    // but its country reads United States)
+    const geo = P.geo.filter(r => ms.includes(r.m) && r.country !== "Georgia");
+    const us = groupBy(geo.filter(r => r.country === "United States"), r => r.region)
+      .map(x => ({ k: x.k, v: sum(x.rows, "users") })).filter(x => x.v).sort((a, b) => b.v - a.v);
+    const abroad = sum(geo.filter(r => r.country !== "United States"), "users");
+    const demo = P.demo.filter(r => ms.includes(r.m));
+    const dTot = sum(demo, "users");
+    const ages = groupBy(demo.filter(r => r.age && r.age !== "unknown"), r => r.age).map(x => ({ k: x.k, v: sum(x.rows, "users") }))
+      .sort((a, b) => a.k.localeCompare(b.k));
+    const sex = groupBy(demo.filter(r => r.sex && r.sex !== "unknown"), r => r.sex).map(x => ({ k: x.k, v: sum(x.rows, "users") }));
+    const known = sum(ages, "v");
+    const bars = (list, max) => list.map(x => '<div class="mko-hbar"><span>' + esc(x.k) + '</span><span class="mko-track"><i style="width:'
+      + Math.max(2, Math.round(100 * x.v / (max || 1))) + '%"></i></span><b>' + fmtN(x.v) + "</b></div>").join("");
+    const html = (leads && cur.users < leads ? '<div class="mko-warn">Google Analytics under-records: it saw '
+        + fmtN(cur.users) + " users in this period while Moveboard took " + fmtN(leads) + " leads. Read this tab "
+        + "for trends and mix, not for totals." + (cur.kev > cur.ses ? " Key events (" + fmtN(cur.kev) + ") exceed sessions ("
+        + fmtN(cur.ses) + "), so an event fires more than once." : "") + "</div>" : "")
+      + noCmpHint("Google Analytics", pw)
+      + '<div class="rs-kpis" id="mkoK-web"></div>'
+      + '<div class="mko-g2e"><div id="mkoC-web"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Traffic source</span><span class="mko-sub">sessions</span></div>'
+      + (ch.length ? bars(ch, chMax) : '<div class="mko-empty">No sessions in this period.</div>') + "</div></div>"
+      + '<div class="mko-g2e">'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Locations</span><span class="mko-sub">active users · '
+      + esc(monthSpan(ms)) + "</span></div>" + (us.length ? bars(us.slice(0, 8), us[0].v) : '<div class="mko-empty">No locations.</div>')
+      + (abroad ? '<p class="rs-hint">Outside the US: ' + fmtN(abroad) + " users. Our own office in Georgia (the country) is left out.</p>" : "")
+      + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Demographics</span><span class="mko-sub">'
+      + (dTot ? "age known for " + pct(known / dTot) + " of users" : "no data") + "</span></div>"
+      + (ages.length ? bars(ages, Math.max.apply(null, ages.map(a => a.v))) : '<div class="mko-empty">GA4 knows no ages for this period.</div>')
+      + (sex.length ? '<p class="rs-hint">' + sex.map(s => esc(s.k[0].toUpperCase() + s.k.slice(1)) + " " + fmtN(s.v)).join(" · ") + "</p>" : "")
+      + '<p class="rs-hint">Google signals off in GA4 leaves most visitors without an age or gender.</p></div>'
+      + "</div>";
+    return { html, wire(host) {
+      const was = (v, fmt) => pw.cw ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmt(v) : "";
+      RSC.kpis(host.querySelector("#mkoK-web"), [
+        kp("Active users", cur.users, prev.users, fmtN, false, "GA4's daily counts, summed", pw),
+        kp("Avg engagement time", cur.per, prev.per, dur, false, "per active user", pw),
+        { label: "Bounce rate", value: pct(cur.bounce) + (pw.cw ? deltaPts(cur.bounce, prev.bounce, true) : ""),
+          sub: [was(prev.bounce, pct), "sessions not engaged"].filter(Boolean).join(" · ") },
+        kp("Sessions", cur.ses, prev.ses, fmtN, false, "", pw),
+        kp("Key events", cur.kev, prev.kev, fmtN, false, cur.kev > cur.ses ? "more than sessions: check the tag" : "", pw),
+      ]);
+      const keys = bucketsOf(pw.a, pw.b, pw.g);
+      barCard(host.querySelector("#mkoC-web"), "web-ses", "Sessions by " + GRAIN_WORD[pw.g], keys, pw.g,
+              seriesOf(rows, keys, pw.g, r => r.ses), fmtN, "main");
+    } };
+  }
+
+  /* === SETTINGS === */
+  function settingsTab() {
+    const plat = D.conn.filter(r => r.Group === "Marketing platforms");
+    const ours = D.conn.filter(r => r.Group !== "Marketing platforms");
+    const live = plat.filter(r => r.Connection !== "Not connected");
+    const off = plat.filter(r => r.Connection === "Not connected" && OFF_KEYS[r.Key]);
+    const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]);
+    const behind = ours.filter(r => r.Status === "Behind");
+    const names = list => list.map(r => r.Platform.replace(/ \(.*\)$/, "")).join(", ");
+    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + sourcesHtml(), wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-set"), [
+        { label: "Live", value: String(live.length), sub: "platforms pulled by API" },
+        { label: "Waiting on others", value: String(wait.length), sub: names(wait) || "none" },
+        { label: "Off", value: String(off.length), sub: names(off) || "none" },
+        { label: "Our data behind", value: String(behind.length), sub: names(behind) || "all on time" },
+      ]);
+    } };
+  }
+  function statusChip() {
+    const plat = D.conn.filter(r => r.Group === "Marketing platforms");
+    if (!plat.length) return "";
+    const live = plat.filter(r => r.Connection !== "Not connected").length;
+    const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]).length;
+    const late = D.conn.filter(r => r.Status === "Behind").length;
+    return '<button type="button" class="mko-chip" data-tab="set" title="Open Settings: every source and its status">'
+      + '<i class="mko-dot ' + (late ? "warn" : "ok") + '"></i>' + live + " live · " + wait + " waiting"
+      + (late ? " · " + late + " behind" : "") + "</button>";
+  }
+
+  /* --- the data sources (the Settings tab) --- */
   function sourcesHtml() {
     const rows = D.conn;
     if (D.connErr) return '<div class="panel">Could not load the source list — ' + esc(D.connErr) + "</div>";
@@ -1187,8 +1836,7 @@
     const parts = [connected + " of " + rows.length + " connected"];
     [["Up to date", "up to date"], ["Behind", "behind"], ["No data", "connected without data"],
      ["Not connected", "not connected"]].forEach(([st, l]) => { if (count(st)) parts.push(count(st) + " " + l); });
-    return '<div class="mko-h" id="mkoSources"><h2>Data sources</h2><span class="mko-sub">'
-      + esc(parts.join(" · ")) + "</span></div>"
+    return '<p class="rs-hint" id="mkoSources">' + esc(parts.join(" · ")) + ".</p>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Marketing platforms'
       + "</span></div>"
       + '<p class="rs-hint">Each platform with the login that holds it and the numbers we want '
@@ -1210,42 +1858,23 @@
   function paint(host) {
     const w = win();
     const cw = cmpWin(w);
-    let body;
-    if (D.chErr) {
-      body = '<div class="panel">The channel table could not load — ' + esc(D.chErr)
-        + (/404|unknown dataset|not granted/i.test(D.chErr)
-          ? " (it arrives with the next pipeline run, or a <b>mkt-overview</b> rebuild)" : "") + "</div>";
-    } else {
-      const fams = aggregate(w.a, w.bEff);
-      const past = D.ledgerEnd && w.bEff > D.ledgerEnd;
-      body = '<div class="rs-kpis" id="mkoKpis"></div>'
-        + '<p class="rs-hint hidden" id="mkoKpiHint"></p>'
-        + '<div class="panel"><div class="panel-head"><span class="panel-title">Channels</span></div>'
-        + '<p class="rs-hint">Every source with leads or spend in the period. Booked = leads created in '
-        + "the period that booked. Spend is live from Google Ads, Local Services, Meta and ChatGPT; "
-        + "every other channel is the bank ledger"
-        + (D.ledgerEnd ? ", which runs through " + esc(day(D.ledgerEnd)) : "")
-        + (past ? "; a * marks cost figures read on the leads whose spend is in" : "")
-        + ". Click a channel to open it in Source Analysis.</p>"
-        + channelsHtml(fams) + "</div>";
-    }
-    // the platforms read their own tables: they stand even when the channel table failed
-    const plat = platformsSection(w, cw);
+    const tab = { ov: overviewTab, paid: paidTab, seo: seoTab, web: webTab, set: settingsTab }[S.tab] || overviewTab;
+    const body = tab(w, cw);
     host.innerHTML = '<div class="mko">'
       + '<div class="rs-page-head"><h1>Marketing Overview</h1>'
-      + "<p>What each channel cost and brought in the period, each ad platform's own numbers, then "
-      + "every source that feeds this page and whether it is up to date.</p></div>"
+      + "<p>Every channel, ad platform and search signal in one place.</p></div>"
       + '<div class="rs-bar">'
       + '<div id="mkoCo"></div>'
       + '<div class="rs-fld"><span>Period</span><div id="mkoDate"></div></div>'
       + '<div class="rs-fld"><span>Compare</span><div class="rs-seg" id="mkoCmp">'
       + '<button type="button" data-v="ly">vs last year</button>'
       + '<button type="button" data-v="prev">vs previous period</button></div></div>'
+      + statusChip()
       + "</div>"
-      + feedsHtml()
-      + body
-      + plat.html
-      + sourcesHtml()
+      + '<nav class="mko-tabs" aria-label="Marketing Overview tabs">' + TABS.map(([k, l]) =>
+        '<button type="button" data-tab="' + k + '"' + (k === S.tab ? ' class="on" aria-current="page"' : "")
+        + ">" + esc(l) + "</button>").join("") + "</nav>"
+      + '<div id="mkoBody">' + body.html + "</div>"
       + "</div>";
 
     RSC.localSelect(host.querySelector("#mkoCo"), {
@@ -1266,33 +1895,23 @@
       if (w.open) b.title = "no comparison for All time — pick a period to compare";
       b.onclick = () => { S.cmp = b.dataset.v; lsSet(LS_CMP, S.cmp); paint(host); };
     });
-    const k = host.querySelector("#mkoKpis");
-    if (k) kpisFor(k, w, cw);
-    const kh = host.querySelector("#mkoKpiHint");
-    if (kh) {
-      const short = aggregate(w.a, w.bEff).some(f => f.paid && f.uncov);
-      const bits = [];
-      if (short) {
-        bits.push("The bank ledger runs through " + day(D.ledgerEnd) + ": for later days the cost "
-          + "figures count only the channels with live spend (Google Ads, Local Services, Meta, "
-          + "ChatGPT)" + (cw ? ", in both periods" : "") + ".");
-      }
-      if (cw) {
-        bits.push("The " + cw.label + "'s bookings are counted as they stood on " + day(cw.asOf)
-          + ", so a young cohort is not set against one that had longer to book.");
-      }
-      kh.innerHTML = bits.map(esc).join(" ");
-      kh.classList.toggle("hidden", !bits.length);
-    }
-    plat.wire(host);
+    // the tab bar, the status chip and every "See ..." link inside a tab switch tabs
+    host.querySelectorAll("[data-tab]").forEach(b => {
+      b.onclick = () => {
+        S.tab = b.dataset.tab; lsSet(LS_TAB, S.tab); paint(host);
+        const nav = host.querySelector(".mko-tabs");
+        if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
+      };
+    });
+    if (body.wire) body.wire(host);
   }
 
   registerPage({
     id: "marketing-overview",
     group: "marketing",
     title: "Marketing Overview",
-    subtitle: "What each channel cost and brought for any period, each ad platform's own numbers, " +
-              "then every source that feeds this page and whether it is up to date.",
+    subtitle: "Every channel, ad platform and search signal in one place: overview, paid ads, search " +
+              "and SEO, website, and the data sources under Settings.",
     datasets: [],
 
     render(host) {
@@ -1313,10 +1932,14 @@
         RS.load("mkt_channel").catch(e => { D.chErr = (e && e.message) || String(e); return []; }),
         plat("mkt_ads", "ads"), plat("mkt_lsa_cost", "lsaC"), plat("mkt_lsa_lead", "lsaL"),
         plat("mkt_meta", "meta"), plat("mkt_gpt", "gpt"),
-      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt]) => {
+        plat("mkt_gsc", "gsc"), plat("mkt_gscq", "gscq"), plat("mkt_ahd", "ahd"), plat("mkt_ahm", "ahm"),
+        plat("mkt_bl", "bl"), plat("mkt_ga4", "ga4"), plat("mkt_ga4ch", "ga4ch"), plat("mkt_ga4demo", "demo"),
+        plat("mkt_ga4geo", "geo"),
+      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
+        indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
