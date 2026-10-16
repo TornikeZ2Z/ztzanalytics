@@ -466,6 +466,15 @@
       if (!host.isConnected) return;
     }
     boot();
+    // a link that names a source wins on EVERY arrival, not only the first: the Marketing
+    // Overview's channel rows open #page=source-report&src=<family> in a tab that may have
+    // shown another source already (2026-10-16)
+    var lk = /[#&]src=([^&]+)/.exec(location.hash || "");
+    if (lk) {
+      var lf = null;
+      try { lf = decodeURIComponent(lk[1]); } catch (e) { lf = null; }
+      if (lf && lf !== S.fam && DATA.byFam.has(lf)) { S.fam = lf; S.camp = ""; S.list.page = 0; }
+    }
     if (!PREF.loaded && !PREF.loading) loadPrefs(host);
     // a read that failed (the table not built yet, a bridge hiccup) is tried again on the next render
     if ((ROAS.amts == null || ROAS.amtErr) && !ROAS.loadingAmts) loadAmounts(host);
