@@ -21,10 +21,13 @@
     n = (n || "").trim().toLowerCase();
     return !n || EXCLUDE_SP.has(n) || /\btest\b|training|draft user|yelp team|^-\d|^-\s|^test/.test(n);
   };
-  // Not-Active (departed) reps are dropped from the Rep Profile — list AND the ranking pool,
-  // so the assessment compares each rep only against the current active team. Status comes
-  // from the crew roster (fct_rep_stats); reps with no roster status are treated as active.
-  const inactive = p => /not/i.test((p && p.call && p.call.status) || "");
+  // Reps Ruso switched off on Sales team are left out of the RANKING POOL, so each rep is
+  // assessed only against the current team; they stay pickable, grouped under Former reps. ONE SOURCE (his call
+  // 2026-10-16, "follow Ruso's list only"): this used to read the crew roster's "Not Active"
+  // status (fct_rep_stats), which also hid Ruso and Giga while her list has them on. Set at
+  // render once the roster and the name map are loaded; until then nobody is left out.
+  let ST_INACTIVE = null;
+  const inactive = p => !!(ST_INACTIVE && p && ST_INACTIVE(p));
   // Minimum leads (in the current filter) to list & assess a rep — below this we can't
   // read them reliably, so low-volume stragglers (estimators/support who catch a stray
   // lead) drop off the Rep Profile instead of showing "Not enough data".
@@ -2138,8 +2141,8 @@
   function renderCompare(host, ctx) {
     const book = repBook(ctx);
     const reps = Object.values(book).filter(p =>
-      p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
-      p.leads >= ASSESS_MIN);
+      p.name && p.name !== "Unassigned" && !excluded(p.name) &&
+      p.leads >= ASSESS_MIN);   // reps Ruso switched off stay pickable, under Former reps
     reps.sort((a, b) => b.leads - a.leads);
     if (reps.length < 2) {
       host.innerHTML = `<div class="st-card">Two reps are needed to compare — the current
@@ -2374,8 +2377,8 @@
     const th = thGet();
     // rep list: those with leads in the current filter OR any phone activity, active-ish first
     const reps = Object.values(book).filter(p =>
-      p.name && p.name !== "Unassigned" && !excluded(p.name) && !inactive(p) &&
-      p.leads >= ASSESS_MIN);
+      p.name && p.name !== "Unassigned" && !excluded(p.name) &&
+      p.leads >= ASSESS_MIN);   // reps Ruso switched off stay pickable, under Former reps
     reps.sort((a, b) => b.leads - a.leads || (b.call.outDials + b.call.inTotal) - (a.call.outDials + a.call.inTotal));
     if (!reps.length) { host.innerHTML = `<div class="st-card">No sales reps in the current filter.</div>`; return; }
     // WHO we show = the top Sales Person filter (canonicalised). It is enforced single-select
@@ -2959,13 +2962,9 @@
             ctx.repStats = d.rows || [];
           } catch (e) { ctx.repStats = []; }
           ctx.repCanon = repCanonMap(ctx.repStats);
-          // every raw name (canon + aliases) that belongs to a Not-Active rep
+          // the Team table no longer drops anyone by the crew roster's status: the reps Ruso
+          // switched off are grouped under Former reps instead (2026-10-16)
           ctx.inactiveNames = new Set();
-          ctx.repStats.forEach(r => {
-            if (!/not/i.test(r["Status"] || "")) return;
-            ctx.inactiveNames.add((r["Sales Person"] || "").trim().toLowerCase());
-            (r["Aliases"] || "").split(",").forEach(a => { a = a.trim().toLowerCase(); if (a) ctx.inactiveNames.add(a); });
-          });
         }
         if (k === "team") return renderTeam(hostEl, ctx);
         if (k === "rep") return renderRep(hostEl, ctx);
@@ -2979,6 +2978,7 @@
       // the sales roster, once (cached, never throws): every tab's rep table and picker puts
       // the reps Ruso switched off under "Former reps" (2026-10-16)
       await RS.salesTeam();
+      ST_INACTIVE = p => spellings(ctx, p.name).some(n => RS.repKind(n) === "former");
       // honour the remembered tab — the rep->Explorer jump and any global-filter
       // re-render both rely on this (hardcoding "team" made ST_LAST_TAB dead).
       await go(TABS.some(t => t[0] === active) ? active : "team");
