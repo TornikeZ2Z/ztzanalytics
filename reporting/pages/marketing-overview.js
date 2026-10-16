@@ -39,8 +39,25 @@
  * design, the bank ledger is pasted monthly), so the status is computed in the mart. A strip
  * under the bar repeats it for the feeds the channel table reads.
  *
- * Plan of record: docs/plans/2026-10-15-marketing-overview.md. The platform panels (campaigns,
- * Local Services, Meta, ChatGPT) and the website / search panels come next.
+ * MIDDLE: THE AD PLATFORMS (stage 2, 2026-10-16) -- each platform's OWN numbers for the same
+ * Company / Period / Compare bar, between the channel table and the source list:
+ *   * GOOGLE ADS (ext_ads_campaign_day): cost, clicks, CTR, CPC and Google's conversions, a cost
+ *     line, the split by campaign type (Performance Max / Search / Demand Gen) and every campaign.
+ *   * LOCAL SERVICES (ext_lsa_cost_day + mart_mkt_lsa_lead_day): cost, Google's leads by job type,
+ *     charged vs credited, phone vs message, cost per charged lead. The lead list itself holds
+ *     callers' phones and never reaches the portal; the mart is a count.
+ *   * META (ext_meta_ads_day): spend, impressions, clicks and RESULTS per campaign. A result is
+ *     whatever the campaign is set to win (ad recallers, page likes, form leads...), so results of
+ *     different kinds are listed side by side and never added. The account runs on LA time.
+ *   * CHATGPT ADS (ext_chatgpt_ads_day): spend, impressions, clicks. No conversion event is
+ *     attached in Ads Manager, so its 0 conversions mean "not measured" and the panel says so
+ *     instead of printing 0 as a result.
+ *   Every live account is Zip to Zip's: with Tuji picked the section says so instead of zeros.
+ *   A comparison is drawn only when the platform already had data on the comparison's first day.
+ *   The cost a panel shows is the same live spend the channel table reads for that family.
+ *
+ * Plan of record: docs/plans/2026-10-15-marketing-overview.md. The website (GA4) and search
+ * panels come next.
  */
 (function () {
   if (!window.RS || !RS.DATASETS) return;
@@ -65,6 +82,23 @@
       dateCols: {}, defaultDate: null,
     };
   }
+  // the platform panels: each platform's own day table, a few thousand rows each, read whole and
+  // cut to the period on the page (same period picker, never the global date filter)
+  const PLAT = {
+    mkt_ads: { table: "ext_ads_campaign_day",
+               cols: ["Date", "Campaign Id", "Campaign", "Channel", "Cost", "Impressions", "Clicks",
+                      "Conversions"] },
+    mkt_lsa_cost: { table: "ext_lsa_cost_day", cols: ["Date", "Cost", "Impressions", "Clicks"] },
+    mkt_lsa_lead: { table: "mart_mkt_lsa_lead_day", cols: ["Date", "Lead Type", "Service", "Charge", "Leads"] },
+    mkt_meta: { table: "ext_meta_ads_day",
+                cols: ["Date", "Campaign Id", "Campaign", "Objective", "Impressions", "Clicks", "Spend",
+                       "Leads", "Results", "Result Indicator"] },
+    mkt_gpt: { table: "ext_chatgpt_ads_day",
+               cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks", "Spend", "Conversions"] },
+  };
+  Object.keys(PLAT).forEach(k => {
+    if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
+  });
 })();
 
 (() => {
@@ -86,6 +120,21 @@
   const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", booted: false };
   const D = { ready: false, conn: [], connErr: null, rows: [], chErr: null,
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
+  // the platform panels: rows per platform, its first / last day on file, a load error
+  const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], first: {}, last: {}, err: {} };
+  const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
+                     DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
+  const META_OBJ = { OUTCOME_LEADS: "Leads", OUTCOME_AWARENESS: "Awareness", OUTCOME_ENGAGEMENT: "Engagement",
+                     OUTCOME_TRAFFIC: "Traffic", OUTCOME_SALES: "Sales", OUTCOME_APP_PROMOTION: "App promotion" };
+  // what a Meta "result" is, by the indicator Meta returns with it
+  const META_KIND = {
+    "estimated_ad_recallers": "ad recallers (est.)", "reach": "people reached",
+    "actions:like": "page likes", "actions:offsite_conversion.fb_pixel_lead": "website leads",
+    "actions:onsite_conversion.lead_grouped": "Facebook form leads", "lead": "leads",
+    "total_profile_visits": "profile visits", "actions:post_engagement": "post engagements",
+    "video_thruplay_watched_actions": "ThruPlays", "actions:link_click": "link clicks",
+  };
+  const LSA_CHARGE = ["Charged", "Credited", "In review", "Not charged"];
 
   /* ------------------------------------------------------------------ helpers ---- */
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
@@ -177,9 +226,36 @@
       + ".mko .mko-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:22px 0 8px}"
       + ".mko .mko-h h2{margin:0;font-size:17px}"
       + ".mko .mko-h .mko-sub{margin:0}"
+      // the platform panels
+      + ".mko .mko-pnav{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;margin:0 0 4px;color:var(--muted)}"
+      + ".mko .mko-pnav button{font:inherit;font-weight:600;color:var(--ink);background:none;border:0;padding:0;"
+      + "cursor:pointer;border-bottom:1px dotted currentColor}"
+      + ".mko .mko-pnav button:hover{color:var(--brand)}"
+      + ".mko .mko-plat{border-top:1px solid var(--line);margin-top:18px;padding-top:4px}"
+      + ".mko .mko-ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:12px 0 10px}"
+      + ".mko .mko-ph h3{margin:0;font-size:15.5px;font-weight:800;color:var(--ink)}"
+      + ".mko .mko-ph .mko-sub{margin:0}"
+      + ".mko .mko-g2{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;align-items:start}"
+      + "@media(max-width:1100px){.mko .mko-g2{grid-template-columns:minmax(0,1fr)}}"
+      + ".mko .mko-pt th,.mko .mko-pt td{white-space:nowrap}"
+      + ".mko .mko-pt td.mko-name{white-space:normal;min-width:180px}"
+      + ".mko .mko-pt.mko-tight{font-size:13px}"
+      + ".mko .mko-pt.mko-tight th,.mko .mko-pt.mko-tight td{padding:9px 8px}"
+      + ".mko .mko-pt.mko-tight td.mko-name{min-width:110px}"
+      + ".mko .mko-pt tr.mko-tot td{font-weight:700;border-top:1px solid var(--line-2)}"
+      + ".mko .mko-share{display:block;height:5px;border-radius:3px;background:var(--line);margin-top:5px;min-width:60px}"
+      + ".mko .mko-share i{display:block;height:100%;border-radius:3px;background:var(--brand)}"
+      + ".mko .mko-empty{font-size:13px;color:var(--muted);padding:6px 0 10px}"
+      + ".mko .mko-nm{font-size:13px;line-height:1.55;color:var(--ink)}"
+      + ".mko .mko-nm b{font-weight:700}"
+      + ".mko .mko-nm p{margin:0 0 8px}"
+      + "@media(max-width:600px){.mko .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}"
+      + ".mko .rs-kpis .kpi{padding:10px 12px}}"
       + "body.rs-app.light.v2 .mko .mko-sub,body.rs-app.light.v2 .mko .mko-note,"
       + "body.rs-app.light.v2 .mko .mko-met,body.rs-app.light.v2 .mko .mko-foot,"
-      + "body.rs-app.light.v2 .mko .mko-feed,body.rs-app.light.v2 .mko .mko-cov{color:#64748B}"
+      + "body.rs-app.light.v2 .mko .mko-feed,body.rs-app.light.v2 .mko .mko-cov,"
+      + "body.rs-app.light.v2 .mko .mko-pnav,body.rs-app.light.v2 .mko .mko-empty{color:#64748B}"
+      + "body.rs-app.light.v2 .mko .mko-share i{background:#3F7D20}"
       + "body.rs-app.light.v2 .mko .mko-d{font-weight:600}";
     document.head.appendChild(st);
   }
@@ -455,6 +531,602 @@
     ]);
   }
 
+  /* ------------------------------------------------------------------ platforms ---- */
+  const d10 = v => String(v || "").slice(0, 10);
+  const pct2 = v => v == null || isNaN(v) ? "—" : (100 * v).toFixed(2) + "%";
+  const cents = v => v == null || isNaN(v) ? "—" : "$" + v.toFixed(2);
+  // a big count in a KPI's second line, short enough for a phone card
+  const compact = v => v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e4 ? Math.round(v / 1e3) + "k" : fmtN(v);
+  const prettyCode = s => String(s || "").replace(/^OUTCOME_|^actions:/i, "").replace(/[._]+/g, " ")
+    .toLowerCase().replace(/^\w/, c => c.toUpperCase());
+
+  function indexPlat(key, rows, map) {
+    P[key] = (rows || []).map(map).filter(r => r.d);
+    let f = null, l = null;
+    P[key].forEach(r => { if (!f || r.d < f) f = r.d; if (!l || r.d > l) l = r.d; });
+    P.first[key] = f; P.last[key] = l;
+  }
+  function indexPlatforms(ads, lsaC, lsaL, meta, gpt) {
+    indexPlat("ads", ads, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
+      type: r.Channel || "", cost: num(r.Cost), imp: num(r.Impressions), clk: num(r.Clicks),
+      conv: num(r.Conversions) }));
+    indexPlat("lsaC", lsaC, r => ({ d: d10(r.Date), cost: num(r.Cost), imp: num(r.Impressions),
+      clk: num(r.Clicks) }));
+    indexPlat("lsaL", lsaL, r => ({ d: d10(r.Date), lt: r["Lead Type"] || "Other",
+      svc: r.Service || "Not given", chg: r.Charge || "Not charged", n: num(r.Leads) }));
+    // a Meta row's result: Meta's own Results where it returned them; a campaign that returned
+    // none but counted leads reads its lead count (kind "lead"); otherwise it has no result
+    indexPlat("meta", meta, r => {
+      const ind = r["Result Indicator"] || "", leads = num(r.Leads);
+      const kind = ind || (leads ? "lead" : "");
+      return { d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
+        obj: r.Objective || "", cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks),
+        leads, kind, res: ind ? num(r.Results) : leads };
+    });
+    indexPlat("gpt", gpt, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
+      cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
+    // Local Services is one panel over two tables: it covers the days BOTH have (leads arrive
+    // through today, cost through yesterday -- today's calls against no cost would flatter it)
+    const lf = [P.first.lsaC, P.first.lsaL].filter(Boolean).sort();
+    const ll = [P.last.lsaC, P.last.lsaL].filter(Boolean).sort();
+    P.first.lsa = lf.length === 2 ? lf[1] : null;
+    P.last.lsa = ll.length === 2 ? ll[0] : null;
+  }
+
+  const inRange = (rows, a, b) => rows.filter(r => r.d >= a && r.d <= b);
+  function sum(rows, k) { let s = 0; rows.forEach(r => { s += r[k] || 0; }); return s; }
+  function clickStats(rows) {
+    const cost = sum(rows, "cost"), imp = sum(rows, "imp"), clk = sum(rows, "clk");
+    return { cost, imp, clk, ctr: ratio(clk, imp), cpc: ratio(cost, clk),
+             cpm: imp ? 1000 * cost / imp : null, n: rows.length };
+  }
+  // rows -> [{k, rows}] by a key, in first-seen order
+  function groupBy(rows, keyFn) {
+    const m = new Map();
+    rows.forEach(r => { const k = keyFn(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); });
+    return Array.from(m, ([k, rs]) => ({ k, rows: rs }));
+  }
+
+  /* the period a platform reads: the page's window from the platform's first day on (All time
+     must not draw two flat years before an account existed) up to its newest day (a day it has
+     not reported yet is not a $0 day). The comparison is cut to match that window, and drawn only
+     when the platform already had data on its first day -- half a window reads as a collapse. */
+  function platWin(key, w, cw) {
+    const first = P.first[key], last = P.last[key];
+    if (!first || !last) return null;
+    const a = w.a > first ? w.a : first;
+    const b = last < w.bEff ? last : w.bEff;
+    // `g` = the chart bucket, chosen on the page's period (from the platform's start), not on the
+    // platform's last day: one platform a day behind must not switch from days to weeks
+    const out = { a, b, first, last, before: w.bEff < first, after: a > last, cw: null, noCmp: false,
+                  late: a > w.a, g: grainOf(a, w.bEff > a ? w.bEff : a) };
+    if (cw && !out.before && !out.after) {
+      const pc = cmpWin({ a, bEff: b, open: w.open });
+      if (pc && first <= pc.a) out.cw = pc; else out.noCmp = true;
+    }
+    return out;
+  }
+
+  /* chart buckets: days up to three months, weeks up to ~13 months, months beyond */
+  function grainOf(a, b) { const n = dayCount(a, b); return n <= 92 ? "day" : n <= 400 ? "week" : "month"; }
+  function bucketOf(d, g) {
+    if (g === "day") return d;
+    if (g === "month") return d.slice(0, 7);
+    const x = new Date(d + "T12:00:00");
+    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));          // the Monday of its week
+    return iso(x);
+  }
+  function bucketsOf(a, b, g) {
+    const out = [];
+    for (let d = a; d <= b; d = addDays(d, 1)) {
+      const k = bucketOf(d, g);
+      if (out[out.length - 1] !== k) out.push(k);
+    }
+    return out;
+  }
+  function bucketLabel(k, g) {
+    if (g === "month") return MON[+k.slice(5, 7) - 1] + " " + k.slice(0, 4);
+    return (g === "week" ? "wk " : "") + shortDay(k);
+  }
+  const GRAIN_WORD = { day: "day", week: "week", month: "month" };
+  // a measure per bucket, aligned to `keys`
+  function seriesOf(rows, keys, g, val) {
+    const m = {};
+    rows.forEach(r => { const k = bucketOf(r.d, g); m[k] = (m[k] || 0) + val(r); });
+    return keys.map(k => m[k] || 0);
+  }
+
+  /* chart colours are the theme's tokens, read at paint time (the theme button re-renders) */
+  function palette() {
+    if (RS.isV2 && RS.isV2()) {
+      const V = RS.V2;
+      return { main: V.navy, alt: V.accent, light: V.accentL, ctx: V.ctx, faint: V.other, violet: V.cat[4] };
+    }
+    const cs = getComputedStyle(document.body);
+    const v = (n, fb) => (cs.getPropertyValue(n) || "").trim() || fb;
+    return { main: v("--brand", "#b7e23b"), alt: v("--blue", "#5b8cff"), light: v("--purple", "#a78bfa"),
+             ctx: v("--faint", "#5c6a7c"), faint: v("--faint", "#5c6a7c"), violet: v("--purple", "#a78bfa") };
+  }
+  const moneyTick = v => v >= 1000 ? "$" + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k" : "$" + v;
+
+  /* the platform's cost per bucket, with the comparison period drawn quiet and dashed under it
+     (aligned day 1 to day 1) when there is one */
+  function costCard(host, key, title, pw, rows, cmpRows, extra) {
+    const g = pw.g;
+    const keys = bucketsOf(pw.a, pw.b, g);
+    const cost = seriesOf(rows, keys, g, r => r.cost);
+    const clk = seriesOf(rows, keys, g, r => r.clk);
+    let prev = null;
+    if (pw.cw && cmpRows) {
+      const ck = bucketsOf(pw.cw.a, pw.cw.b, g);
+      prev = seriesOf(cmpRows, ck, g, r => r.cost).slice(0, keys.length);
+    }
+    const ex = extra ? keys.map(() => 0) : null;
+    if (extra) {
+      const m = {};
+      rows.forEach(r => { const k = bucketOf(r.d, g); m[k] = (m[k] || 0) + extra.val(r); });
+      keys.forEach((k, i) => { ex[i] = m[k] || 0; });
+    }
+    // a platform that reports today reports a day still running: its last stretch is dashed
+    const partial = pw.b >= today();
+    const lastI = keys.length - 1;
+    RSC.chartCard(host, {
+      title: title + " by " + GRAIN_WORD[g],
+      key: "mko-" + key + "-cost",
+      controlsHtml: partial ? '<span class="lbl">dashed end = today so far</span>' : "",
+      controlsGraphOnly: true,
+      buildChart(canvas) {
+        const C = palette();
+        const sets = [{ label: title, data: cost.map(v => +v.toFixed(2)), borderColor: C.main,
+                        backgroundColor: C.main, borderWidth: 2, pointRadius: keys.length > 45 ? 0 : 2,
+                        cubicInterpolationMode: "monotone", fill: false,
+                        segment: { borderDash: s => partial && s.p1DataIndex === lastI ? [4, 4] : undefined } }];
+        if (prev) {
+          sets.push({ label: pw.cw.label, data: prev.map(v => +v.toFixed(2)), borderColor: C.ctx,
+                      backgroundColor: C.ctx, borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0,
+                      cubicInterpolationMode: "monotone", fill: false });
+        }
+        return new Chart(canvas, {
+          type: "line",
+          data: { labels: keys.map(k => bucketLabel(k, g)), datasets: sets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: { legend: { display: !!prev, position: "top", labels: { boxWidth: 12 } },
+                       tooltip: { callbacks: { label: c => c.dataset.label + ": " + money0(c.raw)
+                         + (partial && c.datasetIndex === 0 && c.dataIndex === lastI ? " (so far)" : "") } } },
+            scales: { y: { beginAtZero: true, ticks: { callback: moneyTick } },
+                      x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } },
+          },
+        });
+      },
+      buildTable() {
+        let h = '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>'
+          + esc(GRAIN_WORD[g][0].toUpperCase() + GRAIN_WORD[g].slice(1)) + "</th>"
+          + '<th class="mko-num">Cost</th><th class="mko-num">Clicks</th><th class="mko-num">CPC</th>'
+          + (extra ? '<th class="mko-num">' + esc(extra.label) + "</th>" : "")
+          + (prev ? '<th class="mko-num">Cost, ' + esc(pw.cw.label) + "</th>" : "")
+          + "</tr></thead><tbody>";
+        keys.forEach((k, i) => {
+          h += "<tr><td>" + esc(bucketLabel(k, g))
+            + (partial && i === lastI ? ' <span class="mko-sub">so far</span>' : "") + "</td>"
+            + '<td class="mko-num">' + money0(cost[i]) + "</td>"
+            + '<td class="mko-num">' + fmtN(clk[i]) + "</td>"
+            + '<td class="mko-num">' + cents(ratio(cost[i], clk[i])) + "</td>"
+            + (extra ? '<td class="mko-num">' + extra.fmt(ex[i]) + "</td>" : "")
+            + (prev ? '<td class="mko-num">' + (i < prev.length ? money0(prev[i]) : "—") + "</td>" : "")
+            + "</tr>";
+        });
+        return h + "</tbody></table></div>";
+      },
+    });
+  }
+
+  /* one KPI card with its comparison: `lower` = a cost (down is good), null = neither */
+  function kp(label, cur, prev, fmt, lower, sub, pw) {
+    const on = !!(pw && pw.cw) && prev !== undefined;
+    const was = on ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmt(prev) : "";
+    return { label, value: fmt(cur) + (on ? delta(cur, prev, lower) : ""),
+             sub: [was, sub].filter(Boolean).join(" · ") };
+  }
+  function platHead(key, title, sub, pw) {
+    return '<div class="mko-ph"><h3>' + esc(title) + '</h3><span class="mko-sub">' + esc(sub)
+      + (pw && pw.last ? " · data through " + esc(day(pw.last)) : "") + "</span></div>";
+  }
+  // a platform younger than the period reads from its first day; say so, and why there is no
+  // comparison
+  function noCmpHint(name, pw) {
+    if (!pw.noCmp && !pw.late) return "";
+    return '<p class="rs-hint">' + esc(name) + " data starts " + esc(day(pw.first))
+      + (pw.late ? ", so this panel reads from that day on" + (pw.noCmp ? " with no comparison" : "")
+        : ", so there is no comparison for this period") + ".</p>";
+  }
+  // one rs-table: cols [{h, num?, tip?, cell(row)}], rows, an optional totals row; `tight` for
+  // the narrow side column beside a chart
+  function ptable(cols, rows, tot, tight) {
+    const th = cols.map(c => "<th" + (c.num ? ' class="mko-num"' : "")
+      + (c.tip ? ' title="' + esc(c.tip) + '"' : "") + ">" + esc(c.h) + "</th>").join("");
+    const tr = (r, cls) => "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" + cols.map(c =>
+      "<td" + (c.num ? ' class="mko-num"' : c.name ? ' class="mko-name"' : "") + ">" + c.cell(r) + "</td>").join("") + "</tr>";
+    return '<div class="rs-tablewrap"><table class="rs-table mko-pt' + (tight ? " mko-tight" : "") + '"><thead><tr>'
+      + th + "</tr></thead><tbody>"
+      + rows.map(r => tr(r)).join("") + (tot ? tr(tot, "mko-tot") : "") + "</tbody></table></div>";
+  }
+  // a name with its share of the whole drawn as a bar beneath it (the % rides in the next cell)
+  const shareName = (name, v, of) => name + '<span class="mko-share" title="' + esc(pct(of > 0 ? v / of : 0))
+    + ' of the period"><i style="width:' + Math.round(100 * (of > 0 ? v / of : 0)) + '%"></i></span>';
+  const withShare = (txt, v, of) => txt + '<div class="mko-sub">' + pct(of > 0 ? v / of : 0) + "</div>";
+  // a cost per result: results like "people reached" cost a fraction of a cent each
+  const each = v => v == null || isNaN(v) ? "—" : v < 0.1 ? "$" + v.toFixed(3) : cents(v);
+
+  /* --- Google Ads --- */
+  function adsSection(w, cw) {
+    const pw = platWin("ads", w, cw);
+    const head = platHead("ads", "Google Ads", "account 233-468-1938", pw);
+    const rows = pw ? inRange(P.ads, pw.a, pw.b) : [];
+    const gate = platGate("Google Ads", "ads", pw, rows);
+    if (gate) return { html: head + gate };
+    const cmp = pw.cw ? inRange(P.ads, pw.cw.a, pw.cw.b) : null;
+    const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
+    cur.conv = sum(rows, "conv"); prev.conv = cmp ? sum(cmp, "conv") : undefined;
+    const cpa = s => ratio(s.cost, s.conv);
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-ads"></div>'
+      + '<p class="rs-hint">Conversions are what Google counts as a conversion on this account, not '
+      + "our leads or booked jobs: those are the Google row in the Channels table, whose spend is this "
+      + "same cost.</p>" + noCmpHint("Google Ads", pw)
+      + '<div class="mko-g2"><div id="mkoC-ads"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">By campaign type</span></div>'
+      + adsTypeTable(rows, cur) + "</div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
+      + '<span class="mko-sub">every campaign that showed an ad in the period, most cost first</span></div>'
+      + adsCampTable(rows, cur) + "</div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-ads"), [
+        kp("Cost", cur.cost, prev.cost, money, null, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, compact(cur.imp) + " impr.", pw),
+        kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
+        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "cost ÷ clicks", pw),
+        kp("Conversions", cur.conv, prev.conv, fmtN, false, "Google's count", pw),
+        kp("Cost per conv.", cpa(cur), cmp ? cpa(prev) : undefined, money0, true, "", pw),
+      ]);
+      costCard(host.querySelector("#mkoC-ads"), "ads", "Cost", pw, rows, cmp,
+               { label: "Conversions", val: r => r.conv, fmt: fmtN });
+    } };
+  }
+  function adsTypeTable(rows, cur) {
+    const list = groupBy(rows, r => r.type).map(x => Object.assign({ k: x.k, conv: sum(x.rows, "conv") },
+      clickStats(x.rows))).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
+    return ptable([
+      { h: "Type", name: true, cell: r => shareName(esc(ADS_TYPE[r.k] || prettyCode(r.k) || "(none)"), r.cost, cur.cost) },
+      { h: "Cost", num: true, tip: "and its share of the period's cost", cell: r => withShare(money0(r.cost), r.cost, cur.cost) },
+      { h: "Clicks", num: true, cell: r => withShare(fmtN(r.clk), r.clk, cur.clk) },
+      { h: "Conv.", num: true, tip: "Google's conversions", cell: r => fmtN(r.conv) },
+      { h: "Cost / conv.", num: true, cell: r => money0(ratio(r.cost, r.conv)) },
+    ], list, null, true);
+  }
+  function adsCampTable(rows, cur) {
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      return Object.assign({ name: last.name, type: last.type, conv: sum(x.rows, "conv") }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
+    const tot = Object.assign({ name: "All campaigns", type: "", conv: sum(rows, "conv") }, cur);
+    return ptable([
+      { h: "Campaign", name: true, cell: r => esc(r.name)
+          + (r.type ? '<div class="mko-sub">' + esc(ADS_TYPE[r.type] || prettyCode(r.type)) + "</div>" : "") },
+      { h: "Cost", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "Conv.", num: true, tip: "Google's conversions", cell: r => fmtN(r.conv) },
+      { h: "Cost / conv.", num: true, cell: r => money0(ratio(r.cost, r.conv)) },
+    ], list, tot);
+  }
+
+  /* --- Local Services --- */
+  function lsaSection(w, cw) {
+    const pw = platWin("lsa", w, cw);
+    const head = platHead("lsa", "Local Services", "account 748-852-6235 · Google's leads, by phone call or message", pw);
+    const cost = pw ? inRange(P.lsaC, pw.a, pw.b) : [];
+    const leads = pw ? inRange(P.lsaL, pw.a, pw.b) : [];
+    const gate = platGate("Local Services", "lsa", pw, cost.concat(leads));
+    if (gate) return { html: head + gate };
+    const stat = (c, l) => {
+      const s = { cost: sum(c, "cost"), leads: sum(l, "n") };
+      LSA_CHARGE.forEach(k => { s[k] = sum(l.filter(r => r.chg === k), "n"); });
+      s.cpcl = ratio(s.cost, s.Charged);
+      return s;
+    };
+    const cur = stat(cost, leads);
+    const prev = pw.cw ? stat(inRange(P.lsaC, pw.cw.a, pw.cw.b), inRange(P.lsaL, pw.cw.a, pw.cw.b)) : {};
+    const types = groupBy(leads, r => r.lt).map(x => ({ k: x.k, n: sum(x.rows, "n") })).sort((a, b) => b.n - a.n);
+    const phone = (types.find(t => t.k === "Phone call") || {}).n || 0;
+    const typeLine = types.length === 1 && types[0].k === "Phone call"
+      ? "all phone calls, no messages"
+      : types.map(t => fmtN(t.n) + " " + t.k.toLowerCase() + (t.n === 1 ? "" : "s")).join(" · ");
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-lsa"></div>'
+      + '<p class="rs-hint"><b>Charged</b> = Google billed the lead · <b>Credited</b> = billed, then '
+      + "refunded after a dispute · <b>Not charged</b> = Google did not bill it. These are Google's own "
+      + "leads; the Google Local row in the Channels table is the Moveboard leads matched to them by phone.</p>"
+      + noCmpHint("Local Services", pw)
+      + '<div class="mko-g2"><div id="mkoC-lsa"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Leads by job type</span>'
+      + '<span class="mko-sub">' + esc(typeLine) + "</span></div>"
+      + lsaTypeTable(leads, cur) + "</div></div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-lsa"), [
+        kp("Cost", cur.cost, prev.cost, money, null, "", pw),
+        kp("Leads", cur.leads, prev.leads, fmtN, false,
+           phone === cur.leads ? "all phone calls" : fmtN(phone) + " phone calls", pw),
+        kp("Charged leads", cur.Charged, prev.Charged, fmtN, null, pct(ratio(cur.Charged, cur.leads)) + " of leads", pw),
+        kp("Cost per charged lead", cur.cpcl, prev.cpcl, money0, true, "cost ÷ charged leads", pw),
+        kp("Credited", cur.Credited, prev.Credited, fmtN, null,
+           cur["In review"] ? fmtN(cur["In review"]) + " in review" : "billed, then refunded", pw),
+      ]);
+      lsaCard(host.querySelector("#mkoC-lsa"), pw, cost, leads);
+    } };
+  }
+  function lsaTypeTable(leads, cur) {
+    const list = groupBy(leads, r => r.svc).map(x => {
+      const o = { k: x.k, n: sum(x.rows, "n") };
+      LSA_CHARGE.forEach(c => { o[c] = sum(x.rows.filter(r => r.chg === c), "n"); });
+      return o;
+    }).sort((a, b) => (a.k === "Not given") - (b.k === "Not given") || b.n - a.n);
+    const tot = { k: "All leads", n: cur.leads };
+    LSA_CHARGE.forEach(c => { tot[c] = cur[c]; });
+    const isTot = r => r.k === "All leads";
+    return ptable([
+      { h: "Job type", name: true, tip: "Not given = Google recorded no job type for the lead",
+        cell: r => isTot(r) ? esc(r.k) : shareName(esc(r.k)
+          + (r.k === "Not given" ? '<div class="mko-sub">no job type recorded</div>' : ""), r.n, cur.leads) },
+      { h: "Leads", num: true, cell: r => isTot(r) ? fmtN(r.n) : withShare(fmtN(r.n), r.n, cur.leads) },
+      { h: "Charged", num: true, cell: r => fmtN(r.Charged) },
+      { h: "Credited", num: true, cell: r => fmtN(r.Credited) },
+      { h: "Not charged", num: true, tip: "not billed by Google (and any still in review)",
+        cell: r => fmtN(r["Not charged"] + r["In review"]) },
+    ], list, tot, true);
+  }
+  /* Local Services: leads per bucket stacked by charge, the cost a line on its own axis */
+  function lsaCard(host, pw, cost, leads) {
+    const g = pw.g;
+    const keys = bucketsOf(pw.a, pw.b, g);
+    const c = seriesOf(cost, keys, g, r => r.cost);
+    const by = {};
+    LSA_CHARGE.forEach(k => { by[k] = seriesOf(leads.filter(r => r.chg === k), keys, g, r => r.n); });
+    const notCh = keys.map((_, i) => by["Not charged"][i] + by["In review"][i]);
+    RSC.chartCard(host, {
+      title: "Leads and cost by " + GRAIN_WORD[g],
+      key: "mko-lsa-leads",
+      buildChart(canvas) {
+        const C = palette();
+        return new Chart(canvas, {
+          data: { labels: keys.map(k => bucketLabel(k, g)), datasets: [
+            { type: "bar", label: "Charged", data: by.Charged, backgroundColor: C.main, stack: "l", yAxisID: "y", order: 2 },
+            { type: "bar", label: "Credited", data: by.Credited, backgroundColor: C.violet, stack: "l", yAxisID: "y", order: 2 },
+            { type: "bar", label: "Not charged", data: notCh, backgroundColor: C.faint, stack: "l", yAxisID: "y", order: 2 },
+            { type: "line", label: "Cost", data: c.map(v => +v.toFixed(2)), borderColor: C.alt, backgroundColor: C.alt,
+              borderWidth: 2, pointRadius: keys.length > 45 ? 0 : 2, cubicInterpolationMode: "monotone",
+              yAxisID: "y1", order: 1 },
+          ] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
+                       tooltip: { callbacks: { label: x => x.dataset.label + ": "
+                         + (x.dataset.yAxisID === "y1" ? money0(x.raw) : fmtN(x.raw) + " leads") } } },
+            scales: { y: { stacked: true, beginAtZero: true, ticks: { precision: 0 },
+                           title: { display: true, text: "leads" } },
+                      y1: { position: "right", beginAtZero: true, grid: { drawOnChartArea: false },
+                            ticks: { callback: moneyTick }, title: { display: true, text: "cost" } },
+                      x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } },
+          },
+        });
+      },
+      buildTable() {
+        let h = '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>'
+          + esc(GRAIN_WORD[g][0].toUpperCase() + GRAIN_WORD[g].slice(1)) + '</th><th class="mko-num">Cost</th>'
+          + '<th class="mko-num">Leads</th><th class="mko-num">Charged</th><th class="mko-num">Credited</th>'
+          + '<th class="mko-num">Not charged</th><th class="mko-num">Cost per charged</th></tr></thead><tbody>';
+        keys.forEach((k, i) => {
+          const n = by.Charged[i] + by.Credited[i] + notCh[i];
+          h += "<tr><td>" + esc(bucketLabel(k, g)) + '</td><td class="mko-num">' + money0(c[i])
+            + '</td><td class="mko-num">' + fmtN(n) + '</td><td class="mko-num">' + fmtN(by.Charged[i])
+            + '</td><td class="mko-num">' + fmtN(by.Credited[i]) + '</td><td class="mko-num">' + fmtN(notCh[i])
+            + '</td><td class="mko-num">' + money0(ratio(c[i], by.Charged[i])) + "</td></tr>";
+        });
+        return h + "</tbody></table></div>";
+      },
+    });
+  }
+
+  /* --- Meta --- */
+  const metaKind = k => META_KIND[k] || prettyCode(k).toLowerCase();
+  function metaSection(w, cw) {
+    const pw = platWin("meta", w, cw);
+    const head = platHead("meta", "Meta", "Facebook + Instagram · account 276439726601232 · Los Angeles days", pw);
+    const rows = pw ? inRange(P.meta, pw.a, pw.b) : [];
+    const gate = platGate("Meta", "meta", pw, rows);
+    if (gate) return { html: head + gate };
+    const cmp = pw.cw ? inRange(P.meta, pw.cw.a, pw.cw.b) : null;
+    const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
+    cur.leads = sum(rows, "leads"); prev.leads = cmp ? sum(cmp, "leads") : undefined;
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-meta"></div>'
+      + '<p class="rs-hint">The account runs on Los Angeles time, so a Meta day ends three hours after '
+      + "New York's. A <b>result</b> is whatever a campaign is set to win (ad recallers, page likes, form "
+      + "leads...), so results of different kinds are listed side by side and never added up.</p>"
+      + noCmpHint("Meta", pw)
+      + '<div class="mko-g2"><div id="mkoC-meta"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Results by kind</span>'
+      + '<span class="mko-sub">what the money bought, in each campaign\'s own unit</span></div>'
+      + metaKindTable(rows) + "</div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
+      + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
+      + metaCampTable(rows, cur) + "</div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-meta"), [
+        kp("Spend", cur.cost, prev.cost, money, null, "", pw),
+        kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, "all clicks", pw),
+        kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
+        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        kp("Leads", cur.leads, prev.leads, fmtN, false, "Meta's lead count", pw),
+      ]);
+      costCard(host.querySelector("#mkoC-meta"), "meta", "Spend", pw, rows, cmp,
+               { label: "Leads", val: r => r.leads, fmt: fmtN });
+    } };
+  }
+  function metaKindTable(rows) {
+    const list = groupBy(rows.filter(r => r.kind), r => r.kind)
+      .map(x => ({ k: x.k, res: sum(x.rows, "res"), cost: sum(x.rows, "cost") }))
+      .filter(x => x.res || x.cost).sort((a, b) => b.cost - a.cost);
+    const none = sum(rows.filter(r => !r.kind), "cost");
+    if (!list.length) return '<div class="mko-empty">No campaign returned a result in this period.</div>';
+    return ptable([
+      { h: "Result", name: true, cell: r => esc(metaKind(r.k)) },
+      { h: "Results", num: true, cell: r => fmtN(r.res) },
+      { h: "Spend", num: true, cell: r => money0(r.cost) },
+      { h: "Cost each", num: true, cell: r => each(ratio(r.cost, r.res)) },
+    ], list) + (none ? '<div class="mko-foot">' + money0(none) + " was spent by campaigns that returned "
+      + "no result.</div>" : "");
+  }
+  function metaCampTable(rows, cur) {
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      const kinds = groupBy(x.rows.filter(r => r.kind), r => r.kind)
+        .map(y => ({ k: y.k, res: sum(y.rows, "res") })).filter(y => y.res).sort((a, b) => b.res - a.res);
+      return Object.assign({ name: last.name, obj: last.obj, kinds }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
+    const tot = Object.assign({ name: "All campaigns", obj: "", kinds: null }, cur);
+    return ptable([
+      { h: "Campaign", name: true, cell: r => esc(r.name)
+          + (r.obj ? '<div class="mko-sub">' + esc(META_OBJ[r.obj] || prettyCode(r.obj)) + "</div>" : "") },
+      { h: "Spend", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "Results", num: true, tip: "in each campaign's own unit; never added across kinds",
+        cell: r => !r.kinds ? "" : !r.kinds.length ? '<span class="mko-sub">—</span>'
+          : r.kinds.map(y => fmtN(y.res) + ' <span class="mko-sub">' + esc(metaKind(y.k)) + "</span>").join("<br>") },
+      { h: "Cost each", num: true, cell: r => r.kinds && r.kinds.length === 1
+          ? each(ratio(r.cost, r.kinds[0].res)) : "" },
+    ], list, tot);
+  }
+
+  /* --- ChatGPT Ads --- */
+  function gptSection(w, cw) {
+    const pw = platWin("gpt", w, cw);
+    const head = platHead("gpt", "ChatGPT Ads", "OpenAI Ads Manager · New York days", pw);
+    const rows = pw ? inRange(P.gpt, pw.a, pw.b) : [];
+    const gate = platGate("ChatGPT Ads", "gpt", pw, rows);
+    if (gate) return { html: head + gate };
+    const cmp = pw.cw ? inRange(P.gpt, pw.cw.a, pw.cw.b) : null;
+    const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
+    // 0 conversions with no conversion event attached is "not measured", not "none": the card
+    // and the conversions column only appear once the account has ever reported one
+    const tracked = P.gpt.some(r => r.conv > 0);
+    cur.conv = sum(rows, "conv"); prev.conv = cmp ? sum(cmp, "conv") : undefined;
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      return Object.assign({ name: last.name, conv: sum(x.rows, "conv") }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
+    const cols = [
+      { h: "Campaign", name: true, cell: r => esc(r.name) },
+      { h: "Spend", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
+    ];
+    if (tracked) cols.push({ h: "Conv.", num: true, cell: r => fmtN(r.conv) });
+    const note = tracked ? "" : '<div class="panel"><div class="panel-head"><span class="panel-title">'
+      + "Conversions: not measured</span></div><div class=\"mko-nm\">"
+      + "<p>ChatGPT reports <b>0 conversions</b> every day because no conversion event is attached to "
+      + "the campaign in Ads Manager (Set up, under Conversions). That 0 means <b>not measured</b>, not "
+      + "that the ads brought nothing, so this panel shows no result figure.</p>"
+      + "<p>What the ads brought is read on our side: the ChatGPT row in the Channels table counts the "
+      + "leads filed under ChatGPT, which also include visitors from chatgpt.com answers, not only "
+      + "the ads.</p></div></div>";
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-gpt"></div>' + noCmpHint("ChatGPT Ads", pw)
+      + (note ? '<div class="mko-g2"><div id="mkoC-gpt"></div>' + note + "</div>" : '<div id="mkoC-gpt"></div>')
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span></div>'
+      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>";
+    return { html, wire(host) {
+      const k = [
+        kp("Spend", cur.cost, prev.cost, money, null, "", pw),
+        kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
+        kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
+        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        tracked ? kp("Conversions", cur.conv, prev.conv, fmtN, false, "ChatGPT's count", pw)
+          : { label: "Conversions", value: '<span class="mko-cov">not measured</span>',
+              sub: "no conversion event set up" },
+      ];
+      RSC.kpis(host.querySelector("#mkoK-gpt"), k);
+      costCard(host.querySelector("#mkoC-gpt"), "gpt", "Spend", pw, rows, cmp, null);
+    } };
+  }
+
+  /* the states a panel shows instead of numbers: a failed read, no data at all, a period before
+     the account existed, a period with nothing in it */
+  function platGate(name, key, pw, rows) {
+    const errKey = key === "lsa" ? (P.err.lsaC || P.err.lsaL) : P.err[key];
+    if (errKey) {
+      return '<div class="mko-empty">Could not load ' + esc(name) + " — " + esc(errKey)
+        + (/404|unknown dataset|not granted|403/i.test(errKey)
+          ? " (it arrives with the next bridge deploy or pipeline run)" : "") + "</div>";
+    }
+    if (!pw) return '<div class="mko-empty">No ' + esc(name) + " data on file yet.</div>";
+    if (pw.before) {
+      return '<div class="mko-empty">' + esc(name) + " data starts " + esc(day(pw.first))
+        + ": pick a period from then on.</div>";
+    }
+    if (pw.after) {
+      return '<div class="mko-empty">' + esc(name) + " data runs through " + esc(day(pw.last))
+        + ": nothing has arrived for this period yet.</div>";
+    }
+    if (!rows.length || !rows.some(r => r.cost || r.imp || r.n)) {
+      return '<div class="mko-empty">No ' + esc(name) + " activity in this period.</div>";
+    }
+    return "";
+  }
+
+  /* the whole middle section; `wire` runs once the markup is in the page */
+  function platformsSection(w, cw) {
+    const head = '<div class="mko-h" id="mkoPlatforms"><h2>Ad platforms</h2><span class="mko-sub">'
+      + "Each platform's own numbers for the period: what it charged, what it showed and what it "
+      + "counts as a result.</span></div>";
+    if (S.co === "Tuji") {
+      return { html: head + '<div class="panel"><div class="mko-nm">Every live ad account here (Google '
+        + "Ads, Local Services, Meta, ChatGPT) is Zip to Zip's. Tuji has none: its spend reaches us "
+        + "through the bank ledger only, in the Channels table above. Pick Zip to Zip or Both companies "
+        + "to see the platforms.</div></div>", wire() {} };
+    }
+    const parts = [["ads", "Google Ads", adsSection], ["lsa", "Local Services", lsaSection],
+                   ["meta", "Meta", metaSection], ["gpt", "ChatGPT Ads", gptSection]]
+      .map(([k, name, fn]) => Object.assign({ k, name }, fn(w, cw)));
+    const nav = '<div class="mko-pnav"><span>Jump to:</span>' + parts.map(p =>
+      '<button type="button" data-go="mkoP-' + p.k + '">' + esc(p.name) + "</button>").join("") + "</div>";
+    return {
+      html: head + nav + parts.map(p => '<section class="mko-plat" id="mkoP-' + p.k + '">' + p.html
+        + "</section>").join(""),
+      wire(host) {
+        host.querySelectorAll(".mko-pnav [data-go]").forEach(b => {
+          b.onclick = () => {
+            const t = host.querySelector("#" + b.dataset.go);
+            if (t) t.scrollIntoView({ block: "start" });
+          };
+        });
+        parts.forEach(p => { if (p.wire) p.wire(host.querySelector("#mkoP-" + p.k)); });
+      },
+    };
+  }
+
   /* --- the data sources (bottom) --- */
   function sourcesHtml() {
     const rows = D.conn;
@@ -557,10 +1229,12 @@
         + ". Click a channel to open it in Source Analysis.</p>"
         + channelsHtml(fams) + "</div>";
     }
+    // the platforms read their own tables: they stand even when the channel table failed
+    const plat = platformsSection(w, cw);
     host.innerHTML = '<div class="mko">'
       + '<div class="rs-page-head"><h1>Marketing Overview</h1>'
-      + "<p>What each channel cost and brought in the period, then every source that feeds this "
-      + "page and whether it is up to date.</p></div>"
+      + "<p>What each channel cost and brought in the period, each ad platform's own numbers, then "
+      + "every source that feeds this page and whether it is up to date.</p></div>"
       + '<div class="rs-bar">'
       + '<div id="mkoCo"></div>'
       + '<div class="rs-fld"><span>Period</span><div id="mkoDate"></div></div>'
@@ -570,6 +1244,7 @@
       + "</div>"
       + feedsHtml()
       + body
+      + plat.html
       + sourcesHtml()
       + "</div>";
 
@@ -609,14 +1284,15 @@
       kh.innerHTML = bits.map(esc).join(" ");
       kh.classList.toggle("hidden", !bits.length);
     }
+    plat.wire(host);
   }
 
   registerPage({
     id: "marketing-overview",
     group: "marketing",
     title: "Marketing Overview",
-    subtitle: "What each channel cost and brought for any period, then every source that feeds " +
-              "this page and whether it is up to date.",
+    subtitle: "What each channel cost and brought for any period, each ad platform's own numbers, " +
+              "then every source that feeds this page and whether it is up to date.",
     datasets: [],
 
     render(host) {
@@ -629,14 +1305,20 @@
         host.innerHTML = '<div class="rs-loading">Reading leads, bookings and ad spend by channel…'
           + '<div class="bar"><i></i></div></div>';
       }
-      D.connErr = null; D.chErr = null;
+      D.connErr = null; D.chErr = null; P.err = {};
+      // each platform table fails on its own: its panel says so and the rest still draw
+      const plat = (ds, k) => RS.load(ds).catch(e => { P.err[k] = (e && e.message) || String(e); return []; });
       Promise.all([
         RS.load("mkt_connector").catch(e => { D.connErr = (e && e.message) || String(e); return []; }),
         RS.load("mkt_channel").catch(e => { D.chErr = (e && e.message) || String(e); return []; }),
-      ]).then(([conn, ch]) => {
+        plat("mkt_ads", "ads"), plat("mkt_lsa_cost", "lsaC"), plat("mkt_lsa_lead", "lsaL"),
+        plat("mkt_meta", "meta"), plat("mkt_gpt", "gpt"),
+      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
-        D.ready = !D.chErr && !D.connErr;   // a failed read is tried again on the next visit
+        indexPlatforms(ads, lsaC, lsaL, meta, gpt);
+        // a failed read is tried again on the next visit
+        D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
         boot();
         paint(host);
