@@ -255,14 +255,15 @@
      contact only once the call is LINKED to its lead (_in_scope, src/sales_trackers.py): an
      unlinked call is a one-call bucket that always reads as a first contact, and about half of
      them are really follow-ups. ~1 in 5 quote calls never link (Jun–Aug 2026), and a new
-     customer's call links only when their lead arrives with the weekly Moveboard export (by
-     hand, Mondays) — so the card says how many calls that rule is holding out, and how many
-     are from the last seven days and may still link. The other scope checks mirror
+     customer's call links only when their lead arrives with the Moveboard export -- DAILY
+     since 27 Sep (the robot, 06:20 New York; it was weekly by hand before, and this note said
+     so until 19 Oct) -- so the card says how many calls that rule is holding out, and how
+     many are from the last two days and may still link. The other scope checks mirror
      _in_scope, so a call out for another reason is not counted here. */
   function unlinkedFirsts(t, S) {
     var sc = t.scope || {};
     if (!sc.first_contact_only) return null;
-    var n = 0, recent = 0, cut = Date.now() - 7 * 864e5;
+    var n = 0, recent = 0, cut = Date.now() - 2 * 864e5;
     var dir = String(sc.direction || "any").toLowerCase();
     Object.keys(S.calls).forEach(function (rid) {
       var c = S.calls[rid];
@@ -288,10 +289,10 @@
       + (u.n === 1 ? " is" : "s are") + " left out because " + (u.n === 1 ? "it is" : "they are")
       + " not linked to a lead"
       + (!u.recent ? ""
-         : u.n === 1 ? " — it is from the last seven days and may link when the weekly lead "
-                       + "export arrives"
+         : u.n === 1 ? " — it is from the last two days and may link with the next "
+                       + "morning's lead export"
          : " — " + (u.recent === u.n ? "all" : u.recent.toLocaleString()) + " from the last "
-           + "seven days, most of which link when the weekly lead export arrives and are "
+           + "two days, most of which link with the next morning's lead export and are "
            + "then checked")
       + ". About 1 in 5 quote calls never link.</div>";
   }
@@ -637,8 +638,8 @@
       + "is, from the lead the customer's number links to — the two differ when support or a "
       + "colleague picks up. <b>Customer's calls</b> counts every conversation with that lead, "
       + "split into sales and support, whatever this tracker checked. A call from the last "
-      + "few days often shows <i>not linked to a lead</i> until the weekly lead export "
-      + "arrives. "
+      + "day or so often shows <i>not linked to a lead</i> until the next morning's lead "
+      + "export (daily, 06:20 New York). "
       + (isKw
          ? "<b>Keywords heard</b> lists each phrase that was said and how many lines it was on "
            + "— open the transcript to see the lines in place."
@@ -893,7 +894,7 @@
       + "each lead's first quote call — right for a question asked once per lead, such as "
       + "where the customer heard about us. Only calls linked to a lead count: about 1 in 5 "
       + "quote calls never link and are left out, and a new customer's call joins when their "
-      + "lead arrives with the weekly lead export, up to about a week later. A <b>from</b> "
+      + "lead arrives with the next morning's lead export, about a day later. A <b>from</b> "
       + "date measures from that day on. "
       + "<b>Include the shared line</b> adds the Support Zip To Zip queue, which is not a "
       + "person.</p>"
