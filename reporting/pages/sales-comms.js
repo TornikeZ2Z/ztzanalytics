@@ -40,7 +40,7 @@
       // an em dash with no error. The seq pointers are deliberately NOT here — they come back
       // with the transcript, one call at a time.
       cols: ["Record Id", "Rep", "Shared Line", "Transferred", "Started", "Duration Sec",
-             "Job No", "Customer", "Source", "Direction", "Linked", "Stage", "Priced",
+             "Job No", "Customer", "Source", "Direction", "Assigned", "Linked", "Stage", "Priced",
              "First Contact", "Rep Turns", "Customer Turns", "Rep Words", "Customer Words",
              "Talk Share", "Objection", "Longest Monologue Sec", "Questions",
              "Questions Per Min", "Ended With Next Step", "Customer Ending Share",

@@ -17,6 +17,18 @@
  * the unlinked share of a rep's first contacts ran 7%-37% — so the card counts what that
  * leaves out; the preview collapses pasted double spaces and tabs the way the engine does.
  *
+ * MARY'S FILTERS (2026-10-18, through him). Results now has two pickers over every card:
+ *   * Rep: the calls that rep TOOK (his pick), or the Support team's (see SUPPORT below). The
+ *     KPIs and the call list follow it; the rep table keeps everyone, the chosen row marked.
+ *   * Verdict: "Not mentioned" only, the calls to coach on. It applies to the call list only,
+ *     because a rate of a filtered verdict is always 0% or 100%.
+ * The call list is no longer capped at 25 (50 at a time, "Show 50 more"). It adds:
+ *   * Handled by: the rep who took it, or "Support team".
+ *   * Assigned to: whose client it is, from the lead the call's number links to.
+ *   * Direction: inbound or outbound.
+ *   * Customer's calls: every conversation with that lead, split into sales and support.
+ *     An unlinked call has no lead, so it gets no owner and no count.
+ *
  * His ask (2026-08-26): the Sales Head writes a tracker — a name, a plain-language
  * instruction, optional keywords, a scope — and the system judges every in-scope RingSense
  * transcript against it: Met / Partial / Not Met, with a confidence, a short explanation and
@@ -49,7 +61,7 @@
     RS.DATASETS.sales_call_score = {
       table: "mart_sales_call_score",
       cols: ["Record Id", "Rep", "Shared Line", "Transferred", "Started", "Duration Sec",
-             "Job No", "Customer", "Source", "Direction", "Linked", "Stage", "Priced",
+             "Job No", "Customer", "Source", "Direction", "Assigned", "Linked", "Stage", "Priced",
              "First Contact", "Rep Turns", "Customer Turns", "Rep Words", "Customer Words",
              "Talk Share", "Objection", "Longest Monologue Sec", "Questions",
              "Questions Per Min", "Ended With Next Step", "Customer Ending Share",
@@ -63,6 +75,22 @@
 
 (function () {
   var MIN_CALLS = 25;          // below this a rep's rate is words, not a number
+  var PAGE_CALLS = 50;         // the call list grows by this much per "Show more"
+  /* THE SUPPORT TEAM IS ONE LINE (his point, 2026-10-18: "call may be handled by support team
+     and it may be assigned to sales person - it's different thing"). Mariam, Avto and Nikoloz
+     share one RingCentral user, "Support Zip To Zip" (his call to keep it, Support of the
+     Month), so a support call is the team's, never a person's: the page names its handler
+     "Support team", the Rep picker offers the team on its own line, and each customer's calls
+     split into sales and support. 8,452 of 33,577 transcribed calls (25%) are support's, and
+     967 leads talked to both. The trackers check support calls only where "include the shared
+     line" is ticked; on 18 Oct no tracker had it. */
+  var SUPPORT = "__support";
+  function isSupport(c) { return !!(c && +c["Shared Line"]); }
+  function handledBy(c) { return isSupport(c) ? "Support team" : ((c && c.Rep) || "—"); }
+  function pickedRep(c, rep) {
+    return !rep || (rep === SUPPORT ? isSupport(c) : (!isSupport(c) && !!c && c.Rep === rep));
+  }
+  function repLabel(rep) { return rep === SUPPORT ? "Support team" : rep; }
   /* TWO VOCABULARIES ON PURPOSE. A keyword tracker can only know the topic CAME UP, so its
      verdicts say Mentioned — printing "Met" for a keyword hit is exactly the false claim
      the spec warned about. Only ai-mode trackers (a model reading the call) say Met. */
@@ -128,6 +156,11 @@
       + ".stx-chip.warn{border-color:var(--warn);background:var(--warn-bg)}"
       + ".stx-kwwarn{font-size:12px;color:var(--warn);line-height:1.5;margin:2px 0 0}"
       + ".stx-shared{background:var(--panel-2)}"
+      // Mary's pickers, the picked rep's row, and the call list's "Show more"
+      + ".stx-filters{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 14px}"
+      + ".stx-sel td{background:var(--panel-2)}"
+      + ".stx-sel td:first-child{box-shadow:inset 3px 0 0 var(--brand);font-weight:700}"
+      + ".stx-more{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:10px 0 0}"
       + "@media(max-width:820px){.stx-form{grid-template-columns:1fr}}"
       // the transcript drawer
       + ".stx-overlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:60;"
@@ -266,7 +299,8 @@
   function render(host) {
     injectStyle();
     host.innerHTML = '<div class="rs-loading" style="padding:22px">Reading the trackers…</div>';
-    var S = { tab: "results", meta: null, evals: [], calls: {}, edit: null, filter: {} };
+    var S = { tab: "results", meta: null, evals: [], calls: {}, edit: null,
+              filter: { rep: "", verdict: "" }, shown: {} };
 
     Promise.all([
       api("/api/_trackers"),
@@ -278,6 +312,15 @@
       S.evals = (r[1] && (r[1].rows || r[1])) || [];
       var calls = (r[2] && (r[2].rows || r[2])) || [];
       calls.forEach(function (c) { S.calls[c["Record Id"]] = c; });
+      // every lead's conversations, sales vs support — whatever any tracker checked. A call the
+      // mart stages "not a conversation" (voicemail, a ring with no talk) is not one.
+      S.lead = {};
+      calls.forEach(function (c) {
+        var job = c["Job No"];
+        if (!job || c.Stage === "not a conversation") return;
+        var l = S.lead[job] = S.lead[job] || { sales: 0, support: 0 };
+        if (isSupport(c)) l.support++; else l.sales++;
+      });
       paint(host, S);
     }).catch(function (e) {
       host.innerHTML = '<div class="panel">Could not load the trackers — '
@@ -332,9 +375,52 @@
     S.evals.forEach(function (e) {
       (byTracker[e["Tracker Key"]] = byTracker[e["Tracker Key"]] || []).push(e);
     });
-    body.innerHTML = trackers.map(function (t) {
-      return trackerCard(t, byTracker[t.key] || [], S);
-    }).join("");
+    body.innerHTML = '<div class="stx-filters">'
+      + '<span id="stxRepPick"></span><span id="stxVerPick"></span>'
+      + '<span class="stx-scope">Rep = the calls they took; Support team = the calls on the '
+      + "shared support line. The verdict picker narrows the call lists only; the rates always "
+      + "count every verdict.</span></div>"
+      + trackers.map(function (t) {
+        return trackerCard(t, byTracker[t.key] || [], S);
+      }).join("");
+
+    // the reps who took a checked call on an active tracker, each with how many calls, and the
+    // support team's calls apart from them
+    var live = {}, repN = {}, supportN = 0;
+    trackers.forEach(function (t) { live[t.key] = true; });
+    var seen = {};
+    S.evals.forEach(function (e) {
+      if (!live[e["Tracker Key"]] || seen[e["Record Id"]]) return;
+      if (KW_RESULTS.indexOf(e.Result) < 0 && RESULTS.indexOf(e.Result) < 0) return;
+      seen[e["Record Id"]] = true;
+      var c = S.calls[e["Record Id"]];
+      if (isSupport(c)) supportN++;
+      else if (c && c.Rep) repN[c.Rep] = (repN[c.Rep] || 0) + 1;
+    });
+    var repVals = Object.keys(repN).sort().map(function (r) { return { v: r, l: r, n: repN[r] }; });
+    // the team on its own line, even at 0: picking it then says how to start checking support
+    repVals = RSC.repOptions(repVals).concat([{ div: "Support team" },
+                                              { v: SUPPORT, l: "Support team", n: supportN }]);
+    var refilter = function () { S.shown = {}; paintResults(body, host, S); };
+    RSC.localSelect(body.querySelector("#stxRepPick"), {
+      label: "Rep", allLabel: "All reps", values: repVals,
+      value: S.filter.rep,
+      onChange: function (v) { S.filter.rep = v; refilter(); },
+    });
+    RSC.localSelect(body.querySelector("#stxVerPick"), {
+      label: "Verdict", allLabel: "All verdicts",
+      values: [{ v: "Mentioned", l: "Mentioned" }, { v: "Not Mentioned", l: "Not mentioned" }],
+      value: S.filter.verdict,
+      onChange: function (v) { S.filter.verdict = v; refilter(); },
+    });
+
+    body.querySelectorAll("[data-more]").forEach(function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute("data-more");
+        S.shown[k] = (S.shown[k] || PAGE_CALLS) + PAGE_CALLS;
+        paintResults(body, host, S);
+      };
+    });
 
     body.querySelectorAll("[data-rec]").forEach(function (a) {
       a.onclick = function () {
@@ -352,10 +438,14 @@
     });
     var applicable = isKw ? judged
       : judged.filter(function (e) { return e.Result !== "Not Applicable"; });
-    var main = applicable.filter(function (e) {
+    // the KPIs follow the rep picker; the rep table below keeps the whole team
+    var rep = S.filter.rep;
+    var byRep = function (e) { return pickedRep(S.calls[e["Record Id"]], rep); };
+    var mJudged = judged.filter(byRep), mApplicable = applicable.filter(byRep);
+    var main = mApplicable.filter(function (e) {
       return e.Result === (isKw ? "Mentioned" : "Met");
     }).length;
-    var partial = applicable.filter(function (e) { return e.Result === "Partial"; }).length;
+    var partial = mApplicable.filter(function (e) { return e.Result === "Partial"; }).length;
     var pending = rows.filter(function (e) { return e.Result === "Pending"; }).length;
 
     var head = '<div class="panel-head"><div><div class="panel-title">' + esc(t.name)
@@ -373,32 +463,43 @@
         + "</p></div>";
     }
 
+    if (rep && !mJudged.length) {
+      return '<div class="panel stx-card">' + head
+        + '<p class="stx-note">'
+        + (rep === SUPPORT && !(t.scope || {}).include_shared
+           ? "This tracker does not check the support team's calls. To check them, tick "
+             + "<b>include the shared line</b> on it under Tracker management."
+           : esc(repLabel(rep)) + " took no call this tracker checked.")
+        + "</p>"
+        + repTable(t, applicable, S, isKw) + "</div>";
+    }
+
     var kpis;
     if (isKw) {
       kpis = '<div class="rs-kpis" style="--kpi-cols:3">'
-        + kpi("Calls checked", judged.length.toLocaleString(),
-              "in this tracker's scope", "")
-        + kpi("Topic came up", pct(main, applicable.length) + "%",
-              "one of the keywords was said", pct(main, applicable.length) >= 60 ? "pos" : "neg")
-        + kpi("Never mentioned", (applicable.length - main).toLocaleString(),
+        + kpi("Calls checked", mJudged.length.toLocaleString(),
+              rep ? "taken by " + repLabel(rep) : "in this tracker's scope", "")
+        + kpi("Topic came up", pct(main, mApplicable.length) + "%",
+              "one of the keywords was said", pct(main, mApplicable.length) >= 60 ? "pos" : "neg")
+        + kpi("Never mentioned", (mApplicable.length - main).toLocaleString(),
               "calls where no keyword appears", "")
         + "</div>";
     } else {
       kpis = '<div class="rs-kpis" style="--kpi-cols:4">'
-        + kpi("Calls judged", judged.length.toLocaleString(),
+        + kpi("Calls judged", mJudged.length.toLocaleString(),
               pending ? pending.toLocaleString() + " still queued" : "backlog clear", "")
-        + kpi("Met", pct(main, applicable.length) + "%",
-              "of " + applicable.length.toLocaleString() + " applicable calls",
-              pct(main, applicable.length) >= 60 ? "pos" : "neg")
-        + kpi("Partial", pct(partial, applicable.length) + "%", "attempted but incomplete", "warn")
-        + kpi("Not applicable", (judged.length - applicable.length).toLocaleString(),
+        + kpi("Met", pct(main, mApplicable.length) + "%",
+              "of " + mApplicable.length.toLocaleString() + " applicable calls",
+              pct(main, mApplicable.length) >= 60 ? "pos" : "neg")
+        + kpi("Partial", pct(partial, mApplicable.length) + "%", "attempted but incomplete", "warn")
+        + kpi("Not applicable", (mJudged.length - mApplicable.length).toLocaleString(),
               "the situation never arose", "")
         + "</div>";
     }
 
     return '<div class="panel stx-card">' + head + kpis
       + repTable(t, applicable, S, isKw)
-      + recentCalls(t, judged, S)
+      + callList(t, judged, S)
       + "</div>";
   }
 
@@ -431,9 +532,12 @@
       var list = byRep[rep];
       var isShared = !!sharedName[rep];
       var who = isShared
-        ? esc(rep) + '<div class="stx-scope">shared support line — not a person</div>'
+        ? 'Support team<div class="stx-scope">shared support line (' + esc(rep)
+          + ') — not a person</div>'
         : esc(rep);
-      var trOpen = isShared ? "<tr" + a + ' class="stx-shared">' : "<tr" + a + ">";
+      var picked = isShared ? S.filter.rep === SUPPORT : rep === S.filter.rep;
+      var cls = (isShared ? "stx-shared" : "") + (picked ? " stx-sel" : "");
+      var trOpen = "<tr" + a + (cls.trim() ? ' class="' + cls.trim() + '"' : "") + ">";
       if (list.length < MIN_CALLS) {
         return trOpen + "<td>" + who + '</td><td class="num">' + list.length + "</td>"
           + '<td colspan="' + cols.length + '"><span class="stx-thin">not enough checked '
@@ -450,7 +554,10 @@
       }
       return trOpen + '<td class="strong">' + who + '</td><td class="num">'
         + list.length + "</td>" + cols.map(cell).join("") + "</tr>";
-    }, { id: "stx-" + String(t.key || "").replace(/[^\w-]/g, ""), cols: cols.length + 2 });
+    }, { id: "stx-" + String(t.key || "").replace(/[^\w-]/g, ""), cols: cols.length + 2,
+         // a picked former rep's row must not sit inside a shut group
+         open: !!S.filter.rep && !!RS.repKind && RS.repKind(S.filter.rep) !== "active"
+               && reps.indexOf(S.filter.rep) >= 0 });
     return '<div class="rs-tablewrap"><table class="rs-table">'
       + "<thead><tr><th>Rep</th><th class=\"num\">"
       + (isKw ? "Checked calls" : "Applicable calls") + "</th>"
@@ -465,21 +572,47 @@
       + " Sorted by volume; there is deliberately no rank.</p>";
   }
 
-  function recentCalls(t, judged, S) {
-    var list = judged.slice().sort(function (a, b) {
+  // the mart writes Incoming / Outgoing; the page says what the editor says
+  function dirWord(d) {
+    d = String(d || "");
+    return /^in/i.test(d) ? "Inbound" : /^out/i.test(d) ? "Outbound" : (d || "—");
+  }
+
+  function callList(t, judged, S) {
+    var isKw = t.mode !== "ai";
+    // an ai tracker (dormant) says Met / Not Met where a keyword one says Mentioned
+    var want = S.filter.verdict;
+    if (want && !isKw) want = want === "Mentioned" ? "Met" : "Not Met";
+    var all = judged.filter(function (e) {
+      var c = S.calls[e["Record Id"]] || {};
+      return pickedRep(c, S.filter.rep) && (!want || e.Result === want);
+    }).sort(function (a, b) {
       var ca = S.calls[a["Record Id"]] || {}, cb = S.calls[b["Record Id"]] || {};
       return String(cb.Started || "").localeCompare(String(ca.Started || ""));
-    }).slice(0, 25);
-    if (!list.length) return "";
-    var isKw = t.mode !== "ai";
-    var rows = list.map(function (e) {
+    });
+    if (!all.length) {
+      return '<p class="stx-note" style="margin-top:14px">No checked call matches the pickers '
+        + "above.</p>";
+    }
+    var shown = S.shown[t.key] || PAGE_CALLS;
+    var rows = all.slice(0, shown).map(function (e) {
       var c = S.calls[e["Record Id"]] || {};
       var conf = e.Confidence == null ? "" :
         '<span class="stx-conf">' + e.Confidence + "% conf.</span>";
+      var job = c["Job No"], l = job && S.lead[job];
+      // every conversation with this lead, sales vs support (the call itself included)
+      var talks = !l ? "—" : (l.sales + l.support) + (l.support
+        ? '<div class="stx-scope">' + l.sales + " sales · " + l.support + " support</div>"
+        : '<div class="stx-scope">all sales</div>');
       return "<tr><td>" + esc(String(c.Started || "").slice(0, 16) || "—") + "</td>"
-        + "<td>" + esc(c.Rep || "—")
-        + (+c["Shared Line"] ? '<div class="stx-scope">shared line</div>' : "") + "</td>"
+        + "<td>" + esc(handledBy(c))
+        + (isSupport(c) ? '<div class="stx-scope">shared support line</div>' : "") + "</td>"
         + "<td>" + esc(c.Customer || "—") + "</td>"
+        + "<td>" + (c.Assigned ? esc(c.Assigned)
+                    : '<span class="stx-thin">' + (job ? "no rep on the lead" : "not linked to a lead")
+                      + "</span>") + "</td>"
+        + "<td>" + esc(dirWord(c.Direction)) + "</td>"
+        + '<td class="num">' + talks + "</td>"
         + '<td><span class="rs-pill ' + (TONE[e.Result] || "") + '">' + esc(e.Result)
         + "</span> " + conf + "</td>"
         + '<td><div class="stx-expl">' + esc(e.Explanation || "") + "</div></td>"
@@ -487,17 +620,29 @@
         + esc(e["Evidence Seqs"] || "") + '" data-tkey="' + esc(t.key)
         + '">transcript</span></td></tr>';
     }).join("");
+    var left = all.length - Math.min(shown, all.length);
     return '<div class="rs-tablewrap" style="margin-top:14px"><table class="rs-table">'
-      + "<thead><tr><th>When</th><th>Rep</th><th>Customer</th><th>Verdict</th>"
+      + "<thead><tr><th>When</th><th>Handled by</th><th>Customer</th><th>Assigned to</th>"
+      + '<th>Direction</th><th class="num">Customer\'s calls</th><th>Verdict</th>'
       + "<th>" + (isKw ? "Keywords heard" : "Explanation") + "</th><th></th></tr></thead><tbody>"
       + rows + "</tbody></table></div>"
-      + '<p class="rs-hint">'
+      + '<div class="stx-more"><span class="stx-scope">Showing '
+      + Math.min(shown, all.length).toLocaleString() + " of " + all.length.toLocaleString()
+      + " checked call" + (all.length === 1 ? "" : "s") + ", newest first</span>"
+      + (left ? '<button class="rs-btn" data-more="' + esc(t.key) + '">Show '
+                + Math.min(PAGE_CALLS, left) + " more</button>" : "")
+      + "</div>"
+      + '<p class="rs-hint"><b>Handled by</b> is who took the call: a rep, or the <b>Support '
+      + "team</b>, whose three people share one line. <b>Assigned to</b> is whose client it "
+      + "is, from the lead the customer's number links to — the two differ when support or a "
+      + "colleague picks up. <b>Customer's calls</b> counts every conversation with that lead, "
+      + "split into sales and support, whatever this tracker checked. A call from the last "
+      + "few days often shows <i>not linked to a lead</i> until the weekly lead export "
+      + "arrives. "
       + (isKw
-         ? "The 25 most recent checked calls. <b>Keywords heard</b> lists each phrase that "
-           + "was said and how many lines it was on — open the transcript to see the lines "
-           + "in place."
-         : "The 25 most recent checked calls — open the transcript to see the highlighted "
-           + "evidence and argue with it.")
+         ? "<b>Keywords heard</b> lists each phrase that was said and how many lines it was on "
+           + "— open the transcript to see the lines in place."
+         : "Open the transcript to see the highlighted evidence and argue with it.")
       + "</p>";
   }
 
