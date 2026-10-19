@@ -75,6 +75,18 @@
  *     region mart) and demographics, under a banner whenever GA4 saw fewer users than we got leads.
  *   * SETTINGS -- the data sources, as before, out of the way.
  *
+ * BATCH 1 OF THE MARKETING HEAD'S COMMENTS (2026-10-19):
+ *   * Google Ads by ACTIVE campaign (ENABLED in ext_ads_campaign) with Google's conversions split by
+ *     kind (ext_ads_conv_day): leads (forms, calls, quote requests) apart from the rest. In October 2026
+ *     537 of 573 were "YouTube follow-on views", counted since 22 Aug 2026.
+ *   * Meta campaigns by category, read from the name (Referral / B2B / Leads / Awareness / ...).
+ *   * ChatGPT Ads per ad, with the ad's own words (ext_chatgpt_ads_ad_day + ext_chatgpt_ad).
+ *   * Nextdoor / Perplexity / Gemini / Quora / Reddit / Grok as their own group of channels.
+ *   * SEO: keywords by service (the monthly query mart), on-page (Ahrefs Site Audit) and off-page.
+ *   * REVIEWS, a tab of its own: every listing's reviews now against its goal (fct_review_counts /
+ *     fct_review_goals, the Monthly Report's rule: a goal dated 1 Sep is the total by the end of
+ *     August), with what the period added and what platforms REMOVED kept apart (RS.reviewFlow).
+ *
  * Plan of record: docs/plans/2026-10-15-marketing-overview.md.
  */
 (function () {
@@ -118,7 +130,19 @@
     mkt_gscq: { table: "mart_gsc_query", cols: ["Date", "Query", "Type", "Clicks", "Impressions", "Position"] },
     mkt_ahd: { table: "ext_ahrefs_day", cols: ["Date", "Domain Rating", "Org Keywords", "Org Keywords Top 3",
                                               "Org Traffic", "Backlinks Live", "Ref Domains Live"] },
-    mkt_ahm: { table: "ext_ahrefs_month", cols: ["Month", "Domain Rating", "Org Traffic"] },
+    mkt_ahm: { table: "ext_ahrefs_month", cols: ["Month", "Domain Rating", "Org Traffic", "Ref Domains History"] },
+    // batch 1 (2026-10-19): Google conversions by kind and campaign status, ChatGPT per ad, the site
+    // audit, and the review listings with their goals
+    mkt_adsconv: { table: "ext_ads_conv_day", cols: ["Date", "Campaign Id", "Action", "Category", "Conversions"] },
+    mkt_adscamp: { table: "ext_ads_campaign", cols: ["Campaign Id", "Campaign", "Channel", "Status"] },
+    mkt_gptad: { table: "ext_chatgpt_ads_ad_day", cols: ["Date", "Ad Id", "Ad", "Ad Group", "Impressions", "Clicks",
+                                                         "Spend", "Conversions"] },
+    mkt_gptads: { table: "ext_chatgpt_ad", cols: ["Ad Id", "Ad", "Status", "Format", "Title", "Body"] },
+    mkt_audit: { table: "ext_ahrefs_audit", cols: ["Date", "Health Score", "Pages Errors", "Pages Warnings",
+                                                   "Pages Notices", "Pages Total", "Crawl Date"] },
+    mkt_issue: { table: "ext_ahrefs_audit_issue", cols: ["Date", "Issue", "Importance", "Category", "Pages", "Change"] },
+    mkt_rcount: { table: "fct_review_counts", cols: ["Company", "Platform", "Date", "Number of Reviews"] },
+    mkt_rgoal: { table: "fct_review_goals", cols: ["Company", "Platform", "Date", "Number of Reviews"] },
     mkt_bl: { table: "ext_brightlocal_rank", cols: ["Report Id", "Location", "Postcode", "Run Date", "Keyword",
                                                     "Engine", "Rank", "Listings"] },
     // the Website tab
@@ -137,7 +161,16 @@
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const LS_PERIOD = "mkoPeriod", LS_CMP = "mkoCmp", LS_TAB = "mkoTab";
   const TABS = [["ov", "Overview"], ["paid", "Paid ads"], ["seo", "Search and SEO"], ["web", "Website"],
-                ["set", "Settings"]];
+                ["rev", "Reviews"], ["set", "Settings"]];
+  // Google's conversion categories that are a lead; everything else (YouTube follow-on views,
+  // engagement, page views) is counted apart
+  const CONV_LEAD = new Set(["SUBMIT_LEAD_FORM", "PHONE_CALL_LEAD", "REQUEST_QUOTE", "CONTACT", "BOOK_APPOINTMENT",
+                             "IMPORTED_LEAD", "QUALIFIED_LEAD", "CONVERTED_LEAD"]);
+  const CONV_WORD = { YOUTUBE_FOLLOW_ON_VIEWS: "YouTube follow-on views", ENGAGEMENT: "engagements",
+                      PAGE_VIEW: "page views", SUBMIT_LEAD_FORM: "lead forms", PHONE_CALL_LEAD: "calls",
+                      REQUEST_QUOTE: "quote requests", CONTACT: "contacts", BOOK_APPOINTMENT: "bookings" };
+  // the marketing head (2026-10-19): these lead sources are their own group, not mixed into paid / unpaid
+  const COMMUNITY = ["Nextdoor", "Perplexity", "Gemini", "Quora", "Reddit", "Grok"];
   const PAID_LOOKBACK = 365;         // days before the period's end that still make a channel paid
   const LIVE_CO = "Zip to Zip";      // every live ad account is Zip to Zip's
   const THIN = 5;                    // fewer booked jobs than this: the cost per booked is a guess
@@ -156,7 +189,8 @@
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
-              ga4: [], ga4ch: [], demo: [], geo: [], first: {}, last: {}, err: {} };
+              ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, gptad: [], gptads: {}, audit: null,
+              issues: [], rc: [], rg: [], first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
   const META_OBJ = { OUTCOME_LEADS: "Leads", OUTCOME_AWARENESS: "Awareness", OUTCOME_ENGAGEMENT: "Engagement",
@@ -322,6 +356,10 @@
       + "padding:11px 14px;font-size:13px;line-height:1.55;margin:0 0 12px}"
       + ".mko .mko-h3{margin:14px 0 2px;font-size:14px;font-weight:700;color:var(--ink)}"
       + ".mko .mko-rk{font-weight:700}.mko .mko-rk.top{color:var(--pos)}.mko .mko-rk.low{color:var(--muted)}"
+      + ".mko .mko-track.mko-mini{display:inline-block;width:70px;height:8px;margin-right:8px;vertical-align:middle}"
+      + ".mko .mko-track.mko-mini i{height:8px}"
+      + ".mko .mko-neg{color:var(--neg);font-weight:600}.mko .mko-pos{color:var(--pos);font-weight:600}"
+      + ".mko .mko-k3{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:10px}"
       + "@media(max-width:600px){.mko .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}"
       + ".mko .rs-kpis .kpi{padding:10px 12px}}"
       + "body.rs-app.light.v2 .mko .mko-sub,body.rs-app.light.v2 .mko .mko-note,"
@@ -537,7 +575,7 @@
       + fmt(v) + (f.uncov ? "*" : "") + "</span>";
   }
 
-  function channelRows(list, label, sortKey) {
+  function channelRows(list, label, sortKey, totLabel) {
     if (!list.length) return "";
     list.sort((x, y) => (y[sortKey] - x[sortKey]) || (y.leads - x.leads));
     const t = totals(list);
@@ -555,10 +593,10 @@
         + '<td class="mko-num">' + costCell(f.cpl, f, money0, false) + "</td>"
         + "</tr>";
     });
-    const paid = list[0] && list[0].paid;
-    h += '<tr class="mko-tot"><td>All ' + esc(label.toLowerCase()) + "</td>"
+    const paid = list.some(f => f.paid);
+    h += '<tr class="mko-tot"><td>' + esc(totLabel || "All " + label.toLowerCase()) + "</td>"
       + '<td class="mko-num">' + (!paid ? '<span class="mko-sub">—</span>'
-        : list.some(f => f.anyCov) ? money0(t.spend)
+        : list.filter(f => f.paid).some(f => f.anyCov) ? money0(t.spend)
         : '<span class="mko-cov">not in yet</span>') + "</td>"
       + '<td class="mko-num">' + fmtN(t.leads) + "</td>"
       + '<td class="mko-num">' + fmtN(t.booked) + "</td>"
@@ -571,7 +609,9 @@
   }
 
   function channelsHtml(fams) {
-    const paid = fams.filter(f => f.paid), free = fams.filter(f => !f.paid);
+    const isCom = f => COMMUNITY.includes(f.fam);
+    const paid = fams.filter(f => f.paid && !isCom(f)), free = fams.filter(f => !f.paid && !isCom(f));
+    const com = fams.filter(isCom);
     if (!fams.length) return '<div class="rs-hint">No leads or spend in this period for this company.</div>';
     return '<div class="rs-tablewrap"><table class="rs-table mko-ch"><thead><tr>'
       + "<th>Channel</th>"
@@ -585,6 +625,7 @@
       + '<th class="mko-num" title="spend ÷ leads">Cost per lead</th>'
       + "</tr></thead><tbody>"
       + channelRows(paid, "Paid", "spend")
+      + channelRows(com, "AI assistants and communities", "leads", "All AI assistants and communities")
       + channelRows(free, "Unpaid", "leads")
       + "</tbody></table></div>";
   }
@@ -675,6 +716,30 @@
     P.demo = (t.demo || []).map(r => ({ m: m7(r.Month), age: r.Age || "", sex: r.Gender || "", users: num(r["Active Users"]) }));
     P.geo = (t.geo || []).map(r => ({ m: m7(r.Month), country: r.Country || "", region: r.Region || "",
       users: num(r["Active Users"]) }));
+    P.ahm.forEach((r, i) => { const src = (t.ahm || []).find(x => m7(x.Month) === r.m); r.rdh = src && src["Ref Domains History"] != null ? num(src["Ref Domains History"]) : null; });
+  }
+  function indexBatch1(t) {
+    P.conv = (t.conv || []).map(r => ({ d: d10(r.Date), cid: String(r["Campaign Id"]), action: r.Action || "",
+      cat: r.Category || "", n: num(r.Conversions) })).filter(r => r.d);
+    P.camp = {};
+    (t.camp || []).forEach(r => { P.camp[String(r["Campaign Id"])] = { name: r.Campaign, type: r.Channel, status: r.Status }; });
+    indexPlat("gptad", t.gptad, r => ({ d: d10(r.Date), id: r["Ad Id"], name: r.Ad || "", grp: r["Ad Group"] || "",
+      cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
+    P.gptads = {};
+    (t.gptads || []).forEach(r => { P.gptads[r["Ad Id"]] = { status: r.Status || "", format: r.Format || "",
+      title: r.Title || "", body: r.Body || "" }; });
+    const audits = (t.audit || []).map(r => ({ d: d10(r.Date), health: r["Health Score"] == null ? null : num(r["Health Score"]),
+      err: num(r["Pages Errors"]), warn: num(r["Pages Warnings"]), note: num(r["Pages Notices"]),
+      total: num(r["Pages Total"]), crawl: d10(r["Crawl Date"]) })).sort((a, b) => (a.d < b.d ? -1 : 1));
+    P.audit = audits.length ? audits[audits.length - 1] : null;
+    P.auditPrev = audits.length > 1 ? audits[audits.length - 2] : null;
+    const iss = (t.issue || []).map(r => ({ d: d10(r.Date), name: r.Issue || "", imp: r.Importance || "",
+      cat: r.Category || "", pages: num(r.Pages), change: num(r.Change) }));
+    const lastD = iss.reduce((a, r) => (r.d > a ? r.d : a), "");
+    P.issues = iss.filter(r => r.d === lastD);
+    const rv = r => ({ co: r.Company || "", plat: r.Platform || "", d: d10(r.Date), n: num(r["Number of Reviews"]) });
+    P.rc = (t.rc || []).map(rv).filter(r => r.d);
+    P.rg = (t.rg || []).map(rv).filter(r => r.d);
   }
 
   const inRange = (rows, a, b) => rows.filter(r => r.d >= a && r.d <= b);
@@ -874,17 +939,29 @@
     const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
     cur.conv = sum(rows, "conv"); prev.conv = cmp ? sum(cmp, "conv") : undefined;
     const cpa = s => ratio(s.cost, s.conv);
+    // what Google counted, by kind: leads apart from YouTube views and the rest
+    const cv = inRange(P.conv, pw.a, pw.b);
+    const cvLead = sum(cv.filter(r => CONV_LEAD.has(r.cat)), "n"), cvAll = sum(cv, "n");
+    const cvKinds = groupBy(cv, r => r.cat).map(x => ({ k: x.k, n: sum(x.rows, "n") })).filter(x => x.n).sort((a, b) => b.n - a.n);
+    const ytFirst = P.conv.filter(r => r.cat === "YOUTUBE_FOLLOW_ON_VIEWS")
+      .reduce((a, r) => (!a || r.d < a ? r.d : a), null);
+    const kindWord = k => CONV_WORD[k] || prettyCode(k).toLowerCase();
+    const mix = cvKinds.map(x => fmtN(x.n) + " " + kindWord(x.k)).join(" · ");
+    const yt = sum(cv.filter(r => r.cat === "YOUTUBE_FOLLOW_ON_VIEWS"), "n");
     const html = head
       + '<div class="rs-kpis" id="mkoK-ads"></div>'
-      + '<p class="rs-hint">Conversions are what Google counts as a conversion on this account, not '
-      + "our leads or booked jobs: those are the Google row in the Channels table, whose spend is this "
+      + (cvAll && yt / cvAll >= 0.3 ? '<div class="mko-warn">Of the <b>' + fmtN(cvAll) + "</b> conversions Google "
+        + "counted in this period, <b>" + fmtN(yt) + "</b> are YouTube follow-on views"
+        + (ytFirst ? " (Google has counted them since " + esc(day(ytFirst)) + ")" : "") + " and only <b>"
+        + fmtN(cvLead) + "</b> are leads: forms, calls and quote requests. Judge the account on its lead "
+        + "conversions and on cost per booking.</div>" : "")
+      + '<p class="rs-hint">Conversions are what Google counts on this account' + (mix ? " (" + esc(mix) + ")" : "")
+      + ", not our leads or booked jobs: those are the Google row in the channel table, whose spend is this "
       + "same cost.</p>" + noCmpHint("Google Ads", pw)
       + '<div class="mko-g2"><div id="mkoC-ads"></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By campaign type</span></div>'
       + adsTypeTable(rows, cur) + "</div></div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
-      + '<span class="mko-sub">every campaign that showed an ad in the period, most cost first</span></div>'
-      + adsCampTable(rows, cur) + "</div>";
+      + adsCampHtml(rows, cv);
     return { html, wire(host) {
       const f = famStat("Google", pw.a, pw.b);
       RSC.kpis(host.querySelector("#mkoK-ads"), [
@@ -893,8 +970,10 @@
         kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
         kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "cost ÷ clicks", pw),
         kp("Cost", cur.cost, prev.cost, money, null, "", pw),
-        kp("Conversions", cur.conv, prev.conv, fmtN, false, "Google's count", pw),
-        kp("Cost per conv.", cpa(cur), cmp ? cpa(prev) : undefined, money0, true, "", pw),
+        kp("Conversions", cur.conv, prev.conv, fmtN, false,
+           cvAll ? fmtN(cvLead) + " leads · " + fmtN(cvAll - cvLead) + " other" : "Google's count", pw),
+        kp("Cost per conv.", cpa(cur), cmp ? cpa(prev) : undefined, money0, true,
+           cvLead ? "per lead conversion " + money0(ratio(cur.cost, cvLead)) : "", pw),
         { label: "Cost per booking", value: f && f.cpb != null ? money0(f.cpb) : "—",
           sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " Google leads" : "our side" },
       ]);
@@ -912,6 +991,45 @@
       { h: "Conv.", num: true, tip: "Google's conversions", cell: r => fmtN(r.conv) },
       { h: "Cost / conv.", num: true, cell: r => money0(ratio(r.cost, r.conv)) },
     ], list, null, true);
+  }
+  /* the campaigns, ACTIVE (enabled) first: each one's own conversions split into leads and the rest,
+     and its cost per lead conversion; a paused campaign that still spent in the period sits below */
+  function adsCampHtml(rows, cv) {
+    const lead = {}, other = {};
+    cv.forEach(r => { const m = CONV_LEAD.has(r.cat) ? lead : other; m[r.cid] = (m[r.cid] || 0) + r.n; });
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      const c = P.camp[String(x.k)] || {};
+      return Object.assign({ id: String(x.k), name: last.name, type: last.type, status: c.status || "",
+                             lead: lead[x.k] || 0, other: other[x.k] || 0 }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
+    const known = Object.keys(P.camp).length > 0;
+    const active = known ? list.filter(x => x.status === "ENABLED") : list;
+    const paused = known ? list.filter(x => x.status !== "ENABLED") : [];
+    const idle = Object.entries(P.camp).filter(([id, c]) => c.status === "ENABLED" && !list.some(x => x.id === id));
+    const cols = [
+      { h: "Campaign", name: true, cell: r => esc(r.name)
+          + (r.type ? '<div class="mko-sub">' + esc(ADS_TYPE[r.type] || prettyCode(r.type)) + "</div>" : "") },
+      { h: "Cost", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "Lead conv.", num: true, tip: "forms, calls and quote requests Google counted", cell: r => "<b>" + fmtN(r.lead) + "</b>" },
+      { h: "Other conv.", num: true, tip: "YouTube follow-on views, engagements, page views", cell: r => fmtN(r.other) },
+      { h: "Cost / lead conv.", num: true, cell: r => money0(ratio(r.cost, r.lead)) },
+    ];
+    const tot = xs => Object.assign({ name: "All", type: "", lead: sum(xs, "lead"), other: sum(xs, "other") },
+      { cost: sum(xs, "cost"), imp: sum(xs, "imp"), clk: sum(xs, "clk") },
+      { ctr: ratio(sum(xs, "clk"), sum(xs, "imp")), cpc: ratio(sum(xs, "cost"), sum(xs, "clk")) });
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Active campaigns</span>'
+      + '<span class="mko-sub">' + (known ? "enabled in Google Ads, most cost first" : "every campaign that showed an ad")
+      + "</span></div>" + (active.length ? ptable(cols, active, active.length > 1 ? tot(active) : null)
+        : '<div class="mko-empty">No active campaign spent in this period.</div>')
+      + (idle.length ? '<p class="rs-hint">Enabled but no spend in the period: ' + esc(idle.map(([, c]) => c.name).join(", ")) + ".</p>" : "")
+      + "</div>"
+      + (paused.length ? '<div class="panel"><div class="panel-head"><span class="panel-title">Paused campaigns that spent in the period</span></div>'
+        + ptable(cols, paused, paused.length > 1 ? tot(paused) : null) + "</div>" : "");
   }
   function adsCampTable(rows, cur) {
     const list = groupBy(rows, r => r.id).map(x => {
@@ -1050,6 +1168,38 @@
   }
 
   /* --- Meta --- */
+  /* a campaign's category, read from its name the way the team names them ("July 2026 // Referral //
+     Leads", "awareness NJ", "FB Followers"), the objective when the name says nothing */
+  function metaCat(name, obj) {
+    const t = String(name || "").toLowerCase();
+    if (/referr/.test(t)) return "Referral";
+    if (/\bb2b\b|business to business/.test(t)) return "B2B";
+    if (/lead/.test(t) || obj === "OUTCOME_LEADS") return "Leads";
+    if (/awareness|video view|\breach\b/.test(t) || obj === "OUTCOME_AWARENESS") return "Awareness";
+    if (/follower|engagement|\blikes?\b/.test(t) || obj === "OUTCOME_ENGAGEMENT") return "Engagement";
+    if (/traffic/.test(t) || obj === "OUTCOME_TRAFFIC") return "Traffic";
+    return "Other";
+  }
+  function metaCatTable(rows, cur) {
+    const list = groupBy(rows, r => metaCat(r.name, r.obj)).map(x => {
+      const m = metaResult(x.rows);
+      // clickStats carries its own `n` (rows): the campaign count needs a name of its own
+      return Object.assign({ k: x.k, leads: sum(x.rows, "leads"), m }, clickStats(x.rows),
+                           { camps: new Set(x.rows.map(r => r.id)).size });
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
+    if (!list.length) return '<div class="mko-empty">No campaign spent in this period.</div>';
+    return ptable([
+      { h: "Category", name: true, cell: r => shareName("<b>" + esc(r.k) + "</b>", r.cost, cur.cost)
+          + '<div class="mko-sub">' + r.camps + " campaign" + (r.camps === 1 ? "" : "s") + "</div>" },
+      { h: "Spend", num: true, cell: r => withShare(money0(r.cost), r.cost, cur.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "Leads", num: true, tip: "Meta's lead count", cell: r => fmtN(r.leads) },
+      { h: "Main result", num: true, tip: "the result the most money bought; kinds are never added",
+        cell: r => r.m ? compact(r.m.top.res) + '<div class="mko-sub">' + esc(metaKind(r.m.top.k)) + "</div>" : "—" },
+    ], list, null);
+  }
   const metaKind = k => META_KIND[k] || prettyCode(k).toLowerCase();
   function metaSection(w, cw) {
     const pw = platWin("meta", w, cw);
@@ -1072,6 +1222,9 @@
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Results by kind</span>'
       + '<span class="mko-sub">what the money bought, in each campaign\'s own unit</span></div>'
       + metaKindTable(rows) + "</div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">By category</span>'
+      + '<span class="mko-sub">read from each campaign\'s name: Referral, B2B, Leads, Awareness, Engagement, Traffic</span></div>'
+      + metaCatTable(rows, cur) + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
       + metaCampTable(rows, cur) + "</div>";
@@ -1114,12 +1267,12 @@
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
       const kinds = groupBy(x.rows.filter(r => r.kind), r => r.kind)
         .map(y => ({ k: y.k, res: sum(y.rows, "res") })).filter(y => y.res).sort((a, b) => b.res - a.res);
-      return Object.assign({ name: last.name, obj: last.obj, kinds }, clickStats(x.rows));
+      return Object.assign({ name: last.name, obj: last.obj, cat: metaCat(last.name, last.obj), kinds }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
     const tot = Object.assign({ name: "All campaigns", obj: "", kinds: null }, cur);
     return ptable([
       { h: "Campaign", name: true, cell: r => esc(r.name)
-          + (r.obj ? '<div class="mko-sub">' + esc(META_OBJ[r.obj] || prettyCode(r.obj)) + "</div>" : "") },
+          + (r.obj ? '<div class="mko-sub">' + esc((r.cat ? r.cat + " · " : "") + (META_OBJ[r.obj] || prettyCode(r.obj))) + "</div>" : "") },
       { h: "Spend", num: true, cell: r => money0(r.cost) },
       { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
       { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
@@ -1172,7 +1325,8 @@
       + '<div class="rs-kpis" id="mkoK-gpt"></div>' + noCmpHint("ChatGPT Ads", pw)
       + (note ? '<div class="mko-g2"><div id="mkoC-gpt"></div>' + note + "</div>" : '<div id="mkoC-gpt"></div>')
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span></div>'
-      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>";
+      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>"
+      + gptAdsHtml(pw);
     return { html, wire(host) {
       const k = [
         kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
@@ -1188,6 +1342,31 @@
       RSC.kpis(host.querySelector("#mkoK-gpt"), k);
       costCard(host.querySelector("#mkoC-gpt"), "gpt", "Spend", pw, rows, cmp, null);
     } };
+  }
+
+  /* ChatGPT per ad, with the ad's own words: "Ad 1" / "Ad 2" say nothing by themselves */
+  function gptAdsHtml(pw) {
+    if (P.err.gptad) return "";
+    const rows = inRange(P.gptad, pw.a, pw.b);
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      return Object.assign({ id: x.k, name: last.name, grp: last.grp, ad: P.gptads[x.k] || {} }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
+    if (!list.length) return "";
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Ads</span>'
+      + '<span class="mko-sub">each ad in the period, with its own words</span></div>'
+      + ptable([
+        { h: "Ad", name: true, cell: r => "<b>" + esc(r.name) + "</b> "
+            + (r.ad.status ? pill(r.ad.status, r.ad.status === "active" ? "ok" : "mute") : "")
+            + (r.ad.title ? '<div class="mko-sub"><b>' + esc(r.ad.title) + "</b> · " + esc(r.ad.body || "") + "</div>" : "")
+            + (r.grp ? '<div class="mko-sub">' + esc(r.grp) + "</div>" : "") },
+        { h: "Spend", num: true, cell: r => money0(r.cost) },
+        { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+        { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+        { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+        { h: "CPC", num: true, cell: r => cents(r.cpc) },
+        { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
+      ], list, null) + "</div>";
   }
 
   /* the states a panel shows instead of numbers: a failed read, no data at all, a period before
@@ -1378,11 +1557,15 @@
         const conv = sum(inRange(P.ads, pw.a, pw.b), "conv"), f = famStat("Google", pw.a, pw.b);
         if (f && conv >= 30 && conv >= 1.3 * f.leads) {
           const pc = pw.cw ? sum(inRange(P.ads, pw.cw.a, pw.cw.b), "conv") : 0;
+          const cv = inRange(P.conv, pw.a, pw.b);
+          const yt = sum(cv.filter(r => r.cat === "YOUTUBE_FOLLOW_ON_VIEWS"), "n");
+          const lead = sum(cv.filter(r => CONV_LEAD.has(r.cat)), "n");
           add(1, "warn", "!", "Google Ads counts <b>" + fmtN(conv) + " conversions</b>"
             + (pc ? ", " + upDown(conv / pc - 1) + " on the " + esc(pw.cw.label) : "")
-            + ", but Moveboard got " + fmtN(f.leads) + " Google leads and " + fmtN(f.booked)
-            + " bookings. Performance Max counts calls and site visits as conversions, so judge it on "
-            + "cost per booking.", "paid");
+            + (yt ? ", but " + fmtN(yt) + " of them are YouTube follow-on views and only " + fmtN(lead)
+              + " are lead forms, calls and quote requests" : "")
+            + ". Moveboard got " + fmtN(f.leads) + " Google leads and " + fmtN(f.booked)
+            + " bookings, so judge Google on cost per booking.", "paid");
         }
       }
       const ok = score.filter(r => r.live && r.cpb != null && !r.thin).sort((a, b) => a.cpb - b.cpb);
@@ -1626,7 +1809,15 @@
           { h: "Position", num: true, tip: "average, weighted by impressions", cell: q => q.pos == null ? "—" : q.pos.toFixed(1) },
         ], qs.slice(0, 10), null, true))
       + "</div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Ahrefs</span>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Keywords by service</span>'
+      + '<span class="mko-sub">' + esc(monthSpan(ms)) + " · Search Console, monthly</span></div>"
+      + svcHtml(qs) + "</div>"
+      + "</div>"
+      + '<div class="mko-g2e">'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">On-page · Ahrefs Site Audit</span>'
+      + '<span class="mko-sub">' + (P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet") + "</span></div>"
+      + onPageHtml() + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Off-page · Ahrefs</span>'
       + '<span class="mko-sub">' + (snap ? "snapshot " + esc(day(snap.d)) : "no snapshot yet") + "</span></div>"
       + (P.err.ahd ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap ? "" :
         '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
@@ -1636,7 +1827,9 @@
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Local rankings · BrightLocal</span>'
       + '<span class="mko-sub">weekly rank reports, Mondays</span></div>' + blHtml()
       + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so citations are not '
-      + "pulled. Semrush: not upgrading (your call, 16 Oct); Ahrefs covers its numbers.</p></div>";
+      + "pulled yet. Semrush: not upgrading (your call, 16 Oct); Ahrefs covers its numbers.</p></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">AI visibility</span>'
+      + '<span class="mko-sub">the prompt universe: where AI answers leave us out</span></div>' + aiVisHtml() + "</div>";
     return { html, wire(host) {
       const on = !!(gw && gw.cw);
       RSC.kpis(host.querySelector("#mkoK-seo"), [
@@ -1655,9 +1848,10 @@
       }
       if (snap && host.querySelector("#mkoK-ah")) {
         RSC.kpis(host.querySelector("#mkoK-ah"), [
-          { label: "Organic traffic", value: fmtN(snap.traffic), sub: "estimate a month" },
-          { label: "Backlinks", value: fmtN(snap.bl), sub: "live" },
+          { label: "Domain rating", value: snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "out of 100" },
           { label: "Referring domains", value: fmtN(snap.rd), sub: "live" },
+          { label: "Backlinks", value: fmtN(snap.bl), sub: "live" },
+          { label: "Organic traffic", value: fmtN(snap.traffic), sub: "estimate a month" },
         ]);
         const hist = P.ahm.slice(-12);
         if (hist.length) {
@@ -1674,11 +1868,172 @@
             buildTable() {
               return ptable([{ h: "Month", cell: r => esc(monthWord(r.m)) },
                 { h: "Organic traffic", num: true, cell: r => fmtN(r.traffic) },
-                { h: "Domain rating", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) }], hist.slice().reverse());
+                { h: "Domain rating", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) },
+                { h: "Referring domains", num: true, tip: "Ahrefs' monthly history count (a stricter definition than the live figure)",
+                  cell: r => r.rdh == null ? "—" : fmtN(r.rdh) }], hist.slice().reverse());
             },
           });
         }
       }
+    } };
+  }
+
+  /* keywords by the service they ask about, read from the query's words; brand searches apart */
+  const SERVICES = [
+    ["Brand", q => q.type === "Brand"],
+    ["Long distance", q => /long ?distance|cross[- ]?country|interstate|out of state|state to state|nationwide/.test(q.q)],
+    ["Packing", q => /\bpack(ing|ers?)?\b|unpack|boxes/.test(q.q)],
+    ["Storage", q => /storage/.test(q.q)],
+    ["Commercial / office", q => /office|commercial|business|corporate/.test(q.q)],
+    ["Specialty items", q => /piano|\bsafe\b|antique|pool table|hot tub|artwork/.test(q.q)],
+    ["Junk / labor", q => /junk|labor|loading|unloading|hauling/.test(q.q)],
+    ["Local and general moving", q => /mov(er|ers|ing)|relocat/.test(q.q)],
+  ];
+  const svcOf = q => (SERVICES.find(s => s[1](q)) || ["Other"])[0];
+  function svcHtml(qs) {
+    if (!qs.length) return '<div class="mko-empty">No queries for these months yet.</div>';
+    const by = groupBy(qs, q => svcOf(q)).map(x => {
+      const imp = sum(x.rows, "imp"); let pw = 0; x.rows.forEach(r => { pw += (r.pos || 0) * r.imp; });
+      return { k: x.k, clk: sum(x.rows, "clk"), imp, pos: imp ? pw / imp : null, n: x.rows.length,
+               top: x.rows.slice().sort((a, b) => b.clk - a.clk || b.imp - a.imp).slice(0, 3) };
+    });
+    const order = SERVICES.map(s => s[0]).concat(["Other"]);
+    by.sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k));
+    return ptable([
+      { h: "Service", name: true, cell: r => "<b>" + esc(r.k) + "</b>" + '<div class="mko-sub">' + r.top.map(q =>
+          esc(q.q) + (q.pos != null ? " (" + q.pos.toFixed(1) + ")" : "")).join(" · ") + "</div>" },
+      { h: "Queries", num: true, cell: r => fmtN(r.n) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
+      { h: "Position", num: true, tip: "average, weighted by impressions", cell: r => r.pos == null ? "—" : r.pos.toFixed(1) },
+    ], by, null, true) + '<p class="rs-hint">Each query is filed under the first service its words name; '
+      + "the three under a service are its most clicked, with their average position.</p>";
+  }
+  const IMP_PILL = { Error: "bad", Warning: "warn", Notice: "mute" };
+  function onPageHtml() {
+    if (P.err.audit) return '<div class="mko-empty">The site audit could not load — ' + esc(P.err.audit) + "</div>";
+    const a = P.audit;
+    if (!a) return '<div class="mko-empty">The first site audit snapshot arrives with the next Ahrefs pull.</div>';
+    const rank = { Error: 0, Warning: 1, Notice: 2 };
+    const list = P.issues.slice().sort((x, y) => (rank[x.imp] ?? 3) - (rank[y.imp] ?? 3) || y.pages - x.pages).slice(0, 12);
+    const hp = P.auditPrev && P.auditPrev.health != null && a.health != null ? a.health - P.auditPrev.health : null;
+    return '<div class="rs-kpis mko-k3"><div class="kpi"><div class="l">Health score</div><div class="v">'
+      + (a.health == null ? "—" : a.health) + (hp ? ' <span class="mko-d ' + (hp > 0 ? "up" : "dn") + '">'
+        + (hp > 0 ? "▲ " : "▼ ") + Math.abs(hp) + "</span>" : "") + '</div><div class="s">out of 100</div></div>'
+      + '<div class="kpi"><div class="l">Pages with errors</div><div class="v">' + fmtN(a.err) + '</div><div class="s">of '
+      + fmtN(a.total) + " crawled</div></div>"
+      + '<div class="kpi"><div class="l">Pages with warnings</div><div class="v">' + fmtN(a.warn) + '</div><div class="s">'
+      + fmtN(a.note) + " with notices</div></div></div>"
+      + ptable([
+        { h: "Issue", name: true, cell: r => pill(r.imp || "Notice", IMP_PILL[r.imp] || "mute") + " " + esc(r.name)
+            + '<div class="mko-sub">' + esc(r.cat) + "</div>" },
+        { h: "Pages", num: true, cell: r => fmtN(r.pages) },
+        { h: "Change", num: true, tip: "since the previous crawl", cell: r => r.change ? (r.change > 0 ? "+" : "") + fmtN(r.change) : "—" },
+      ], list, null, true);
+  }
+  function aiVisHtml() {
+    const ai = P.issues.filter(r => /ai discoverab/i.test(r.cat));
+    return '<div class="mko-nm"><p>BrightLocal\'s <b>Local AI Visibility</b> report works with our key, but '
+      + "the account holds no such report yet. Creating one per location (Tinton Falls, Arlington) is the next "
+      + "step; once it runs, this panel lists the prompts where ChatGPT, Gemini and Perplexity name competitors "
+      + "and not us.</p>"
+      + (ai.length ? "<p>Meanwhile the site audit already flags " + ai.length + " AI-discoverability issue"
+        + (ai.length > 1 ? "s" : "") + ": " + esc(ai.map(r => r.name + " (" + r.pages + " pages)").join("; ")) + ".</p>" : "")
+      + "</div>";
+  }
+
+  /* === REVIEWS === */
+  /* every listing's reviews against its goal for the period, with what the period ADDED and what
+     platforms REMOVED kept apart (RS.reviewFlow, the portal's one rule). A goal row dated 1 Sep is
+     the total to reach by the end of August (Monthly Report's rule): the period's goal is the first
+     goal date after its last month, else the last one before it. */
+  function reviewsTab(w) {
+    if (P.err.rc) return { html: '<div class="panel">The review counts could not load — ' + esc(P.err.rc) + "</div>" };
+    const co = r => !S.co || r.co === S.co;
+    const rc = P.rc.filter(co), rg = P.rg.filter(co);
+    if (!rc.length) return { html: '<div class="panel"><div class="mko-empty">No review counts for this company.</div></div>' };
+    const flow = RS.reviewFlow(rc.map(r => ({ Company: r.co, Platform: r.plat, Date: r.d, "Number of Reviews": r.n })));
+    const a = w.a.slice(0, 7), b = w.bEff.slice(0, 7);
+    const dates = Array.from(new Set(rg.map(r => r.d))).sort();
+    const goalDate = dates.find(d => d > b + "-31") || dates.filter(d => d <= b + "-31").pop() || null;
+    const goalBy = {};
+    rg.filter(r => r.d === goalDate).forEach(r => { goalBy[flow.key({ Company: r.co, Platform: r.plat })] = r.n; });
+    const list = Object.entries(flow.byPlat).map(([k, g]) => {
+      const yms = Object.keys(g.steps).filter(ym => ym <= b).sort();
+      const now = yms.length ? g.steps[yms[yms.length - 1]].level : null;
+      let added = 0, removed = 0, reset = 0;
+      Object.entries(g.steps).forEach(([ym, st]) => {
+        if (ym >= a && ym <= b && st.from != null) { added += st.added; removed += st.removed; reset += st.reset; }
+      });
+      const goal = goalBy[k] == null ? null : goalBy[k];
+      return { k, label: g.label, co: g.company, now, added, removed, reset, goal,
+               togo: goal != null && now != null ? Math.max(0, goal - now) : null,
+               prog: goal ? Math.min(1, (now || 0) / goal) : null };
+    }).filter(x => x.now != null || x.goal != null)
+      .sort((x, y) => (y.togo || 0) - (x.togo || 0) || (y.now || 0) - (x.now || 0));
+    const tot = { now: sum(list, "now"), added: sum(list, "added"), removed: sum(list, "removed"),
+                  goal: sum(list.filter(x => x.goal != null), "goal"), togo: sum(list, "togo") };
+    const withGoal = list.filter(x => x.goal != null);
+    const nowWithGoal = sum(withGoal, "now");
+    const resets = list.filter(x => x.reset);
+    const goalWord = goalDate ? "by " + day(addDays(goalDate, -1)) : "";
+    const months12 = flow.months.filter(ym => ym <= b).slice(-12);
+    const html = '<div class="rs-kpis" id="mkoK-rev"></div>'
+      + '<p class="rs-hint">Counts are each listing\'s public total from the monthly snapshot sheet. <b>Added</b> and '
+      + "<b>Removed</b> are the period's rises and the reviews platforms took back, never netted"
+      + (goalDate ? "; the goal is the total to reach " + esc(goalWord) : "") + ".</p>"
+      + '<div class="mko-g2e"><div id="mkoC-rev"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Furthest from goal</span></div>'
+      + (withGoal.length ? withGoal.filter(x => x.togo).slice(0, 8).map(x => '<div class="mko-hbar"><span>' + esc(x.label)
+          + (S.co ? "" : '<span class="mko-sub">' + esc(x.co) + "</span>") + '</span><span class="mko-track"><i style="width:'
+          + Math.round(100 * (x.prog || 0)) + '%"></i></span><b>' + fmtN(x.togo) + " to go</b></div>").join("")
+        || '<div class="mko-empty">Every listing has reached its goal.</div>'
+        : '<div class="mko-empty">No goals set for this company.</div>') + "</div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Every listing</span>'
+      + '<span class="mko-sub">most still to go first</span></div>'
+      + ptable([
+        { h: "Listing", name: true, cell: x => "<b>" + esc(x.label) + "</b>" + (S.co ? "" : '<div class="mko-sub">' + esc(x.co) + "</div>")
+            + (x.reset ? '<div class="mko-sub">a reset of ' + fmtN(x.reset) + " is left out</div>" : "") },
+        { h: "Reviews now", num: true, cell: x => fmtN(x.now) },
+        { h: "Added", num: true, tip: "the period's rises", cell: x => x.added ? "+" + fmtN(x.added) : "—" },
+        { h: "Removed", num: true, tip: "reviews the platform took back in the period", cell: x => x.removed ? '<span class="mko-neg">−' + fmtN(x.removed) + "</span>" : "—" },
+        { h: "Goal", num: true, tip: goalWord, cell: x => x.goal == null ? '<span class="mko-sub">—</span>' : fmtN(x.goal) },
+        { h: "Progress", num: true, cell: x => x.prog == null ? "" : '<span class="mko-track mko-mini"><i style="width:'
+            + Math.round(100 * x.prog) + '%"></i></span>' + pct(x.prog) },
+        { h: "To go", num: true, cell: x => x.togo == null ? "" : x.togo ? "<b>" + fmtN(x.togo) + "</b>" : '<span class="mko-pos">done</span>' },
+      ], list, null)
+      + (resets.length ? '<p class="rs-hint">A fall of 30% or more in one month reads as a listing reset or rename, not '
+        + "reviews removed, and is left out of both columns.</p>" : "") + "</div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-rev"), [
+        { label: "Reviews now", value: fmtN(tot.now), sub: list.length + " listings" },
+        { label: "Added", value: "+" + fmtN(tot.added), sub: "in " + monthSpan(months(w.a, w.bEff)) },
+        { label: "Removed by platforms", value: tot.removed ? "−" + fmtN(tot.removed) : "0", sub: "taken back, kept apart" },
+        { label: "Goal", value: tot.goal ? fmtN(tot.goal) : "—", sub: goalWord || "no goal set" },
+        { label: "Progress", value: tot.goal ? pct(Math.min(1, nowWithGoal / tot.goal)) : "—",
+          sub: tot.goal ? fmtN(tot.togo) + " still to go" : "" },
+      ]);
+      const C = palette();
+      RSC.chartCard(host.querySelector("#mkoC-rev"), {
+        title: "Reviews added and removed by month", key: "mko-rev-flow",
+        buildChart(canvas) {
+          return new Chart(canvas, { type: "bar",
+            data: { labels: months12.map(monthWord), datasets: [
+              { label: "Added", data: months12.map(ym => (flow.byMonth[ym] || {}).added || 0), backgroundColor: C.main, borderRadius: 3 },
+              { label: "Removed", data: months12.map(ym => -((flow.byMonth[ym] || {}).removed || 0)), backgroundColor: "#B91C1C", borderRadius: 3 }] },
+            options: { responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
+                         tooltip: { callbacks: { label: c => c.dataset.label + ": " + fmtN(Math.abs(c.raw)) } } },
+              scales: { x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true } },
+                        y: { stacked: true, ticks: { callback: v => fmtN(Math.abs(v)) } } } } });
+        },
+        buildTable() {
+          return ptable([{ h: "Month", cell: ym => esc(monthWord(ym)) },
+            { h: "Added", num: true, cell: ym => fmtN((flow.byMonth[ym] || {}).added || 0) },
+            { h: "Removed", num: true, cell: ym => fmtN((flow.byMonth[ym] || {}).removed || 0) },
+            { h: "All listings", num: true, cell: ym => fmtN((flow.byMonth[ym] || {}).level || 0) }], months12.slice().reverse());
+        },
+      });
     } };
   }
 
@@ -1858,7 +2213,7 @@
   function paint(host) {
     const w = win();
     const cw = cmpWin(w);
-    const tab = { ov: overviewTab, paid: paidTab, seo: seoTab, web: webTab, set: settingsTab }[S.tab] || overviewTab;
+    const tab = { ov: overviewTab, paid: paidTab, seo: seoTab, web: webTab, rev: reviewsTab, set: settingsTab }[S.tab] || overviewTab;
     const body = tab(w, cw);
     host.innerHTML = '<div class="mko">'
       + '<div class="rs-page-head"><h1>Marketing Overview</h1>'
@@ -1935,11 +2290,16 @@
         plat("mkt_gsc", "gsc"), plat("mkt_gscq", "gscq"), plat("mkt_ahd", "ahd"), plat("mkt_ahm", "ahm"),
         plat("mkt_bl", "bl"), plat("mkt_ga4", "ga4"), plat("mkt_ga4ch", "ga4ch"), plat("mkt_ga4demo", "demo"),
         plat("mkt_ga4geo", "geo"),
-      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo]) => {
+        plat("mkt_adsconv", "conv"), plat("mkt_adscamp", "camp"), plat("mkt_gptad", "gptad"),
+        plat("mkt_gptads", "gptads"), plat("mkt_audit", "audit"), plat("mkt_issue", "issue"),
+        plat("mkt_rcount", "rc"), plat("mkt_rgoal", "rg"),
+      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
+                conv, camp, gptad, gptads, audit, issue, rc, rg]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
         indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
+        indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
