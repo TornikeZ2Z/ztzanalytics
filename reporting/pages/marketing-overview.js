@@ -87,6 +87,13 @@
  *     fct_review_goals, the Monthly Report's rule: a goal dated 1 Sep is the total by the end of
  *     August), with what the period added and what platforms REMOVED kept apart (RS.reviewFlow).
  *
+ * SEARCH AND YOUTUBE APART (2026-10-19). Performance Max spends on both, and since 22 Aug 2026 Google
+ * counts YouTube follow-on views as conversions: 19 Sep - 18 Oct, YouTube took $16,159 of $19,195 with
+ * 891 conversions and not one lead, Search $3,007 with all 44 lead conversions. The Google Ads panel
+ * splits cost, impressions, clicks and LEAD conversions by network (ext_ads_network_day +
+ * ext_ads_network_conv_day; search partners count as Search), and the campaign-type table counts lead
+ * conversions only.
+ *
  * Plan of record: docs/plans/2026-10-15-marketing-overview.md.
  */
 (function () {
@@ -135,6 +142,9 @@
     // audit, and the review listings with their goals
     mkt_adsconv: { table: "ext_ads_conv_day", cols: ["Date", "Campaign Id", "Action", "Category", "Conversions"] },
     mkt_adscamp: { table: "ext_ads_campaign", cols: ["Campaign Id", "Campaign", "Channel", "Status"] },
+    // Google by network (2026-10-19): Search and YouTube apart, each with its conversions by kind
+    mkt_adsnet: { table: "ext_ads_network_day", cols: ["Date", "Campaign Id", "Network", "Cost", "Impressions", "Clicks"] },
+    mkt_adsnetc: { table: "ext_ads_network_conv_day", cols: ["Date", "Campaign Id", "Network", "Category", "Conversions"] },
     mkt_gptad: { table: "ext_chatgpt_ads_ad_day", cols: ["Date", "Ad Id", "Ad", "Ad Group", "Impressions", "Clicks",
                                                          "Spend", "Conversions"] },
     mkt_gptads: { table: "ext_chatgpt_ad", cols: ["Ad Id", "Ad", "Status", "Format", "Title", "Body"] },
@@ -189,7 +199,7 @@
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
-              ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, gptad: [], gptads: {}, audit: null,
+              ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -723,6 +733,10 @@
       cat: r.Category || "", n: num(r.Conversions) })).filter(r => r.d);
     P.camp = {};
     (t.camp || []).forEach(r => { P.camp[String(r["Campaign Id"])] = { name: r.Campaign, type: r.Channel, status: r.Status }; });
+    indexPlat("net", t.net, r => ({ d: d10(r.Date), cid: String(r["Campaign Id"]), net: r.Network || "UNKNOWN",
+      cost: num(r.Cost), imp: num(r.Impressions), clk: num(r.Clicks) }));
+    P.netc = (t.netc || []).map(r => ({ d: d10(r.Date), cid: String(r["Campaign Id"]), net: r.Network || "UNKNOWN",
+      cat: r.Category || "", n: num(r.Conversions) })).filter(r => r.d);
     indexPlat("gptad", t.gptad, r => ({ d: d10(r.Date), id: r["Ad Id"], name: r.Ad || "", grp: r["Ad Group"] || "",
       cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
     P.gptads = {};
@@ -958,9 +972,10 @@
       + '<p class="rs-hint">Conversions are what Google counts on this account' + (mix ? " (" + esc(mix) + ")" : "")
       + ", not our leads or booked jobs: those are the Google row in the channel table, whose spend is this "
       + "same cost.</p>" + noCmpHint("Google Ads", pw)
+      + adsNetHtml(pw, cur)
       + '<div class="mko-g2"><div id="mkoC-ads"></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By campaign type</span></div>'
-      + adsTypeTable(rows, cur) + "</div></div>"
+      + adsTypeTable(rows, cur, cv) + "</div></div>"
       + adsCampHtml(rows, cv);
     return { html, wire(host) {
       const f = famStat("Google", pw.a, pw.b);
@@ -981,16 +996,107 @@
                { label: "Conversions", val: r => r.conv, fmt: fmtN });
     } };
   }
-  function adsTypeTable(rows, cur) {
-    const list = groupBy(rows, r => r.type).map(x => Object.assign({ k: x.k, conv: sum(x.rows, "conv") },
+  /* by campaign type, on LEAD conversions only: Google's own count would credit Performance Max with
+     every YouTube follow-on view (cv: ext_ads_conv_day rows of the period) */
+  function adsTypeTable(rows, cur, cv) {
+    const lead = {};
+    cv.forEach(r => { if (CONV_LEAD.has(r.cat)) lead[r.cid] = (lead[r.cid] || 0) + r.n; });
+    const typeOf = {};
+    P.ads.forEach(r => { typeOf[String(r.id)] = r.type; });
+    const leadOf = t => Object.keys(lead).filter(id => typeOf[id] === t).reduce((a, id) => a + lead[id], 0);
+    const list = groupBy(rows, r => r.type).map(x => Object.assign({ k: x.k, lead: leadOf(x.k) },
       clickStats(x.rows))).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
     return ptable([
       { h: "Type", name: true, cell: r => shareName(esc(ADS_TYPE[r.k] || prettyCode(r.k) || "(none)"), r.cost, cur.cost) },
       { h: "Cost", num: true, tip: "and its share of the period's cost", cell: r => withShare(money0(r.cost), r.cost, cur.cost) },
       { h: "Clicks", num: true, cell: r => withShare(fmtN(r.clk), r.clk, cur.clk) },
-      { h: "Conv.", num: true, tip: "Google's conversions", cell: r => fmtN(r.conv) },
-      { h: "Cost / conv.", num: true, cell: r => money0(ratio(r.cost, r.conv)) },
+      { h: "Lead conv.", num: true, tip: "forms, calls and quote requests Google counted; YouTube follow-on views and engagements left out",
+        cell: r => fmtN(r.lead) },
+      // short: this is the narrow side table, and the dark look's capitals push a long head off the edge
+      { h: "Cost / lead", num: true, tip: "cost ÷ lead conversions", cell: r => money0(ratio(r.cost, r.lead)) },
     ], list, null, true);
+  }
+  /* NETWORK SPLIT -- where Google showed the ads: Search (Google Search and its search partners),
+     YouTube, and the rest. A network's conversions are split into leads and the rest by category
+     (ext_ads_network_conv_day), so YouTube's follow-on views never pass for leads. */
+  const NET_GROUP = { SEARCH: "Search", SEARCH_PARTNERS: "Search",
+                      YOUTUBE: "YouTube", YOUTUBE_SEARCH: "YouTube", YOUTUBE_WATCH: "YouTube" };
+  const NET_WORD = { SEARCH: "Google Search", SEARCH_PARTNERS: "search partners", YOUTUBE: "YouTube",
+                     YOUTUBE_SEARCH: "YouTube", YOUTUBE_WATCH: "YouTube", CONTENT: "Display", DISCOVER: "Discover",
+                     MAPS: "Maps", GMAIL: "Gmail", MIXED: "cross-network", GOOGLE_TV: "Google TV",
+                     GOOGLE_OWNED_CHANNELS: "Google channels" };
+  // net / nconv: the period's rows; typeOf(campaign id) -> its campaign type
+  function adsNetSplit(net, nconv, typeOf) {
+    const out = ["Search", "YouTube", "Other"].map(k => ({ k, cost: 0, imp: 0, clk: 0, lead: 0, other: 0,
+                                                           parts: {}, types: {} }));
+    const by = {};
+    out.forEach(o => { by[o.k] = o; });
+    const grp = n => by[NET_GROUP[n] || "Other"];
+    net.forEach(r => {
+      const o = grp(r.net), t = typeOf(r.cid) || "";
+      o.cost += r.cost; o.imp += r.imp; o.clk += r.clk;
+      o.parts[r.net] = (o.parts[r.net] || 0) + r.cost;
+      o.types[t] = (o.types[t] || 0) + r.cost;
+    });
+    nconv.forEach(r => { const o = grp(r.net); if (CONV_LEAD.has(r.cat)) o.lead += r.n; else o.other += r.n; });
+    out.forEach(o => { o.ctr = ratio(o.clk, o.imp); o.cpc = ratio(o.cost, o.clk); });
+    return out;
+  }
+  /* END NETWORK SPLIT */
+  function adsNetHtml(pw, cur) {
+    const wrap = body => '<div class="panel"><div class="panel-head"><span class="panel-title">Search and YouTube</span>'
+      + '<span class="mko-sub">where Google showed the ads · Performance Max runs on both</span></div>' + body + "</div>";
+    const err = P.err.net || P.err.netc;
+    if (err) {
+      return wrap('<div class="mko-empty">The split by network could not load — ' + esc(err)
+        + (/404|unknown dataset|not granted|403/i.test(err) ? " (it arrives with the next bridge deploy or pipeline run)" : "")
+        + "</div>");
+    }
+    if (!P.net.length) return wrap('<div class="mko-empty">The split by network arrives with the next Google Ads pull.</div>');
+    const tmap = {};
+    P.ads.forEach(r => { tmap[String(r.id)] = r.type; });
+    const typeOf = id => tmap[id] || (P.camp[id] || {}).type || "";
+    const all = adsNetSplit(inRange(P.net, pw.a, pw.b), inRange(P.netc, pw.a, pw.b), typeOf);
+    const list = all.filter(o => o.k !== "Other" || o.cost || o.imp || o.lead || o.other);
+    const tc = sum(all, "cost");
+    const typeWord = t => t === "SEARCH" ? "Search campaigns" : ADS_TYPE[t] || prettyCode(t) || "other";
+    const top = (m, word) => Object.entries(m).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => word(k) + " " + money0(v)).join(" · ");
+    const sub = o => {
+      const bits = [top(o.types, typeWord)];
+      if (o.k === "Search" && (o.parts.SEARCH_PARTNERS || 0) >= 0.5) bits.push("incl. search partners " + money0(o.parts.SEARCH_PARTNERS));
+      if (o.k === "Other") bits.unshift(top(o.parts, k => NET_WORD[k] || prettyCode(k)));
+      return bits.filter(Boolean).map(esc).join("<br>");
+    };
+    const cols = [
+      { h: "Network", name: true, cell: r => shareName("<b>" + esc(r.k === "Other" ? "Other networks" : r.k) + "</b>", r.cost, tc)
+          + (r.sub ? '<div class="mko-sub">' + r.sub + "</div>" : "") },
+      { h: "Cost", num: true, tip: "and its share of the period's cost", cell: r => withShare(money0(r.cost), r.cost, tc) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "Lead conv.", num: true, tip: "forms, calls and quote requests Google counted", cell: r => "<b>" + fmtN(r.lead) + "</b>" },
+      { h: "Other conv.", num: true, tip: "YouTube follow-on views, engagements, page views", cell: r => fmtN(r.other) },
+      { h: "Cost / lead conv.", num: true, cell: r => money0(ratio(r.cost, r.lead)) },
+    ];
+    list.forEach(o => { o.sub = sub(o); });
+    const tot = { k: "All", sub: "", cost: tc, imp: sum(all, "imp"), clk: sum(all, "clk"), lead: sum(all, "lead"),
+                  other: sum(all, "other") };
+    tot.ctr = ratio(tot.clk, tot.imp); tot.cpc = ratio(tot.cost, tot.clk);
+    const yt = all[1], notes = [];
+    if (yt.cost >= 1 && tc > 0) {
+      notes.push("YouTube took " + pct(yt.cost / tc) + " of the cost for " + fmtN(yt.lead) + " lead conversion"
+        + (Math.round(yt.lead) === 1 ? "" : "s") + (yt.other >= 1 ? "; its " + fmtN(yt.other)
+          + " other conversions are follow-on views and engagements, not leads" : "") + ".");
+    }
+    // the split is its own pull: say so when it does not add up to the panel's cost
+    if (Math.abs(tc - cur.cost) > Math.max(1, 0.01 * cur.cost)) {
+      notes.push("The split covers " + money0(tc) + " of the period's " + money0(cur.cost)
+        + " (it is pulled on its own; the next Google Ads pull evens it out).");
+    }
+    return wrap(ptable(cols, list, tot)
+      + (notes.length ? '<p class="rs-hint">' + notes.map(esc).join(" ") + "</p>" : ""));
   }
   /* the campaigns, ACTIVE (enabled) first: each one's own conversions split into leads and the rest,
      and its cost per lead conversion; a paused campaign that still spent in the period sits below */
@@ -2292,14 +2398,14 @@
         plat("mkt_ga4geo", "geo"),
         plat("mkt_adsconv", "conv"), plat("mkt_adscamp", "camp"), plat("mkt_gptad", "gptad"),
         plat("mkt_gptads", "gptads"), plat("mkt_audit", "audit"), plat("mkt_issue", "issue"),
-        plat("mkt_rcount", "rc"), plat("mkt_rgoal", "rg"),
+        plat("mkt_rcount", "rc"), plat("mkt_rgoal", "rg"), plat("mkt_adsnet", "net"), plat("mkt_adsnetc", "netc"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
-                conv, camp, gptad, gptads, audit, issue, rc, rg]) => {
+                conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
         indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
-        indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg });
+        indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;

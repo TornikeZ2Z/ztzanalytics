@@ -45,6 +45,19 @@
  * cannot place shown as missing, with the dollars he types per source, MONTH and state
  * (mkt_state_amount via /api/_mktamount -- his call the same day: "split the expenditure for adds
  * by month only, by amounts on each state"; it replaced a one-percentage-for-every-month split).
+ *
+ * TWO TABS, EACH FILTER APPLYING TO EVERYTHING ON ITS TAB (his call 2026-10-19: "the filter of the
+ * source is working on some of the stuff and does not work on some of the stuff ... have a separate
+ * tab for ROI / ROA, and have general statistics on 2nd tab"). Measured that day: one bar sat over
+ * the every-source ROAS table (it ignored Source) and over Spend and return (it ignored State,
+ * Local / LD, size and rep), so a filter changed half the page.
+ *   * RETURN ON AD SPEND (opens first): Sources (several, none = every source), Company, Period,
+ *     State. The source x state tables and, his pick, Spend and return as ONE ROW PER SOURCE with the
+ *     month-by-month spend and cash for the sources picked.
+ *   * SOURCE STATISTICS: one Source (and Campaign), Company, Period, Compare and the Filters panel
+ *     (State, Local / LD, Size, Rep) -- every card, chart, the pivot and the list follow them all.
+ * Company and Period are shared by the two tabs; each tab keeps its own state filter. A link that
+ * names a source (the Marketing Overview's rows) opens the statistics tab; ours carry &tab=.
  */
 (function () {
   if (!window.RS || !RS.DATASETS) return;
@@ -102,6 +115,8 @@
     states: new Set(), mts: new Set(), sizes: new Set(), reps: new Set(), by: "month",
     list: { page: 0, per: 50, q: "", cat: "" },
     cols: null, bootDone: false,
+    // the two tabs (2026-10-19): which is open, and the Return-on-ad-spend tab's own picks
+    tab: "roi", roiFams: new Set(), roiStates: new Set(),
   };
   /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
      Pickup state, Local / Long distance, Size of move and Rep, in the right-hand panel the other
@@ -323,15 +338,6 @@
   // every lead section reads the family's leads through this; Local / Long distance splits the
   // two sides and slices the breakdowns and the list (sliceMt)
   function leadOk(r) { return stOk(r) && sizeOk(r) && repOk(r); }
-  // "Not filtered by State or Rep: <what>." -- only for the filters that are on
-  function nfHtml(keys, what) {
-    var on = { state: S.states.size > 0, mt: !!mtOne(), size: S.sizes.size > 0, rep: S.reps.size > 0 };
-    var hit = keys.filter(function (k) { return on[k]; }).map(function (k) { return PF_NAME[k]; });
-    if (!hit.length) return "";
-    var or = hit.length < 3 ? hit.join(" or ") : hit.slice(0, -1).join(", ") + " or " + hit[hit.length - 1];
-    return '<div class="rs-hint"><b>Not filtered by ' + esc(or) + ":</b> " + what + ".</div>";
-  }
-
   /* the reading window [a, b]; `bEff` stops at the newest lead on file so a comparison
      window is day-matched instead of charging this year for days that have not happened */
   function win() {
@@ -470,6 +476,9 @@
     // Overview's channel rows open #page=source-report&src=<family> in a tab that may have
     // shown another source already (2026-10-16)
     var lk = /[#&]src=([^&]+)/.exec(location.hash || "");
+    var tk = /[#&]tab=(roi|stats)\b/.exec(location.hash || "");
+    if (tk) S.tab = tk[1];
+    else if (lk) S.tab = "stats";   // the Marketing Overview's rows name a source: they mean its statistics
     if (lk) {
       var lf = null;
       try { lf = decodeURIComponent(lk[1]); } catch (e) { lf = null; }
@@ -485,6 +494,7 @@
   function boot() {
     if (S.bootDone) return;
     S.bootDone = true;
+    S.tab = lsGet("sraTab") === "stats" ? "stats" : "roi";   // Return on ad spend opens first (his order)
     var y = new Date().getFullYear();
     S.from = y + "-01-01"; S.to = today();
     var m = /[#&]src=([^&]+)/.exec(location.hash || "");
@@ -509,7 +519,7 @@
   function setHash() {
     // the link is shareable: source and post-card campaign ride in the hash
     try {
-      history.replaceState(null, "", "#page=source-report&src=" + encodeURIComponent(S.fam || "")
+      history.replaceState(null, "", "#page=source-report&tab=" + S.tab + "&src=" + encodeURIComponent(S.fam || "")
         + (S.camp ? "&camp=" + encodeURIComponent(S.camp) : ""));
     }
     catch (e) {}
@@ -532,10 +542,37 @@
     var leadsSt = pack.leads.filter(leadOk);
     var isPC = S.fam === "Post Card";
 
-    host.innerHTML = '<div class="sra">'
-      + '<div class="rs-page-head"><h1>Source Analysis</h1>'
-      + "<p>Return on ad spend for every source and state first; then one source, all of it: the leads "
-      + "it sent, how many booked, what they were worth and what it cost.</p></div>"
+    var head = '<div class="rs-page-head"><h1>Source Analysis</h1>'
+      + "<p>What every source returns on its ad spend, by state; and, for one source, the leads it sent, "
+      + "how many booked and what they were worth.</p></div>"
+      + '<div class="rs-tabs" id="sraTabs">'
+      + '<button type="button" class="rs-tab' + (S.tab === "roi" ? " on" : "") + '" data-tab="roi">Return on ad spend</button>'
+      + '<button type="button" class="rs-tab' + (S.tab === "stats" ? " on" : "") + '" data-tab="stats">Source statistics</button>'
+      + "</div>";
+    if (S.tab === "roi") {
+      host.innerHTML = '<div class="sra">' + head
+        + '<div class="rs-bar" id="sraBar">'
+        + '<div id="sraRoiFam"></div><div id="sraCo"></div>'
+        + '<div class="rs-fld"><span>Period</span><div id="sraDate"></div></div>'
+        + '<div id="sraRoiSt"></div>'
+        + "</div>"
+        + formsStaleHtml()
+        + '<div class="sra-h"><h2>Return on ad spend · by source and state</h2>'
+        + '<span class="sra-sub">every filter above applies</span></div>'
+        + '<div class="sra-roas" id="sraRoas"></div>'
+        + '<div class="sra-h"><h2>Spend and return · by source</h2><span id="sraSpendPills"></span></div>'
+        + '<div id="sraSpendAll"></div>'
+        + "</div>";
+      wireTabs(host);
+      mountRoiBar(host, w);
+      try { paintRoas(host, w); }
+      catch (e) { var re0 = host.querySelector("#sraRoas"); if (re0) re0.innerHTML = '<div class="panel"><div class="rs-hint">The return-on-ad-spend view could not draw: ' + esc(e.message) + "</div></div>"; }
+      try { paintSpendAll(host, w); }
+      catch (e) { var se0 = host.querySelector("#sraSpendAll"); if (se0) se0.innerHTML = '<div class="panel"><div class="rs-hint">Spend and return could not draw: ' + esc(e.message) + "</div></div>"; }
+      return;
+    }
+
+    host.innerHTML = '<div class="sra">' + head
       + '<div class="rs-bar" id="sraBar">'
       + '<div id="sraFam"></div>'
       + (isPC ? '<div id="sraCamp"></div>' : "")
@@ -548,17 +585,13 @@
       + "</div>"
       + '<div id="sraChips"></div>'
       + formsStaleHtml()
-      + '<div class="sra-h"><h2>Return on ad spend · every source, by state</h2>'
-      + '<span class="sra-sub">the company and period above · the source picker does not apply here, a State filter does</span></div>'
-      + '<div class="sra-roas" id="sraRoas"></div>'
-      + '<div class="sra-h"><h2 id="sraOneH">One source in detail</h2></div>'
+      + '<div class="sra-h"><h2 id="sraOneH">One source in detail</h2>'
+      + '<span class="sra-sub">every filter above applies</span></div>'
       + '<div class="rs-hint" id="sraLead"></div>'
       + '<div class="rs-grid2" id="sraSides"></div>'
       + '<div class="sra-h"><h2>Breakdowns</h2>'
       + '<span class="sra-sub">leads by create date · confirmed by booked date</span></div>'
       + '<div class="rs-grid2 sra-grid" id="sraCharts"></div>'
-      + '<div class="sra-h"><h2>Spend and return</h2><span id="sraSpendPills"></span></div>'
-      + '<div id="sraSpend"></div>'
       + '<div class="sra-h"><h2>Analyze by</h2><div id="sraBy"></div></div>'
       + '<div class="panel" id="sraPivot"></div>'
       + '<div class="sra-h"><h2>Leads</h2><span class="sra-sub">every lead created in the period '
@@ -566,16 +599,63 @@
       + '<div class="panel sra-list" id="sraList"></div>'
       + "</div>";
 
+    wireTabs(host);
     mountBar(host, w);
-    try { paintRoas(host, w); }
-    catch (e) { var re = host.querySelector("#sraRoas"); if (re) re.innerHTML = '<div class="panel"><div class="rs-hint">The return-on-ad-spend view could not draw: ' + esc(e.message) + "</div></div>"; }
     var oh = host.querySelector("#sraOneH"); if (oh) oh.textContent = (S.fam || "One source") + " in detail";
     paintLead(host, w, cw, pack, leadsSt);
     paintSides(host, w, cw, leadsSt);
     paintCharts(host, w, leadsSt);
-    paintSpend(host, w, cw, pack);
     paintPivot(host, w, leadsSt);
     paintList(host, w, leadsSt);
+  }
+
+  function wireTabs(host) {
+    host.querySelectorAll("#sraTabs [data-tab]").forEach(function (b) {
+      b.onclick = function () {
+        if (S.tab === b.dataset.tab) return;
+        S.tab = b.dataset.tab; lsSet("sraTab", S.tab); paint(host);
+        var sc = host.closest && host.closest(".rs-content"); if (sc) sc.scrollTop = 0;
+      };
+    });
+  }
+
+  /* the Return-on-ad-spend tab's bar: Sources (several; none = every paying source), Company,
+     Period and State -- the only filters on that tab, and every number there follows all four */
+  function mountRoiBar(host, w) {
+    var led = DATA.ledgerEnd, e = led && w.bEff > led ? led : w.bEff, m0 = w.a.slice(0, 8) + "01";
+    var spent = {};
+    (ROAS.rows || []).forEach(function (r) {
+      if ((S.co && r.co !== S.co) || r._m < m0 || r._m > e) return;
+      spent[r.fam] = (spent[r.fam] || 0) + r.sp;
+    });
+    S.roiFams.forEach(function (f) { if (!(f in spent)) spent[f] = 0; });
+    var fams = Object.keys(spent).filter(function (f) { return spent[f] > 0.5 || S.roiFams.has(f); })
+      .sort(function (a, b) { return spent[b] - spent[a] || a.localeCompare(b); });
+    RSC.localMulti(host.querySelector("#sraRoiFam"), {
+      label: "Sources", emptyLabel: "All sources",
+      values: fams.map(function (f) { return { v: f, l: f }; }),
+      selected: S.roiFams, startOpen: S.reopen === "fam",
+      onChange: function (set) { S.roiFams = new Set(set); S.reopen = "fam"; paint(host); },
+    });
+    RSC.localSelect(host.querySelector("#sraCo"), {
+      label: "Company", allLabel: "Both companies",
+      values: [{ v: "Zip to Zip", l: "Zip to Zip" }, { v: "Tuji", l: "Tuji" }],
+      value: S.co,
+      onChange: function (v) { S.co = v; paint(host); },
+    });
+    RSC.dateRange(host.querySelector("#sraDate"), {
+      get: function () { return { from: S.from, to: S.to }; },
+      set: function (f, t) { S.from = f; S.to = t; },
+      onChange: function () { paint(host); },
+    });
+    RSC.localMulti(host.querySelector("#sraRoiSt"), {
+      label: "State", emptyLabel: "All states",
+      values: SERVICE_STATES.concat([OTHER_ST]).map(function (x) { return { v: x, l: x }; }),
+      selected: S.roiStates, startOpen: S.reopen === "st",
+      onChange: function (set) { S.roiStates = new Set(set); S.reopen = "st"; paint(host); },
+    });
+    // the page repaints on every tick; the list being ticked opens again so several can be picked
+    S.reopen = null;
   }
 
   /* ---- RETURN ON AD SPEND, EVERY SOURCE BY STATE (2026-10-15) ---- */
@@ -610,8 +690,9 @@
       var F = fams[f] = fams[f] || { sp: 0, unpl: 0, st: {} };
       return F.st[st] = F.st[st] || { sp: 0, rev: 0, jobs: 0, how: {} };
     };
+    var famIn = function (f) { return !S.roiFams.size || S.roiFams.has(f); };
     (ROAS.rows || []).forEach(function (r) {
-      if ((S.co && r.co !== S.co) || r._m < m0 || r._m > e) return;
+      if ((S.co && r.co !== S.co) || r._m < m0 || r._m > e || !famIn(r.fam)) return;
       total += r.sp;
       var F = fams[r.fam] = fams[r.fam] || { sp: 0, unpl: 0, st: {} };
       F.sp += r.sp;
@@ -641,6 +722,7 @@
     // revenue: each paying source's jobs, by the closing's state, same company and days
     var noState = { n: 0, rev: 0, rows: [] };
     DATA.byFam.forEach(function (v, f) {
+      if (!famIn(f)) return;
       v.jobs.forEach(function (r) {
         if (!coOk(r) || !inR(r._d, w.a, e)) return;
         var blank = !String(r.State || "").trim();
@@ -673,7 +755,7 @@
        the spend placed in a state against the revenue of the same sources' jobs there. Spend no
        rule can place has no state -- it may belong to these states or not -- so it stays named in
        full (the Not placed row and column, Missing data), as does the all-sources return. */
-    var PS = S.states.size ? S.states : null;
+    var PS = S.roiStates.size ? S.roiStates : null;
     var stIn = function (s0) { return !PS || PS.has(s0); };
     var psTxt = PS ? st.filter(stIn).join(", ") : "";
     var famList = Object.keys(R.fams).filter(function (f) { return R.fams[f].sp > 0; })
@@ -698,8 +780,8 @@
       + ", by month. Return = revenue (Total Bill) of each source's jobs in a state ÷ that source's spend placed in the state. "
       + "Spend is placed from the source's label (post cards, Yelp-DE), Google's own state report, Thumbtack's cost per lead, "
       + "Angi's and Google Local's leads by state, or the dollars you type per month; anything else waits under <b>Missing data</b> below.</div>"
-      + nfHtml(["state"], "the all-sources return and the spend not placed yet (it has no state, so it stays whole and named)")
-      + nfHtml(["mt", "size", "rep"], "this section (the advertising ledger has no Local / Long distance split, size or rep)");
+      + (PS ? '<div class="rs-hint">Spend no rule can place has no state, so under a State filter it stays whole and '
+          + "named (the Not placed row and Missing data), and so does the all-sources return.</div>" : "");
     var k = !PS ? [
       { label: "Ad spend", value: money0(R.total), sub: famList.length + " paying sources" },
       { label: "Placed in a state", value: R.total ? pct1(placed / R.total) : "—", sub: money0(placed) + " of it" },
@@ -982,10 +1064,8 @@
       S.list.page = 0; paint(host);
     };
     RSC.filterPanel(host.querySelector("#sraFilt"), { fields: fields, selected: sel, onApply: apply,
-      note: "Every lead count, rate, chart and the lead list follow these. <b>Return on ad spend</b> follows the "
-        + "State filter only: spend placed in a state against the revenue there; spend no rule can place has no "
-        + "state and stays named in full. <b>Spend and return</b> is the whole source: the advertising ledger has "
-        + "no state, Local / Long distance split, size or rep." });
+      note: "Every number on this tab follows these. Spend and return lives on the <b>Return on ad spend</b> tab, "
+        + "one row per source, with its own Sources and State filters." });
     RSC.filterChips(host.querySelector("#sraChips"), { fields: fields, selected: sel, onChange: apply });
   }
 
@@ -1293,129 +1373,108 @@
   }
 
   /* ---- spend and return: source-wide, both moving types, clipped to the ledger ---- */
-  function paintSpend(host, w, cw, pack) {
-    var el = host.querySelector("#sraSpend");
-    var pills = host.querySelector("#sraSpendPills");
-    var led = DATA.ledgerEnd;
-    var e = led && w.bEff > led ? led : w.bEff;
-    var clipped = e < w.bEff;
-    var sumSpend = function (a, b) {
-      var s = 0; pack.spend.forEach(function (r) { if (inR(r._d, a, b)) s += r._sp; }); return s;
-    };
-    var calc = function (a, b) {
-      var sp = sumSpend(a, b);
-      var leads = 0, conf = 0;
-      pack.leads.forEach(function (r) { if (inR(r._cd, a, b)) leads++; if (inR(r._bd, a, b)) conf++; });
-      var jobs = 0, cash = 0;
-      pack.jobs.forEach(function (r) {
-        if (!inR(r._d, a, b)) return;
+  /* ---- SPEND AND RETURN, ONE ROW PER SOURCE (his pick 2026-10-19) ----
+     Every paying source the tab's picks keep, for the company and the period up to the last posted
+     ledger day (leads, bookings and jobs after it would read as free). Spend is the ledger's; under a
+     State filter it is the spend PLACED in those states (the ROAS table's footing) and leads, bookings,
+     jobs and cash are the same states'. Cash = Net Cash + Card of the source's jobs by move date, the
+     Monthly Report's basis; revenue per $1 is the ROAS table's (Total Bill). Under them, the months. */
+  function paintSpendAll(host, w) {
+    var el = host.querySelector("#sraSpendAll"), pills = host.querySelector("#sraSpendPills");
+    if (!el) return;
+    var R = roasCalc(w), e = R.e, PS = S.roiStates.size ? S.roiStates : null;
+    var stIn = function (st) { return !PS || PS.has(st); };
+    var famList = Object.keys(R.fams).filter(function (f) { return R.fams[f].sp > 0.5; });
+    var rows = famList.map(function (f) {
+      var F = R.fams[f], sp = 0, rev = 0;
+      if (PS) Object.keys(F.st).forEach(function (st) { var c = F.st[st]; if (stIn(st) && c.sp > 0) { sp += c.sp; rev += c.rev; } });
+      else { sp = F.sp; Object.keys(F.st).forEach(function (st) { rev += F.st[st].rev; }); }
+      var v = DATA.byFam.get(f) || { leads: [], jobs: [] }, leads = 0, conf = 0, jobs = 0, cash = 0;
+      v.leads.forEach(function (r) {
+        if (!coOk(r) || !stIn(r._st)) return;
+        if (inR(r._cd, w.a, e)) leads++;
+        if (inR(r._bd, w.a, e)) conf++;
+      });
+      v.jobs.forEach(function (r) {
+        if (!coOk(r) || !stIn(r._st) || !inR(r._d, w.a, e)) return;
         if (r["Record Source"] === "closing") jobs++;
         cash += num(r.Cash);
       });
-      return { sp: sp, leads: leads, conf: conf, jobs: jobs, cash: cash,
-               cpl: sp > 0 && leads ? sp / leads : null, cpb: sp > 0 && conf ? sp / conf : null,
-               per: sp > 0 ? cash / sp : null };
+      return { f: f, sp: sp, rev: rev, leads: leads, conf: conf, jobs: jobs, cash: cash, unpl: F.unpl };
+    }).filter(function (x) { return x.sp > 0.5 || x.leads || x.jobs; })
+      .sort(function (a, b) { return b.sp - a.sp || a.f.localeCompare(b.f); });
+    var T = rows.reduce(function (a, x) { a.sp += x.sp; a.rev += x.rev; a.leads += x.leads; a.conf += x.conf; a.jobs += x.jobs; a.cash += x.cash; return a; },
+      { sp: 0, rev: 0, leads: 0, conf: 0, jobs: 0, cash: 0 });
+    if (pills) pills.innerHTML = DATA.ledgerEnd ? '<span class="rs-pill info">spend through ' + esc(niceDay(DATA.ledgerEnd)) + "</span>" : "";
+    var per = function (a, b) { return b > 0 && a ? money0(b / a) : '<span class="sra-np">—</span>'; };
+    var cashX = function (cash, sp) {
+      if (!(sp > 0)) return '<span class="sra-np">—</span>';
+      var x = cash / sp;
+      return '<span class="sra-x ' + (x >= 5 ? "hi" : x < 1 ? "lo" : "") + '">$' + x.toFixed(2) + "</span>";
     };
-    // a period that starts after the ledger's last posting has no spend to read yet
-    var unposted = e < w.a;
-    var cur = unposted ? { sp: 0, leads: 0, conf: 0, jobs: 0, cash: 0, cpl: null, cpb: null, per: null }
-                       : calc(w.a, e);
-    var prev = null;
-    if (cw && !unposted) {
-      // the comparison window is clipped by the SAME number of days, so both sides cover
-      // equal stretches of the ledger
-      var cut = dayCount(e, w.bEff) - 1;
-      prev = calc(cw.a, cut > 0 ? addDays(cw.b, -cut) : cw.b);
-    }
-    var everSpend = pack.spend.some(function (r) { return r._sp; });
-    var noState = 0;
-    if (S.fam === "Post Card" && S.camp) {
-      var f = DATA.byFam.get("Post Card");
-      (f ? f.spend : []).forEach(function (r) {
-        if (coOk(r) && r.Campaign === "Post Card (no state)" && inR(r._d, w.a, e)) noState += r._sp;
-      });
-    }
-    pills.innerHTML = (led ? '<span class="rs-pill info">spend through ' + esc(niceDay(led)) + "</span> " : "")
-      + (S.states.size ? '<span class="rs-pill warn" title="the ledger has no state, so the state '
-         + 'filter does not apply to this section">source-wide</span> ' : "")
-      + (mtOne() ? '<span class="rs-pill mute" title="the ledger has no Local / long-distance '
-         + 'split">both moving types</span>' : "");
-    var k = unposted ? [
-      // 2026-09-23 review: zeros here read as real ("$0 spend, 0 leads") next to the September
-      // leads above. Nothing is posted yet, so every tile says that.
-      { label: "Ad spend", value: "—", sub: "not posted yet (ledger ends " + niceDay(led) + ")" },
-      { label: "Cost per lead", value: "—", sub: "not posted yet" },
-      { label: "Cost per booked job", value: "—", sub: "not posted yet" },
-      { label: "Cash collected", value: "—", sub: "read against spend once it is posted" },
-      { label: "Cash per $1 spent", value: "—", sub: "not posted yet" },
-    ] : [
-      { label: "Ad spend", value: money0(cur.sp) + (prev ? delta(cur.sp, prev.sp, "pct", null) : ""),
-        sub: prev ? cw.label.replace("vs ", "") + ": " + money0(prev.sp) : "advertising ledger" },
-      { label: "Cost per lead", value: cur.cpl == null ? "—" : money0(cur.cpl)
-          + (prev && prev.cpl != null ? delta(cur.cpl, prev.cpl, "pct", true) : ""),
-        sub: fmtN(cur.leads) + " leads" + (prev && prev.cpl != null ? " · before: " + money0(prev.cpl) : "") },
-      { label: "Cost per booked job", value: cur.cpb == null ? "—" : money0(cur.cpb)
-          + (prev && prev.cpb != null ? delta(cur.cpb, prev.cpb, "pct", true) : ""),
-        sub: fmtN(cur.conf) + " confirmed" + (prev && prev.cpb != null ? " · before: " + money0(prev.cpb) : "") },
-      { label: "Cash collected", value: money0(cur.cash) + (prev ? delta(cur.cash, prev.cash, "pct") : ""),
-        sub: fmtN(cur.jobs) + " jobs moved (Net Cash + Card)" },
-      { label: "Cash per $1 spent", value: cur.per == null ? "—" : "$" + cur.per.toFixed(2)
-          + (prev && prev.per != null ? delta(cur.per, prev.per, "pct") : ""),
-        sub: prev && prev.per != null ? "before: $" + prev.per.toFixed(2) : "cash ÷ ad spend",
-        tone: cur.per != null && cur.per < 1 ? "neg" : "" },
-    ];
-    el.innerHTML = '<div class="panel">'
-      + nfHtml(["state", "mt", "size", "rep"], "this section (the advertising ledger has no state, Local / Long distance "
-          + "split, size or rep, so spend, cost per lead and cash are the whole source's)")
-      + '<div class="rs-hint">'
-      + (unposted ? "<b>The advertising ledger is posted only to " + esc(niceDay(led)) + "</b>, before this "
-          + "period starts, so there is no spend to set against these leads yet. " : "")
-      + (unposted ? "" : everSpend
-          ? "Window totals " + (clipped ? "up to <b>" + esc(niceDay(e)) + "</b>, the last day the ledger is posted "
-              + "— leads, bookings and jobs after it would read as free, so they are left out of these ratios"
-              : "for the period") + ". "
-          : "<b>No ad spend on file for " + esc(S.fam) + (S.co ? " (" + esc(S.co) + ")" : "")
-            + "</b> — nothing in the advertising ledger is booked to it, so there is no cost per lead. ")
-      + "Cash is Net Cash + Card Payment of the jobs whose closing source is " + esc(S.fam)
-      + ", by move date — the Monthly Report's basis. Those are not exactly the leads above: a job can "
-      + "carry a different source than its lead (a returning customer, a partner job)."
-      + (noState ? " Post-card spend booked without a state (" + money0(noState)
-          + " in the period) cannot be given to one campaign and is not in these figures." : "")
-      + '</div><div class="rs-kpis" id="sraSpendK"></div></div>';
-    RSC.kpis(el.querySelector("#sraSpendK"), k);
-    // monthly spend vs cash -- bars only, no ratio line (a post card paid in one lump makes a
-    // monthly ratio mostly zeros and one spike)
+    var cells = function (x) {
+      return '<td class="num">' + money0(x.sp) + '</td><td class="num">' + fmtN(x.leads) + '</td><td class="num">' + per(x.leads, x.sp)
+        + '</td><td class="num">' + fmtN(x.conf) + '</td><td class="num">' + per(x.conf, x.sp)
+        + '</td><td class="num">' + fmtN(x.jobs) + '</td><td class="num">' + money0(x.cash) + '</td><td class="num">' + cashX(x.cash, x.sp)
+        + '</td><td class="num">' + xTxt(x.rev, x.sp) + "</td>";
+    };
+    var table = '<div class="panel"><div class="rs-hint">'
+      + (R.clipped ? "Up to <b>" + esc(niceDay(e)) + "</b>, the last day the advertising ledger is posted — leads, bookings and jobs after it "
+          + "would read as free, so they are left out. " : "For the period. ")
+      + (PS ? "Spend is what is <b>placed</b> in " + esc(Array.from(PS).join(", ")) + " (spend no rule can place has no state and is not in it); "
+            + "leads, bookings, jobs and cash are the same states'. " : "Spend is each source's whole advertising ledger. ")
+      + "Cash is Net Cash + Card of the source's jobs, by move date. Revenue per $1 is the table above's (Total Bill ÷ spend).</div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Source</th><th class="num">' + (PS ? "Spend placed" : "Ad spend") + "</th>"
+      + '<th class="num">Leads</th><th class="num">Cost per lead</th><th class="num">Booked</th><th class="num">Cost per booking</th>'
+      + '<th class="num">Jobs moved</th><th class="num">Cash collected</th><th class="num">Cash per $1</th><th class="num">Revenue per $1</th></tr></thead><tbody>'
+      + (rows.length ? rows.map(function (x) { return "<tr><td>" + esc(x.f) + "</td>" + cells(x) + "</tr>"; }).join("")
+          : '<tr><td colspan="10" class="sra-np">No ad spend on file for these picks.</td></tr>')
+      + '</tbody><tfoot><tr class="sra-tot"><td>' + (rows.length === 1 ? "Total" : "All " + rows.length + " sources") + "</td>" + cells(T) + "</tr></tfoot></table></div></div>";
+    el.innerHTML = table;
+    // the months: spend and cash for the sources picked (bars only -- a post card paid in one lump
+    // makes a monthly ratio mostly zeros and one spike)
     var ms = monthsOf(w.a, w.bEff);
     if (ms.length > 48) ms = ms.slice(-48);
-    var sp = {}, cash = {}, jobs = {};
-    pack.spend.forEach(function (r) { if (inR(r._d, w.a, w.bEff)) { var m = r._d.slice(0, 7); sp[m] = (sp[m] || 0) + r._sp; } });
-    pack.jobs.forEach(function (r) {
-      if (!inR(r._d, w.a, w.bEff)) return;
-      var m = r._d.slice(0, 7);
-      cash[m] = (cash[m] || 0) + num(r.Cash);
-      if (r["Record Source"] === "closing") jobs[m] = (jobs[m] || 0) + 1;
+    var spM = {}, cashM = {}, jobsM = {}, ledM = DATA.ledgerEnd ? DATA.ledgerEnd.slice(0, 7) : null;
+    var keep = {}; rows.forEach(function (x) { keep[x.f] = 1; });
+    if (PS) {
+      (ROAS.rows || []).forEach(function (r) {
+        if ((S.co && r.co !== S.co) || !keep[r.fam] || r.how === "Not placed" || !PS.has(stateKey(r.st))) return;
+        var m = r._m.slice(0, 7); spM[m] = (spM[m] || 0) + r.sp;
+      });
+    } else {
+      rows.forEach(function (x) {
+        ((DATA.byFam.get(x.f) || { spend: [] }).spend).forEach(function (r) {
+          if (!coOk(r) || !inR(r._d, w.a, w.bEff)) return;
+          var m = r._d.slice(0, 7); spM[m] = (spM[m] || 0) + r._sp;
+        });
+      });
+    }
+    rows.forEach(function (x) {
+      ((DATA.byFam.get(x.f) || { jobs: [] }).jobs).forEach(function (r) {
+        if (!coOk(r) || !stIn(r._st) || !inR(r._d, w.a, w.bEff)) return;
+        var m = r._d.slice(0, 7);
+        cashM[m] = (cashM[m] || 0) + num(r.Cash);
+        if (r["Record Source"] === "closing") jobsM[m] = (jobsM[m] || 0) + 1;
+      });
     });
-    var ledM = led ? led.slice(0, 7) : null;
     RSC.chartCard(el, {
-      title: "Ad spend and cash collected, by month", key: "sra-spend",
+      title: "Ad spend and cash collected, by month" + (S.roiFams.size ? " · " + Array.from(S.roiFams).join(", ") : " · every paying source"),
+      key: "sra-spend-all",
       buildChart: function (canvas) {
         var C = palette();
         return new Chart(canvas, {
           type: "bar",
           data: { labels: ms.map(monthLbl), datasets: [
-            { label: "Ad spend (right axis)", data: ms.map(function (m) { return ledM && m > ledM ? null : Math.round(sp[m] || 0); }),
+            { label: "Ad spend (right axis)", data: ms.map(function (m) { return ledM && m > ledM ? null : Math.round(spM[m] || 0); }),
               backgroundColor: C.violet, yAxisID: "y1" },
-            { label: "Cash collected (left axis)", data: ms.map(function (m) { return Math.round(cash[m] || 0); }),
+            { label: "Cash collected (left axis)", data: ms.map(function (m) { return Math.round(cashM[m] || 0); }),
               backgroundColor: C.brand, yAxisID: "y" },
           ] },
-          // TWO SCALES (2026-09-23 review): cash runs 20-30x spend for the big sources, so on one
-          // axis the spend bars were slivers. Spend reads off the right axis -- still bars only,
-          // no ratio line (the spec's rule is about a ratio, not about a second scale).
           options: { responsive: true, maintainAspectRatio: false,
                      interaction: { mode: "index", intersect: false },
                      scales: {
-                       y: { beginAtZero: true, position: "left",
-                            title: { display: true, text: "Cash collected", color: C.muted },
+                       y: { beginAtZero: true, position: "left", title: { display: true, text: "Cash collected", color: C.muted },
                             ticks: { callback: function (v) { return RS.moneyC(v); } } },
                        y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false },
                              title: { display: true, text: "Ad spend", color: C.muted },
@@ -1434,8 +1493,8 @@
           + ms.map(function (m) {
               var late = ledM && m > ledM;
               return "<tr><td>" + esc(monthLbl(m)) + "</td>"
-                + (late ? '<td class="num dim">not posted</td>' : '<td class="num">' + money0(sp[m] || 0) + "</td>")
-                + '<td class="num">' + money0(cash[m] || 0) + '</td><td class="num">' + fmtN(jobs[m] || 0) + "</td></tr>";
+                + (late ? '<td class="num dim">not posted</td>' : '<td class="num">' + money0(spM[m] || 0) + "</td>")
+                + '<td class="num">' + money0(cashM[m] || 0) + '</td><td class="num">' + fmtN(jobsM[m] || 0) + "</td></tr>";
             }).join("") + "</tbody></table>";
       },
     });
