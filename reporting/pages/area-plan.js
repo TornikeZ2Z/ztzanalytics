@@ -7074,8 +7074,9 @@ const AREA_PLAN_PAGE = {
             const PF = planFleet();
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
               const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null, st = sf && sf.ns ? sf.ns.store : "P";
-              L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
-                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf ? st : null, true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+              // the Target Map names its bases and nothing else (his pick 2026-10-19)
+              L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: LOCK ? [] : [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
+                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };

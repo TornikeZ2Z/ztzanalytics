@@ -568,6 +568,8 @@ const dmgRows = t => Number(
         mig_job_sales_attribution: "JobSalesAttribution",
         mig_job_vehicle_inspection: "JobVehicleInspection",
         mig_job_vehicle_inspection_item: "JobVehicleInspectionItem",
+        // not field-for-field: the legacy job_gps_control shape their gps-control-import reads
+        mig_job_gps_control: "JobGpsCheck",
         mig_job_storage_order: "JobStorageOrder",
         mig_storage_record: "StorageRecord",
         mig_job_crew_salary_snapshot: "JobCrewSalarySnapshot",
@@ -690,7 +692,8 @@ const dmgRows = t => Number(
                              "mig_job_timeline_event", "mig_job_truck",
                              "mig_job_truck_expense",
                              "mig_job_vehicle_inspection",
-                             "mig_job_vehicle_inspection_item"]],
+                             "mig_job_vehicle_inspection_item",
+                             "mig_job_gps_control"]],
           ["Storage", ["mig_job_storage_order", "mig_storage_record",
                        "mig_storage_item_payment"]],
           ["The inventory", ["mig_job_inventory_section", "mig_job_inventory_entry",
