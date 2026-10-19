@@ -1507,6 +1507,8 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
   }
 
   const LS_KEY = "ztzAreaPlan.v5";
+  // the Target Map (LOCK) never reads or writes Seasonal Planning's settings: it keeps the market only
+  const TM_KEY = "ztzTargetMap.v1";
   // HIS TABLE (2026-08-19), kept as a NAMED alternative seed. Rows are SERVICE AREAS, not
   // garages: NY is worked from the NJ base.
   const HIS_TABLE = [
@@ -1565,7 +1567,7 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
     return { SHARE_FALLBACK, seasonLeads, share, lpj, row, counts };
   })();
 
-registerPage({
+const AREA_PLAN_PAGE = {
   id: "area-plan",
   group: "different",
   title: "Seasonal Planning",
@@ -1573,7 +1575,8 @@ registerPage({
             "per-city evidence on one page, seeded from what actually worked last season.",
   datasets: [],
 
-  render: function (host) {
+  /* LOCK = { plan: "max" } renders the Target Map (see the registration at the end of this file) */
+  render: function (host, LOCK) {
     const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g,
       c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const money = v => (v == null || isNaN(v)) ? "—" : RS.money(+v);
@@ -1595,7 +1598,7 @@ registerPage({
     const ymLabel = ym => MONTH_NAMES[+ym.slice(5, 7)] + " " + ym.slice(0, 4);
 
     injectStyle();
-    host.innerHTML = '<div class="rs-page-head"><h1>Seasonal Planning</h1></div>' +
+    host.innerHTML = '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + '</h1></div>' +
       '<div class="rs-loading" style="padding:22px">Reading the plan, the model and every city…</div>';
 
     return Promise.all([
@@ -1812,14 +1815,14 @@ registerPage({
       };
 
       const saved = (() => {
-        try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); }
+        try { return JSON.parse(localStorage.getItem(LOCK ? TM_KEY : LS_KEY) || "{}"); }
         catch (e) { return {}; }
       })();
       // DEFAULT PERIOD = NEXT SEASON'S MONTHS, seen through LAST season's same months (his
       // answer). The model says which months those are; if it cannot, last September.
       const seasonLast = SEASON.last && SEASON.last[0] ? SEASON.last : null;
       // #page=area-plan&tab=cities — read once at boot; the shell's own router stops at the & (index.html:1436)
-      let bootTab = (location.hash.match(/tab=([\w-]+)/) || [])[1] || null;
+      let bootTab = LOCK ? null : (location.hash.match(/tab=([\w-]+)/) || [])[1] || null;
       const inputs = Object.assign({
         from: seasonLast ? seasonLast[0] : "2025-09",
         to: seasonLast ? seasonLast[1] : "2025-09",
@@ -1855,6 +1858,7 @@ registerPage({
       /* the year the map shows (0 = the tiers, on the last twelve months) and what it is coloured by */
       if (YEARS.indexOf(+inputs.mapYear) < 0) inputs.mapYear = 0;
       if (!YEAR_BY[inputs.mapYearBy]) inputs.mapYearBy = "jobs";
+      if (LOCK) Object.assign(inputs, { tab: "map", mapLevel: "Zip", mapColor: "tier", mapYear: 0, listTiers: [], focus: "" });
       const yearNow = new Date().getFullYear();
       const yearFmt = v => (inputs.mapYearBy === "rev" || inputs.mapYearBy === "avg") ? money0(v) : fmtN(v);
       const yearRow = (lvl, key) => ((AY[lvl] || {})[key] || {})[+inputs.mapYear] || null;
@@ -3223,7 +3227,7 @@ registerPage({
         host.querySelectorAll("#apTabs .rs-tab").forEach(b => { const on = b.dataset.k === key;
           b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });
         inputs.tab = key; save();
-        try { history.replaceState(null, "", "#page=area-plan&tab=" + key); } catch (e) {}
+        try { history.replaceState(null, "", LOCK ? "#page=target-map" : "#page=area-plan&tab=" + key); } catch (e) {}
         if (!quiet) { const sc = host.closest(".rs-content"); if (sc) sc.scrollTop = 0; }
         /* the dials are for working the plan; the map tab is the one on the screen in the room,
            and a paragraph of assumptions above it is the first thing the eye landed on (2026-09-29) */
@@ -5721,6 +5725,8 @@ registerPage({
         const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
+        if (LOCK) return '<div class="ap3-bar"><label>Market</label>' +
+          seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") + "</div>";
         /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
            of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
         return '<div class="ap3-bar">' +
@@ -5801,6 +5807,9 @@ registerPage({
               [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + (tok("--pos") || "#5f7c20") + ";opacity:" + o + '"></i>').join("") +
               "&nbsp;<b>" + r1(v[0]) + "</b> to <b>" + r1(v[v.length - 1]) + "</b></span>" : ""; }
         }
+        if (LOCK) return '<div class="ap2-mapkey" id="apMapKey">' + key +
+          '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
+          (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>new base in the MAX plan</span>' : "") + "</div>";
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
           (FLEET.has ? "" : '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>') +
           (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
@@ -5823,6 +5832,17 @@ registerPage({
         const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="' + ((t ? inputs.listTiers.indexOf(t) >= 0 : !inputs.listTiers.length) ? "on" : "") + '">' +
           (t ? '<i style="background:' + TC["t" + t] + '"></i>' + t : "All") + "<small>" + fmtN(cnt[t] || 0) + "</small></button>").join("");
         const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
+        if (LOCK) { const T = shown.filter(r => r.tier >= 1 && r.tier <= 3);
+          return '<div class="ap3-list ap3-lock">' +
+            '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3</span>" +
+              '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code listed here, with its tier, as a CSV for Google Ads, Meta and the other tools">Download</button></div>' +
+            '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span></div>' +
+            '<div class="rows">' + T.slice(0, CAP).map(r =>
+              '<div class="r"><i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + r.tier + "</i>" +
+                '<span class="n"><b>' + esc(r.name) + "</b><small>" + place(r) + "</small></span>" +
+                '<span class="v">' + (r.leads ? fmtN(r.leads) : "—") + "</span></div>").join("") +
+              (T.length > CAP ? '<div class="ap2-note" style="padding:8px 10px">The first ' + CAP + " of " + fmtN(T.length) + " — the download has them all.</div>" : "") +
+            "</div></div>"; }
         return '<div class="ap3-list">' +
           '<div class="lh"><b>' + fmtN(R.length) + " " + (lvl === "Zip" ? "zip codes" : lvl === "City" ? "cities" : "counties") +
             "</b><span>" + (st ? esc(st) : "whole market") + ' · click one for its full sheet</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
@@ -5888,12 +5908,28 @@ registerPage({
         return areaListHtml(N);
       }
       function showSide(s) {
+        if (LOCK && s) return;
         SIDE = s;
         const el = host.querySelector("#apAreaList");
         if (el) { el.innerHTML = sideHtml(FC.year ? nextCalc() : null); el.scrollTop = 0; }
         wireMapColor();
       }
 
+      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools"): the
+         market's Tier 1-3 zip codes in the list's order -- tier, then leads -- one row each */
+      function targetCsv(N) {
+        const st = mapStOf();
+        const R = areaRows(N, "Zip", st).filter(r => r.tier >= 1 && r.tier <= 3)
+          .sort((x, y) => (x.tier - y.tier) || (y.leads - x.leads) || String(x.name).localeCompare(String(y.name)));
+        const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = ["Zip,State,City,County,Tier,Tier Name,Leads 12 mo"].concat(R.map(r => [
+          String(r.a.Zip || r.key).replace(/\D/g, "").padStart(5, "0"), r.a.State, r.a.City, r.a.County, r.tier, TIER_NAME[r.tier],
+          num(r.a["Leads 12m"])].map(q).join(",")));
+        const blob = new Blob(["\ufeff" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "Target zip codes - " + (st || "all states") + " - MAX plan.csv";
+        document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      }
       function areaCsv(N) {
         const lvl = inputs.mapLevel, st = mapStOf();
         const R = areaRows(N, lvl, st).filter(tierOk);
@@ -6052,6 +6088,7 @@ registerPage({
         }; });
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
         const csv = host.querySelector("#apAreaCsv"); if (csv) csv.onclick = () => areaCsv(FC.year ? nextCalc() : null);
+        const tdl = host.querySelector("#apTmDl"); if (tdl) tdl.onclick = () => targetCsv(FC.year ? nextCalc() : null);
         const pm = host.querySelector("#apPrintMap"); if (pm) pm.onclick = printMap;
         const zd = host.querySelector("#apZipDl"); if (zd) zd.onclick = () => zipTargets(zd);
         host.querySelectorAll("[data-dlmap]").forEach(b => { b.onclick = printMap; });
@@ -6412,6 +6449,9 @@ registerPage({
              important ones"). Name, tier and the three planning numbers; the click opens the full
              sheet in the right panel, which cannot run off the screen the way a tall tooltip did. */
           const glance = (title, band, a) => {
+            if (LOCK) return '<div class="ap2-tip ap3-glance"><b>' + esc(title) + '</b><div class="t">' + TIER_LABEL[band] + "</div>" +
+              '<div class="g3"><span>Leads<b>' + fmtN(num(a && a["Leads 12m"])) + "</b><small>12 mo</small></span></div>" +
+              (a && a["Tier Reason"] ? '<div class="c">' + esc(a["Tier Reason"]) + "</div>" : "") + "</div>";
             const P = planOfArea(FC.year ? nextCalc() : null, a);
             return '<div class="ap2-tip ap3-glance"><b>' + esc(title) + '</b><div class="t">' + TIER_LABEL[band] + "</div>" +
               '<div class="g3"><span>Leads<b>' + fmtN(num(a && a["Leads 12m"])) + "</b><small>12 mo</small></span>" +
@@ -6786,11 +6826,12 @@ registerPage({
             return hit ? Object.assign({}, hit, { store: hit.ns ? hit.ns.store : "P" }) : null;
           };
           const flagFleet = (b, N) => { const f = baseFleetOf(b, N); return f ? fleetLine(f, f.store) : ""; };
-          const flagIco = (b, N) => { if (!flagFleet(b, N)) return null;
+          const flagIco = (b, N) => { if (LOCK || !flagFleet(b, N)) return null;
             if (b.kind !== "have") return newStore(b.label, N, planCrew(b, N)).store;
             if (PLAN) { const f = (planFleet(N) || []).find(x => x.g.base === b.name); return f ? f.store : null; }
             return storeLabel({ base: b.name }); };
-          const flagText = (b, N) => { const pc = planCrew(b, N), f = baseFleetOf(b, N);
+          const flagText = (b, N) => { if (LOCK) return { name: b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""), parts: [] };
+            const pc = planCrew(b, N), f = baseFleetOf(b, N);
             const fm = b.kind === "have" ? fmtN(b.foremen) + (pc != null && pc !== b.foremen ? " → " + fmtN(pc) : "") + " foremen"
                                          : pc != null ? fmtN(pc) + (pc === 1 ? " foreman" : " foremen") : "";
             return { name: b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""),
@@ -6799,7 +6840,7 @@ registerPage({
           /* "STORAGE ONLY" (2026-10-07): a zone that needs rented room with no storage base in the
              plan, drawn where its units sit today */
           const soLayer = L.layerGroup().addTo(m);
-          const paintSO = N => { soLayer.clearLayers();
+          const paintSO = N => { soLayer.clearLayers(); if (LOCK) return;
             storageOnly(planFleet(N) || forecastFleet(N)).forEach(x => L.marker([x.pos.la, x.pos.lo], {
                 icon: flag("cover", "Storage only · ~" + fmtN(Math.round(x.cf)) + " CF", "S"), zIndexOffset: 450 })
               .bindTooltip('<div class="ap2-tip"><b>Storage only — proposed</b><div class="t">' + esc(x.z) + " zone rents ~" +
@@ -6817,7 +6858,10 @@ registerPage({
               icon: flag(flagCls, flagText(b, N_FLAG), flagIco(b, N_FLAG), flagNew(b, N_FLAG)),
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
-            mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
+            if (LOCK) mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
+              (b.kind === "have" ? "our base today" : NB_ON[b.label] ? "new base in the MAX plan" : "possible new base") + "</div></div>",
+              { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
+            else mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
               (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " today" +
                   (() => { const pc = planCrew(b, FC.year ? nextCalc() : null); return pc != null ? " · plan " + fmtN(pc) : ""; })()
                                  : "possible new base · " + (NB_ON[b.label] ? "YES in this scenario" : "No in this scenario")) +
@@ -8026,6 +8070,17 @@ registerPage({
         }));
       }
 
+      /* TARGET MAP: everything but the map tab's map, legend, market switch and list stays drawn (the wiring
+         expects it) and is hidden here. The style lives inside the page, so it leaves with it. */
+      function lockCss() {
+        return "<style>" +
+          ".ap2-tabs,#apPlanBar,#apKpis,.ap4-msec,#apHow,.ap2-pane:not([data-ap-pane=map]),.ap4-dl{display:none!important}" +
+          ".ap3-mapctl [data-mc=hv],.ap3-mapctl [data-mc=lb],.ap3-mapctl .ap3-lblp{display:none!important}" +
+          ".ap3-lock .cols,.ap3-lock .r{grid-template-columns:24px minmax(0,1fr) 64px}" +
+          ".ap3-lock .r{cursor:default}.ap3-lock .r:hover{background:transparent}" +
+          ".ap3-lock .lh .rs-btn{margin-left:auto}" +
+          "</style>";
+      }
       function paint() {
         recalcPeriod();
         const c = calc();
@@ -8040,10 +8095,12 @@ registerPage({
         const jump = '<nav class="ap4-jump" aria-label="Statistics sections"><span>Go to</span>' +
           SECS.map(x => '<button type="button" data-sec="' + x.k + '">' + esc(secLabel(x)) + "</button>").join("") +
           '<span class="sp"></span><button type="button" data-secall="0">Close all</button></nav>';
-        host.innerHTML =
-          '<div class="rs-page-head"><h1>Seasonal Planning</h1>' +
-          '<p style="max-width:104ch">How many crews, how many salespeople and what marketing budget Season ' + esc(String(FC.year || "next")) +
-            ' needs — state by state, month by month, with the working under every answer.</p>' +
+        host.innerHTML = (LOCK ? lockCss() : "") +
+          '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + "</h1>" +
+          (LOCK ? '<p style="max-width:104ch">Where to advertise: every zip code by tier under the MAX plan, its new bases included. ' +
+              "Pick a market, then download its zip codes for the ad tools.</p>"
+            : '<p style="max-width:104ch">How many crews, how many salespeople and what marketing budget Season ' + esc(String(FC.year || "next")) +
+            ' needs — state by state, month by month, with the working under every answer.</p>') +
           '<div class="ap2-clockline">Season ' + esc(String(FC.year || "")) + (SEASON.next && SEASON.next[0] ? " · " + esc(ymLabel(SEASON.next[0])) + " – " + esc(ymLabel(SEASON.next[1])) : "") +
             '</div></div>' +
           tabsHtml() +
@@ -8218,9 +8275,15 @@ registerPage({
            has to reach its numbers too */
         if (host.querySelector("#apKpis")) repaintMapTab();
       }
-      function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
+      function save() { try {
+        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "" }));
+        else localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
       paint();
+      if (LOCK && LOCK.plan && PLANS[LOCK.plan]) {
+        PLAN = JSON.parse(JSON.stringify(PLANS[LOCK.plan])); PLAN.key = LOCK.plan;
+        planApply(); nbRepaint();
+      }
 
       /* live edits: the hero and the edited row repaint; the input keeps focus; the dials
          node is NEVER re-rendered here (the old page destroyed the input under the cursor) */
@@ -8265,5 +8328,22 @@ registerPage({
       host.addEventListener("input", host._apInput);
     });
   },
+};
+registerPage(AREA_PLAN_PAGE);
+
+/* TARGET MAP (his ask 2026-10-19): "i need to show this map with targetings part on marketing section --
+   only TIERS for MAX PLAN for ZIP CODE. i dont need them to able to select anything besides MARKET."
+   Seasonal Planning itself, locked: the MAX plan applied at the first paint (memory only, exactly a
+   click on "MAX plan"), zip codes, the tier colours, and the market switch as the only control. The
+   bases are names only (his pick); the zip list is read-only with a download for the ad tools ("we
+   will upload it later on marketing tools"). The same code draws both pages, so the two can never
+   disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here. */
+registerPage({
+  id: "target-map",
+  group: "marketing",
+  title: "Target Map",
+  subtitle: "Where to advertise: every zip code by tier under the MAX plan, with a download for the ad tools.",
+  datasets: [],
+  render: function (host) { return AREA_PLAN_PAGE.render.call(this, host, { plan: "max" }); },
 });
 })();

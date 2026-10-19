@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="f0b81bdd27e07c38d8b806ed51fc1458f7546fb3">
+<meta name="ztz-ref" content="d227c7ca477bf727922fb278f7127f13c8848590">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -242,6 +242,8 @@ const GROUP_OVERRIDE = {
   // Marketing Overview (2026-10-15): the one page for marketing; starts with its sources and
   // whether each is up to date
   "marketing-overview": "marketing",
+  // Target Map (2026-10-19): Seasonal Planning's zip tiers under the MAX plan, market switch only
+  "target-map": "marketing",
   "source-trace": "marketing", "meta-referrals": "marketing",
   "jobs-by-area": "marketing",
   "packing-sales": "logistics",
@@ -308,7 +310,7 @@ const NAV_ORDER = {
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
-  "marketing-overview": 6.5, "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
+  "marketing-overview": 6.5, "target-map": 6.6, "source-report": 7, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
   "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
 
@@ -380,7 +382,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "target-map": "map-pin", "source-report": "compass", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -888,6 +890,7 @@ const PAGE_DATASETS = {
   "review-performance": [],
   "response-analysis": [], "review-settings": [],
   "area-plan": [],           // Seasonal Planning: its own period picker and state focus, no global bar
+  "target-map": [],          // Target Map: the market switch is its only control
   "reviews-cases": [],       // both boards load whole (307+888 rows); From-To filter is local
   "claims-analysis": [],     // the claims mart + closings load whole; period/service filters are local
   "demand-analysis": [],   // its own year + company pickers own the window
@@ -1201,7 +1204,9 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot"]);
+  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
+  // Target Map (2026-10-19): Seasonal Planning locked to its map
+  "target-map"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
    The control exists for pages carrying a wall of slicers you want out of the way to read the
    board full-screen — Custom Breakdown is the case it was built for. It is wrong wherever the
@@ -1332,6 +1337,7 @@ const NAV_TITLES = {
   "data-quality": "Data Quality",
   "data-migration": "Data Migration",
   "marketing-overview": "Marketing Overview",
+  "target-map": "Target Map",
   "source-report": "Source Analysis",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
@@ -1419,6 +1425,7 @@ const SEARCH_ALIASES = {
   "sales-trackers": "sales trackers communication analysis call quality coaching rubric keyword tracker ai trackers custom tracker inventory review storage discussion price objection competitor mention mentioned source detector heard about us compliance ringsense analysis control panel",
   "estimate-accuracy": "estimate accuracy sales vs reality estimated vs actual sold real cf cubic feet inventory items time hours act minimum under over estimate bias foreman sold rep accuracy",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
+  "target-map": "target map targeting zip codes zips tiers tier 1 2 3 core good normal max plan where to advertise ads google meta download upload market",
   "marketing-overview": "marketing overview sources connected connectors platforms status up to date fresh late google ads local services lsa analytics ga4 search console facebook instagram meta chatgpt openai tiktok reddit linkedin nextdoor semrush ahrefs brightlocal bank spend ledger callrail leads campaigns performance max pmax search demand gen cpc ctr impressions clicks conversions charged credited results",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
@@ -1912,6 +1919,7 @@ const REPORT_LABELS = {
   "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
   "marketing-overview": "Marketing Overview",
+  "target-map": "Target Map",
   "source-report": "Source Analysis",
   "source-trace": "Source Trace",
   "jobs-by-area": "Jobs by Area",
@@ -2021,7 +2029,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -2331,7 +2339,7 @@ registerPage({
 <script src="pages/demand-analysis.js?v=17"></script>
 <script src="pages/straight-vs-local.js?v=8"></script>
 <script src="pages/storage-plan.js?v=7"></script>
-<script src="pages/area-plan.js?v=106"></script>
+<script src="pages/area-plan.js?v=107"></script>
 <script src="pages/postcard-purchases.js?v=4"></script>
 <script src="pages/postcard-expenditure.js?v=13"></script>
 <script src="pages/truck-economics.js?v=9"></script>
