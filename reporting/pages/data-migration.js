@@ -726,6 +726,9 @@ const dmgRows = t => Number(
           totRows += dmgRows(t);
           const cov = migCoverage(n, t.columns.map(c => c.name));
           covOf[n] = cov;
+          // a source-shaped table (mig_job_gps_control: their importer's legacy columns) has
+          // no field list -- it counts its rows, never toward "fields filled" or "complete"
+          if (!cov) return;
           totFilled += cov.filled.length;
           totFields += cov.filled.length + cov.missing.length;
           if (!cov.missing.length) complete++;
@@ -739,6 +742,14 @@ const dmgRows = t => Number(
               <div class="nm">${esc(n)}</div>
               <div class="mdl">→ ${esc(MIG_MODELS[n])}</div>
               <span class="rs-pill mute">next pipeline run</span>
+            </div>`;
+          if (!cov) return `
+            <div class="dmg-card${S.sel === n ? " on" : ""}" data-mig="${esc(n)}">
+              <div class="nm">${esc(n)}</div>
+              <div class="mdl">→ ${esc(MIG_MODELS[n])}</div>
+              <div class="big">${dmgRows(t).toLocaleString()}
+                <span>rows</span></div>
+              <div class="covline">source shape · read by their importer</div>
             </div>`;
           const f = cov.filled.length, ms = cov.missing.length,
                 rs = cov.resolved.length, tot = f + ms + rs;
