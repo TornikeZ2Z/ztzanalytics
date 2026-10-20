@@ -126,7 +126,9 @@
       // the coverage grid
       + ".roi .roi-cv td,.roi .roi-cv th{padding:4px 5px}.roi .roi-cv th.m{text-align:center;font-weight:600}"
       + ".roi .roi-cc{display:block;height:22px;min-width:30px;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:pointer}"
-      + ".roi .roi-cc.rule{background:color-mix(in srgb,var(--blue) 30%,var(--panel));border-color:transparent}"
+      // placed by a rule is NEUTRAL grey (2026-10-20, seen live): the v2 theme makes --blue its green
+      // accent, so a blue tint read almost like "entered"
+      + ".roi .roi-cc.rule{background:color-mix(in srgb,var(--ink) 16%,var(--panel));border-color:transparent}"
       + ".roi .roi-cc.ent{background:var(--pos-bg);border-color:var(--pos)}"
       + ".roi .roi-cc.part{background:var(--warn-bg);border-color:var(--warn)}"
       + ".roi .roi-cc.miss{background:var(--panel);border:1px dashed var(--neg)}"
