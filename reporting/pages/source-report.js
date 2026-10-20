@@ -277,12 +277,36 @@
       + ".sra .sra-roas .sra-x{font-weight:700;font-variant-numeric:tabular-nums}"
       + ".sra .sra-roas .sra-x.hi{color:var(--pos)}.sra .sra-roas .sra-x.lo{color:var(--neg)}"
       + ".sra .sra-roas .sra-np{color:var(--faint)}"
-      + ".sra .sra-amt td,.sra .sra-amt th{padding:4px 6px}"
-      + ".sra .sra-amt input{width:84px;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums}"
-      + ".sra .sra-amt .sra-left{font-weight:700;font-variant-numeric:tabular-nums}"
-      + ".sra .sra-amt .sra-left.bad,.sra .sra-amt-msg.bad{color:var(--neg)}"
-      + ".sra .sra-amt-foot{display:flex;gap:12px;align-items:center;justify-content:flex-end;padding-top:10px}"
-      + ".sra .sra-amtp .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}"
+      + ".sra .sra-amt-msg.bad{color:var(--neg)}"
+      // the split panel (2026-10-20) lives on <body>, outside .sra, so its rules carry their own prefix
+      + ".sra-ov{position:fixed;inset:0;background:var(--scrim,rgba(10,16,24,.45));z-index:60;display:flex;justify-content:flex-end}"
+      + ".sra-dr{width:min(560px,100vw);height:100%;overflow:auto;background:var(--bg);color:var(--ink);padding:18px 20px 24px;"
+      + "box-shadow:-12px 0 32px rgba(15,23,42,.18);display:flex;flex-direction:column;gap:12px}"
+      + ".sra-dr .rs-hint{margin:0}"
+      + ".sra-dr-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}"
+      + ".sra-dr-t{font-size:16px;font-weight:700}.sra-dr-s{font-size:12.5px;color:var(--muted);margin-top:2px}"
+      + ".sra-q{display:flex;gap:6px;flex-wrap:wrap}"
+      + ".sra-qc{font:inherit;font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}"
+      + ".sra-qc small{color:var(--muted);font-size:11px}.sra-qc.done{opacity:.7}"
+      + ".sra-qc.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}"
+      + ".sra-st{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}"
+      + ".sra-st .rs-btn{padding:5px 10px;font-size:12.5px}.sra-st .rs-btn.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);color:var(--ink)}"
+      + ".sra-bar{display:flex;height:12px;border-radius:4px;overflow:hidden;background:var(--panel-2)}.sra-bar i{display:block;height:100%}"
+      + ".sra-sr{display:grid;grid-template-columns:52px minmax(0,1fr) 62px 12px 78px 64px;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}"
+      + ".sra-sr b{font-weight:700;display:flex;align-items:center;gap:6px}.sra-sr b i{width:9px;height:9px;border-radius:2px;display:inline-block}"
+      + ".sra-sr input[type=range]{width:100%}.sra-sr .rs-inp{width:62px;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums}"
+      + ".sra-sr .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}.sra-sr small{color:var(--faint);font-size:11px;text-align:right}"
+      + ".sra-sum{font-size:13px}.sra-sum .ok{color:var(--pos);font-weight:600}.sra-sum .bad{color:var(--neg);font-weight:600}"
+      + ".sra-mh{font-size:12.5px;font-weight:700}.sra-mh small{font-weight:400;color:var(--muted);margin-left:6px}"
+      + ".sra-ms{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}"
+      + ".sra-sm{font:inherit;font-size:12px;text-align:left;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}"
+      + ".sra-sm b{display:block;font-variant-numeric:tabular-nums}.sra-sm small{display:block;color:var(--muted);font-size:11px}"
+      + ".sra-sm.own{border-style:dashed}.sra-sm.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}"
+      + ".sra-sel{font-size:12.5px;background:var(--panel-2);border-radius:6px;padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}"
+      + ".sra-sel .rs-btn{padding:4px 9px;font-size:12px}"
+      + ".sra-dr-f{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}"
+      + ".sra-dr-f .sra-amt-msg{margin-right:auto;font-size:12.5px}.sra-dr-f .sra-amt-msg.bad{color:var(--neg)}"
+      + "@media(max-width:560px){.sra-sr{grid-template-columns:44px minmax(0,1fr) 56px 10px 70px}.sra-sr small{display:none}}"
       + ".sra .sra-roas tr.sra-ed td{background:var(--panel-2)}"
       + "@media(max-width:700px){.sra .sra-fr{grid-template-columns:78px 1fr 110px}.sra .sra-exit{margin-left:0}}";
     document.head.appendChild(st);
@@ -854,9 +878,13 @@
         }).join("")
       + "</tbody></table></div></div>";
     el.innerHTML = '<div class="panel">' + hint + '<div class="rs-kpis" id="sraRoasK"></div></div>'
-      + '<div class="rs-grid2">' + stTable + missingHtml(R) + "</div>" + amountPanel(R) + mx;
+      + '<div class="rs-grid2">' + stTable + missingHtml(R) + "</div>" + mx;
     RSC.kpis(el.querySelector("#sraRoasK"), k);
     wireAmounts(host, el);
+    // the split panel reads this period's numbers; after a save it opens the next source
+    ROAS.R = R;
+    if (ROAS.reopen && !ROAS.loadingAmts) { var nf = ROAS.reopen; ROAS.reopen = null; openSplit(host, nf); }
+    else if (SP) drawSplit(host);
   }
   /* MISSING DATA: spend no rule can place, by source -- each opens the amounts editor -- and jobs
      with no state */
@@ -867,7 +895,7 @@
     // sources whose unplaced spend in the period is all typed in now -- still listed, to change
     var done = !co ? [] : Object.keys(R.mon).filter(function (f) { return fams.indexOf(f) < 0 && typedIn(co, f, R).length; }).sort();
     var row = function (f, all) {
-      var U = R.unpl[f] || { sp: 0, months: {} }, ms = Object.keys(U.months).sort(), open = ROAS.edit === f;
+      var U = R.unpl[f] || { sp: 0, months: {} }, ms = Object.keys(U.months).sort(), open = !!SP && SP.fam === f;
       var t = co ? typedIn(co, f, R) : [], tot = 0;
       t.forEach(function (ym) { amtOf(co, f, ym).forEach(function (x) { tot += num(x.Amount); }); });
       return "<tr" + (open ? ' class="sra-ed"' : "") + "><td>" + esc(f)
@@ -876,14 +904,15 @@
         + "<small>" + (all ? "by your amounts" : ms.length + " month" + (ms.length === 1 ? "" : "s")
           + (ms.length ? ", " + esc(monthLbl(ms[0])) + (ms.length > 1 ? "–" + esc(monthLbl(ms[ms.length - 1])) : "") : "")) + "</small></td>"
         + '<td style="text-align:right">' + (co ? '<button type="button" class="rs-btn" data-amt="' + esc(f) + '">'
-          + (open ? "Close" : t.length ? "Change amounts" : "Enter amounts") + "</button>" : "") + "</td></tr>";
+          + (t.length ? "Change split" : "Split by state") + "</button>" : "") + "</td></tr>";
     };
     var over = R.over || [];
     var NS = R.noState;
     return '<div class="panel"><div class="panel-head"><span class="panel-title">Missing data</span></div>'
-      + '<div class="rs-hint">Spend no rule can place in a state. Open a source and type, month by month, how many dollars '
-      + "went to each state — up to that month's spend; what you leave out stays not placed. Its return counts by state at once. "
-      + (co ? "" : "<b>Pick one company in the bar to enter amounts.</b> ")
+      + '<div class="rs-hint">Spend no rule can place in a state. Open a source and say how it splits across the states: one '
+      + "split for the whole period, starting from where that source's leads came from. What you leave out stays not placed. "
+      + "Its return counts by state at once. "
+      + (co ? "" : "<b>Pick one company in the bar to split spend.</b> ")
       + (ROAS.note ? "<b>" + esc(ROAS.note) + "</b> " : "")
       + (ROAS.amtErr ? "Saved amounts could not be read (" + esc(ROAS.amtErr.message) + "). " : "")
       + (over.length ? '<b class="sra-amt-msg bad">More typed than the month now has:</b> ' + over.slice(0, 6).map(function (o) {
@@ -899,84 +928,315 @@
             + ". The state comes from the closing's pickup zip; fixing the zip on the closing sheet fixes it here."
           : "Every closing in the period has a state.") + "</div></div>";
   }
-  /* THE AMOUNTS EDITOR (his call 2026-10-15: "split the expenditure for adds by month only, by
-     amounts on each state"): one row per month of the period with spend of this source that no
-     rule placed, a dollar box per state, and what is left over. Full width under the grid -- eight
-     states and a month do not fit the half-width Missing data panel. */
-  function amountPanel(R) {
-    var f = ROAS.edit, co = S.co;
-    if (!f || !co) return "";
-    var M = R.mon[f] || {};
-    var months = Object.keys(M).concat(typedIn(co, f, R))
-      .filter(function (ym, i, a) { return a.indexOf(ym) === i; }).sort();
-    var body = months.map(function (ym) {
-      var have = {}; amtOf(co, f, ym).forEach(function (x) { have[x.State] = num(x.Amount); });
-      var sp = M[ym] || 0;
-      return '<tr data-ym="' + esc(ym) + '" data-sp="' + sp.toFixed(2) + '"><td>' + esc(monthLbl(ym)) + '</td><td class="num">' + money0(sp) + "</td>"
-        + AMT_STATES.map(function (s0) {
-            return '<td><input class="rs-inp" inputmode="decimal" aria-label="' + esc(s0 + " " + monthLbl(ym)) + '" data-st="' + s0 + '" value="' + (have[s0] != null ? have[s0] : "") + '"></td>';
-          }).join("")
-        + '<td class="num sra-left"></td></tr>';
+  /* THE SPLIT PANEL (his picks 2026-10-20, replacing the month x state dollar grid -- "i dont like
+     the UX of entering data for month distribution with states"):
+     - ONE percentage per state for a source, applied to every month of the period that has spend
+       no rule placed. A month that differed can take its own split.
+     - It opens on where that source's own leads came from (among the eight states), a suggestion
+       he confirms, not a rule. "Even" and "Blank" are the other starts, and "As saved" once saved.
+     - A side panel walks the Missing data list by dollars: "Save and next".
+     The endpoint is unchanged: share x each month's unplaced spend = the dollars /api/_mktamount
+     stores, rounded to the cent and never more than the month has. */
+  var SP = null;   // {fam, base:{ym:sp}, months:[ym], common:{st:pct}, own:{ym:{st:pct}}, sel, from, dirty}
+  function r1(v) { return Math.round(v * 10) / 10; }
+  function pctSum(P) { var t = 0; Object.keys(P).forEach(function (k) { t += P[k] || 0; }); return r1(t); }
+  // whole-number counts -> shares that add to exactly 100.0 (the rounding goes to the biggest)
+  function pctOf(n) {
+    var ks = AMT_STATES.filter(function (s0) { return n[s0] > 0; }), t = 0, o = {};
+    ks.forEach(function (k) { t += n[k]; });
+    if (!t) return o;
+    ks.forEach(function (k) { o[k] = r1(100 * n[k] / t); });
+    var big = ks.slice().sort(function (a, b) { return o[b] - o[a]; })[0];
+    o[big] = r1(o[big] + 100 - pctSum(o));
+    return o;
+  }
+  // the source's leads in these months, by state, among the eight states the amounts can name
+  function splitLeads(f, months) {
+    var pack = DATA.byFam.get(f), n = {}, t = 0;
+    if (pack) pack.leads.forEach(function (r) {
+      if (!coOk(r) || !r._cd || months.indexOf(r._cd.slice(0, 7)) < 0) return;
+      var s0 = stateKey(r.State);
+      if (AMT_STATES.indexOf(s0) < 0) return;
+      n[s0] = (n[s0] || 0) + 1; t++;
+    });
+    return { n: n, t: t };
+  }
+  function splitQueue(R) {
+    var co = S.co;
+    var open = Object.keys(R.unpl).filter(function (f) { return R.unpl[f].sp > 0.5; })
+      .sort(function (a, b) { return R.unpl[b].sp - R.unpl[a].sp; });
+    var done = !co ? [] : Object.keys(R.mon).filter(function (f) { return open.indexOf(f) < 0 && typedIn(co, f, R).length; }).sort();
+    return open.concat(done);
+  }
+  // the dollars saved for a month, as shares of that month's unplaced spend
+  function savedPct(f, ym, sp) {
+    var o = {};
+    amtOf(S.co, f, ym).forEach(function (x) { if (sp > 0) o[x.State] = r1(100 * num(x.Amount) / sp); });
+    return o;
+  }
+  function samePct(a, b) {
+    return AMT_STATES.every(function (s0) { return Math.abs((a[s0] || 0) - (b[s0] || 0)) <= 0.5; });
+  }
+  function openSplit(host, f) {
+    var R = ROAS.R;
+    if (!R || !S.co) return;
+    var base = R.mon[f] || {};
+    var months = Object.keys(base).filter(function (ym) { return base[ym] > 0.5; }).sort();
+    SP = { fam: f, base: base, months: months, common: {}, own: {}, sel: null, from: "leads", dirty: false };
+    var typed = months.filter(function (ym) { return amtOf(S.co, f, ym).length; });
+    if (typed.length) {
+      // what was saved: one split over the typed months' dollars; a month far from it keeps its own
+      var A = {}, T = 0;
+      typed.forEach(function (ym) {
+        T += base[ym];
+        amtOf(S.co, f, ym).forEach(function (x) { A[x.State] = (A[x.State] || 0) + num(x.Amount); });
+      });
+      Object.keys(A).forEach(function (s0) { SP.common[s0] = r1(100 * A[s0] / T); });
+      months.forEach(function (ym) {
+        var p = typed.indexOf(ym) >= 0 ? savedPct(f, ym, base[ym]) : {};
+        if (!samePct(p, SP.common)) SP.own[ym] = p;
+      });
+      SP.from = "saved";
+    } else {
+      SP.common = pctOf(splitLeads(f, months).n);
+      if (!Object.keys(SP.common).length) SP.from = "blank";
+    }
+    drawSplit(host);
+  }
+  function closeSplit(host) {
+    SP = null;
+    var ov = document.getElementById("sraSplitOv");
+    if (ov) ov.remove();
+    if (host && host.isConnected && host.querySelector("#sraRoas")) paintRoas(host, win());
+  }
+  function splitStart(f, how) {
+    if (how === "leads") return pctOf(splitLeads(f, SP.months).n);
+    if (how === "even") {
+      var n = splitLeads(f, SP.months).n, ks = AMT_STATES.filter(function (s0) { return n[s0] > 0; }), o = {};
+      if (!ks.length) ks = AMT_STATES.slice();
+      ks.forEach(function (s0) { o[s0] = 1; });
+      return pctOf(o);
+    }
+    return {};
+  }
+  function drawSplit(host) {
+    var R = ROAS.R, ov = document.getElementById("sraSplitOv");
+    if (!SP || !R) { if (ov) ov.remove(); return; }
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "sraSplitOv"; ov.className = "sra-ov";
+      ov.innerHTML = '<div class="sra-dr" role="dialog" aria-modal="true" aria-label="Split by state"></div>';
+      document.body.appendChild(ov);
+      var onk = function (e) { if (e.key === "Escape" && document.getElementById("sraSplitOv")) leave(); };
+      var leave = function () {
+        if (SP && SP.dirty && !window.confirm("Close without saving the " + SP.fam + " split?")) return;
+        document.removeEventListener("keydown", onk);
+        window.removeEventListener("hashchange", gone);
+        closeSplit(host);
+      };
+      // leaving the page takes the panel with it: it lives on <body>, outside the page host
+      var gone = function () { document.removeEventListener("keydown", onk); SP = null; var o = document.getElementById("sraSplitOv"); if (o) o.remove(); };
+      document.addEventListener("keydown", onk);
+      window.addEventListener("hashchange", gone, { once: true });
+      ov.addEventListener("click", function (e) { if (e.target === ov) leave(); });
+      ov._leave = leave;
+    }
+    var f = SP.fam, Q = splitQueue(R), qi = Q.indexOf(f), next = Q[qi + 1] || null;
+    var sel = SP.sel;
+    var spOf = function (ym) { return SP.base[ym] || 0; };
+    var cur = function () { return sel ? (SP.own[sel] || SP.common) : SP.common; };
+    // the dollars one share stands for: the selected month, or every month on the common split
+    var poolOf = function () {
+      var t = 0;
+      if (sel) t = spOf(sel); else SP.months.forEach(function (ym) { if (!SP.own[ym]) t += spOf(ym); });
+      return t;
+    };
+    var P = cur(), pool = poolOf();
+    var all = 0; SP.months.forEach(function (ym) { all += spOf(ym); });
+    var L = splitLeads(f, sel ? [sel] : SP.months);
+    var span = SP.months.length ? monthLbl(SP.months[0]) + (SP.months.length > 1 ? "–" + monthLbl(SP.months[SP.months.length - 1]) : "") : "";
+    var hasSaved = SP.months.some(function (ym) { return amtOf(S.co, f, ym).length; });
+    var starts = [["leads", "Where its leads came from" + (L.t ? " (" + fmtN(L.t) + ")" : "")], ["even", "Even"], ["blank", "Blank"]];
+    if (hasSaved && !sel) starts.push(["saved", "As saved"]);
+    var C = ["#2F6B4F", "#7A9A3A", "#B8862E", "#3A6EA5", "#8B5A9E", "#B5523B", "#5E7C8A", "#9A8F6E"];
+    var barHtml = function (P) {
+      return AMT_STATES.map(function (s0, i) {
+        var p = P[s0] || 0;
+        return p > 0 ? '<i style="width:' + Math.min(100, p) + "%;background:" + C[i] + '" title="' + s0 + " " + p + '%"></i>' : "";
+      }).join("");
+    };
+    var totHtml = function (P, pool) {
+      var tot = pctSum(P);
+      return tot > 100.05 ? '<span class="bad">' + tot + "% — bring it down to 100% to save.</span>"
+        : tot >= 99.95 ? '<span class="ok">100% — all ' + money0(pool) + " placed.</span>"
+        : "<span>" + tot + "% — " + money0(pool * (100 - tot) / 100) + " stays not placed.</span>";
+    };
+    var monthsOf = function () {
+      return SP.months.map(function (ym) {
+        var own = !!SP.own[ym], q = SP.own[ym] || SP.common, t = Math.min(100, pctSum(q));
+        return '<button type="button" class="sra-sm' + (sel === ym ? " on" : "") + (own ? " own" : "") + '" data-ym="' + esc(ym) + '">'
+          + esc(monthLbl(ym)) + "<b>" + money0(spOf(ym) * t / 100) + "</b><small>" + (own ? "own split" : "of " + money0(spOf(ym))) + "</small></button>";
+      }).join("");
+    };
+    var bar = barHtml(P);
+    var rows = AMT_STATES.map(function (s0, i) {
+      var p = P[s0] || 0, ln = L.n[s0] || 0;
+      return '<div class="sra-sr"><b><i style="background:' + C[i] + '"></i>' + s0 + "</b>"
+        + '<input type="range" min="0" max="100" step="0.5" value="' + p + '" data-st="' + s0 + '" aria-label="' + s0 + ' share">'
+        + '<input class="rs-inp" inputmode="decimal" value="' + (p ? p : "") + '" placeholder="0" data-pc="' + s0 + '" aria-label="' + s0 + ' percent"><span>%</span>'
+        + '<span class="num">' + money0(pool * p / 100) + "</span>"
+        + '<small title="' + esc(f) + " leads from " + s0 + '">' + (ln ? fmtN(ln) + " lead" + (ln === 1 ? "" : "s") : "") + "</small></div>";
     }).join("");
-    return '<div class="panel sra-amtp"><div class="panel-head"><span class="panel-title">' + esc(f) + " — dollars by state, month by month</span>"
-      + '<button type="button" class="rs-btn" data-amt="' + esc(f) + '">Close</button></div>'
-      + (!months.length ? '<div class="rs-hint">No month of the period has ' + esc(f) + " spend left to place.</div>"
-        : '<div class="sra-amt" data-fam="' + esc(f) + '"><div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Month</th>'
-          + '<th class="num">Not placed by the data</th>' + AMT_STATES.map(function (s0) { return '<th class="num">' + s0 + "</th>"; }).join("")
-          + '<th class="num">Left</th></tr></thead><tbody>' + body + "</tbody></table></div>"
-          + '<div class="sra-amt-foot"><span class="sra-amt-msg"></span><button type="button" class="rs-btn pri" data-save="1">Save amounts</button></div></div>')
+    var monthsHtml = monthsOf(), msg = totHtml(P, pool);
+    var dr = ov.querySelector(".sra-dr");
+    dr.innerHTML = '<div class="sra-dr-h"><div><div class="sra-dr-t">' + esc(f) + " · split by state</div>"
+        + '<div class="sra-dr-s">' + money0(all) + " not placed by the data · " + esc(span) + " · " + SP.months.length + " month" + (SP.months.length === 1 ? "" : "s")
+        + (Q.length > 1 ? " · source " + (qi + 1) + " of " + Q.length : "") + "</div></div>"
+        + '<button type="button" class="rs-btn" data-x="1" aria-label="Close">✕</button></div>'
+      + (Q.length > 1 ? '<div class="sra-q">' + Q.map(function (q) {
+          var u = R.unpl[q];
+          return '<button type="button" class="sra-qc' + (q === f ? " on" : "") + (u && u.sp > 0.5 ? "" : " done") + '" data-q="' + esc(q) + '">'
+            + esc(q) + " <small>" + (u && u.sp > 0.5 ? money0(u.sp) : "placed") + "</small></button>";
+        }).join("") + "</div>" : "")
+      + (!SP.months.length ? '<div class="rs-hint">No month of the period has ' + esc(f) + " spend left to place.</div>" :
+        (sel ? '<div class="sra-sel">' + esc(monthLbl(sel)) + " only — " + money0(spOf(sel)) + " not placed that month. "
+            + '<button type="button" class="rs-btn" data-back="1">Back to all months</button>'
+            + (SP.own[sel] ? ' <button type="button" class="rs-btn" data-reset="1">Use the all-months split</button>' : "") + "</div>"
+          : '<div class="rs-hint">One split for every month' + (Object.keys(SP.own).length ? " except the ones marked <b>own split</b>" : "")
+            + ". Dollars = share × each month's spend not placed. Months outside the period keep what was saved.</div>")
+        + '<div class="sra-st"><span>Start from</span>' + starts.map(function (s) {
+            return '<button type="button" class="rs-btn' + (!sel && SP.from === s[0] ? " on" : "") + '" data-from="' + s[0] + '">' + esc(s[1]) + "</button>";
+          }).join("") + "</div>"
+        + '<div class="sra-bar">' + bar + "</div>"
+        + '<div class="sra-srs">' + rows + "</div>"
+        + '<div class="sra-sum">' + msg + "</div>"
+        + '<div class="sra-mh">Months <small>click one to give it its own split</small></div>'
+        + '<div class="sra-ms">' + monthsHtml + "</div>")
+      + '<div class="sra-dr-f"><span class="sra-amt-msg"></span>'
+        + (next ? '<button type="button" class="rs-btn" data-skip="1">Skip</button>' : "")
+        + (SP.months.length ? '<button type="button" class="rs-btn pri" data-save="1">' + (next ? "Save and next: " + esc(next) : "Save") + "</button>" : "")
       + "</div>";
+
+    var set = function (s0, v) {
+      var p = Math.max(0, Math.min(100, r1(v || 0)));
+      var tgt = sel ? (SP.own[sel] = SP.own[sel] || Object.assign({}, SP.common)) : SP.common;
+      if (p) tgt[s0] = p; else delete tgt[s0];
+      if (!sel) SP.from = "";
+      SP.dirty = true;
+    };
+    var wireMonths = function () {
+      dr.querySelectorAll(".sra-ms [data-ym]").forEach(function (b) {
+        b.onclick = function () { var ym = b.dataset.ym; SP.sel = SP.sel === ym ? null : ym; drawSplit(host); };
+      });
+    };
+    var live = function () {
+      var P = cur(), pool = poolOf();
+      dr.querySelectorAll(".sra-sr").forEach(function (row) {
+        var rg = row.querySelector("input[data-st]"), pc = row.querySelector("input[data-pc]"), s0 = rg.dataset.st, p = P[s0] || 0;
+        if (document.activeElement !== rg) rg.value = p;
+        if (document.activeElement !== pc) pc.value = p ? p : "";
+        row.querySelector(".num").textContent = money0(pool * p / 100);
+      });
+      dr.querySelector(".sra-bar").innerHTML = barHtml(P);
+      dr.querySelector(".sra-sum").innerHTML = totHtml(P, pool);
+      dr.querySelector(".sra-ms").innerHTML = monthsOf();
+      wireMonths();
+      if (!sel) dr.querySelectorAll("[data-from]").forEach(function (b) { b.classList.toggle("on", SP.from === b.dataset.from); });
+    };
+    dr.querySelectorAll("input[data-st]").forEach(function (i) {
+      i.oninput = function () {
+        set(i.dataset.st, +i.value);
+        var pc = dr.querySelector('input[data-pc="' + i.dataset.st + '"]'), P = cur();
+        if (pc) pc.value = P[i.dataset.st] || "";
+        live();
+      };
+    });
+    dr.querySelectorAll("input[data-pc]").forEach(function (i) {
+      var put = function () { set(i.dataset.pc, parseFloat(String(i.value).replace(/[%,\s]/g, "")) || 0); live(); };
+      i.oninput = put;
+      i.onblur = function () { var P = cur(); i.value = P[i.dataset.pc] || ""; };
+    });
+    wireMonths();
+    dr.querySelectorAll("[data-from]").forEach(function (b) {
+      b.onclick = function () {
+        var how = b.dataset.from, p;
+        if (how === "saved") { openSplit(host, f); return; }
+        p = splitStart(f, how);
+        if (sel) SP.own[sel] = p; else SP.common = p;
+        if (!sel) SP.from = how;
+        SP.dirty = true; drawSplit(host);
+      };
+    });
+    var back = dr.querySelector(".sra-sel [data-back]");
+    if (back) back.onclick = function () { SP.sel = null; drawSplit(host); };
+    var rs = dr.querySelector("[data-reset]");
+    if (rs) rs.onclick = function () { delete SP.own[sel]; SP.dirty = true; SP.sel = null; drawSplit(host); };
+    dr.querySelector("[data-x]").onclick = function () { ov._leave(); };
+    dr.querySelectorAll("[data-q]").forEach(function (b) {
+      b.onclick = function () {
+        if (b.dataset.q === f) return;
+        if (SP.dirty && !window.confirm("Leave the " + f + " split without saving?")) return;
+        openSplit(host, b.dataset.q);
+      };
+    });
+    var sk = dr.querySelector("[data-skip]");
+    if (sk) sk.onclick = function () {
+      if (SP.dirty && !window.confirm("Skip " + f + " without saving?")) return;
+      openSplit(host, next);
+    };
+    var sv = dr.querySelector("[data-save]");
+    if (sv) sv.onclick = function () { saveSplit(host, dr, next); };
+  }
+  // shares -> cents per state for each month, never more than the month's unplaced spend
+  function splitDollars(P, sp) {
+    var a = [], s = 0;
+    AMT_STATES.forEach(function (s0) {
+      var p = P[s0] || 0;
+      if (p > 0) { var v = Math.round(sp * p) / 100; if (v > 0) { a.push({ state: s0, amount: v }); s += v; } }
+    });
+    if (s > sp && a.length) {
+      a.sort(function (x, y) { return y.amount - x.amount; });
+      a[0].amount = Math.round((a[0].amount - (s - sp)) * 100) / 100;
+    }
+    return a.sort(function (x, y) { return x.state < y.state ? -1 : 1; });
+  }
+  function saveSplit(host, dr, next) {
+    var f = SP.fam, msg = dr.querySelector(".sra-amt-msg"), months = [], bad = [];
+    var key = function (a) { return a.map(function (x) { return (x.state || x.State) + ":" + num(x.amount != null ? x.amount : x.Amount).toFixed(2); }).sort().join("|"); };
+    SP.months.forEach(function (ym) {
+      var P = SP.own[ym] || SP.common;
+      if (pctSum(P) > 100.05) { bad.push(monthLbl(ym)); return; }
+      var a = splitDollars(P, SP.base[ym]);
+      if (key(a) !== key(amtOf(S.co, f, ym))) months.push({ month: ym, amounts: a });
+    });
+    msg.classList.remove("bad");
+    if (bad.length) { msg.textContent = "Over 100% in " + bad.join(", ") + " — bring it down to save."; msg.classList.add("bad"); return; }
+    if (!months.length) {
+      if (next) { openSplit(host, next); return; }
+      msg.textContent = "Nothing changed."; return;
+    }
+    msg.textContent = "Saving…";
+    fetch(ZTZ.API + "/api/_mktamount", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+      body: JSON.stringify({ company: S.co, family: f, months: months }),
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || j.error) {
+          if (j && j.code === "view_as_readonly") throw new Error("preview mode — amounts are not saved while viewing as someone else");
+          throw new Error(j.error || ("HTTP " + r.status));
+        }
+        ROAS.note = f + ": " + months.length + " month" + (months.length === 1 ? "" : "s") + " saved.";
+        SP.dirty = false;
+        ROAS.reopen = next || null;
+        if (!next) { SP = null; var o = document.getElementById("sraSplitOv"); if (o) o.remove(); }
+        loadAmounts(host);
+      });
+    }).catch(function (e) { msg.textContent = "Not saved: " + e.message; msg.classList.add("bad"); });
   }
   function wireAmounts(host, el) {
     el.querySelectorAll("[data-amt]").forEach(function (b) {
-      b.onclick = function () { ROAS.edit = ROAS.edit === b.dataset.amt ? null : b.dataset.amt; ROAS.note = ""; paintRoas(host, win()); };
-    });
-    el.querySelectorAll(".sra-amt").forEach(function (box) {
-      var fam = box.dataset.fam, msg = box.querySelector(".sra-amt-msg");
-      var val = function (i) { var v = parseFloat(String(i.value).replace(/[$,\s]/g, "")); return v > 0 ? Math.round(v * 100) / 100 : 0; };
-      var read = function (tr) {
-        var o = [];
-        tr.querySelectorAll("input[data-st]").forEach(function (i) { var v = val(i); if (v) o.push({ state: i.dataset.st, amount: v }); });
-        return o;
-      };
-      var show = function () {
-        var bad = 0;
-        box.querySelectorAll("tr[data-ym]").forEach(function (tr) {
-          var t = 0; read(tr).forEach(function (x) { t += x.amount; });
-          var left = +tr.dataset.sp - t, c = tr.querySelector(".sra-left");
-          c.textContent = money0(left); c.classList.toggle("bad", left < -1); if (left < -1) bad++;
-        });
-        return bad;
-      };
-      var orig = {};   // only the months that changed are sent
-      box.querySelectorAll("tr[data-ym]").forEach(function (tr) { orig[tr.dataset.ym] = JSON.stringify(read(tr)); });
-      box.querySelectorAll("input").forEach(function (i) { i.addEventListener("input", show); });
-      show();
-      box.querySelector("[data-save]").onclick = function () {
-        msg.classList.remove("bad");
-        if (show()) { msg.textContent = "A month has more typed than its spend — bring it down to save."; msg.classList.add("bad"); return; }
-        var months = [];
-        box.querySelectorAll("tr[data-ym]").forEach(function (tr) {
-          var a = read(tr); if (JSON.stringify(a) !== orig[tr.dataset.ym]) months.push({ month: tr.dataset.ym, amounts: a });
-        });
-        if (!months.length) { msg.textContent = "Nothing changed."; return; }
-        msg.textContent = "Saving…";
-        fetch(ZTZ.API + "/api/_mktamount", {
-          method: "POST",
-          headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
-          body: JSON.stringify({ company: S.co, family: fam, months: months }),
-        }).then(function (r) {
-          return r.json().catch(function () { return {}; }).then(function (j) {
-            if (!r.ok || j.error) {
-              if (j && j.code === "view_as_readonly") throw new Error("preview mode — amounts are not saved while viewing as someone else");
-              throw new Error(j.error || ("HTTP " + r.status));
-            }
-            ROAS.note = fam + ": " + months.length + " month" + (months.length === 1 ? "" : "s") + " saved.";
-            ROAS.edit = null;
-          });
-        }).catch(function (e) { ROAS.note = "Not saved: " + e.message; })
-          .then(function () { loadAmounts(host); });
-      };
+      b.onclick = function () { ROAS.note = ""; openSplit(host, b.dataset.amt); };
     });
   }
 
