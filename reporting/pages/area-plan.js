@@ -119,13 +119,16 @@
       cols: ["Kind", "Day", "Month", "Zone", "Customer Our CF", "Customer Rented CF", "LD CF", "Customer Fees",
              "Rent USD", "Facilities", "Jobs", "Miles NJ", "Miles PA", "Miles CT", "Miles CT2", "Lat", "Lng"],
       dateCols: {}, defaultDate: null };
+    /* EVERY COLUMN THE MART BUILDS, in its own order (2026-10-19): the Target Map's download promises
+       all of them, so Revenue 12m, Avg CF, the three other score parts and Leads 24m are read too */
     RS.DATASETS.area_tier = {
       table: "mart_area_tier",
       cols: ["Level", "Area Key", "State", "County", "City", "Zip", "Name", "Zips", "Latitude", "Longitude",
-             "Leads 12m", "Booked 12m", "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base",
-             "Foremen Within 60mi", "Score Distance", "Data Score", "Data Tier", "Market Score", "Market Tier", "Tier",
-             "Tier Source", "Tier Reason", "Leads To Measure", "Never A Lead", "Population", "Movers Per Year",
-             "Median Income", "Home Value", "Owner Share Pct", "Leads Per 10k Movers",
+             "Leads 12m", "Booked 12m", "Jobs 12m", "Revenue 12m", "Booking Rate", "Avg Ticket", "Avg CF",
+             "Miles To Base", "Nearest Base", "Foremen Within 60mi", "Score Distance", "Score Booking",
+             "Score Estimate", "Score CF", "Data Score", "Data Tier", "Market Score", "Market Tier", "Tier",
+             "Tier Source", "Tier Reason", "Leads To Measure", "Never A Lead", "Leads 24m", "Population",
+             "Movers Per Year", "Median Income", "Home Value", "Owner Share Pct", "Leads Per 10k Movers",
              "State Lead Share", "State Job Share"],
     };
   }
@@ -2273,17 +2276,20 @@ const AREA_PLAN_PAGE = {
           const d = miBetween(num(a.Latitude), num(a.Longitude), b.la, b.lo);
           if (d < mi) { mi = d; base = b.label; } });
         if (!(mi < mi0 - 0.05)) return null;
-        let t;
+        /* the parts of the score the new distance moves ride along (pd, score, mtier), so the Target
+           Map's download can print the plan's own Score Distance / Data Score / Market Tier */
+        const pd = pDistOf(mi), m = a["Market Score"] != null ? num(a["Market Score"]) : null;
+        const mtier = mi > 50 ? 4 : m == null ? null : m >= 80 ? 1 : m >= 55 ? 2 : m >= 30 ? 3 : 4;
+        let t, score = null;
         if (a["Tier Source"] === "Our data") {
-          const s = num(a["Data Score"]) - num(a["Score Distance"]) + pDistOf(mi);
-          t = s >= NB_CUT.t1 ? (mi > 50 ? 2 : 1) : s >= NB_CUT.t2 ? 2 : s >= NB_CUT.t3 ? 3 : 4;
-        } else if (a["Market Score"] != null) {
-          const m = num(a["Market Score"]);
-          t = mi > 50 ? 4 : m >= 80 ? 1 : m >= 55 ? 2 : m >= 30 ? 3 : 4;
+          score = num(a["Data Score"]) - num(a["Score Distance"]) + pd;
+          t = score >= NB_CUT.t1 ? (mi > 50 ? 2 : 1) : score >= NB_CUT.t2 ? 2 : score >= NB_CUT.t3 ? 3 : 4;
+        } else if (m != null) {
+          t = mtier;
         } else return null;
         const reason = a["Tier Source"] === "Our data" ? "Scored on our leads and jobs"
           : mi > 50 ? "Over 50 mi from a base" : "Too few leads to measure - rated on its market";
-        return { tier: t, mi, base, reason: reason + " · with " + base };
+        return { tier: t, mi, base, reason: reason + " · with " + base, pd, score, mtier };
       }
       const NB_CACHE = {};
       /* the whole effect of a set of new bases: re-tiered areas, and per base the ground it opens,
@@ -2333,7 +2339,7 @@ const AREA_PLAN_PAGE = {
         const E = nbEffect(nbActive("all"));
         AREA = AREA_BASE.map(a => { const x = E.adj[a.Level + "|" + a["Area Key"]];
           return x ? Object.assign({}, a, { Tier: x.tier, "Tier Reason": x.reason, "Miles To Base": Math.round(x.mi * 10) / 10,
-                                            "Nearest Base": x.base, _nbWas: num(a.Tier) }) : a; });
+                                            "Nearest Base": x.base, _nbWas: num(a.Tier), _nb: x }) : a; });
         AREA_IX = { County: {}, City: {}, Zip: {} };
         AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
       }
@@ -5725,7 +5731,15 @@ const AREA_PLAN_PAGE = {
         const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
-        if (LOCK) return '<div class="ap3-bar"><label>Market</label>' +
+        /* THE TARGET MAP'S PLAN (2026-10-19): Seasonal Planning's own three -- "Current" is its Forecast
+           button (today's bases, no new one), then MID and MAX from PLANS -- wired by the same
+           [data-plan] handler as the plan bar */
+        if (LOCK) return '<div class="ap3-bar"><label>Plan</label>' +
+          '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
+            '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '" title="Today\'s bases, no new base">Current</button>' +
+            Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") +
+              '" title="Today\'s bases plus the ' + esc(PLANS[k].label) + ' plan\'s new ones">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
+          "<label>Market</label>" +
           seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") + "</div>";
         /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
            of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
@@ -5809,7 +5823,7 @@ const AREA_PLAN_PAGE = {
         }
         if (LOCK) return '<div class="ap2-mapkey" id="apMapKey">' + key +
           '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
-          (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>new base in the MAX plan</span>' : "") + "</div>";
+          (PLAN ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>new base in the ' + esc(PLAN.label) + " plan</span>" : "") + "</div>";
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
           (FLEET.has ? "" : '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>') +
           (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
@@ -5834,8 +5848,10 @@ const AREA_PLAN_PAGE = {
         const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
         if (LOCK) { const T = shown.filter(r => r.tier >= 1 && r.tier <= 3);
           return '<div class="ap3-list ap3-lock">' +
-            '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3</span>" +
-              '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code listed here, with its tier, as a CSV for Google Ads, Meta and the other tools">Download</button></div>' +
+            '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3 · " +
+              (PLAN ? esc(PLAN.label) + " plan" : "current bases") + "</span>" +
+              '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code in our ' + SERVICE_AREAS.length + " states under the " +
+                (PLAN ? esc(PLAN.label) + " plan" : "current bases") + ' — every tier, every column — as one CSV for Google Ads, Meta and the other tools">Download all</button></div>' +
             '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span></div>' +
             '<div class="rows">' + T.slice(0, CAP).map(r =>
               '<div class="r"><i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + r.tier + "</i>" +
@@ -5915,19 +5931,41 @@ const AREA_PLAN_PAGE = {
         wireMapColor();
       }
 
-      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools"): the
-         market's Tier 1-3 zip codes in the list's order -- tier, then leads -- one row each */
+      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools"; then
+         "ALL the data for the chosen plan"): every zip code behind the map -- all eight states whatever
+         market is picked, every tier, rated or not -- with every column of mart_area_tier as the plan
+         holds it. A zip a new base moves carries the plan's distance, nearest base, distance points,
+         data score and tiers; "Tier With Today's Bases" keeps what it is without the plan. The plan's
+         jobs and marketing per zip are the page's own state-share split. */
+      function targetRows(N) {
+        const plan = PLAN ? PLAN.label + " plan" : "Current bases";
+        const R = areaRows(N, "Zip", "")
+          .sort((x, y) => String(x.st).localeCompare(String(y.st)) || ((x.tier || 9) - (y.tier || 9)) || (y.leads - x.leads) ||
+                          String(x.key).localeCompare(String(y.key)));
+        // the mart's order (RS.DATASETS.area_tier), then anything else a row carries
+        const cols = ((RS.DATASETS.area_tier || {}).cols || []).slice();
+        AREA_BASE.forEach(a => { if (a.Level === "Zip") Object.keys(a).forEach(k => { if (k[0] !== "_" && cols.indexOf(k) < 0) cols.push(k); }); });
+        const yr = String(FC.year || "");
+        const head = ["Plan"].concat(cols, ["Tier Name", "Tier With Today's Bases", ("Plan Jobs " + yr).trim(), ("Plan Marketing " + yr).trim()]);
+        const rows = R.map(r => {
+          const o = Object.assign({}, r.a), x = r.a._nb;
+          if (o.Zip != null) o.Zip = String(o.Zip).replace(/\D/g, "").padStart(5, "0");
+          if (x) {
+            o["Score Distance"] = x.pd; o["Market Tier"] = x.mtier;
+            if (x.score != null) { o["Data Score"] = Math.round(10 * Math.min(100, Math.max(0, x.score))) / 10; o["Data Tier"] = x.tier; }
+          }
+          return [plan].concat(cols.map(k => o[k]), [TIER_NAME[r.tier] || TIER_NAME[0], r.a._nbWas != null ? r.a._nbWas : r.tier,
+            r.planJobs != null ? Math.round(r.planJobs * 10) / 10 : "", r.budget != null ? Math.round(r.budget) : ""]);
+        });
+        return { plan, head, rows };
+      }
       function targetCsv(N) {
-        const st = mapStOf();
-        const R = areaRows(N, "Zip", st).filter(r => r.tier >= 1 && r.tier <= 3)
-          .sort((x, y) => (x.tier - y.tier) || (y.leads - x.leads) || String(x.name).localeCompare(String(y.name)));
-        const q = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-        const lines = ["Zip,State,City,County,Tier,Tier Name,Leads 12 mo"].concat(R.map(r => [
-          String(r.a.Zip || r.key).replace(/\D/g, "").padStart(5, "0"), r.a.State, r.a.City, r.a.County, r.tier, TIER_NAME[r.tier],
-          num(r.a["Leads 12m"])].map(q).join(",")));
+        const T = targetRows(N);
+        const q = v => { const s = v == null ? "" : String(v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const lines = [T.head.map(q).join(",")].concat(T.rows.map(r => r.map(q).join(",")));
         const blob = new Blob(["\ufeff" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "Target zip codes - " + (st || "all states") + " - MAX plan.csv";
+        a.download = "Target Map - " + T.plan + " - all zip codes - " + new Date().toISOString().slice(0, 10) + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
       function areaCsv(N) {
@@ -6125,13 +6163,14 @@ const AREA_PLAN_PAGE = {
             if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; delete TR_OWN[label]; }
             nbRepaint(); }; });
         });
-        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis) [data-plan]").forEach(b => { b.onclick = () => {
+        /* #apMapBar: the Target Map's Plan switch; there the pick is remembered (TM_KEY) */
+        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis,#apMapBar) [data-plan]").forEach(b => { b.onclick = () => {
           const k = b.dataset.plan;
           if (!k) { if (!PLAN) return; planEnd(); planCandsClear(); SC.kind = null; SC.targets = null;
-            [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); nbRepaint(); return; }
+            [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); if (LOCK) save(); nbRepaint(); return; }
           if (PLAN && PLAN.key === k) return;
           PLAN = JSON.parse(JSON.stringify(PLANS[k])); PLAN.key = k;
-          planApply(); nbRepaint();
+          planApply(); if (LOCK) save(); nbRepaint();
         }; });
         host.querySelectorAll("#apScn [data-grptg]").forEach(b => { b.onclick = () => {
           const d = host.querySelector('#apScn [data-grpd="' + b.dataset.grptg + '"]'); if (!d) return;
@@ -6848,8 +6887,13 @@ const AREA_PLAN_PAGE = {
                 (x.far && isFinite(x.far.mi) ? " — " + fmtN(Math.round(x.far.mi)) + " mi from the nearest base (" + esc(x.far.who) + "), more than " + STORE_FAR + " mi" : "") +
                 ". Rent one facility here, or click a base's label to make it Parking + Storage instead.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
+          /* the Target Map draws only the plan's own new bases: a candidate outside the picked plan (all of
+             them under Current, Monroe under MID) leaves the map instead of standing there as a dashed flag */
+          const lockShow = x => { if (!LOCK || x.b.kind === "have") return;
+            const on = !!NB_ON[x.b.label];
+            if (on && !baseLayer.hasLayer(x.mk)) x.mk.addTo(baseLayer); else if (!on && baseLayer.hasLayer(x.mk)) baseLayer.removeLayer(x.mk); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
-            flagMks.forEach(x => x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N), flagNew(x.b, N)))); paintSO(N); };
+            flagMks.forEach(x => { x.mk.setIcon(flag(x.cls, flagText(x.b, N), flagIco(x.b, N), flagNew(x.b, N))); lockShow(x); }); paintSO(N); };
           const N_FLAG = FC.year ? nextCalc() : null;
           paintSO(N_FLAG);
           B.have.concat(B.coverage).forEach(b => {
@@ -6859,7 +6903,7 @@ const AREA_PLAN_PAGE = {
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             if (LOCK) mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
-              (b.kind === "have" ? "our base today" : NB_ON[b.label] ? "new base in the MAX plan" : "possible new base") + "</div></div>",
+              (b.kind === "have" ? "our base today" : NB_ON[b.label] && PLAN ? "new base in the " + esc(PLAN.label) + " plan" : "possible new base") + "</div></div>",
               { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             else mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
               (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " today" +
@@ -6872,7 +6916,7 @@ const AREA_PLAN_PAGE = {
                click no longer draw a second, brighter one on top. A click opens the base's sheet. */
             flagMks.push({ b, cls: flagCls, mk });
             mk.on("click", () => showSide({ kind: "base", label: b.kind === "have" ? b.name : b.label }));
-            mk.addTo(baseLayer);
+            mk.addTo(baseLayer); lockShow({ b, mk });
           });
 
           /* reset the frame -- a map you can zoom is a map you can get lost in */
@@ -8080,6 +8124,9 @@ const AREA_PLAN_PAGE = {
           ".ap3-lock .cols,.ap3-lock .r{grid-template-columns:24px minmax(0,1fr) 64px}" +
           ".ap3-lock .r{cursor:default}.ap3-lock .r:hover{background:transparent}" +
           ".ap3-lock .lh .rs-btn{margin-left:auto}" +
+          /* the market · tiers · plan line goes under the count and the button: beside them it was
+             squeezed to a word a line */
+          ".ap3-lock .lh{flex-wrap:wrap;row-gap:2px}.ap3-lock .lh span{order:3;flex-basis:100%}" +
           "</style>";
       }
       function paint() {
@@ -8098,8 +8145,8 @@ const AREA_PLAN_PAGE = {
           '<span class="sp"></span><button type="button" data-secall="0">Close all</button></nav>';
         host.innerHTML = (LOCK ? lockCss() : "") +
           '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + "</h1>" +
-          (LOCK ? '<p style="max-width:104ch">Where to advertise: every zip code by tier under the MAX plan, its new bases included. ' +
-              "Pick a market, then download its zip codes for the ad tools.</p>"
+          (LOCK ? '<p style="max-width:104ch">Where to advertise: every zip code by tier, under today\'s bases or the MID or MAX plan with its new bases. ' +
+              "Pick a plan and a market; the download holds every zip code under the plan, for the ad tools.</p>"
             : '<p style="max-width:104ch">How many crews, how many salespeople and what marketing budget Season ' + esc(String(FC.year || "next")) +
             ' needs — state by state, month by month, with the working under every answer.</p>') +
           '<div class="ap2-clockline">Season ' + esc(String(FC.year || "")) + (SEASON.next && SEASON.next[0] ? " · " + esc(ymLabel(SEASON.next[0])) + " – " + esc(ymLabel(SEASON.next[1])) : "") +
@@ -8277,14 +8324,19 @@ const AREA_PLAN_PAGE = {
         if (host.querySelector("#apKpis")) repaintMapTab();
       }
       function save() { try {
-        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "" }));
+        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "", plan: PLAN ? PLAN.key : "" }));
         else localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
+      /* the Target Map opens on the plan it was left on ("" = Current), else LOCK.plan (MAX) -- applied
+         after the first paint, exactly as a click on its button */
+      const lockPlan = !LOCK ? null : typeof saved.plan === "string" && (saved.plan === "" || PLANS[saved.plan]) ? saved.plan : LOCK.plan;
       paint();
-      if (LOCK && LOCK.plan && PLANS[LOCK.plan]) {
-        PLAN = JSON.parse(JSON.stringify(PLANS[LOCK.plan])); PLAN.key = LOCK.plan;
+      if (lockPlan && PLANS[lockPlan]) {
+        PLAN = JSON.parse(JSON.stringify(PLANS[lockPlan])); PLAN.key = lockPlan;
         planApply(); nbRepaint();
       }
+      // paint() already saved once with no plan yet: a first visit would have come back on Current
+      if (LOCK) save();
 
       /* live edits: the hero and the edited row repaint; the input keeps focus; the dials
          node is NEVER re-rendered here (the old page destroyed the input under the cursor) */
@@ -8338,12 +8390,15 @@ registerPage(AREA_PLAN_PAGE);
    click on "MAX plan"), zip codes, the tier colours, and the market switch as the only control. The
    bases are names only (his pick); the zip list is read-only with a download for the ad tools ("we
    will upload it later on marketing tools"). The same code draws both pages, so the two can never
-   disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here. */
+   disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here.
+   PLAN SWITCH (2026-10-19, second ask): Current / MID plan / MAX plan beside the market -- Seasonal
+   Planning's own Forecast / MID / MAX buttons -- remembered with the market; MAX until one is picked.
+   The download became the whole plan: every zip in the eight states, every column (targetRows). */
 registerPage({
   id: "target-map",
   group: "marketing",
   title: "Target Map",
-  subtitle: "Where to advertise: every zip code by tier under the MAX plan, with a download for the ad tools.",
+  subtitle: "Where to advertise: every zip code by tier under today's bases, the MID plan or the MAX plan, with a download for the ad tools.",
   datasets: [],
   render: function (host) { return AREA_PLAN_PAGE.render.call(this, host, { plan: "max" }); },
 });
