@@ -5851,7 +5851,7 @@ const AREA_PLAN_PAGE = {
             '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3 · " +
               (PLAN ? esc(PLAN.label) + " plan" : "current bases") + "</span>" +
               '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code in our ' + SERVICE_AREAS.length + " states under the " +
-                (PLAN ? esc(PLAN.label) + " plan" : "current bases") + ' — every tier, every column — as one CSV for Google Ads, Meta and the other tools">Download all</button></div>' +
+                (PLAN ? esc(PLAN.label) + " plan" : "current bases") + ' — zip, state and tier — as one CSV for Google Ads, Meta and the other tools">Download all</button></div>' +
             '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span></div>' +
             '<div class="rows">' + T.slice(0, CAP).map(r =>
               '<div class="r"><i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + r.tier + "</i>" +
@@ -5931,33 +5931,19 @@ const AREA_PLAN_PAGE = {
         wireMapColor();
       }
 
-      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools"; then
-         "ALL the data for the chosen plan"): every zip code behind the map -- all eight states whatever
-         market is picked, every tier, rated or not -- with every column of mart_area_tier as the plan
-         holds it. A zip a new base moves carries the plan's distance, nearest base, distance points,
-         data score and tiers; "Tier With Today's Bases" keeps what it is without the plan. The plan's
-         jobs and marketing per zip are the page's own state-share split. */
+      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools").
+         Every zip code behind the map -- all eight states whatever market is picked, every tier, rated
+         or not -- as Zip, State and the plan's Tier, and nothing else. 2026-10-20, his words: "marketing
+         managers should not see this much of a data ... it should only provide tier and zip and state"
+         (the 47-column file carried revenue, tickets and the plan's marketing dollars, and went to Angi).
+         Tier 1-3 first, then 4 (don't target) and 0 (not rated); within a tier by state, then zip. */
       function targetRows(N) {
         const plan = PLAN ? PLAN.label + " plan" : "Current bases";
-        const R = areaRows(N, "Zip", "")
-          .sort((x, y) => String(x.st).localeCompare(String(y.st)) || ((x.tier || 9) - (y.tier || 9)) || (y.leads - x.leads) ||
-                          String(x.key).localeCompare(String(y.key)));
-        // the mart's order (RS.DATASETS.area_tier), then anything else a row carries
-        const cols = ((RS.DATASETS.area_tier || {}).cols || []).slice();
-        AREA_BASE.forEach(a => { if (a.Level === "Zip") Object.keys(a).forEach(k => { if (k[0] !== "_" && cols.indexOf(k) < 0) cols.push(k); }); });
-        const yr = String(FC.year || "");
-        const head = ["Plan"].concat(cols, ["Tier Name", "Tier With Today's Bases", ("Plan Jobs " + yr).trim(), ("Plan Marketing " + yr).trim()]);
-        const rows = R.map(r => {
-          const o = Object.assign({}, r.a), x = r.a._nb;
-          if (o.Zip != null) o.Zip = String(o.Zip).replace(/\D/g, "").padStart(5, "0");
-          if (x) {
-            o["Score Distance"] = x.pd; o["Market Tier"] = x.mtier;
-            if (x.score != null) { o["Data Score"] = Math.round(10 * Math.min(100, Math.max(0, x.score))) / 10; o["Data Tier"] = x.tier; }
-          }
-          return [plan].concat(cols.map(k => o[k]), [TIER_NAME[r.tier] || TIER_NAME[0], r.a._nbWas != null ? r.a._nbWas : r.tier,
-            r.planJobs != null ? Math.round(r.planJobs * 10) / 10 : "", r.budget != null ? Math.round(r.budget) : ""]);
-        });
-        return { plan, head, rows };
+        const rank = t => (t >= 1 && t <= 4 ? t : 5);
+        const rows = areaRows(N, "Zip", "")
+          .map(r => [String(r.a.Zip != null ? r.a.Zip : r.key).replace(/\D/g, "").padStart(5, "0"), r.st, r.tier || 0])
+          .sort((x, y) => (rank(x[2]) - rank(y[2])) || String(x[1]).localeCompare(String(y[1])) || x[0].localeCompare(y[0]));
+        return { plan, head: ["Zip", "State", "Tier"], rows };
       }
       function targetCsv(N) {
         const T = targetRows(N);
@@ -8393,7 +8379,7 @@ registerPage(AREA_PLAN_PAGE);
    disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here.
    PLAN SWITCH (2026-10-19, second ask): Current / MID plan / MAX plan beside the market -- Seasonal
    Planning's own Forecast / MID / MAX buttons -- remembered with the market; MAX until one is picked.
-   The download became the whole plan: every zip in the eight states, every column (targetRows). */
+   The download is every zip in the eight states as Zip, State, Tier only (targetRows, 2026-10-20). */
 registerPage({
   id: "target-map",
   group: "marketing",
