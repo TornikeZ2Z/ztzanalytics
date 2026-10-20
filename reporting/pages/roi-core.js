@@ -188,7 +188,9 @@
       var Mo = mon[r.fam] = mon[r.fam] || {};
       Mo[ym] = (Mo[ym] || 0) + r.sp;
       var fit = T > 0 ? Math.min(1, r.sp / T) : 0;
-      if (T > r.sp + 1) over.push({ fam: r.fam, ym: ym, typed: T, spend: r.sp });
+      // only when something WAS entered: a month whose unplaced spend is a refund (Yelp Sep 26,
+      // -$921 with no state tag in the bank) has nothing to place and nothing to warn about
+      if (T > 0.5 && T > r.sp + 1) over.push({ fam: r.fam, ym: ym, typed: T, spend: r.sp });
       A.forEach(function (x) {
         var part = num(x.Amount) * fit, c2 = cell(r.fam, stateKey(x.State));
         c2.sp += part; c2.how["Your amounts"] = (c2.how["Your amounts"] || 0) + part; cm(c2, ym).sp += part;
