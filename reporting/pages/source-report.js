@@ -280,7 +280,7 @@
       + ".sra .sra-amt-msg.bad{color:var(--neg)}"
       // the split panel (2026-10-20) lives on <body>, outside .sra, so its rules carry their own prefix
       + ".sra-ov{position:fixed;inset:0;background:var(--scrim,rgba(10,16,24,.45));z-index:60;display:flex;justify-content:flex-end}"
-      + ".sra-dr{width:min(600px,100vw);height:100%;overflow:auto;background:var(--bg);color:var(--ink);padding:18px 20px 22px;"
+      + ".sra-dr{width:min(660px,100vw);height:100%;overflow:auto;background:var(--bg);color:var(--ink);padding:18px 20px 22px;"
       + "box-shadow:-12px 0 32px rgba(15,23,42,.18);display:flex;flex-direction:column;gap:12px}"
       + ".sra-dr .rs-hint{margin:0}"
       + ".sra-dr-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}"
@@ -312,17 +312,22 @@
       + ".sra-sc small{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:0 6px}"
       + ".sra-sc.on{background:color-mix(in srgb,var(--c) 14%,var(--panel));border-color:var(--c)}"
       + ".sra-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--panel-2)}.sra-bar i{display:block;height:100%}"
-      + ".sra-sr{display:grid;grid-template-columns:52px minmax(0,1fr) 62px 12px 82px 26px;gap:8px;align-items:center;padding:3px 0}"
+      + ".sra-sr{display:grid;grid-template-columns:48px minmax(0,1fr) 56px 10px 104px 76px 24px;gap:8px;align-items:center;padding:3px 0}"
+      + ".sra-dl{display:flex;align-items:center;gap:3px;color:var(--muted);font-size:12.5px}"
+      + ".sra-dl .rs-inp{width:100%;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums;border-radius:8px;font-weight:600}"
+      + ".sra-rest{font:inherit;font-size:11.5px;font-weight:600;border-radius:999px;border:1px dashed var(--brand);background:transparent;color:var(--ink);"
+      + "cursor:pointer;padding:3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums}"
+      + ".sra-rest:hover{background:var(--panel-2)}.sra-rest.off{visibility:hidden}"
       + ".sra-sr b{font-weight:700;display:flex;align-items:center;gap:6px}.sra-sr b i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}"
       + ".sra-sr input[type=range]{width:100%;accent-color:var(--c)}"
-      + ".sra-sr .rs-inp{width:62px;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums;border-radius:8px}"
+      + ".sra-sr>.rs-inp{width:56px;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums;border-radius:8px}"
       + ".sra-sr .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}"
       + ".sra-rm{width:24px;height:24px;border-radius:50%;border:0;background:transparent;color:var(--faint);cursor:pointer;font:inherit;font-size:12px}"
       + ".sra-rm:hover{color:var(--neg);background:var(--neg-bg)}"
       + ".sra-sum{font-size:13px}.sra-sum .ok{color:var(--pos);font-weight:600}.sra-sum .bad{color:var(--neg);font-weight:600}"
       + ".sra-dr-f{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}"
       + ".sra-dr-f .sra-amt-msg{margin-right:auto;font-size:12.5px;color:var(--muted)}.sra-dr-f .sra-amt-msg.bad{color:var(--neg)}"
-      + "@media(max-width:560px){.sra-sr{grid-template-columns:44px minmax(0,1fr) 56px 10px 70px 24px}}"
+      + "@media(max-width:600px){.sra-sr{grid-template-columns:40px minmax(0,1fr) 50px 10px 92px 24px}.sra-rest{display:none}}"
       + ".sra .sra-roas tr.sra-ed td{background:var(--panel-2)}"
       + "@media(max-width:700px){.sra .sra-fr{grid-template-columns:78px 1fr 110px}.sra .sra-exit{margin-left:0}}";
     document.head.appendChild(st);
@@ -964,7 +969,10 @@
   var MIN_LEADS = 3;
   var ST_COL = { NJ: "#2F6B4F", PA: "#7A9A3A", NY: "#B8862E", CT: "#3A6EA5", DE: "#8B5A9E", MD: "#B5523B", MA: "#5E7C8A", VA: "#9A8F6E" };
   function r1(v) { return Math.round(v * 10) / 10; }
-  function pctSum(P) { var t = 0; Object.keys(P || {}).forEach(function (k) { t += P[k] || 0; }); return r1(t); }
+  function pctRaw(P) { var t = 0; Object.keys(P || {}).forEach(function (k) { t += P[k] || 0; }); return t; }
+  function pctSum(P) { return r1(pctRaw(P)); }
+  function r6(v) { return Math.round(v * 1e6) / 1e6; }
+  function fmtPct(p) { return String(Math.round((p || 0) * 10) / 10); }
   // whole-number weights -> shares that add to exactly 100.0 (the rounding goes to the biggest)
   function pctOf(n) {
     var ks = AMT_STATES.filter(function (s0) { return n[s0] > 0; }), t = 0, o = {};
@@ -996,12 +1004,13 @@
   // the dollars saved for a month, as shares of that month's unplaced spend
   function savedPct(f, ym, sp) {
     var o = {};
-    amtOf(S.co, f, ym).forEach(function (x) { if (sp > 0 && num(x.Amount) > 0) o[x.State] = r1(100 * num(x.Amount) / sp); });
+    // six decimals: a saved $6,500 must come back as $6,500.00, not as a rounded share
+    amtOf(S.co, f, ym).forEach(function (x) { if (sp > 0 && num(x.Amount) > 0) o[x.State] = r6(100 * num(x.Amount) / sp); });
     return o;
   }
   function monthState(P) {
-    var t = pctSum(P);
-    return t > 100.05 ? "over" : t >= 99.95 ? "full" : t > 0 ? "part" : "blank";
+    var t = pctRaw(P);
+    return t > 100.005 ? "over" : t >= 99.995 ? "full" : t > 0 ? "part" : "blank";
   }
   // shares -> cents per state for each month, never more than the month's unplaced spend
   function splitDollars(P, sp) {
@@ -1075,7 +1084,8 @@
     var chg = changedMonths().length;
 
     var monthChip = function (ym) {
-      var st = monthState(SP.pct[ym]), t = Math.min(100, pctSum(SP.pct[ym]));
+      // a month part-split never reads "100%" on its chip, however close it rounds
+      var st = monthState(SP.pct[ym]), t = st === "full" ? 100 : Math.min(99.9, pctSum(SP.pct[ym]));
       return '<button type="button" class="sra-mc ' + st + (sel === ym ? " on" : "") + '" data-ym="' + esc(ym) + '" aria-pressed="' + (sel === ym) + '">'
         + '<span class="sra-mc-l">' + esc(monthLbl(ym)) + "</span>"
         + '<span class="sra-mc-v">' + (st === "full" ? "✓ " : "") + money0(spOf(ym)) + "</span>"
@@ -1084,7 +1094,15 @@
     var stateChip = function (s0) {
       var P = cur(), on = P[s0] != null, ln = L ? (L.n[s0] || 0) : 0;
       return '<button type="button" class="sra-sc' + (on ? " on" : "") + '" data-tog="' + s0 + '" aria-pressed="' + on + '" style="--c:' + ST_COL[s0] + '">'
-        + '<i></i>' + s0 + (on ? " · " + (P[s0] || 0) + "%" : "") + (ln ? '<small title="' + ln + " lead" + (ln === 1 ? "" : "s") + " this month" + '">' + ln + "</small>" : "") + "</button>";
+        + '<i></i>' + s0 + (on ? " · " + fmtPct(P[s0]) + "%" : "") + (ln ? '<small title="' + ln + " lead" + (ln === 1 ? "" : "s") + " this month" + '">' + ln + "</small>" : "") + "</button>";
+    };
+    // whole dollars in the $ box; what is still not placed this month, for "rest here"
+    var dlr = function (p) { var v = Math.round(spOf(sel) * (p || 0) / 100); return v ? v.toLocaleString("en-US") : ""; };
+    var restOf = function () { return Math.max(0, 100 - pctRaw(cur())); };
+    var restBtn = function (s0) {
+      var r = restOf(), d = spOf(sel) * r / 100;
+      return '<button type="button" class="sra-rest' + (d >= 0.5 ? "" : " off") + '" data-rest="' + s0 + '" title="Put the '
+        + esc(money0(d)) + " still not placed in " + esc(monthLbl(sel)) + " on " + s0 + '">+ ' + money0(d) + "</button>";
     };
     var rowsHtml = function () {
       var P = cur(), on = AMT_STATES.filter(function (s0) { return P[s0] != null; });
@@ -1093,8 +1111,9 @@
         var p = P[s0] || 0;
         return '<div class="sra-sr" style="--c:' + ST_COL[s0] + '"><b><i></i>' + s0 + "</b>"
           + '<input type="range" min="0" max="100" step="0.5" value="' + p + '" data-st="' + s0 + '" aria-label="' + s0 + ' share">'
-          + '<input class="rs-inp" inputmode="decimal" value="' + (p ? p : "") + '" placeholder="0" data-pc="' + s0 + '" aria-label="' + s0 + ' percent"><span>%</span>'
-          + '<span class="num">' + money0(spOf(sel) * p / 100) + "</span>"
+          + '<input class="rs-inp" inputmode="decimal" value="' + (p ? fmtPct(p) : "") + '" placeholder="0" data-pc="' + s0 + '" aria-label="' + s0 + ' percent"><span>%</span>'
+          + '<span class="sra-dl"><span>$</span><input class="rs-inp" inputmode="decimal" value="' + dlr(p) + '" placeholder="0" data-dl="' + s0 + '" aria-label="' + s0 + ' dollars"></span>'
+          + restBtn(s0)
           + '<button type="button" class="sra-rm" data-tog="' + s0 + '" aria-label="Remove ' + s0 + '">✕</button></div>';
       }).join("");
     };
@@ -1102,14 +1121,15 @@
       var P = cur();
       return AMT_STATES.map(function (s0) {
         var p = P[s0] || 0;
-        return p > 0 ? '<i style="width:' + Math.min(100, p) + "%;background:" + ST_COL[s0] + '" title="' + s0 + " " + p + '%"></i>' : "";
+        return p > 0 ? '<i style="width:' + Math.min(100, p) + "%;background:" + ST_COL[s0] + '" title="' + s0 + " " + fmtPct(p) + '%"></i>' : "";
       }).join("");
     };
     var sumHtml = function () {
-      var P = cur(), t = pctSum(P), sp = spOf(sel);
-      return t > 100.05 ? '<span class="bad">' + t + "% — bring it down to 100%.</span>"
-        : t >= 99.95 ? '<span class="ok">✓ 100% — all ' + money0(sp) + " of " + esc(monthLbl(sel)) + " placed.</span>"
-        : t > 0 ? "<span>" + t + "% — " + money0(sp * (100 - t) / 100) + " left to place.</span>"
+      // the same exact sum the month chip reads, so the line and the chip never disagree
+      var P = cur(), st = monthState(P), raw = pctRaw(P), sp = spOf(sel);
+      return st === "over" ? '<span class="bad">' + fmtPct(raw) + "% — " + money0(sp * (raw - 100) / 100) + " too much; bring it down to 100%.</span>"
+        : st === "full" ? '<span class="ok">✓ 100% — all ' + money0(sp) + " of " + esc(monthLbl(sel)) + " placed.</span>"
+        : st === "part" ? "<span>" + fmtPct(raw) + "% — " + money0(sp * (100 - raw) / 100) + " left to place.</span>"
         : "<span>Nothing placed yet.</span>";
     };
 
@@ -1159,13 +1179,17 @@
       dr.querySelectorAll(".sra-sr").forEach(function (row) {
         var rg = row.querySelector("input[data-st]"), pc = row.querySelector("input[data-pc]"), s0 = rg.dataset.st, p = P[s0] || 0;
         if (document.activeElement !== rg) rg.value = p;
-        if (document.activeElement !== pc) pc.value = p ? p : "";
-        row.querySelector(".num").textContent = money0(spOf(sel) * p / 100);
+        if (document.activeElement !== pc) pc.value = p ? fmtPct(p) : "";
+        var dl = row.querySelector("input[data-dl]");
+        if (document.activeElement !== dl) dl.value = dlr(p);
+        var rb = row.querySelector("[data-rest]"), d = spOf(sel) * restOf() / 100;
+        rb.textContent = "+ " + money0(d); rb.classList.toggle("off", d < 0.5);
+        rb.title = "Put the " + money0(d) + " still not placed in " + monthLbl(sel) + " on " + s0;
       });
       dr.querySelectorAll(".sra-sc").forEach(function (c) {
         var s0 = c.dataset.tog; if (P[s0] == null) return;
         var sm = c.querySelector("small");
-        c.innerHTML = "<i></i>" + s0 + " · " + (P[s0] || 0) + "%";
+        c.innerHTML = "<i></i>" + s0 + " · " + fmtPct(P[s0]) + "%";
         if (sm) c.appendChild(sm);
       });
       dr.querySelector(".sra-bar").innerHTML = barHtml();
@@ -1177,20 +1201,36 @@
       var c2 = changedMonths().length;
       dr.querySelector(".sra-dr-f .sra-amt-msg").textContent = c2 ? c2 + " month" + (c2 === 1 ? "" : "s") + " not saved yet" : "";
     };
-    var setP = function (s0, v) { var P = cur(); P[s0] = Math.max(0, Math.min(100, r1(v || 0))); };
+    var setP = function (s0, v) { var P = cur(); P[s0] = Math.max(0, Math.min(100, Math.round((v || 0) * 100) / 100)); };
+    // dollars typed -> the share that gives exactly those dollars (six decimals)
+    var setD = function (s0, v) { var P = cur(), sp = spOf(sel); P[s0] = sp > 0 ? Math.max(0, Math.min(100, r6(100 * (v || 0) / sp))) : 0; };
+    var numIn = function (i) { return parseFloat(String(i.value).replace(/[$%,\s]/g, "")) || 0; };
     dr.querySelectorAll("input[data-st]").forEach(function (i) {
       i.oninput = function () { setP(i.dataset.st, +i.value); live(); };
     });
     dr.querySelectorAll("input[data-pc]").forEach(function (i) {
-      i.oninput = function () { setP(i.dataset.pc, parseFloat(String(i.value).replace(/[%,\s]/g, "")) || 0); live(); };
-      i.onblur = function () { var P = cur(); i.value = P[i.dataset.pc] || ""; };
+      i.oninput = function () { setP(i.dataset.pc, numIn(i)); live(); };
+      i.onblur = function () { var P = cur(); i.value = P[i.dataset.pc] ? fmtPct(P[i.dataset.pc]) : ""; };
+    });
+    dr.querySelectorAll("input[data-dl]").forEach(function (i) {
+      i.oninput = function () { setD(i.dataset.dl, numIn(i)); live(); };
+      i.onblur = function () { var P = cur(); i.value = dlr(P[i.dataset.dl]); };
+    });
+    // "rest here" (his ask): whatever the month still has goes to this state
+    dr.querySelectorAll("[data-rest]").forEach(function (b) {
+      b.onclick = function () {
+        var P = cur(), s0 = b.dataset.rest, r = restOf();
+        if (r <= 0) return;
+        P[s0] = Math.min(100, r6((P[s0] || 0) + r));
+        live();
+      };
     });
     // a state switched on takes what is left of the month; switched off, it gives its share back
     dr.querySelectorAll("[data-tog]").forEach(function (b) {
       b.onclick = function () {
         var P = cur(), s0 = b.dataset.tog;
         if (P[s0] != null) delete P[s0];
-        else P[s0] = Math.max(0, r1(100 - pctSum(P)));
+        else P[s0] = Math.max(0, r6(100 - pctRaw(P)));
         redraw();
       };
     });
