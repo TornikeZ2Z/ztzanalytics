@@ -35,6 +35,11 @@
    Rented units, why and where (his ask 2026-10-10, "which states use the most rental storages"):
    the `units` rows -- zone x purpose from dispatch's Public Storage export (fct_storage_unit).
 
+   WHAT PUBLIC STORAGE COST US (his ask 2026-10-20): Irakli's report views -- paid per month by state,
+   top locations, cost per job, every unit -- at exact bank amounts, from mart_storage_ps (one row per
+   Public Storage charge on the bank, with its unit, size and JOB CODE; never a customer). Its own
+   period and state pills; see psPaint.
+
    Mounted by area-plan.js into #apStorage on every paint; it keeps its own state on window and
    re-renders from cache, so a repaint of the page costs nothing. */
 (function () {
@@ -44,6 +49,15 @@
       cols: ["Kind", "Day", "Month", "Zone", "Customer Our CF", "Customer Rented CF", "LD CF", "Customer Fees",
              "Rent USD", "Facilities", "Jobs", "Miles NJ", "Miles PA", "Miles CT", "Miles CT2", "Lat", "Lng",
              "Purpose", "Units", "Open Units", "Months Held", "First Rent"],
+      dateCols: {}, defaultDate: null,
+    };
+  }
+  if (window.RS && RS.DATASETS && !RS.DATASETS.storage_ps) {
+    // every Public Storage charge on the bank (src/storage_plan.py run_ps) -- job codes, no names
+    RS.DATASETS.storage_ps = {
+      table: "mart_storage_ps",
+      cols: ["Day", "Month", "State", "Location", "Card", "Amount", "Link", "Unit", "Size", "Job Code",
+             "Job Type", "Opened", "Status", "Monthly"],
       dateCols: {}, defaultDate: null,
     };
   }
@@ -86,12 +100,18 @@
   var MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var ml = function (ym) { var p = String(ym).split("-"); return MON[+p[1]] + " " + p[0].slice(2); };
 
-  var ST = window.__spState = window.__spState || { rows: null, err: null, loading: null };
+  var ST = window.__spState = window.__spState || { rows: null, err: null, loading: null, ps: null, psErr: null };
 
   function load() {
     if (ST.rows || ST.loading) return ST.loading;
-    ST.loading = RS.load("storage_plan").then(function (r) { ST.rows = (r && (r.rows || r)) || []; })
-      .catch(function (e) { ST.err = e.message || String(e); });
+    ST.loading = Promise.all([
+      RS.load("storage_plan"),
+      // the Public Storage views read their own table; until it is built the rest of the tab still draws
+      RS.load("storage_ps").catch(function (e) { ST.psErr = e.message || String(e); return null; }),
+    ]).then(function (got) {
+      ST.rows = (got[0] && (got[0].rows || got[0])) || [];
+      ST.ps = (got[1] && (got[1].rows || got[1])) || [];
+    }).catch(function (e) { ST.err = e.message || String(e); });
     return ST.loading;
   }
 
@@ -302,6 +322,221 @@
       + "</tbody></table></div></div>";
   }
 
+  /* WHAT PUBLIC STORAGE COST US (his ask 2026-10-20: "add Irakli's report views ... with exact bank
+     amounts"). Irakli's own report priced each unit as payments x today's monthly rent; here every
+     number is a Public Storage charge on the bank (mart_storage_ps, refunds signed), so each view adds
+     up to the bank to the cent. Four views over one period and one state pick: paid per month by state,
+     top locations, cost per job, every unit. Job codes, never customers (this tab is for everyone).
+     A charge no unit in dispatch's export claims stays in every total under the reason the ledger gave
+     it -- units opened before the export, Tuji's card -- so nothing quietly drops out. */
+  var PSV = window.__spPs = window.__spPs || { per: "ytd", st: "", more: {} };
+  var ST_ORDER = ["NJ", "PA", "CT", "NY", "DE", "SC"];
+  var money2 = function (v) {
+    return (v < -0.004 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  var stName = function (s) { return !s ? "No state" : s === "DE" ? "DE · Tuji's card" : s; };
+
+  function psPeriods(rows) {
+    var last = rows.reduce(function (a, r) { return String(r.Day || "") > a ? String(r.Day).slice(0, 10) : a; }, "");
+    if (!last) return [];
+    var y = +last.slice(0, 4), lm = last.slice(0, 7);
+    var p = new Date(+lm.slice(0, 4), +lm.slice(5, 7) - 12, 1);
+    var from12 = p.getFullYear() + "-" + String(p.getMonth() + 1).padStart(2, "0") + "-01";
+    var out = [{ k: "ytd", label: y + " to date", a: y + "-01-01", b: last },
+               { k: "12m", label: "Last 12 months", a: from12, b: last }];
+    var years = {};
+    rows.forEach(function (r) { var yy = +String(r.Day || "").slice(0, 4); if (yy && yy < y) years[yy] = 1; });
+    Object.keys(years).sort().reverse().forEach(function (yy) { out.push({ k: "y" + yy, label: yy, a: yy + "-01-01", b: yy + "-12-31" }); });
+    out.forEach(function (o) { o.last = last; });
+    return out;
+  }
+
+  function psCalc(rows, per, st) {
+    var R = { tot: 0, refunds: 0, n: 0, months: {}, ms: [], byState: {}, locs: {}, jobs: {}, units: {}, loose: {}, why: {}, last: per.last };
+    var inP = rows.filter(function (r) { var d = String(r.Day || "").slice(0, 10); return d >= per.a && d <= per.b; });
+    // the state chips: every state with money in the period, before the pick narrows it
+    inP.forEach(function (r) { var s = r.State || ""; R.byState[s] = (R.byState[s] || 0) + num(r.Amount); });
+    // months: every month of the period up to the bank's last day, even an empty one
+    var d = new Date(+per.a.slice(0, 4), +per.a.slice(5, 7) - 1, 1), end = (per.b < per.last ? per.b : per.last).slice(0, 7);
+    for (var guard = 0; guard < 40; guard++) {
+      var ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      if (ym > end) break;
+      R.ms.push(ym); R.months[ym] = {}; d.setMonth(d.getMonth() + 1);
+    }
+    inP.forEach(function (r) {
+      var s = r.State || "";
+      if (st && s !== st) return;
+      var v = num(r.Amount), m = String(r.Month || String(r.Day).slice(0, 7));
+      R.tot += v; if (v < 0) R.refunds += v; else R.n++;
+      var mm = R.months[m] = R.months[m] || {}; mm[s] = (mm[s] || 0) + v;
+      var L = R.locs[r.Location] = R.locs[r.Location] || { loc: r.Location, st: s, v: 0, n: 0, units: {} };
+      L.v += v; if (v > 0) L.n++;
+      if (r.Unit) {
+        var key = r.Unit + "|" + r.Location;
+        L.units[key] = 1;
+        var U = R.units[key] = R.units[key] || { unit: r.Unit, size: r.Size, loc: r.Location, st: s, job: r["Job Code"], type: r["Job Type"],
+                                                 opened: r.Opened, status: r.Status, monthly: r.Monthly, v: 0, n: 0 };
+        U.v += v; if (v > 0) U.n++;
+        if (!r["Job Code"]) R.why["Unit with no job found"] = (R.why["Unit with no job found"] || 0) + v;
+      } else {
+        var why = r.Link || "No unit on record", lk = r.Location + "|" + why;
+        var X = R.loose[lk] = R.loose[lk] || { loc: r.Location, st: s, why: why, v: 0, n: 0 };
+        X.v += v; if (v > 0) X.n++;
+        R.why[why] = (R.why[why] || 0) + v;
+      }
+      if (r["Job Code"]) {
+        var J = R.jobs[r["Job Code"]] = R.jobs[r["Job Code"]] || { job: r["Job Code"], type: r["Job Type"], v: 0, n: 0, units: {}, locs: {} };
+        J.v += v; if (v > 0) J.n++; J.units[r.Unit] = 1; J.locs[r.Location] = 1;
+      }
+    });
+    R.ms = Object.keys(R.months).sort();
+    R.monthTot = R.ms.map(function (m) { return Object.keys(R.months[m]).reduce(function (a, s) { return a + R.months[m][s]; }, 0); });
+    R.states = Object.keys(R.byState).sort(function (a, b) {
+      var ia = ST_ORDER.indexOf(a), ib = ST_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    R.shownStates = st ? [st] : R.states;
+    R.unitList = Object.keys(R.units).map(function (k) { return R.units[k]; }).sort(function (a, b) { return b.v - a.v; });
+    R.locList = Object.keys(R.locs).map(function (k) { var o = R.locs[k]; o.u = Object.keys(o.units).length; return o; }).sort(function (a, b) { return b.v - a.v; });
+    R.jobList = Object.keys(R.jobs).map(function (k) { return R.jobs[k]; }).sort(function (a, b) { return b.v - a.v; });
+    R.looseList = Object.keys(R.loose).map(function (k) { return R.loose[k]; }).sort(function (a, b) { return b.v - a.v; });
+    R.jobsTot = R.jobList.reduce(function (a, j) { return a + j.v; }, 0);
+    // "monthly bill now": every unit open today in the picked state, whatever the period (as Irakli's)
+    var open = {};
+    rows.forEach(function (r) {
+      if (!r.Unit || String(r.Status || "").toLowerCase() !== "open" || (st && (r.State || "") !== st)) return;
+      open[r.Unit + "|" + r.Location] = num(r.Monthly);
+    });
+    R.openN = Object.keys(open).length;
+    R.openMo = Object.keys(open).reduce(function (a, k) { return a + open[k]; }, 0);
+    var hi = -1; R.ms.forEach(function (m, i) { if (R.monthTot[i] > (hi < 0 ? -Infinity : R.monthTot[hi])) hi = i; });
+    R.hiM = hi >= 0 ? R.ms[hi] : null; R.hiV = hi >= 0 ? R.monthTot[hi] : 0;
+    return R;
+  }
+
+  function psMore(id, total, shown) {
+    if (total <= shown && !PSV.more[id]) return "";
+    return '<button class="btn sp-more" data-more="' + id + '">' + (PSV.more[id] ? "Show fewer" : "Show all " + total) + "</button>";
+  }
+
+  function psPaint(host) {
+    if (!host) return;
+    var rows = ST.ps || [];
+    var head = '<div class="sp-ps-h"><h2>What Public Storage cost us</h2>'
+      + "<p>Every Public Storage charge on the bank, after refunds — by month and state, by location, by job and unit by unit. Irakli's report, at exact bank amounts.</p></div>";
+    if (!rows.length) {
+      host.innerHTML = head + '<div class="panel"><p class="sp-note" style="margin:0">' + (ST.psErr
+        ? "The Public Storage charges are not built yet (" + esc(ST.psErr) + "). They appear after the next loader run."
+        : "No Public Storage charges on the bank yet.") + "</p></div>";
+      return;
+    }
+    var pers = psPeriods(rows);
+    var per = pers.filter(function (p) { return p.k === PSV.per; })[0] || pers[0];
+    PSV.per = per.k;
+    var R = psCalc(rows, per, PSV.st);
+    if (PSV.st && !R.byState[PSV.st]) { PSV.st = ""; R = psCalc(rows, per, ""); }
+    var through = dayLong(R.last);
+    var pills = '<div class="sp-pills" role="group" aria-label="Period">' + pers.map(function (p) {
+        return '<button class="sp-pill' + (p.k === per.k ? " on" : "") + '" data-per="' + p.k + '">' + esc(p.label) + "</button>";
+      }).join("") + "</div>"
+      + '<div class="sp-pills" role="group" aria-label="State"><button class="sp-pill' + (!PSV.st ? " on" : "") + '" data-st="">All states</button>'
+      + R.states.map(function (s) {
+          return '<button class="sp-pill' + (PSV.st === s ? " on" : "") + '" data-st="' + esc(s) + '">' + esc(s || "No state") + "</button>";
+        }).join("") + "</div>";
+    var nMonths = R.ms.length || 1;
+    var looseTot = R.looseList.reduce(function (a, x) { return a + x.v; }, 0);
+    var kpis = '<div class="rs-kpis" style="--kpi-cols:5">'
+      + '<div class="kpi"><div class="l">Paid in this period</div><div class="v">' + money2(R.tot) + '</div><div class="s">' + R.n + " charges" + (R.refunds ? " · refunds " + money2(R.refunds) : "") + "</div></div>"
+      + '<div class="kpi"><div class="l">Average per month</div><div class="v">' + money2(R.tot / nMonths) + '</div><div class="s">' + nMonths + " month" + (nMonths === 1 ? "" : "s") + ", bank through " + esc(through) + "</div></div>"
+      + '<div class="kpi"><div class="l">Highest month</div><div class="v">' + money2(R.hiV) + '</div><div class="s">' + esc(R.hiM ? ml(R.hiM) : "—") + "</div></div>"
+      + '<div class="kpi"><div class="l">Units paid for</div><div class="v">' + R.unitList.length + '</div><div class="s">+ ' + money2(looseTot) + " no unit in the export claims</div></div>"
+      + '<div class="kpi"><div class="l">Monthly bill now</div><div class="v">' + money2(R.openMo) + '</div><div class="s">' + R.openN + " unit" + (R.openN === 1 ? "" : "s") + " open · each one's last monthly charge</div></div>"
+      + "</div>";
+
+    // 1) PAID PER MONTH, BY STATE: the chart, then the exact amounts
+    var grid = '<div class="rs-tablewrap"><table class="rs-table sp-psgrid"><thead><tr><th>State</th>'
+      + R.ms.map(function (m) { return '<th class="num">' + esc(ml(m)) + "</th>"; }).join("")
+      + '<th class="num">Total</th></tr></thead><tbody>'
+      + R.shownStates.map(function (s) {
+          var t = R.ms.reduce(function (a, m) { return a + num(R.months[m][s]); }, 0);
+          return "<tr><td><b>" + esc(stName(s)) + "</b></td>"
+            + R.ms.map(function (m) { var v = R.months[m][s]; return '<td class="num">' + (v ? money2(v) : '<span class="sp-dim">—</span>') + "</td>"; }).join("")
+            + '<td class="num"><b>' + money2(t) + '</b><div class="sp-sub">' + (R.tot ? Math.round(t / R.tot * 100) + "%" : "") + "</div></td></tr>";
+        }).join("")
+      + (R.shownStates.length > 1 ? '<tr class="sp-tot"><td><b>All states</b></td>' + R.monthTot.map(function (v) { return '<td class="num"><b>' + money2(v) + "</b></td>"; }).join("")
+          + '<td class="num"><b>' + money2(R.tot) + "</b></td></tr>" : "")
+      + "</tbody></table></div>";
+    var p1 = '<div class="panel"><div class="panel-head"><span class="panel-title">Paid per month, by state</span><span class="sp-sub">' + esc(per.label) + " · bank through " + esc(through) + "</span></div>"
+      + '<div class="chartbox" style="height:260px"><canvas id="spPsChart"></canvas></div>' + grid + "</div>";
+
+    // 2) TOP LOCATIONS
+    var nl = PSV.more.loc ? R.locList.length : Math.min(10, R.locList.length);
+    var p2 = '<div class="panel"><div class="panel-head"><span class="panel-title">Top locations</span><span class="sp-sub">' + R.locList.length + " Public Storage locations paid in the period</span></div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Location</th><th>State</th><th class="num">Units</th><th class="num">Charges</th><th class="num">Paid</th><th class="num">Share</th></tr></thead><tbody>'
+      + R.locList.slice(0, nl).map(function (o) {
+          return "<tr><td>" + esc(o.loc) + "</td><td>" + esc(stName(o.st)) + '</td><td class="num">' + (o.u || '<span class="sp-dim">—</span>') + '</td><td class="num">' + o.n
+            + '</td><td class="num"><b>' + money2(o.v) + '</b></td><td class="num">' + (R.tot ? Math.round(o.v / R.tot * 100) + "%" : "—") + "</td></tr>";
+        }).join("")
+      + "</tbody></table></div>" + psMore("loc", R.locList.length, 10)
+      + '<p class="sp-note">Units = units from dispatch\'s export paid for there; "—" = only charges no unit in the export claims (units opened before it, Tuji\'s card).</p></div>';
+
+    // 3) COST PER JOB -- the job code, never the customer
+    var nj = PSV.more.job ? R.jobList.length : Math.min(12, R.jobList.length);
+    var whyRows = Object.keys(R.why).sort(function (a, b) { return R.why[b] - R.why[a]; });
+    var p3 = '<div class="panel"><div class="panel-head"><span class="panel-title">Cost per job</span><span class="sp-sub">' + R.jobList.length + " jobs · the units dispatch tied to each job</span></div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Job</th><th>Type</th><th>Units</th><th>Location</th><th class="num">Charges</th><th class="num">Paid</th></tr></thead><tbody>'
+      + R.jobList.slice(0, nj).map(function (j) {
+          return "<tr><td><b>" + esc(j.job) + "</b></td><td>" + esc(j.type || "") + "</td><td>" + esc(Object.keys(j.units).join(", ")) + "</td><td>"
+            + Object.keys(j.locs).map(esc).join("<br>") + '</td><td class="num">' + j.n + '</td><td class="num"><b>' + money2(j.v) + "</b></td></tr>";
+        }).join("")
+      + (whyRows.length ? '<tr class="sp-tot"><td colspan="5"><b>Not tied to a job</b><div class="sp-sub">' + whyRows.map(function (w) { return esc(w) + " " + money2(R.why[w]); }).join(" · ") + '</div></td><td class="num"><b>' + money2(R.tot - R.jobsTot) + "</b></td></tr>" : "")
+      + '<tr class="sp-tot"><td colspan="5"><b>Total</b></td><td class="num"><b>' + money2(R.tot) + "</b></td></tr>"
+      + "</tbody></table></div>" + psMore("job", R.jobList.length, 12) + "</div>";
+
+    // 4) EVERY UNIT, then the charges no unit claims, so the list adds up to the bank
+    var nu = PSV.more.unit ? R.unitList.length : Math.min(15, R.unitList.length);
+    var p4 = '<div class="panel"><div class="panel-head"><span class="panel-title">Every unit</span><span class="sp-sub">' + R.unitList.length + " units · " + money2(R.tot - looseTot) + " · sorted by what they cost</span></div>"
+      + '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Unit</th><th>Location</th><th>Job</th><th>Opened</th><th class="num">Payments in period</th><th class="num">Paid in period</th><th class="num">Monthly now</th></tr></thead><tbody>'
+      + R.unitList.slice(0, nu).map(function (u) {
+          var open = String(u.status || "").toLowerCase() === "open";
+          return "<tr><td><b>" + esc(u.unit) + '</b><div class="sp-sub">' + esc(u.size || "") + "</div></td><td>" + esc(stName(u.st)) + " · " + esc(u.loc) + "</td>"
+            + "<td>" + esc(u.job || "—") + '<div class="sp-sub">' + esc(u.type || "") + "</div></td><td>" + esc(u.opened ? dayLong(String(u.opened).slice(0, 10)) : "—") + "</td>"
+            + '<td class="num">' + u.n + '</td><td class="num"><b>' + money2(u.v) + '</b></td><td class="num">' + (open ? money2(num(u.monthly)) : '<span class="sp-dim">closed</span>') + "</td></tr>";
+        }).join("")
+      + "</tbody></table></div>" + psMore("unit", R.unitList.length, 15)
+      + (R.looseList.length ? '<div class="rs-tablewrap" style="margin-top:12px"><table class="rs-table"><thead><tr><th>Charges no unit in the export claims</th><th>Why</th><th class="num">Charges</th><th class="num">Paid</th></tr></thead><tbody>'
+          + R.looseList.slice(0, PSV.more.loose ? R.looseList.length : 10).map(function (x) {
+              return "<tr><td>" + esc(stName(x.st)) + " · " + esc(x.loc) + "</td><td>" + esc(x.why) + '</td><td class="num">' + x.n + '</td><td class="num"><b>' + money2(x.v) + "</b></td></tr>";
+            }).join("")
+          + '<tr class="sp-tot"><td colspan="3"><b>Every unit + these = the bank</b>' + (R.looseList.length > 10 && !PSV.more.loose ? '<div class="sp-sub">' + money2(looseTot) + " in " + R.looseList.length + " lines</div>" : "")
+          + '</td><td class="num"><b>' + money2(R.tot) + "</b></td></tr></tbody></table></div>" + psMore("loose", R.looseList.length, 10) : "")
+      + '<p class="sp-note">Paid = the bank\'s Public Storage charges tied to the unit (first rent, monthly rent, add-ons, refunds). Monthly now = the unit\'s last monthly charge while it is open. Units opened before dispatch\'s export starts have no unit number here — their charges sit in the table above, named.</p></div>';
+
+    // a pill repaints this section alone: the old chart goes first
+    if (host._psCh) { try { host._psCh.destroy(); } catch (e) {} host._psCh = null; }
+    host.innerHTML = head + '<div class="panel sp-psbar">' + pills + "</div>" + kpis + p1 + p2 + p3 + p4;
+    host.querySelectorAll("[data-per]").forEach(function (b) { b.onclick = function () { PSV.per = b.dataset.per; psPaint(host); }; });
+    host.querySelectorAll("[data-st]").forEach(function (b) { b.onclick = function () { PSV.st = b.dataset.st; psPaint(host); }; });
+    host.querySelectorAll("[data-more]").forEach(function (b) { b.onclick = function () { PSV.more[b.dataset.more] = !PSV.more[b.dataset.more]; psPaint(host); }; });
+    try {
+      var v2 = RS.isV2 && RS.isV2();
+      var pal = v2 ? RS.V2.cat : ["#4a6285", "#84aef0", "#a78bfa", "#2dd4bf", "#fbbf24", "#94a3b8", "#f472b6", "#64748b"];
+      var canvas = host.querySelector("#spPsChart");
+      host._psCh = new Chart(canvas, {
+        type: "bar",
+        data: { labels: R.ms.map(ml), datasets: R.shownStates.map(function (s) {
+          var i = ST_ORDER.indexOf(s);
+          return { label: stName(s), data: R.ms.map(function (m) { return Math.round(num(R.months[m][s]) * 100) / 100; }),
+                   backgroundColor: pal[(i < 0 ? 6 : i) % pal.length], stack: "s" };
+        }) },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" },
+            tooltip: { callbacks: { label: function (c) { return c.dataset.label + ": " + money2(c.raw || 0); },
+                                    footer: function (it) { return it.length ? "Month: " + money2(R.monthTot[it[0].dataIndex]) : ""; } } } },
+          scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: function (v) { return "$" + (v >= 1000 ? Math.round(v / 100) / 10 + "k" : v); } } } } },
+      });
+    } catch (e) { console.warn("public storage chart:", e); }
+  }
+
   /* ---------------- paint ---------------- */
   function render(el) {
     var c = cfg(), R = compute(c);
@@ -358,6 +593,7 @@
         }).join("")
       + "</tbody></table></div></div>"
       + unitsPanel(R)
+      + '<div id="spPs"></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Month by month — what we held</span></div><div class="chartbox" style="height:300px"><canvas id="spChart"></canvas></div>'
       + '<p class="sp-note">Bars: average CF on hand (our vaults, customers in rented units, long-distance goods in rented units). Line: storage spend that month — rented units, the NJ base and Tuji\'s unit.</p></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Settings</span><span class="sp-sub">kept in this browser</span><span class="spacer"></span><button class="btn" id="spReset">Back to the defaults</button></div>'
@@ -366,6 +602,7 @@
         }).join("") + "</div>"
       + '<p class="sp-note"><b>Where the defaults come from.</b> A 2,000 sq ft space at about $18 per sq ft a year all-in (central NJ industrial asking ~$16, Colliers Q2 2026, plus taxes, insurance and the small-space premium) is $3,000 a month; vaults stacked 3 high hold ~11 CF per sq ft. A worker is one person, 40 hours a week at $20 (this year\'s crew pay). Power, insurance and the rest start at 0 — add yours. An extra stop is a best guess — nobody can measure it: rented units sit a median 16–23 road miles from their base, so ~15 extra miles plus getting into a unit with no dock, about 45 minutes for a crew of 3 at ~$20/h; truck $1.11/mile is the portal\'s fuel + tolls figure. Rent data runs to the end of the bank sheet.</p></div>';
     el.innerHTML = '<div class="sp">' + html + "</div>";
+    psPaint(el.querySelector("#spPs"));
     el.querySelectorAll("input[data-own]").forEach(function (inp) {
       inp.onchange = function () { var o = cfg(); o["own" + inp.dataset.own] = inp.checked ? 1 : 0; saveCfg(o); render(el); };
     });
@@ -410,7 +647,18 @@
       + ".sp tr.sp-unitz td{background:var(--panel2,#F8FAFC);border-top:1px solid var(--line-2)}"
       + ".sp-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}"
       + ".sp-f{display:flex;flex-direction:column;gap:5px}.sp-f span{font-size:12.5px;color:var(--muted)}"
-      + ".sp-f input{font:inherit;font-size:14px;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;background:var(--panel);color:var(--ink)}";
+      + ".sp-f input{font:inherit;font-size:14px;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;background:var(--panel);color:var(--ink)}"
+      // What Public Storage cost us (2026-10-20)
+      + ".sp-ps-h{margin:26px 0 10px}.sp-ps-h h2{font-size:18px;font-weight:700;margin:0 0 4px;color:var(--ink)}"
+      + ".sp-ps-h p{margin:0;font-size:13px;color:var(--muted);max-width:110ch}"
+      + ".sp .sp-psbar{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}"
+      + ".sp .sp-pills{display:flex;flex-wrap:wrap;gap:6px}"
+      + ".sp .sp-pill{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);"
+      + "border-radius:999px;padding:5px 12px;cursor:pointer;line-height:1.2}"
+      + ".sp .sp-pill:hover{border-color:var(--ink);color:var(--ink)}"
+      + ".sp .sp-pill.on{background:var(--ink);border-color:var(--ink);color:var(--panel)}"
+      + ".sp .sp-dim{color:var(--faint)}.sp .sp-more{margin-top:10px}"
+      + ".sp .sp-psgrid td,.sp .sp-psgrid th{white-space:nowrap}";
     document.head.appendChild(s);
   }
 
