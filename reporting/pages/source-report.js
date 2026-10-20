@@ -280,33 +280,49 @@
       + ".sra .sra-amt-msg.bad{color:var(--neg)}"
       // the split panel (2026-10-20) lives on <body>, outside .sra, so its rules carry their own prefix
       + ".sra-ov{position:fixed;inset:0;background:var(--scrim,rgba(10,16,24,.45));z-index:60;display:flex;justify-content:flex-end}"
-      + ".sra-dr{width:min(560px,100vw);height:100%;overflow:auto;background:var(--bg);color:var(--ink);padding:18px 20px 24px;"
+      + ".sra-dr{width:min(600px,100vw);height:100%;overflow:auto;background:var(--bg);color:var(--ink);padding:18px 20px 22px;"
       + "box-shadow:-12px 0 32px rgba(15,23,42,.18);display:flex;flex-direction:column;gap:12px}"
       + ".sra-dr .rs-hint{margin:0}"
       + ".sra-dr-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}"
       + ".sra-dr-t{font-size:16px;font-weight:700}.sra-dr-s{font-size:12.5px;color:var(--muted);margin-top:2px}"
+      + ".sra-xb{width:32px;height:32px;flex:none;border-radius:50%;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer;font:inherit}"
+      + ".sra-xb:hover,.sra-qc:hover,.sra-fc:hover,.sra-sc:hover,.sra-mc:hover,.sra-nx:hover{border-color:var(--brand)}"
       + ".sra-q{display:flex;gap:6px;flex-wrap:wrap}"
-      + ".sra-qc{font:inherit;font-size:12px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}"
-      + ".sra-qc small{color:var(--muted);font-size:11px}.sra-qc.done{opacity:.7}"
-      + ".sra-qc.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}"
-      + ".sra-st{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}"
-      + ".sra-st .rs-btn{padding:5px 10px;font-size:12.5px}.sra-st .rs-btn.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);color:var(--ink)}"
-      + ".sra-bar{display:flex;height:12px;border-radius:4px;overflow:hidden;background:var(--panel-2)}.sra-bar i{display:block;height:100%}"
-      + ".sra-sr{display:grid;grid-template-columns:52px minmax(0,1fr) 62px 12px 78px 64px;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}"
-      + ".sra-sr b{font-weight:700;display:flex;align-items:center;gap:6px}.sra-sr b i{width:9px;height:9px;border-radius:2px;display:inline-block}"
-      + ".sra-sr input[type=range]{width:100%}.sra-sr .rs-inp{width:62px;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums}"
-      + ".sra-sr .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}.sra-sr small{color:var(--faint);font-size:11px;text-align:right}"
+      + ".sra-qc,.sra-fc,.sra-sc,.sra-nx{font:inherit;font-size:12.5px;border-radius:999px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer;"
+      + "padding:5px 12px;display:inline-flex;align-items:center;gap:6px;line-height:1.3;transition:border-color .12s,background .12s}"
+      + ".sra-qc{font-size:12px;padding:4px 10px}.sra-qc small,.sra-fc small{color:var(--muted);font-size:11px}.sra-qc.done{color:var(--pos)}"
+      + ".sra-qc.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}.sra-qc.on small{color:inherit;opacity:.75}"
+      + ".sra-msh{display:flex;align-items:baseline;gap:8px;font-size:13px}.sra-msh small{color:var(--muted);font-size:12px}"
+      + ".sra-mcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}"
+      + ".sra-mc{font:inherit;text-align:left;border-radius:12px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer;"
+      + "padding:7px 10px;display:flex;flex-direction:column;gap:1px;transition:border-color .12s,background .12s}"
+      + ".sra-mc-l{font-size:11.5px;color:var(--muted);font-weight:600}.sra-mc-v{font-weight:700;font-variant-numeric:tabular-nums}"
+      + ".sra-mc-p{font-size:11px;color:var(--muted)}"
+      + ".sra-mc.full{background:var(--pos-bg);border-color:var(--pos)}.sra-mc.full .sra-mc-v,.sra-mc.full .sra-mc-p{color:var(--pos)}"
+      + ".sra-mc.part{background:var(--warn-bg);border-color:var(--warn)}.sra-mc.part .sra-mc-p{color:var(--warn)}"
+      + ".sra-mc.over{background:var(--neg-bg);border-color:var(--neg)}.sra-mc.over .sra-mc-p{color:var(--neg)}"
+      + ".sra-mc.on{outline:2px solid var(--ink);outline-offset:1px}"
+      + ".sra-pick,.sra-empty2{border:1px dashed var(--line-2);border-radius:12px;padding:16px;text-align:center;font-size:13px;color:var(--muted)}"
+      + ".sra-pick b{color:var(--ink)}.sra-pick .g{color:var(--pos);font-weight:700}.sra-pick .a{color:var(--warn);font-weight:700}"
+      + ".sra-mh2{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}.sra-mh2 b{font-size:15px}"
+      + ".sra-fills{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.sra-fills>span{font-size:12px;color:var(--muted);margin-right:2px}"
+      + ".sra-note{font-size:12.5px;color:var(--warn);background:var(--warn-bg);border-radius:8px;padding:6px 10px}"
+      + ".sra-scs{display:flex;gap:6px;flex-wrap:wrap}"
+      + ".sra-sc{font-weight:600;padding:5px 11px 5px 9px}.sra-sc i{width:8px;height:8px;border-radius:50%;background:var(--c);display:inline-block}"
+      + ".sra-sc small{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:0 6px}"
+      + ".sra-sc.on{background:color-mix(in srgb,var(--c) 14%,var(--panel));border-color:var(--c)}"
+      + ".sra-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--panel-2)}.sra-bar i{display:block;height:100%}"
+      + ".sra-sr{display:grid;grid-template-columns:52px minmax(0,1fr) 62px 12px 82px 26px;gap:8px;align-items:center;padding:3px 0}"
+      + ".sra-sr b{font-weight:700;display:flex;align-items:center;gap:6px}.sra-sr b i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}"
+      + ".sra-sr input[type=range]{width:100%;accent-color:var(--c)}"
+      + ".sra-sr .rs-inp{width:62px;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums;border-radius:8px}"
+      + ".sra-sr .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}"
+      + ".sra-rm{width:24px;height:24px;border-radius:50%;border:0;background:transparent;color:var(--faint);cursor:pointer;font:inherit;font-size:12px}"
+      + ".sra-rm:hover{color:var(--neg);background:var(--neg-bg)}"
       + ".sra-sum{font-size:13px}.sra-sum .ok{color:var(--pos);font-weight:600}.sra-sum .bad{color:var(--neg);font-weight:600}"
-      + ".sra-mh{font-size:12.5px;font-weight:700}.sra-mh small{font-weight:400;color:var(--muted);margin-left:6px}"
-      + ".sra-ms{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}"
-      + ".sra-sm{font:inherit;font-size:12px;text-align:left;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}"
-      + ".sra-sm b{display:block;font-variant-numeric:tabular-nums}.sra-sm small{display:block;color:var(--muted);font-size:11px}"
-      + ".sra-sm.own{border-style:dashed}.sra-sm.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}"
-      + ".sra-sel{font-size:12.5px;background:var(--panel-2);border-radius:6px;padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}"
-      + ".sra-sel .rs-btn{padding:4px 9px;font-size:12px}"
       + ".sra-dr-f{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}"
-      + ".sra-dr-f .sra-amt-msg{margin-right:auto;font-size:12.5px}.sra-dr-f .sra-amt-msg.bad{color:var(--neg)}"
-      + "@media(max-width:560px){.sra-sr{grid-template-columns:44px minmax(0,1fr) 56px 10px 70px}.sra-sr small{display:none}}"
+      + ".sra-dr-f .sra-amt-msg{margin-right:auto;font-size:12.5px;color:var(--muted)}.sra-dr-f .sra-amt-msg.bad{color:var(--neg)}"
+      + "@media(max-width:560px){.sra-sr{grid-template-columns:44px minmax(0,1fr) 56px 10px 70px 24px}}"
       + ".sra .sra-roas tr.sra-ed td{background:var(--panel-2)}"
       + "@media(max-width:700px){.sra .sra-fr{grid-template-columns:78px 1fr 110px}.sra .sra-exit{margin-left:0}}";
     document.head.appendChild(st);
@@ -883,8 +899,11 @@
     wireAmounts(host, el);
     // the split panel reads this period's numbers; after a save it opens the next source
     ROAS.R = R;
-    if (ROAS.reopen && !ROAS.loadingAmts) { var nf = ROAS.reopen; ROAS.reopen = null; openSplit(host, nf); }
-    else if (SP) drawSplit(host);
+    if (ROAS.reopen && !ROAS.loadingAmts) {
+      var nf = ROAS.reopen, ns = ROAS.reopenSel; ROAS.reopen = null; ROAS.reopenSel = null;
+      openSplit(host, nf);
+      if (SP && ns && SP.months.indexOf(ns) >= 0) { SP.sel = ns; drawSplit(host); }
+    } else if (SP) drawSplit(host);
   }
   /* MISSING DATA: spend no rule can place, by source -- each opens the amounts editor -- and jobs
      with no state */
@@ -928,19 +947,25 @@
             + ". The state comes from the closing's pickup zip; fixing the zip on the closing sheet fixes it here."
           : "Every closing in the period has a state.") + "</div></div>";
   }
-  /* THE SPLIT PANEL (his picks 2026-10-20, replacing the month x state dollar grid -- "i dont like
-     the UX of entering data for month distribution with states"):
-     - ONE percentage per state for a source, applied to every month of the period that has spend
-       no rule placed. A month that differed can take its own split.
-     - It opens on where that source's own leads came from (among the eight states), a suggestion
-       he confirms, not a rule. "Even" and "Blank" are the other starts, and "As saved" once saved.
-     - A side panel walks the Missing data list by dollars: "Save and next".
+  /* THE SPLIT PANEL, MONTH BY MONTH (his notes 2026-10-20 on the first version):
+     - "where its leads came from is kinda confusing": a state with fewer than 3 leads in the month
+       is left at 0, and nothing is prefilled when the panel opens.
+     - "month selection should be a must": a month is picked before anything can be split; every
+       month has its own split.
+     - "you have to memorize that you did first month": every month is a chip that turns green
+       when it is fully split (amber part-way, red over 100%), so where you are is always visible.
+     - "more modern selectors, chips": states are chips you switch on, each with a slider.
+     - "copy distribution from previous month": one click.
      The endpoint is unchanged: share x each month's unplaced spend = the dollars /api/_mktamount
-     stores, rounded to the cent and never more than the month has. */
-  var SP = null;   // {fam, base:{ym:sp}, months:[ym], common:{st:pct}, own:{ym:{st:pct}}, sel, from, dirty}
+     stores, rounded to the cent and never more than the month has; only changed months are sent.
+     The panel lives on <body>, walks the Missing data list by dollars ("Save and next"), and
+     closes when the page is left. */
+  var SP = null;   // {fam, base:{ym:sp}, months:[ym], pct:{ym:{st:p}}, sel:ym|null, note}
+  var MIN_LEADS = 3;
+  var ST_COL = { NJ: "#2F6B4F", PA: "#7A9A3A", NY: "#B8862E", CT: "#3A6EA5", DE: "#8B5A9E", MD: "#B5523B", MA: "#5E7C8A", VA: "#9A8F6E" };
   function r1(v) { return Math.round(v * 10) / 10; }
-  function pctSum(P) { var t = 0; Object.keys(P).forEach(function (k) { t += P[k] || 0; }); return r1(t); }
-  // whole-number counts -> shares that add to exactly 100.0 (the rounding goes to the biggest)
+  function pctSum(P) { var t = 0; Object.keys(P || {}).forEach(function (k) { t += P[k] || 0; }); return r1(t); }
+  // whole-number weights -> shares that add to exactly 100.0 (the rounding goes to the biggest)
   function pctOf(n) {
     var ks = AMT_STATES.filter(function (s0) { return n[s0] > 0; }), t = 0, o = {};
     ks.forEach(function (k) { t += n[k]; });
@@ -950,16 +975,16 @@
     o[big] = r1(o[big] + 100 - pctSum(o));
     return o;
   }
-  // the source's leads in these months, by state, among the eight states the amounts can name
-  function splitLeads(f, months) {
-    var pack = DATA.byFam.get(f), n = {}, t = 0;
+  // the source's leads in one month by state (the eight states only); under MIN_LEADS counts as none
+  function monthLeads(f, ym) {
+    var pack = DATA.byFam.get(f), n = {}, kept = {}, t = 0;
     if (pack) pack.leads.forEach(function (r) {
-      if (!coOk(r) || !r._cd || months.indexOf(r._cd.slice(0, 7)) < 0) return;
+      if (!coOk(r) || !r._cd || r._cd.slice(0, 7) !== ym) return;
       var s0 = stateKey(r.State);
-      if (AMT_STATES.indexOf(s0) < 0) return;
-      n[s0] = (n[s0] || 0) + 1; t++;
+      if (AMT_STATES.indexOf(s0) >= 0) n[s0] = (n[s0] || 0) + 1;
     });
-    return { n: n, t: t };
+    AMT_STATES.forEach(function (s0) { if (n[s0] >= MIN_LEADS) { kept[s0] = n[s0]; t += n[s0]; } });
+    return { n: n, kept: kept, t: t };
   }
   function splitQueue(R) {
     var co = S.co;
@@ -971,221 +996,12 @@
   // the dollars saved for a month, as shares of that month's unplaced spend
   function savedPct(f, ym, sp) {
     var o = {};
-    amtOf(S.co, f, ym).forEach(function (x) { if (sp > 0) o[x.State] = r1(100 * num(x.Amount) / sp); });
+    amtOf(S.co, f, ym).forEach(function (x) { if (sp > 0 && num(x.Amount) > 0) o[x.State] = r1(100 * num(x.Amount) / sp); });
     return o;
   }
-  function samePct(a, b) {
-    return AMT_STATES.every(function (s0) { return Math.abs((a[s0] || 0) - (b[s0] || 0)) <= 0.5; });
-  }
-  function openSplit(host, f) {
-    var R = ROAS.R;
-    if (!R || !S.co) return;
-    var base = R.mon[f] || {};
-    var months = Object.keys(base).filter(function (ym) { return base[ym] > 0.5; }).sort();
-    SP = { fam: f, base: base, months: months, common: {}, own: {}, sel: null, from: "leads", dirty: false };
-    var typed = months.filter(function (ym) { return amtOf(S.co, f, ym).length; });
-    if (typed.length) {
-      // what was saved: one split over the typed months' dollars; a month far from it keeps its own
-      var A = {}, T = 0;
-      typed.forEach(function (ym) {
-        T += base[ym];
-        amtOf(S.co, f, ym).forEach(function (x) { A[x.State] = (A[x.State] || 0) + num(x.Amount); });
-      });
-      Object.keys(A).forEach(function (s0) { SP.common[s0] = r1(100 * A[s0] / T); });
-      months.forEach(function (ym) {
-        var p = typed.indexOf(ym) >= 0 ? savedPct(f, ym, base[ym]) : {};
-        if (!samePct(p, SP.common)) SP.own[ym] = p;
-      });
-      SP.from = "saved";
-    } else {
-      SP.common = pctOf(splitLeads(f, months).n);
-      if (!Object.keys(SP.common).length) SP.from = "blank";
-    }
-    drawSplit(host);
-  }
-  function closeSplit(host) {
-    SP = null;
-    var ov = document.getElementById("sraSplitOv");
-    if (ov) ov.remove();
-    if (host && host.isConnected && host.querySelector("#sraRoas")) paintRoas(host, win());
-  }
-  function splitStart(f, how) {
-    if (how === "leads") return pctOf(splitLeads(f, SP.months).n);
-    if (how === "even") {
-      var n = splitLeads(f, SP.months).n, ks = AMT_STATES.filter(function (s0) { return n[s0] > 0; }), o = {};
-      if (!ks.length) ks = AMT_STATES.slice();
-      ks.forEach(function (s0) { o[s0] = 1; });
-      return pctOf(o);
-    }
-    return {};
-  }
-  function drawSplit(host) {
-    var R = ROAS.R, ov = document.getElementById("sraSplitOv");
-    if (!SP || !R) { if (ov) ov.remove(); return; }
-    if (!ov) {
-      ov = document.createElement("div");
-      ov.id = "sraSplitOv"; ov.className = "sra-ov";
-      ov.innerHTML = '<div class="sra-dr" role="dialog" aria-modal="true" aria-label="Split by state"></div>';
-      document.body.appendChild(ov);
-      var onk = function (e) { if (e.key === "Escape" && document.getElementById("sraSplitOv")) leave(); };
-      var leave = function () {
-        if (SP && SP.dirty && !window.confirm("Close without saving the " + SP.fam + " split?")) return;
-        document.removeEventListener("keydown", onk);
-        window.removeEventListener("hashchange", gone);
-        closeSplit(host);
-      };
-      // leaving the page takes the panel with it: it lives on <body>, outside the page host
-      var gone = function () { document.removeEventListener("keydown", onk); SP = null; var o = document.getElementById("sraSplitOv"); if (o) o.remove(); };
-      document.addEventListener("keydown", onk);
-      window.addEventListener("hashchange", gone, { once: true });
-      ov.addEventListener("click", function (e) { if (e.target === ov) leave(); });
-      ov._leave = leave;
-    }
-    var f = SP.fam, Q = splitQueue(R), qi = Q.indexOf(f), next = Q[qi + 1] || null;
-    var sel = SP.sel;
-    var spOf = function (ym) { return SP.base[ym] || 0; };
-    var cur = function () { return sel ? (SP.own[sel] || SP.common) : SP.common; };
-    // the dollars one share stands for: the selected month, or every month on the common split
-    var poolOf = function () {
-      var t = 0;
-      if (sel) t = spOf(sel); else SP.months.forEach(function (ym) { if (!SP.own[ym]) t += spOf(ym); });
-      return t;
-    };
-    var P = cur(), pool = poolOf();
-    var all = 0; SP.months.forEach(function (ym) { all += spOf(ym); });
-    var L = splitLeads(f, sel ? [sel] : SP.months);
-    var span = SP.months.length ? monthLbl(SP.months[0]) + (SP.months.length > 1 ? "–" + monthLbl(SP.months[SP.months.length - 1]) : "") : "";
-    var hasSaved = SP.months.some(function (ym) { return amtOf(S.co, f, ym).length; });
-    var starts = [["leads", "Where its leads came from" + (L.t ? " (" + fmtN(L.t) + ")" : "")], ["even", "Even"], ["blank", "Blank"]];
-    if (hasSaved && !sel) starts.push(["saved", "As saved"]);
-    var C = ["#2F6B4F", "#7A9A3A", "#B8862E", "#3A6EA5", "#8B5A9E", "#B5523B", "#5E7C8A", "#9A8F6E"];
-    var barHtml = function (P) {
-      return AMT_STATES.map(function (s0, i) {
-        var p = P[s0] || 0;
-        return p > 0 ? '<i style="width:' + Math.min(100, p) + "%;background:" + C[i] + '" title="' + s0 + " " + p + '%"></i>' : "";
-      }).join("");
-    };
-    var totHtml = function (P, pool) {
-      var tot = pctSum(P);
-      return tot > 100.05 ? '<span class="bad">' + tot + "% — bring it down to 100% to save.</span>"
-        : tot >= 99.95 ? '<span class="ok">100% — all ' + money0(pool) + " placed.</span>"
-        : "<span>" + tot + "% — " + money0(pool * (100 - tot) / 100) + " stays not placed.</span>";
-    };
-    var monthsOf = function () {
-      return SP.months.map(function (ym) {
-        var own = !!SP.own[ym], q = SP.own[ym] || SP.common, t = Math.min(100, pctSum(q));
-        return '<button type="button" class="sra-sm' + (sel === ym ? " on" : "") + (own ? " own" : "") + '" data-ym="' + esc(ym) + '">'
-          + esc(monthLbl(ym)) + "<b>" + money0(spOf(ym) * t / 100) + "</b><small>" + (own ? "own split" : "of " + money0(spOf(ym))) + "</small></button>";
-      }).join("");
-    };
-    var bar = barHtml(P);
-    var rows = AMT_STATES.map(function (s0, i) {
-      var p = P[s0] || 0, ln = L.n[s0] || 0;
-      return '<div class="sra-sr"><b><i style="background:' + C[i] + '"></i>' + s0 + "</b>"
-        + '<input type="range" min="0" max="100" step="0.5" value="' + p + '" data-st="' + s0 + '" aria-label="' + s0 + ' share">'
-        + '<input class="rs-inp" inputmode="decimal" value="' + (p ? p : "") + '" placeholder="0" data-pc="' + s0 + '" aria-label="' + s0 + ' percent"><span>%</span>'
-        + '<span class="num">' + money0(pool * p / 100) + "</span>"
-        + '<small title="' + esc(f) + " leads from " + s0 + '">' + (ln ? fmtN(ln) + " lead" + (ln === 1 ? "" : "s") : "") + "</small></div>";
-    }).join("");
-    var monthsHtml = monthsOf(), msg = totHtml(P, pool);
-    var dr = ov.querySelector(".sra-dr");
-    dr.innerHTML = '<div class="sra-dr-h"><div><div class="sra-dr-t">' + esc(f) + " · split by state</div>"
-        + '<div class="sra-dr-s">' + money0(all) + " not placed by the data · " + esc(span) + " · " + SP.months.length + " month" + (SP.months.length === 1 ? "" : "s")
-        + (Q.length > 1 ? " · source " + (qi + 1) + " of " + Q.length : "") + "</div></div>"
-        + '<button type="button" class="rs-btn" data-x="1" aria-label="Close">✕</button></div>'
-      + (Q.length > 1 ? '<div class="sra-q">' + Q.map(function (q) {
-          var u = R.unpl[q];
-          return '<button type="button" class="sra-qc' + (q === f ? " on" : "") + (u && u.sp > 0.5 ? "" : " done") + '" data-q="' + esc(q) + '">'
-            + esc(q) + " <small>" + (u && u.sp > 0.5 ? money0(u.sp) : "placed") + "</small></button>";
-        }).join("") + "</div>" : "")
-      + (!SP.months.length ? '<div class="rs-hint">No month of the period has ' + esc(f) + " spend left to place.</div>" :
-        (sel ? '<div class="sra-sel">' + esc(monthLbl(sel)) + " only — " + money0(spOf(sel)) + " not placed that month. "
-            + '<button type="button" class="rs-btn" data-back="1">Back to all months</button>'
-            + (SP.own[sel] ? ' <button type="button" class="rs-btn" data-reset="1">Use the all-months split</button>' : "") + "</div>"
-          : '<div class="rs-hint">One split for every month' + (Object.keys(SP.own).length ? " except the ones marked <b>own split</b>" : "")
-            + ". Dollars = share × each month's spend not placed. Months outside the period keep what was saved.</div>")
-        + '<div class="sra-st"><span>Start from</span>' + starts.map(function (s) {
-            return '<button type="button" class="rs-btn' + (!sel && SP.from === s[0] ? " on" : "") + '" data-from="' + s[0] + '">' + esc(s[1]) + "</button>";
-          }).join("") + "</div>"
-        + '<div class="sra-bar">' + bar + "</div>"
-        + '<div class="sra-srs">' + rows + "</div>"
-        + '<div class="sra-sum">' + msg + "</div>"
-        + '<div class="sra-mh">Months <small>click one to give it its own split</small></div>'
-        + '<div class="sra-ms">' + monthsHtml + "</div>")
-      + '<div class="sra-dr-f"><span class="sra-amt-msg"></span>'
-        + (next ? '<button type="button" class="rs-btn" data-skip="1">Skip</button>' : "")
-        + (SP.months.length ? '<button type="button" class="rs-btn pri" data-save="1">' + (next ? "Save and next: " + esc(next) : "Save") + "</button>" : "")
-      + "</div>";
-
-    var set = function (s0, v) {
-      var p = Math.max(0, Math.min(100, r1(v || 0)));
-      var tgt = sel ? (SP.own[sel] = SP.own[sel] || Object.assign({}, SP.common)) : SP.common;
-      if (p) tgt[s0] = p; else delete tgt[s0];
-      if (!sel) SP.from = "";
-      SP.dirty = true;
-    };
-    var wireMonths = function () {
-      dr.querySelectorAll(".sra-ms [data-ym]").forEach(function (b) {
-        b.onclick = function () { var ym = b.dataset.ym; SP.sel = SP.sel === ym ? null : ym; drawSplit(host); };
-      });
-    };
-    var live = function () {
-      var P = cur(), pool = poolOf();
-      dr.querySelectorAll(".sra-sr").forEach(function (row) {
-        var rg = row.querySelector("input[data-st]"), pc = row.querySelector("input[data-pc]"), s0 = rg.dataset.st, p = P[s0] || 0;
-        if (document.activeElement !== rg) rg.value = p;
-        if (document.activeElement !== pc) pc.value = p ? p : "";
-        row.querySelector(".num").textContent = money0(pool * p / 100);
-      });
-      dr.querySelector(".sra-bar").innerHTML = barHtml(P);
-      dr.querySelector(".sra-sum").innerHTML = totHtml(P, pool);
-      dr.querySelector(".sra-ms").innerHTML = monthsOf();
-      wireMonths();
-      if (!sel) dr.querySelectorAll("[data-from]").forEach(function (b) { b.classList.toggle("on", SP.from === b.dataset.from); });
-    };
-    dr.querySelectorAll("input[data-st]").forEach(function (i) {
-      i.oninput = function () {
-        set(i.dataset.st, +i.value);
-        var pc = dr.querySelector('input[data-pc="' + i.dataset.st + '"]'), P = cur();
-        if (pc) pc.value = P[i.dataset.st] || "";
-        live();
-      };
-    });
-    dr.querySelectorAll("input[data-pc]").forEach(function (i) {
-      var put = function () { set(i.dataset.pc, parseFloat(String(i.value).replace(/[%,\s]/g, "")) || 0); live(); };
-      i.oninput = put;
-      i.onblur = function () { var P = cur(); i.value = P[i.dataset.pc] || ""; };
-    });
-    wireMonths();
-    dr.querySelectorAll("[data-from]").forEach(function (b) {
-      b.onclick = function () {
-        var how = b.dataset.from, p;
-        if (how === "saved") { openSplit(host, f); return; }
-        p = splitStart(f, how);
-        if (sel) SP.own[sel] = p; else SP.common = p;
-        if (!sel) SP.from = how;
-        SP.dirty = true; drawSplit(host);
-      };
-    });
-    var back = dr.querySelector(".sra-sel [data-back]");
-    if (back) back.onclick = function () { SP.sel = null; drawSplit(host); };
-    var rs = dr.querySelector("[data-reset]");
-    if (rs) rs.onclick = function () { delete SP.own[sel]; SP.dirty = true; SP.sel = null; drawSplit(host); };
-    dr.querySelector("[data-x]").onclick = function () { ov._leave(); };
-    dr.querySelectorAll("[data-q]").forEach(function (b) {
-      b.onclick = function () {
-        if (b.dataset.q === f) return;
-        if (SP.dirty && !window.confirm("Leave the " + f + " split without saving?")) return;
-        openSplit(host, b.dataset.q);
-      };
-    });
-    var sk = dr.querySelector("[data-skip]");
-    if (sk) sk.onclick = function () {
-      if (SP.dirty && !window.confirm("Skip " + f + " without saving?")) return;
-      openSplit(host, next);
-    };
-    var sv = dr.querySelector("[data-save]");
-    if (sv) sv.onclick = function () { saveSplit(host, dr, next); };
+  function monthState(P) {
+    var t = pctSum(P);
+    return t > 100.05 ? "over" : t >= 99.95 ? "full" : t > 0 ? "part" : "blank";
   }
   // shares -> cents per state for each month, never more than the month's unplaced spend
   function splitDollars(P, sp) {
@@ -1200,17 +1016,230 @@
     }
     return a.sort(function (x, y) { return x.state < y.state ? -1 : 1; });
   }
-  function saveSplit(host, dr, next) {
-    var f = SP.fam, msg = dr.querySelector(".sra-amt-msg"), months = [], bad = [];
-    var key = function (a) { return a.map(function (x) { return (x.state || x.State) + ":" + num(x.amount != null ? x.amount : x.Amount).toFixed(2); }).sort().join("|"); };
-    SP.months.forEach(function (ym) {
-      var P = SP.own[ym] || SP.common;
-      if (pctSum(P) > 100.05) { bad.push(monthLbl(ym)); return; }
-      var a = splitDollars(P, SP.base[ym]);
-      if (key(a) !== key(amtOf(S.co, f, ym))) months.push({ month: ym, amounts: a });
+  function dollarKey(a) {
+    return a.map(function (x) { return (x.state || x.State) + ":" + num(x.amount != null ? x.amount : x.Amount).toFixed(2); }).sort().join("|");
+  }
+  // the months whose split differs from what is saved -- what a save sends
+  function changedMonths() {
+    return SP.months.filter(function (ym) {
+      return dollarKey(splitDollars(SP.pct[ym] || {}, SP.base[ym])) !== dollarKey(amtOf(S.co, SP.fam, ym));
     });
+  }
+  function openSplit(host, f) {
+    var R = ROAS.R;
+    if (!R || !S.co) return;
+    var base = R.mon[f] || {};
+    var months = Object.keys(base).filter(function (ym) { return base[ym] > 0.5; }).sort();
+    // blank on open: a month shows what was saved for it, nothing else
+    SP = { fam: f, base: base, months: months, pct: {}, sel: null, note: "" };
+    months.forEach(function (ym) { SP.pct[ym] = savedPct(f, ym, base[ym]); });
+    drawSplit(host);
+  }
+  function closeSplit(host) {
+    SP = null;
+    var ov = document.getElementById("sraSplitOv");
+    if (ov) ov.remove();
+    if (host && host.isConnected && host.querySelector("#sraRoas")) paintRoas(host, win());
+  }
+  function drawSplit(host) {
+    var R = ROAS.R, ov = document.getElementById("sraSplitOv");
+    if (!SP || !R) { if (ov) ov.remove(); return; }
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "sraSplitOv"; ov.className = "sra-ov";
+      ov.innerHTML = '<div class="sra-dr" role="dialog" aria-modal="true" aria-label="Split by state"></div>';
+      document.body.appendChild(ov);
+      var onk = function (e) { if (e.key === "Escape" && document.getElementById("sraSplitOv")) leave(); };
+      var leave = function () {
+        if (SP && changedMonths().length && !window.confirm("Close without saving the " + SP.fam + " split?")) return;
+        document.removeEventListener("keydown", onk);
+        window.removeEventListener("hashchange", gone);
+        closeSplit(host);
+      };
+      // leaving the page takes the panel with it: it lives on <body>, outside the page host
+      var gone = function () { document.removeEventListener("keydown", onk); SP = null; var o = document.getElementById("sraSplitOv"); if (o) o.remove(); };
+      document.addEventListener("keydown", onk);
+      window.addEventListener("hashchange", gone, { once: true });
+      ov.addEventListener("click", function (e) { if (e.target === ov) leave(); });
+      ov._leave = leave;
+    }
+    var f = SP.fam, Q = splitQueue(R), qi = Q.indexOf(f), next = Q[qi + 1] || null;
+    var sel = SP.sel, si = sel ? SP.months.indexOf(sel) : -1;
+    var prev = si > 0 ? SP.months[si - 1] : null, nextM = si >= 0 && si < SP.months.length - 1 ? SP.months[si + 1] : null;
+    var spOf = function (ym) { return SP.base[ym] || 0; };
+    var cur = function () { return sel ? (SP.pct[sel] = SP.pct[sel] || {}) : {}; };
+    var all = 0; SP.months.forEach(function (ym) { all += spOf(ym); });
+    var nFull = SP.months.filter(function (ym) { return monthState(SP.pct[ym]) === "full"; }).length;
+    var span = SP.months.length ? monthLbl(SP.months[0]) + (SP.months.length > 1 ? "–" + monthLbl(SP.months[SP.months.length - 1]) : "") : "";
+    var L = sel ? monthLeads(f, sel) : null;
+    var chg = changedMonths().length;
+
+    var monthChip = function (ym) {
+      var st = monthState(SP.pct[ym]), t = Math.min(100, pctSum(SP.pct[ym]));
+      return '<button type="button" class="sra-mc ' + st + (sel === ym ? " on" : "") + '" data-ym="' + esc(ym) + '" aria-pressed="' + (sel === ym) + '">'
+        + '<span class="sra-mc-l">' + esc(monthLbl(ym)) + "</span>"
+        + '<span class="sra-mc-v">' + (st === "full" ? "✓ " : "") + money0(spOf(ym)) + "</span>"
+        + '<span class="sra-mc-p">' + (st === "blank" ? "not split" : st === "over" ? pctSum(SP.pct[ym]) + "%, over" : t + "%") + "</span></button>";
+    };
+    var stateChip = function (s0) {
+      var P = cur(), on = P[s0] != null, ln = L ? (L.n[s0] || 0) : 0;
+      return '<button type="button" class="sra-sc' + (on ? " on" : "") + '" data-tog="' + s0 + '" aria-pressed="' + on + '" style="--c:' + ST_COL[s0] + '">'
+        + '<i></i>' + s0 + (on ? " · " + (P[s0] || 0) + "%" : "") + (ln ? '<small title="' + ln + " lead" + (ln === 1 ? "" : "s") + " this month" + '">' + ln + "</small>" : "") + "</button>";
+    };
+    var rowsHtml = function () {
+      var P = cur(), on = AMT_STATES.filter(function (s0) { return P[s0] != null; });
+      if (!on.length) return '<div class="sra-empty2">Switch on the states this month\'s ' + esc(f) + " money went to, or fill it from a button above.</div>";
+      return on.map(function (s0) {
+        var p = P[s0] || 0;
+        return '<div class="sra-sr" style="--c:' + ST_COL[s0] + '"><b><i></i>' + s0 + "</b>"
+          + '<input type="range" min="0" max="100" step="0.5" value="' + p + '" data-st="' + s0 + '" aria-label="' + s0 + ' share">'
+          + '<input class="rs-inp" inputmode="decimal" value="' + (p ? p : "") + '" placeholder="0" data-pc="' + s0 + '" aria-label="' + s0 + ' percent"><span>%</span>'
+          + '<span class="num">' + money0(spOf(sel) * p / 100) + "</span>"
+          + '<button type="button" class="sra-rm" data-tog="' + s0 + '" aria-label="Remove ' + s0 + '">✕</button></div>';
+      }).join("");
+    };
+    var barHtml = function () {
+      var P = cur();
+      return AMT_STATES.map(function (s0) {
+        var p = P[s0] || 0;
+        return p > 0 ? '<i style="width:' + Math.min(100, p) + "%;background:" + ST_COL[s0] + '" title="' + s0 + " " + p + '%"></i>' : "";
+      }).join("");
+    };
+    var sumHtml = function () {
+      var P = cur(), t = pctSum(P), sp = spOf(sel);
+      return t > 100.05 ? '<span class="bad">' + t + "% — bring it down to 100%.</span>"
+        : t >= 99.95 ? '<span class="ok">✓ 100% — all ' + money0(sp) + " of " + esc(monthLbl(sel)) + " placed.</span>"
+        : t > 0 ? "<span>" + t + "% — " + money0(sp * (100 - t) / 100) + " left to place.</span>"
+        : "<span>Nothing placed yet.</span>";
+    };
+
+    var body;
+    if (!SP.months.length) body = '<div class="rs-hint">No month of the period has ' + esc(f) + " spend left to place.</div>";
+    else if (!sel) body = '<div class="sra-pick"><b>Pick a month</b> to split it. A month turns <span class="g">green</span> when it\'s fully split'
+      + ' and <span class="a">amber</span> while part of it is still not placed.</div>';
+    else {
+      var fills = '<button type="button" class="sra-fc" data-fill="leads"' + (L.t ? "" : ' title="No state had ' + MIN_LEADS + ' or more ' + esc(f) + ' leads this month"') + ">"
+          + "Its leads" + (L.t ? " <small>" + fmtN(L.t) + "</small>" : " <small>too few</small>") + "</button>"
+        + (prev ? '<button type="button" class="sra-fc" data-fill="prev">Copy from ' + esc(monthLbl(prev)) + (monthState(SP.pct[prev]) === "blank" ? " <small>empty</small>" : "") + "</button>" : "")
+        + '<button type="button" class="sra-fc" data-fill="even">Even</button>'
+        + '<button type="button" class="sra-fc" data-fill="clear">Clear</button>';
+      body = '<div class="sra-mh2"><div><b>' + esc(monthLbl(sel)) + "</b> · " + money0(spOf(sel)) + " not placed by the data</div>"
+          + (nextM ? '<button type="button" class="sra-nx" data-ym="' + esc(nextM) + '">' + esc(monthLbl(nextM)) + " →</button>" : "") + "</div>"
+        + '<div class="sra-fills"><span>Fill from</span>' + fills + "</div>"
+        + (SP.note ? '<div class="sra-note">' + esc(SP.note) + "</div>" : "")
+        + '<div class="sra-scs">' + AMT_STATES.map(stateChip).join("") + "</div>"
+        + '<div class="sra-bar">' + barHtml() + "</div>"
+        + '<div class="sra-srs">' + rowsHtml() + "</div>"
+        + '<div class="sra-sum">' + sumHtml() + "</div>";
+    }
+
+    var dr = ov.querySelector(".sra-dr");
+    dr.innerHTML = '<div class="sra-dr-h"><div><div class="sra-dr-t">' + esc(f) + " · split by state</div>"
+        + '<div class="sra-dr-s">' + money0(all) + " not placed by the data · " + esc(span)
+        + (Q.length > 1 ? " · source " + (qi + 1) + " of " + Q.length : "") + "</div></div>"
+        + '<button type="button" class="sra-xb" data-x="1" aria-label="Close">✕</button></div>'
+      + (Q.length > 1 ? '<div class="sra-q">' + Q.map(function (q) {
+          var u = R.unpl[q];
+          return '<button type="button" class="sra-qc' + (q === f ? " on" : "") + (u && u.sp > 0.5 ? "" : " done") + '" data-q="' + esc(q) + '">'
+            + (u && u.sp > 0.5 ? "" : "✓ ") + esc(q) + " <small>" + (u && u.sp > 0.5 ? money0(u.sp) : "placed") + "</small></button>";
+        }).join("") + "</div>" : "")
+      + (SP.months.length ? '<div class="sra-msh"><b>Months</b><small>' + nFull + " of " + SP.months.length + " fully split</small></div>"
+        + '<div class="sra-mcs">' + SP.months.map(monthChip).join("") + "</div>" : "")
+      + body
+      + '<div class="sra-dr-f"><span class="sra-amt-msg">' + (chg ? chg + " month" + (chg === 1 ? "" : "s") + " not saved yet" : "") + "</span>"
+        + (next ? '<button type="button" class="rs-btn" data-skip="1">Skip</button>' : "")
+        + (SP.months.length ? '<button type="button" class="rs-btn' + (next ? "" : " pri") + '" data-save="0">Save</button>'
+          + (next ? '<button type="button" class="rs-btn pri" data-save="1">Save and next: ' + esc(next) + "</button>" : "") : "")
+      + "</div>";
+
+    var redraw = function () { SP.note = ""; drawSplit(host); };
+    // dragging must not rebuild the panel (a rebuilt slider drops the drag): only the numbers move
+    var live = function () {
+      var P = cur();
+      dr.querySelectorAll(".sra-sr").forEach(function (row) {
+        var rg = row.querySelector("input[data-st]"), pc = row.querySelector("input[data-pc]"), s0 = rg.dataset.st, p = P[s0] || 0;
+        if (document.activeElement !== rg) rg.value = p;
+        if (document.activeElement !== pc) pc.value = p ? p : "";
+        row.querySelector(".num").textContent = money0(spOf(sel) * p / 100);
+      });
+      dr.querySelectorAll(".sra-sc").forEach(function (c) {
+        var s0 = c.dataset.tog; if (P[s0] == null) return;
+        var sm = c.querySelector("small");
+        c.innerHTML = "<i></i>" + s0 + " · " + (P[s0] || 0) + "%";
+        if (sm) c.appendChild(sm);
+      });
+      dr.querySelector(".sra-bar").innerHTML = barHtml();
+      dr.querySelector(".sra-sum").innerHTML = sumHtml();
+      var mc = dr.querySelector('.sra-mc[data-ym="' + sel + '"]');
+      if (mc) { var tmp = document.createElement("div"); tmp.innerHTML = monthChip(sel); mc.className = tmp.firstChild.className; mc.innerHTML = tmp.firstChild.innerHTML; }
+      var n2 = SP.months.filter(function (ym) { return monthState(SP.pct[ym]) === "full"; }).length;
+      dr.querySelector(".sra-msh small").textContent = n2 + " of " + SP.months.length + " fully split";
+      var c2 = changedMonths().length;
+      dr.querySelector(".sra-dr-f .sra-amt-msg").textContent = c2 ? c2 + " month" + (c2 === 1 ? "" : "s") + " not saved yet" : "";
+    };
+    var setP = function (s0, v) { var P = cur(); P[s0] = Math.max(0, Math.min(100, r1(v || 0))); };
+    dr.querySelectorAll("input[data-st]").forEach(function (i) {
+      i.oninput = function () { setP(i.dataset.st, +i.value); live(); };
+    });
+    dr.querySelectorAll("input[data-pc]").forEach(function (i) {
+      i.oninput = function () { setP(i.dataset.pc, parseFloat(String(i.value).replace(/[%,\s]/g, "")) || 0); live(); };
+      i.onblur = function () { var P = cur(); i.value = P[i.dataset.pc] || ""; };
+    });
+    // a state switched on takes what is left of the month; switched off, it gives its share back
+    dr.querySelectorAll("[data-tog]").forEach(function (b) {
+      b.onclick = function () {
+        var P = cur(), s0 = b.dataset.tog;
+        if (P[s0] != null) delete P[s0];
+        else P[s0] = Math.max(0, r1(100 - pctSum(P)));
+        redraw();
+      };
+    });
+    dr.querySelectorAll("[data-fill]").forEach(function (b) {
+      b.onclick = function () {
+        var how = b.dataset.fill, P;
+        if (how === "leads") {
+          if (!L.t) { SP.note = "No state had " + MIN_LEADS + " or more " + f + " leads in " + monthLbl(sel) + ". Switch the states on yourself."; drawSplit(host); return; }
+          SP.pct[sel] = pctOf(L.kept);
+        } else if (how === "prev") {
+          if (monthState(SP.pct[prev]) === "blank") { SP.note = monthLbl(prev) + " has no split to copy yet."; drawSplit(host); return; }
+          SP.pct[sel] = Object.assign({}, SP.pct[prev]);
+        } else if (how === "even") {
+          P = cur();
+          var on = AMT_STATES.filter(function (s0) { return P[s0] != null; });
+          if (!on.length) on = AMT_STATES.filter(function (s0) { return L.kept[s0]; });
+          if (!on.length) { SP.note = "Switch on the states first, then split them evenly."; drawSplit(host); return; }
+          var o = {}; on.forEach(function (s0) { o[s0] = 1; });
+          SP.pct[sel] = pctOf(o);
+        } else SP.pct[sel] = {};
+        redraw();
+      };
+    });
+    dr.querySelectorAll("[data-ym]").forEach(function (b) {
+      b.onclick = function () { SP.sel = SP.sel === b.dataset.ym && !b.classList.contains("sra-nx") ? null : b.dataset.ym; redraw(); };
+    });
+    dr.querySelector("[data-x]").onclick = function () { ov._leave(); };
+    dr.querySelectorAll("[data-q]").forEach(function (b) {
+      b.onclick = function () {
+        if (b.dataset.q === f) return;
+        if (changedMonths().length && !window.confirm("Leave the " + f + " split without saving?")) return;
+        openSplit(host, b.dataset.q);
+      };
+    });
+    var sk = dr.querySelector("[data-skip]");
+    if (sk) sk.onclick = function () {
+      if (changedMonths().length && !window.confirm("Skip " + f + " without saving?")) return;
+      openSplit(host, next);
+    };
+    dr.querySelectorAll("[data-save]").forEach(function (b) {
+      b.onclick = function () { saveSplit(host, dr, b.dataset.save === "1" ? next : null); };
+    });
+  }
+  function saveSplit(host, dr, next) {
+    var f = SP.fam, msg = dr.querySelector(".sra-dr-f .sra-amt-msg"), months = [], bad = [];
+    SP.months.forEach(function (ym) { if (monthState(SP.pct[ym]) === "over") bad.push(monthLbl(ym)); });
     msg.classList.remove("bad");
     if (bad.length) { msg.textContent = "Over 100% in " + bad.join(", ") + " — bring it down to save."; msg.classList.add("bad"); return; }
+    changedMonths().forEach(function (ym) { months.push({ month: ym, amounts: splitDollars(SP.pct[ym] || {}, SP.base[ym]) }); });
     if (!months.length) {
       if (next) { openSplit(host, next); return; }
       msg.textContent = "Nothing changed."; return;
@@ -1227,9 +1256,9 @@
           throw new Error(j.error || ("HTTP " + r.status));
         }
         ROAS.note = f + ": " + months.length + " month" + (months.length === 1 ? "" : "s") + " saved.";
-        SP.dirty = false;
-        ROAS.reopen = next || null;
-        if (!next) { SP = null; var o = document.getElementById("sraSplitOv"); if (o) o.remove(); }
+        // the same source stays open on the same month after a plain Save; "and next" moves on
+        ROAS.reopen = next || f;
+        ROAS.reopenSel = next ? null : SP.sel;
         loadAmounts(host);
       });
     }).catch(function (e) { msg.textContent = "Not saved: " + e.message; msg.classList.add("bad"); });
