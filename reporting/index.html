@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="b052c7e37b9f6783f6edd83f9e429f70d2d414cf">
+<meta name="ztz-ref" content="3d8cb11a5ecfc49a620e2a73ec78dad5b36e5660">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -261,7 +261,7 @@ const GROUP_OVERRIDE = {
   "photoshoot": "marketing-automations",
   "referral-candidates": "marketing-automations",
   // Company Overview
-  "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
+  "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company", "job-pnl": "company",
   // Seasonal Planning lives in Company Overview ONLY (his call 2026-09-29: "only have it in
   // overview") so the colleagues who hold that group can open it
   "area-plan": "company",
@@ -300,7 +300,7 @@ const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
 const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
+  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "job-pnl": 2.5, "things-to-do": 0.6,
   "sales-command": 0.5, "sales-roster": 0.55, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "estimate-accuracy": 0.95, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
@@ -350,7 +350,7 @@ const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
 /* page id / planned title → icon key */
 const PAGE_ICONS = {
   "jobs-vs-hours": "activity", "yoy-diff": "trend", "leads-analysis": "funnel",
-  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass",
+  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass", "job-pnl": "receipt",
   "Analysis by Category": "compass", "Sales Person Analysis": "user",
   "sales-person-analysis": "user",
   "Ads Analysis": "megaphone", "CallRail": "phone", "Forman": "tool",
@@ -831,6 +831,7 @@ const PAGE_DATASETS = {
   "source-identification": ["moveboard", "closing"],
   "jobs-vs-hours": ["closing"],
   "analysis-by-category": ["closing", "moveboard", "fct_packing_job"],
+  "job-pnl": [],   // own search; one job at a time, no global bar
   "yoy-diff": ["closing"],
   "leads-analysis": ["moveboard"],
   "leads-by-state": ["moveboard"],
@@ -1209,7 +1210,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
+  "area-plan", "truck-economics", "job-pnl", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
   // Target Map (2026-10-19): Seasonal Planning locked to its map
   "target-map"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
@@ -1317,6 +1318,7 @@ const NAV_TITLES = {
   "sales-roster": "Sales team",
   "things-to-do": "Things to do",
   "analysis-by-category": "Custom Breakdown",
+  "job-pnl": "Job P&L",
   "insights": "Recommendations",
   "financial-overview": "Financial Overview",
   "month-outlook": "Month Outlook",
@@ -1375,6 +1377,7 @@ const SEARCH_ALIASES = {
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
   "seasonal-report": "seasonal report season summer report may june july august peak season year over year netcash card goals foreman of the summer postcard yelp cpl",
+  "job-pnl": "job p&l pnl profit and loss job cost breakdown costs per job profit per job closing expenses truck fuel packing refunds one job",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
   // ("insights" hidden for now — Tornike 2026-07-13: recommendations page needs rework)
   // Sales
@@ -1954,6 +1957,7 @@ const REPORT_LABELS = {
   "monthly-report": "Monthly Report (all-in-one)",
   "seasonal-report": "Seasonal Report (the busy season, season over season)",
   "analysis-by-category": "Custom Breakdown",
+  "job-pnl": "Job P&L (one job's full cost breakdown)",
   "insights": "Insights & Recommendations",
   // Sales
   "sales-funnel": "Lead Funnel & Conversion",
@@ -2035,7 +2039,7 @@ const ACL_DEPTS = [
   // plus the capability ids that exist today (hr-responses, explorer). `work` and
   // `things-to-do` used to sit in all nine lists, so every user got the Tech Team group.
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
-  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
+  { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category", "job-pnl"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
@@ -2280,6 +2284,7 @@ registerPage({
 <script src="pages/source-identification.js?v=4"></script>
 <script src="pages/jobs-vs-hours.js?v=8"></script>
 <script src="pages/analysis-by-category.js?v=23"></script>
+<script src="pages/job-pnl.js?v=1"></script>
 <script src="pages/yoy-diff.js?v=8"></script>
 <script src="pages/leads-analysis.js?v=8"></script>
 <script src="pages/leads-by-state.js?v=6"></script>
