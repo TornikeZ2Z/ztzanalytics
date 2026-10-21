@@ -42,7 +42,8 @@
     st.textContent = `
     /* the shared kit (assets/rs.css) carries panels, KPI tiles, inputs and tables; only the
        ledger's own marks live here */
-    .jpl-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .jpl-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1040px}
+    .jpl-hits{max-width:1040px}
     .jpl-search .rs-inp{flex:1 1 320px;min-width:0}
     .jpl-hits{margin-top:10px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
     .jpl-hit{display:grid;grid-template-columns:92px 120px minmax(0,1fr) minmax(0,160px) 96px 96px;gap:10px;
@@ -62,7 +63,7 @@
     .jpl-chip{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;margin-left:6px;
       background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
     .jpl-chip.jpl-ok{color:var(--pos)} .jpl-chip.jpl-warn{color:var(--warn)}
-    .jpl-ledger{width:100%;min-width:620px;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+    .jpl-ledger{width:100%;min-width:620px;max-width:1040px;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
     .jpl-ledger th,.jpl-ledger td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
     .jpl-ledger th:first-child,.jpl-ledger td:first-child{text-align:left;white-space:normal}
     .jpl-ledger thead th{font-size:12px;color:var(--muted);font-weight:700;vertical-align:bottom;border-bottom:2px solid var(--line)}
