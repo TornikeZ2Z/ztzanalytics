@@ -63,7 +63,8 @@
   var AMT_STATES = ["NJ", "PA", "NY", "CT", "DE", "MD", "MA", "VA"];
   var SMALL_SPEND = 500;   // a source x state cell with less placed spend is shown greyed, not rated
   var HOW_SHORT = { "From the source label": "label", "Google Ads state report": "Google report",
-                    "Thumbtack lead cost": "lead cost", "Split by leads": "by leads", "Your amounts": "entered" };
+                    "Thumbtack lead cost": "lead cost", "Split by leads": "by leads", "Yelp ads report": "Yelp report",
+                    "Your amounts": "entered" };
 
   function num(v) { return RS.num(v) || 0; }
   function inR(d, a, b) { return !!d && d >= a && d <= b; }

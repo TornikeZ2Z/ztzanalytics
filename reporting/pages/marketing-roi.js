@@ -406,7 +406,8 @@
         }).join("")
       + "</tbody></table></div></div>";
     body.innerHTML = '<div class="panel"><div class="rs-hint">' + clipHint(R)
-      + "Spend is placed from the source's label (post cards, Yelp-DE), Google's own state report, Thumbtack's cost per lead, "
+      + "Spend is placed from the source's label (post cards, Yelp-NJ), Google's own state report, Thumbtack's cost per lead, "
+      + "Yelp's own report for what the bank left untagged, "
       + "Angi's and Google Local's leads by state, or the dollars entered per month on <b>Spend by state</b>. Cost per job is spend "
       + "placed ÷ jobs moved (closings) of the same sources in the same states.</div><div class=\"rs-kpis\" id=\"roiK\"></div></div>"
       + stTable + hm
@@ -575,11 +576,11 @@
             + '<td class="num"><span class="roi-st ' + (ok === n ? "ok" : "no") + '">' + ok + " / " + n + "</span></td></tr>";
         }).join("")
       + "</tbody></table></div>"
-      + '<div class="roi-lg"><span><i class="roi-cc rule"></i>placed by a rule (label, Google report, leads, lead cost)</span>'
+      + '<div class="roi-lg"><span><i class="roi-cc rule"></i>placed by a rule (label, Google report, Yelp report, leads, lead cost)</span>'
       + '<span><i class="roi-cc ent"></i>entered or imported</span><span><i class="roi-cc part"></i>part placed</span>'
       + '<span><i class="roi-cc miss"></i>not placed</span></div></div>';
     body.innerHTML = '<div class="panel"><div class="rs-hint">' + clipHint(R)
-      + "A source the data can place (its label, Google's state report, Thumbtack's cost per lead, Angi's and Google Local's leads) "
+      + "A source the data can place (its label, Google's state report, Yelp's report, Thumbtack's cost per lead, Angi's and Google Local's leads) "
       + "needs nothing here. For the rest, open the source and say month by month where its money went — in % or $. "
       + "What you leave out stays not placed, and its return counts by state at once on every tab.</div></div>"
       + grid + '<div class="rs-grid2">' + missingHtml(R) + noStateHtml(R) + "</div>";
