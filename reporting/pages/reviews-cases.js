@@ -145,34 +145,10 @@ registerPage({
     (clLinks || []).forEach(r => { const k = String(r["Monday Item Id"] || "");
       if (k && r["Monday Url"]) URLBY[k] = r["Monday Url"]; });
 
-    /* ---------- canonicalisation (the audit's map, verbatim) ---------- */
-    const PLATFORM = (raw) => {
-      const s = String(raw || "").trim().toLowerCase().replace(/\s+/g, " ");
-      if (!s) return "Unlabeled";
-      if (s.startsWith("google")) return "Google";           // Nj/Pa/Shafto/Sahfto/Tuji/Local…
-      if (s.includes("yelp")) return "Yelp";
-      if (s.startsWith("thumbtack")) return "Thumbtack";
-      if (s === "consumer affairs" || s === "concumer affairs") return "Consumer Affairs";
-      if (s === "trustpilot" || s === "truspilot") return "Trustpilot";
-      if (s === "bbb") return "BBB";
-      if (s === "meta") return "Meta";
-      if (s === "angi") return "Angi";
-      if (s === "birdeye") return "Birdeye";
-      if (s === "moveadvisor") return "MoveAdvisor";
-      if (s === "reddit") return "Reddit";
-      // a government complaint body is not a review platform — kept distinct, never BBB
-      if (s.includes("bureau of consumer protection")) return "Regulatory";
-      return "Other";
-    };
-    // emoji-star varchar → number. The one '⭐️⭐️, ⭐️' combo takes its FIRST value.
-    const stars = (raw) => {
-      const s = String(raw == null ? "" : raw).trim();
-      if (!s) return { kind: "unrated", n: null };
-      if (/complaint/i.test(s)) return { kind: "complaint", n: null };
-      const first = s.split(",")[0];
-      const n = (first.match(/⭐/g) || []).length;
-      return n ? { kind: "stars", n } : { kind: "unrated", n: null };
-    };
+    /* ---------- canonicalisation (the audit's map; one copy in rs-core, shared with
+       Marketing Overview's Reviews tab) ---------- */
+    const PLATFORM = RS.reviewPlatform;
+    const stars = RS.reviewStars;
     const claimReason = (raw) => {
       const s = String(raw || "").trim();
       if (!s) return "Unspecified";

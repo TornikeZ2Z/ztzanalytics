@@ -1031,6 +1031,37 @@ window.RS = (function () {
     return { label: raw, size: null, type: "Other", rank: 200 };
   }
 
+  /* a negative review's platform and stars (Claims & Negative Reviews, and Marketing Overview's
+     Reviews tab since 2026-10-21 -- one map, so the two pages never file a review differently).
+     Platform labels rot ('Concumer Affairs', 'Truspilot', 'Google Sahfto'); an unknown label lands in
+     'Other' and a blank one in 'Unlabeled' instead of minting a new family. */
+  function reviewPlatform(raw) {
+    const s = String(raw || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!s) return "Unlabeled";
+    if (s.startsWith("google")) return "Google";           // Nj/Pa/Shafto/Sahfto/Tuji/Local…
+    if (s.includes("yelp")) return "Yelp";
+    if (s.startsWith("thumbtack")) return "Thumbtack";
+    if (s === "consumer affairs" || s === "concumer affairs") return "Consumer Affairs";
+    if (s === "trustpilot" || s === "truspilot") return "Trustpilot";
+    if (s === "bbb") return "BBB";
+    if (s === "meta") return "Meta";
+    if (s === "angi") return "Angi";
+    if (s === "birdeye") return "Birdeye";
+    if (s === "moveadvisor") return "MoveAdvisor";
+    if (s === "reddit") return "Reddit";
+    // a government complaint body is not a review platform — kept distinct, never BBB
+    if (s.includes("bureau of consumer protection")) return "Regulatory";
+    return "Other";
+  }
+  // emoji-star varchar → number. The one '⭐️⭐️, ⭐️' combo takes its FIRST value.
+  function reviewStars(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return { kind: "unrated", n: null };
+    if (/complaint/i.test(s)) return { kind: "complaint", n: null };
+    const n = (s.split(",")[0].match(/⭐/g) || []).length;
+    return n ? { kind: "stars", n } : { kind: "unrated", n: null };
+  }
+
   function reviewPlatKey(r) {
     return String(r.Company == null ? "—" : r.Company) + "|" + String(r.Platform == null ? "" : r.Platform).toLowerCase().replace(/[^a-z0-9]/g, "");
   }
@@ -1160,6 +1191,7 @@ window.RS = (function () {
            fmtN, money, fmtPct, fmt1, num,
            MIN_MONTH_DAYS, displayMonth, coverage,
            TZ_CHOICES, tzId, tzChoice, setTz, tzShort, fmtTz, fmtTzDay,
-           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, sizeParts,
+           bookingRate, dateBasis, fieldsFor, displayName, refresh, reviewFlow, reviewPlatKey, reviewPlatform,
+           reviewStars, sizeParts,
            repKind, salesTeam, isFormerRep };
 })();
