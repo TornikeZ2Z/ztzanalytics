@@ -1,11 +1,12 @@
-/* JOB P&L -- one job's full cost breakdown (Company Overview).
+/* JOB P&L -- one job's full cost breakdown (Financial).
  *
  * His ask (2026-10-21), after the two-day Aaron Greene breakdown he sent to Giga: "i need now to
  * create it as a functionality in company overview. i need user to be able to select a job and
  * see full costs breakdown. in the same style we just did." His picks: a linked second day
  * (pickup LM21-0220, delivery LM21-02200) shows side by side with a combined total; the page adds
  * the costs the closing sheet leaves out -- truck, WEX card fuel, packing cost at 15%, refunds and
- * claims; anyone who opens Company Overview opens this.
+ * claims. 2026-10-22: moved to Financial, before Salaries (his word); it shows crew pay and
+ * commission job by job, so it is opened by Financial holders only, like Salaries.
  *
  * Everything is computed in the warehouse (src/job_pnl.py -> mart_job_pnl, one row per closing).
  * This page only finds a job, lays its days side by side and says where every line comes from.
@@ -109,7 +110,7 @@
 
   registerPage({
     id: "job-pnl",
-    group: "company",
+    group: "financial",
     title: "Job P&L",
     subtitle: "Pick a job and see where its money went: what was billed, every cost on the closing " +
               "sheet, the costs the sheet leaves out, and what was left.",
@@ -159,16 +160,17 @@
         });
 
         const hashJob = () => { const m = /[#&]job=([^&]+)/.exec(location.hash || ""); return m ? decodeURIComponent(m[1]) : ""; };
-        let sel = hashJob();
-        if (sel && !byKey.has(sel)) {
+        const resolveJob = s => {
+          if (!s || byKey.has(s)) return s;
           // a link may carry a bare job code or closing number: find its job
-          const hit = rows.find(r => r["Job Code"] === sel || String(r["Closing #"]) === sel);
-          sel = hit ? hit["Job Key"] : "";
-        }
+          const hit = rows.find(r => r["Job Code"] === s || String(r["Closing #"]) === s);
+          return hit ? hit["Job Key"] : "";
+        };
+        let sel = resolveJob(hashJob());
         let query = "";
 
         host.innerHTML =
-          '<div class="rs-page-head"><div class="jpl-eyebrow">Company Overview</div><h1>Job P&L</h1>' +
+          '<div class="rs-page-head"><div class="jpl-eyebrow">Financial</div><h1>Job P&L</h1>' +
           '<p class="jpl-sub">Pick a job to see what it billed, every cost on its closing sheet, the costs the ' +
           'sheet leaves out (truck, card fuel, packing, refunds) and what was left. A delivery day opens with its pickup.</p></div>' +
           '<div class="panel"><div class="jpl-search"><input id="jplQ" class="rs-inp" type="search" autocomplete="off" ' +
@@ -431,6 +433,14 @@
 
         $q.addEventListener("input", () => { query = $q.value; paintHits(); });
         $hits.addEventListener("click", e => { const b = e.target.closest("[data-key]"); if (b) select(b.getAttribute("data-key")); });
+        // a pasted link to another job while the page is open: the shell keeps the page (same
+        // page=), so the page follows the job= itself; it lets go once its view is replaced
+        const onHash = () => {
+          if (!$job.isConnected) { window.removeEventListener("hashchange", onHash); return; }
+          const key = resolveJob(hashJob());
+          if (key && key !== sel) { sel = key; query = ""; $q.value = ""; paintHits(); paintJob(); }
+        };
+        window.addEventListener("hashchange", onHash);
         paintHits();
         paintJob();
       });
