@@ -177,6 +177,10 @@
     mkt_ga4u: { table: "ext_ga4_users_month", cols: ["Month", "Total Users", "New Users"] },
     mkt_negrev: { table: "fct_negative_reviews", cols: ["Company", "Group", "Customer", "Request No", "Status",
                                                        "Case Owner", "Review Score", "Source", "Written Date"] },
+    // 2026-10-22: the SEO report compares the same days (his pick), so its gained / lost lists, brand
+    // share and listing clicks read the day-grain twins of the two marts (days with a click only)
+    mkt_gscqd: { table: "mart_gsc_query_click_day", cols: ["Date", "Query", "Type", "Clicks"] },
+    mkt_gscpd: { table: "mart_gsc_page_click_day", cols: ["Date", "Page", "Family", "Clicks"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -219,6 +223,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
+              gscqd: [], gscpd: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -790,6 +795,10 @@
   // batch 2 (2026-10-21): Search Console pages, Ahrefs' new links, the GA4 breakdowns, negative reviews
   function indexBatch2(t) {
     const m7 = v => String(v || "").slice(0, 7);
+    P.gscqd = (t.gscqd || []).map(r => ({ d: d10(r.Date), q: r.Query || "", type: r.Type || "Other", clk: num(r.Clicks) }))
+      .filter(r => r.d);
+    P.gscpd = (t.gscpd || []).map(r => ({ d: d10(r.Date), page: r.Page || "", fam: r.Family || "Other", clk: num(r.Clicks) }))
+      .filter(r => r.d);
     P.gscp = (t.gscp || []).map(r => ({ m: m7(r.Date), page: r.Page || "", fam: r.Family || "Other",
       clk: num(r.Clicks), imp: num(r.Impressions) })).filter(r => r.m);
     P.links = (t.links || []).map(r => ({ d: d10(r["First Seen"]), url: r["URL From"] || "", dom: r["Domain From"] || "",
@@ -1621,6 +1630,14 @@
   const monthWord = m => MON[+m.slice(5, 7) - 1] + " " + m.slice(0, 4);
   const monthSpan = list => !list.length ? "" : list.length === 1 ? monthWord(list[0])
     : monthWord(list[0]) + " to " + monthWord(list[list.length - 1]);
+  // "1–20 Oct 2026", "11 Sep – 10 Oct 2026", "20 Dec 2025 – 10 Jan 2026"
+  const dayRange = (a, b) => {
+    const x = ymd(a), y = ymd(b);
+    if (!x || !y) return "";
+    if (x.y !== y.y) return day(a) + " – " + day(b);
+    if (x.m !== y.m) return shortDay(a) + " – " + day(b);
+    return (x.d === y.d ? "" : x.d + "–") + day(b);
+  };
   const pill = (s, cls) => '<span class="rs-pill ' + cls + '">' + esc(s) + "</span>";
 
   /* Meta's result for a set of rows: one kind is a number; several kinds are never added, so the
@@ -1945,16 +1962,17 @@
   }
   /* === THE SEO REPORT (batch 2, 2026-10-21) ===
      The marketing head's monthly SEO report, built from our own feeds instead of her exports: Search
-     Console's monthly query and page marts (the months the period touches, against the comparison's
-     months) and Ahrefs' new links (the page's period). Google shows AI-feature impressions and the
+     Console's day-grain click marts over the period's exact days against the comparison's (2026-10-22,
+     his pick: the monthly marts set 1–20 Oct against ALL of October 2025), the monthly page mart for
+     the blog, and Ahrefs' new links (the page's period). Google shows AI-feature impressions and the
      social profiles only on its own Search Console site, never in the API, so those two are a note. */
   const LINKS_FROM = "2026-09-01";          // ext_ahrefs_backlink's first day (src/ahrefs_api.py LINKS_FROM)
   const visibleQ = r => r.type !== "Hidden by Google" && r.q && r.q[0] !== "(";
-  // each key's clicks in the current months against the comparison months; gained = up, lost = down
-  function moves(rows, keyOf, cur, prev) {
+  // each key's clicks in the period against the comparison; gained = up, lost = down
+  function moves(rows, keyOf, isCur, isPrev) {
     const m = new Map();
     rows.forEach(r => {
-      const inC = cur.includes(r.m), inP = prev.includes(r.m);
+      const inC = isCur(r), inP = !inC && isPrev(r);
       if (!inC && !inP) return;
       const k = keyOf(r), x = m.get(k) || { k, now: 0, was: 0 };
       if (inC) x.now += r.clk; else x.was += r.clk;
@@ -1980,7 +1998,7 @@
     const grp = (label, list) => list.length ? '<tr class="mko-grp"><td colspan="3">' + esc(label) + "</td></tr>"
       + list.slice(0, n).map(row).join("") : "";
     return '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight"><thead><tr><th></th>'
-      + '<th class="mko-num">Clicks</th><th class="mko-num" title="against the comparison months">Change</th></tr></thead><tbody>'
+      + '<th class="mko-num">Clicks</th><th class="mko-num" title="against the comparison days">Change</th></tr></thead><tbody>'
       + grp("Lost most · " + fmtN(mv.down.length), mv.down) + grp("Gained most · " + fmtN(mv.up.length), mv.up)
       + "</tbody></table></div>";
   }
@@ -2117,16 +2135,20 @@
     });
   }
   function seoReport(gw, w, cw, ms) {
-    const pms = gw && gw.cw ? months(gw.cw.a, gw.cw.b) : [];
-    const qv = P.gscq.filter(visibleQ);
+    // the period's exact days and the comparison's -- the KPI strip's windows -- on the day-grain marts
+    const cur = gw && !gw.before && !gw.after ? { a: gw.a, b: gw.b } : null;
+    const cmp = cur && gw.cw ? { a: gw.cw.a, b: gw.cw.b } : null;
+    const inW = win => r => !!win && r.d >= win.a && r.d <= win.b;
+    const qv = P.gscqd.filter(visibleQ);
     const inM = (list, mm) => list.filter(r => mm.includes(r.m));
-    const brand = mm => { const xs = inM(qv, mm); const all = sum(xs, "clk");
+    const brand = win => { const xs = qv.filter(inW(win)); const all = sum(xs, "clk");
       return { share: all ? sum(xs.filter(r => r.type === "Brand"), "clk") / all : null,
-               kw: new Set(xs.filter(r => r.clk > 0).map(r => r.q)).size }; };
-    const listing = mm => { const xs = inM(P.gscp.filter(r => r.fam === "Business Profile listing"), mm);
-      return { clk: sum(xs, "clk"), n: new Set(xs.filter(r => r.clk > 0).map(r => r.page)).size }; };
-    const kwMv = pms.length ? moves(qv, r => r.q, ms, pms) : null;
-    const pgMv = pms.length ? moves(P.gscp.filter(r => r.fam !== "Business Profile listing"), r => r.page, ms, pms) : null;
+               kw: new Set(xs.map(r => r.q)).size }; };
+    const listing = win => { const xs = P.gscpd.filter(r => r.fam === "Business Profile listing" && inW(win)(r));
+      return { clk: sum(xs, "clk"), n: new Set(xs.map(r => r.page)).size }; };
+    const kwMv = cmp ? moves(qv, r => r.q, inW(cur), inW(cmp)) : null;
+    const pgMv = cmp ? moves(P.gscpd.filter(r => r.fam !== "Business Profile listing"), r => r.page, inW(cur), inW(cmp)) : null;
+    const spanCur = cur ? dayRange(cur.a, cur.b) : monthSpan(ms);
     // the blog: clicks per post (its number), and the posts whose first month in Search Console is a period month
     let start = null;
     const first = {};
@@ -2151,21 +2173,26 @@
     P.gsc.forEach(r => { const m = r.d.slice(0, 7); const x = byM[m] = byM[m] || { clk: 0, imp: 0 }; x.clk += r.clk; x.imp += r.imp; });
     const done = Object.keys(byM).filter(m => m < today().slice(0, 7)).sort().slice(-12);
     const best = done.reduce((b, m) => (!b || byM[m].clk > byM[b].clk ? m : b), null);
+    // the month still running says how far its bar goes (his pick, 2026-10-22): "Oct 2026 (to 20 Oct)"
+    const lastG = P.last.gsc;
+    const mLabel = m => monthWord(m) + (lastG && m === lastG.slice(0, 7) && addDays(lastG, 1).slice(0, 7) === m
+      ? " (to " + shortDay(lastG) + ")" : "");
     const panel = (title, sub, body) => '<div class="panel"><div class="panel-head"><span class="panel-title">' + title
       + '</span><span class="mko-sub">' + sub + "</span></div>" + body + "</div>";
     const noCmp = '<div class="mko-empty">Pick a period with a comparison to see what gained and lost.</div>';
-    const span = esc(monthSpan(ms)) + (pms.length ? " against " + esc(monthSpan(pms)) : "");
+    const span = esc(spanCur) + (cmp ? " against " + esc(dayRange(cmp.a, cmp.b)) : "");
     const html = '<div class="mko-h"><h2>SEO report</h2><span class="mko-sub">' + span
-      + " · Search Console months and Ahrefs' new links</span></div>"
+      + " · Search Console" + (cur && gw.last && cur.b === gw.last ? " to " + esc(day(gw.last)) : "")
+      + " and Ahrefs' new links</span></div>"
       + '<div class="mko-g2e"><div id="mkoC-seom"></div>'
       + panel("Keywords", "clicks in the period and the change", kwMv ? movesHtml(kwMv, k => esc(k), 6) : noCmp) + "</div>"
       + '<div class="mko-g2e">'
       + panel("Pages", "Business Profile listings apart", (pgMv ? movesHtml(pgMv, k => postId(k)
           ? "Blog · " + esc(postTitle(k)) : esc(pagePath(k)), 5) : noCmp)
-        + (function () { const L = listing(ms); return '<p class="rs-hint"><b>Google Business Profile:</b> ' + fmtN(L.n)
+        + (function () { const L = listing(cur); return '<p class="rs-hint"><b>Google Business Profile:</b> ' + fmtN(L.n)
           + " listings brought " + fmtN(L.clk) + " clicks"
-          + (pms.length ? " (" + fmtN(listing(pms).clk) + " in the comparison months)" : "") + ".</p>"; })())
-      + panel("Blog", fmtN(blogClk) + " clicks · " + fmtN(freshList.length) + " new posts",
+          + (cmp ? " (" + fmtN(listing(cmp).clk) + " on the comparison days)" : "") + ".</p>"; })())
+      + panel("Blog", esc(monthSpan(ms)) + " · " + fmtN(blogClk) + " clicks · " + fmtN(freshList.length) + " new posts",
         (posts.length ? ptable([
           { h: "Post", name: true, cell: x => esc(x.title) },
           { h: "Clicks", num: true, cell: x => fmtN(x.clk) },
@@ -2188,7 +2215,7 @@
       + "Search Console site; its API has neither (checked 20 Oct 2026), so they are not here.</p>"
       + '<div class="mko-h"><h2>Search Console, site and rankings</h2></div>';
     return {
-      html, brand: brand(ms), brandPrev: pms.length ? brand(pms) : null, lk, lkPrev,
+      html, brand: brand(cur), brandPrev: cmp ? brand(cmp) : null, spanCur, lk, lkPrev,
       best: best ? { m: best, clk: byM[best].clk } : null,
       wire(host) {
         wireLinks(host, la, w.bEff, cw);
@@ -2199,7 +2226,7 @@
           buildChart(canvas) {
             const C = palette();
             return new Chart(canvas, { type: "bar",
-              data: { labels: m12.map(monthWord), datasets: [
+              data: { labels: m12.map(mLabel), datasets: [
                 { type: "bar", label: "Clicks", data: m12.map(m => (byM[m] || {}).clk || 0), backgroundColor: C.main,
                   borderRadius: 3, maxBarThickness: 26, yAxisID: "y" },
                 { type: "line", label: "Impressions", data: m12.map(m => (byM[m] || {}).imp || 0), borderColor: C.ctx,
@@ -2211,7 +2238,7 @@
                           x: { ticks: { maxRotation: 0, autoSkip: true } } } } });
           },
           buildTable() {
-            return ptable([{ h: "Month", cell: m => esc(monthWord(m)) },
+            return ptable([{ h: "Month", cell: m => esc(mLabel(m)) },
               { h: "Clicks", num: true, cell: m => fmtN((byM[m] || {}).clk || 0) },
               { h: "Impressions", num: true, cell: m => fmtN((byM[m] || {}).imp || 0) },
               { h: "CTR", num: true, cell: m => pct2(ratio((byM[m] || {}).clk || 0, (byM[m] || {}).imp || 0)) }], m12.slice().reverse());
@@ -2284,7 +2311,7 @@
             + (on && prev.pos ? posDelta(cur.pos, prev.pos) : ""),
           sub: (on && prev.pos ? (S.cmp === "prev" ? "previous" : "last year") + ": " + prev.pos.toFixed(1) + " · " : "") + "lower is better" },
         kp("Brand share", rep.brand.share, rep.brandPrev ? rep.brandPrev.share : undefined, pct, null,
-           fmtN(rep.brand.kw) + " keywords with clicks · " + monthSpan(ms), gw),
+           fmtN(rep.brand.kw) + " keywords with clicks · " + rep.spanCur, gw),
         { label: "Domain rating", value: snap && snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "Ahrefs, out of 100" },
         { label: "New linking sites", value: fmtN(rep.lk.sites) + (rep.lkPrev ? delta(rep.lk.sites, rep.lkPrev.sites, null) : ""),
           sub: fmtN(rep.lk.clean.length) + " clean · " + fmtN(rep.lk.spam) + " flagged spam · Ahrefs" },
@@ -2935,15 +2962,16 @@
         plat("mkt_ga4lp", "ga4lp"), plat("mkt_ga4u", "ga4u"), plat("mkt_negrev", "neg"),
         ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
+        plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks]) => {
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
         indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
         indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc });
-        indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg });
+        indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, gscqd, gscpd });
         indexMarks(marks);
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
