@@ -29,7 +29,9 @@
              "Fuel on Sheet", "Tolls", "Truck Rent on Sheet", "Hotel", "Other Expenses",
              "Crew Review Pay", "Crew Bulky Pay", "Crew Other Extras", "Sheet Other",
              "Sheet Total Expense", "Sheet Profit", "Truck Cost", "Truck Day Rate", "Card Fuel",
-             "Packing Cost", "Refunds", "Claims Filed", "Added Costs", "Full Profit"],
+             "Packing Cost", "Refunds", "Claims Filed", "Added Costs", "Full Profit",
+             "Miles", "Miles Basis", "Fuel Per Gallon", "Fuel Est", "Toll Per Mile", "Toll Est",
+             "Card Fee", "Ad Source", "Ad Month", "Ad Spend Month", "Ad Jobs Month", "Ad Cost", "Replaced on Sheet"],
     };
   }
 })();
@@ -98,6 +100,7 @@
     .jpl-ledger tr.jpl-final td{font-weight:800;font-size:16px;border-bottom:0;border-top:2px solid var(--ink)}
     .jpl-tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:0 6px;border-radius:99px;
       margin-left:6px;vertical-align:1px;color:var(--muted);border:1px solid var(--line)}
+    .jpl-tag.jpl-est{color:var(--warn);background:var(--warn-bg);border-color:transparent}
     .jpl-pos{color:var(--pos)} .jpl-neg{color:var(--neg)}
     .jpl-notes{margin:12px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);line-height:1.55}
     .jpl-notes b{color:var(--ink);font-weight:600}
@@ -147,7 +150,10 @@
         // FIXED COSTS = the owned truck's share (insurance, parking, loan payments) -- his pick:
         // everything else in the ledger rises and falls with the job
         const fixedOf = r => r["Truck Ownership"] === "Owned" ? num(r["Truck Cost"]) : 0;
-        const beforeFixed = r => num(r["Full Profit"]) + fixedOf(r);
+        // AD SPEND comes last, below fixed costs (his ask 2026-10-22: "as the last thing with a
+        // little statistics"), so the margin before fixed costs is before it too
+        const adOf = r => num(r["Ad Cost"]);
+        const beforeFixed = r => num(r["Full Profit"]) + fixedOf(r) + adOf(r);
         // the yardstick: the same move type's margin before fixed costs over the last 12 months
         const lastDay = latest.length ? latest[0]._d : "";
         const yearAgo = lastDay ? String(+lastDay.slice(0, 4) - 1) + lastDay.slice(4) : "";
@@ -227,21 +233,38 @@
             ["Company-paid tip", r => r["Company Tip"], ""]] },
           { id: "comm", label: "Commission", color: "#6250d6", lines: [
             ["Sales commission", r => r["Sales Commission"], "", r => [r["Sales Person"], r["Sales Person 2"], r["Sales Person 3"]].filter(Boolean).join(", ")]] },
+          // FUEL AND TOLLS FOR THE WHOLE ROUTE (his ruling 2026-10-22, the CL Analysis way): they
+          // replace the sheet's Fuel and Tolls, which hold whatever fill-up or toll fell on that day
           { id: "truck", label: "Truck and fuel", color: "#eda100", lines: [
             ["Rental truck", r => r["Truck Ownership"] === "Rental" ? r["Truck Cost"] : 0, "added", r => r["Truck Ownership"] === "Rental" ? truckNote(r) : ""],
             ["Truck rent", r => r["Truck Rent on Sheet"], ""],
-            ["Fuel paid by the crew", r => r["Fuel on Sheet"], ""],
-            ["Card fuel (WEX)", r => r["Card Fuel"], "added"],
-            ["Tolls", r => r["Tolls"], ""],
+            ["Fuel", r => r["Fuel Est"], "estimated", r => miles(r) + " ÷ 7 mpg × $" + num(r["Fuel Per Gallon"]).toFixed(2) + " a gallon"],
+            ["Tolls", r => r["Toll Est"], "estimated", r => miles(r) + " × $" + num(r["Toll Per Mile"]).toFixed(3) + " a mile"],
             ["Crew car", r => r["Car"], ""]] },
           { id: "other", label: "Packing and other", color: "#e87ba4", lines: [
-            ["Packing material cost", r => r["Packing Cost"], "added", () => "15% of packing sold"],
+            ["Packing material cost", r => r["Packing Cost"], "estimated", () => "15% of packing sold"],
+            ["Card processing fee", r => r["Card Fee"], "estimated", r => num(r["Card Fee"]) > 0 ? "3.5% of " + money(r["Card Payment"]) + " paid by card" : ""],
             ["Hotel", r => r["Hotel"], ""],
             ["Other expenses", r => r["Other Expenses"], ""],
             ["Other on the closing sheet", r => r["Sheet Other"], "", () => "in the sheet’s total, not in a column of its own"],
             ["Refunds", r => r["Refunds"], "added"]] },
         ];
-        const FIXED_COLOR = "#898781";
+        const FIXED_COLOR = "#898781", AD_COLOR = "#eb6834";
+        const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+                        "September", "October", "November", "December"];
+        const monthName = ym => { const p = String(ym || "").split("-"); return p.length === 2 ? MONTHS[+p[1] - 1] + " " + p[0] : String(ym || ""); };
+        // the month's statistics behind one job's share of the ads
+        function adNote(r) {
+          const src = r["Ad Source"] || r["Source"] || "this source", jm = String(r._d || "").slice(0, 7), am = r["Ad Month"] || jm;
+          if (num(r["Is Second Day"]) === 1) return "";   // the pickup day carries the job's share
+          const spend = num(r["Ad Spend Month"]), jobs = num(r["Ad Jobs Month"]);
+          if (!(spend > 0)) return src + ": no ad spend" + (am === jm ? " in " + monthName(am) : "");
+          const late = am !== jm ? " (" + monthName(jm) + "’s ads are not in the books yet)" : "";
+          return src + ", " + monthName(am) + ": " + money(spend) + " of ads ÷ " + jobs + " job" + (jobs === 1 ? "" : "s") +
+            " = " + money(spend / Math.max(jobs, 1)) + " a job" + late;
+        }
+        const BASIS = { "GPS": "GPS", "Contract": "contract miles", "Zip codes": "zip codes", "Average": "the move type’s average" };
+        const miles = r => Math.round(num(r["Miles"])) + " mi (" + (BASIS[r["Miles Basis"]] || "the move type’s average") + ")";
         function truckNote(r) {
           const rate = num(r["Truck Day Rate"]), share = num(r["Truck Day Jobs"]);
           const who = r["Truck Ownership"] === "Owned" ? "truck " + r["Truck"]
@@ -257,7 +280,7 @@
           const billed = sum(r => r["Total Bill"]);
           const groupTotal = (g, r) => g.lines.reduce((acc, ln) => acc + num(ln[1](r)), 0);
           const gTot = GROUPS.map(g => sum(r => groupTotal(g, r)));
-          const fixed = sum(fixedOf), kept = sum(beforeFixed), full = sum(r => r["Full Profit"]);
+          const fixed = sum(fixedOf), ads = sum(adOf), kept = sum(beforeFixed), full = sum(r => r["Full Profit"]);
           const type = first["Moving Type"] || "Other";
           const avg = AVG[type] && AVG[type].bill ? AVG[type].kept / AVG[type].bill : null;
           const m = billed ? kept / billed : null;
@@ -288,18 +311,25 @@
                 : d <= -2 ? ", below the " + esc(typeWord) + "-move average of " + Math.round(100 * avg) + "%"
                 : ", in line with the " + esc(typeWord) + "-move average of " + Math.round(100 * avg) + "%";
             }
-            parts.push("After crew, commission and job costs, <b>" + money(kept) + " (" + share(kept) + ")</b> was left before fixed costs" + cmp + ".");
+            parts.push("After crew, sales, truck, fuel and every other job cost, <b>" + money(kept) + " (" + share(kept) + ")</b> was left before fixed costs" + cmp + ".");
             const big = GROUPS.map((g, i) => [g.label, gTot[i]]).sort((x, y) => y[1] - x[1])[0];
             if (big && big[1] > 0) parts.push("The biggest cost was " + esc(big[0].toLowerCase()) + ", " + share(big[1]) + " of the bill.");
-            if (fixed > 0.5) parts.push("The owned truck’s fixed share (" + money(fixed) + ") leaves a full profit of <b>" + money(full) + "</b>.");
+            if (fixed > 0.5 || ads > 0.5) {
+              const after = [fixed > 0.5 ? "the owned truck’s fixed share (" + money(fixed) + ")" : "",
+                             ads > 0.5 ? "this job’s share of " + esc(first["Ad Source"] || "its source") + "’s ads (" + money(ads) + ")" : ""].filter(Boolean);
+              parts.push(after.join(" and ").replace(/^t/, "T") + (after.length > 1 ? " leave" : " leaves") + " a full profit of <b>" + money(full) + "</b>.");
+            }
           }
           const refunds = sum(r => r["Refunds"]);
           if (refunds > 0.5) parts.push("A " + money(refunds) + " refund was paid.");
+          // his ask: say plainly how much of it is worked out rather than recorded
+          const estimated = sum(r => num(r["Fuel Est"]) + num(r["Toll Est"]) + num(r["Packing Cost"]) + num(r["Card Fee"]) + adOf(r));
+          if (estimated > 0.5) parts.push(money(estimated) + " of the costs are estimates (fuel, tolls, packing, card fee, ad spend), marked in the ledger.");
 
           /* ---- where each billed dollar went ---- */
           let barHtml = "";
           if (billed > 0) {
-            const segs = GROUPS.map((g, i) => [g.label, gTot[i], g.color]).concat([["Fixed costs", fixed, FIXED_COLOR]]);
+            const segs = GROUPS.map((g, i) => [g.label, gTot[i], g.color]).concat([["Fixed costs", fixed, FIXED_COLOR], ["Ad spend", ads, AD_COLOR]]);
             const costSum = segs.reduce((acc, x) => acc + Math.max(0, x[1]), 0);
             const base = Math.max(billed, costSum);
             if (full > 0) segs.push(["Kept", full, "var(--pos)"]);
@@ -352,7 +382,7 @@
               vals.map(v => tcell(v, "")).join("") + (multi ? tcell(gTot[gi], "") : "") + pcell(gTot[gi]) + "</tr>");
             g.lines.forEach(ln => {
               const who = ln[3] ? Array.from(new Set(days.map(r => ln[3](r)).filter(Boolean))).join(" · ") : "";
-              const label = esc(ln[0]) + (ln[2] ? '<span class="jpl-tag">' + ln[2] + "</span>" : "") + (who ? " <small>" + esc(who) + "</small>" : "");
+              const label = esc(ln[0]) + (ln[2] ? '<span class="jpl-tag' + (ln[2] === "estimated" ? " jpl-est" : "") + '">' + ln[2] + "</span>" : "") + (who ? " <small>" + esc(who) + "</small>" : "");
               pushRow("jpl-item", label, ln[1]);
             });
           });
@@ -368,6 +398,10 @@
           pushRow("jpl-item", 'Owned truck<span class="jpl-tag">added</span> <small>' +
             (ownedTrucks ? esc(ownedTrucks) + " · insurance, parking, maintenance, loan payments" : "no owned truck on this job") +
             "</small>", fixedOf, { always: true });
+          rowsHtml.push('<tr class="jpl-grp"><td><i class="jpl-sw" style="background:' + AD_COLOR + '"></i>Ad spend</td>' +
+            days.map(r => tcell(adOf(r), "")).join("") + (multi ? tcell(ads, "") : "") + pcell(ads) + "</tr>");
+          pushRow("jpl-item", 'This job’s share<span class="jpl-tag jpl-est">estimated</span> <small>' +
+            esc(Array.from(new Set(days.map(adNote).filter(Boolean))).join(" · ")) + "</small>", adOf, { always: true });
           const fv = rowVals(r => r["Full Profit"]);
           rowsHtml.push('<tr class="jpl-final"><td>Full profit</td>' +
             fv.vals.map(v => '<td class="' + (v < 0 ? "jpl-neg" : "") + '">' + money(v) + "</td>").join("") +
@@ -385,6 +419,11 @@
           });
           if (days.some(r => r["Truck Ownership"] === "Rental" && num(r["Truck Rent on Sheet"]) > 0))
             notes.push("The rental truck’s rent is on the closing sheet, so nothing is added for it.");
+          const sheetFuel = sum(r => r["Fuel on Sheet"]), sheetTolls = sum(r => r["Tolls"]), wex = sum(r => r["Card Fuel"]);
+          if (sheetFuel + sheetTolls > 0.5)
+            notes.push("The closing sheet recorded " + [sheetFuel > 0.5 ? money(sheetFuel) + " of fuel" : "", sheetTolls > 0.5 ? money(sheetTolls) + " of tolls" : ""]
+              .filter(Boolean).join(" and ") + ": whatever was paid that day, not what this route used, so the route’s fuel and tolls replace it.");
+          if (wex > 0.5) notes.push("WEX fill-ups on " + (multi ? "these days" : "this day") + " came to " + money(wex) + ". They are not counted; the route’s fuel is.");
 
           /* ---- tiles ---- */
           let avgLine = "", mCls = "";
@@ -413,6 +452,9 @@
                 '</div><div class="s">' + money(kept) + (avgLine ? " · " + avgLine : "") + "</div></div>" +
               '<div class="jpl-kpi"><div class="k">Fixed costs</div><div class="v">' + money(fixed) + '</div><div class="s">' +
                 (fixed > 0.5 ? "owned " + esc(ownedNote) : "no owned truck on this job") + "</div></div>" +
+              '<div class="jpl-kpi"><div class="k">Ad spend</div><div class="v">' + money(ads) + '</div><div class="s">' +
+                esc(ads > 0.5 ? (first["Ad Source"] || "its source") + " · " + monthName(first["Ad Month"]) : (first["Ad Source"] || first["Source"] || "this source") + ": no ad spend") +
+                "</div></div>" +
               '<div class="jpl-kpi"><div class="k">Full profit</div><div class="v ' + (full < 0 ? "jpl-down" : "") + '">' + money(full) +
                 '</div><div class="s">' + (billed ? share(full) + " of billed" : "nothing billed") + "</div></div>" +
             "</div></div>" +
@@ -425,7 +467,9 @@
             '<div class="panel jpl-wrap"><details class="jpl-src"><summary>Where the numbers come from</summary><ul>' +
               "<li><b>Billed</b> and every line without a tag come from the closing sheet, the money of record; its total cost is kept exactly. Lines tagged <i>contract</i> are crew pay the sheet counts in its total but has no column for (review bonus, bulky items, hoisting, storage, junk), itemised from the final digital contract.</li>" +
               "<li><b>Money in</b> is the final digital contract’s payment calculation, where the job has one (contracts start October 2025).</li>" +
-              "<li>Lines tagged <i>added</i> are costs the closing sheet leaves out. <b>Rental truck</b>: that month’s spend with the vendor ÷ its truck-days (an unknown vendor uses the average rental); nothing is added when the rent is on the sheet. <b>Card fuel</b>: WEX charges Fuel Control matched to the job (from mid-July 2026; trip fuel is matched to the trip). <b>Packing material cost</b>: 15% of packing sold. <b>Refunds</b>: once per request.</li>" +
+              "<li>Lines tagged <i>added</i> are costs the closing sheet leaves out, taken from our own records. <b>Rental truck</b>: that month’s spend with the vendor ÷ its truck-days (an unknown vendor uses the average rental); nothing is added when the rent is on the sheet. <b>Refunds</b>: once per request.</li>" +
+              "<li>Lines tagged <i>estimated</i> are worked out, not recorded, the way CL Analysis does it. <b>Fuel</b> and <b>tolls</b> cover the whole route and replace the sheet’s own Fuel and Tolls, which hold whatever fill-up or toll fell on that day. Miles: the GPS legs the foreman filed, else the contract’s miles corrected to GPS (×1.263), else the round trip the zip codes imply (×1.632), else the move type’s average. Fuel = miles ÷ 7 mpg × our WEX diesel price; tolls = miles × our toll accounts’ cost per mile (E-ZPass on every mile, the rental-toll rebills on rented trucks, the PA Turnpike and New York accounts on routes that go there). <b>Packing material cost</b>: 15% of packing sold. <b>Card processing fee</b>: 3.5% of what was paid by card.</li>" +
+              "<li><b>Ad spend</b> comes last, below the fixed costs: what the job’s source spent on ads in the job’s month ÷ the jobs it brought that month (a delivery day is not a second job). A month the bank files have not finished yet uses the latest complete month. A referral, a returning customer or a CL job has no ad spend.</li>" +
               "<li><b>Fixed costs</b> are the owned truck’s share: that month’s fleet insurance, parking, maintenance and loan payments ÷ the days owned trucks worked, split between the jobs it did that day. Everything above them rises and falls with the job.</li>" +
               "<li>The <b>average</b> is the same move type’s margin before fixed costs over the last 12 months.</li>" +
             "</ul></details></div>";

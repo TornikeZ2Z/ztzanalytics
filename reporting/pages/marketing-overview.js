@@ -81,7 +81,9 @@
  *     537 of 573 were "YouTube follow-on views", counted since 22 Aug 2026.
  *   * Meta campaigns by category, read from the name (Referral / B2B / Leads / Awareness / ...).
  *   * ChatGPT Ads per ad, with the ad's own words (ext_chatgpt_ads_ad_day + ext_chatgpt_ad).
- *   * Nextdoor / Perplexity / Gemini / Quora / Reddit / Grok as their own group of channels.
+ *   * Nextdoor / Quora / Reddit / Grok as their own group of channels.
+ *   * Gemini, Perplexity and Craiglist are not channels marketing runs (its head, 2026-10-22): their
+ *     leads count under Other, so every total still holds every lead.
  *   * SEO: keywords by service (the monthly query mart), on-page (Ahrefs Site Audit) and off-page.
  *   * REVIEWS, a tab of its own: every listing's reviews now against its goal (fct_review_counts /
  *     fct_review_goals, the Monthly Report's rule: a goal dated 1 Sep is the total by the end of
@@ -194,7 +196,9 @@
                       PAGE_VIEW: "page views", SUBMIT_LEAD_FORM: "lead forms", PHONE_CALL_LEAD: "calls",
                       REQUEST_QUOTE: "quote requests", CONTACT: "contacts", BOOK_APPOINTMENT: "bookings" };
   // the marketing head (2026-10-19): these lead sources are their own group, not mixed into paid / unpaid
-  const COMMUNITY = ["Nextdoor", "Perplexity", "Gemini", "Quora", "Reddit", "Grok"];
+  const COMMUNITY = ["Nextdoor", "Quora", "Reddit", "Grok"];
+  // ... and these sources are not channels at all (2026-10-22): read as Other
+  const AS_OTHER = new Set(["Gemini", "Perplexity", "Craiglist"]);
   const PAID_LOOKBACK = 365;         // days before the period's end that still make a channel paid
   const LIVE_CO = "Zip to Zip";      // every live ad account is Zip to Zip's
   const THIN = 5;                    // fewer booked jobs than this: the cost per booked is a guess
@@ -208,13 +212,13 @@
   const PILL = { "Up to date": "ok", "Behind": "warn", "No data": "bad", "Not connected": "mute" };
 
   // module memory: survives a theme re-render, not a page load
-  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", tab: "ov", booted: false };
+  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", tab: "ov", booted: false, linkView: "clean", linkAdd: false };
   const D = { ready: false, conn: [], connErr: null, rows: [], chErr: null,
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
-              issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [],
+              issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -337,6 +341,12 @@
       + ".mko .mko-pt.mko-tight th,.mko .mko-pt.mko-tight td{padding:9px 8px}"
       + ".mko .mko-pt.mko-tight td.mko-name{min-width:110px}"
       + ".mko .mko-pt tr.mko-tot td{font-weight:700;border-top:1px solid var(--line-2)}"
+      + ".mko .mko-lk-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin:10px 0}"
+      + ".mko .mko-lk-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}"
+      + ".mko .mko-lk-add .rs-inp{min-width:0;flex:1 1 240px}.mko .mko-lk-add .mko-lk-day{flex:0 0 auto}"
+      + ".mko .mko-lk-msg{font-size:12.5px;color:var(--muted)}.mko .mko-lk-msg.bad{color:var(--neg)}"
+      + ".mko .mko-lk-top:empty{display:none}.mko .mko-lk-top{margin:0 0 8px}"
+      + ".mko .mko-lk-mark{font-size:12px;padding:4px 10px;white-space:nowrap}.mko .mko-lk-mark.on{color:var(--pos)}"
       + ".mko .mko-pt tr.mko-grp td{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
       + "color:var(--muted);padding-top:12px;background:transparent}"
       + ".mko .mko-share{display:block;height:5px;border-radius:3px;background:var(--line);margin-top:5px;min-width:60px}"
@@ -407,7 +417,8 @@
   /* ------------------------------------------------------------------ data ---- */
   function index(rows) {
     D.rows = (rows || []).map(r => ({
-      d: String(r.Date || "").slice(0, 10), co: r.Company, fam: r.Family || "(no source)",
+      d: String(r.Date || "").slice(0, 10), co: r.Company,
+      fam: AS_OTHER.has(r.Family) ? "Other" : (r.Family || "(no source)"),
       bd: r["Booked Day"] ? String(r["Booked Day"]).slice(0, 10) : null,
       leads: num(r.Leads), booked: num(r.Booked), billed: num(r.Billed), bval: num(r["Booked Value"]),
       spL: r["Spend Live"] == null ? null : num(r["Spend Live"]),
@@ -1973,19 +1984,137 @@
       + grp("Lost most · " + fmtN(mv.down.length), mv.down) + grp("Gained most · " + fmtN(mv.up.length), mv.up)
       + "</tbody></table></div>";
   }
-  // Ahrefs' new links in [a, b]: a SITE is new when its first link on file falls in the window
+  /* GUEST-POST MARKS (2026-10-22, his picks): anyone on the page marks a linking PAGE as our guest
+     post, or adds one Ahrefs has not found yet. Stored by the bridge (/api/_mktmark, mkt_backlink_mark,
+     history kept); read back through it so a mark shows at once. A page is its address without scheme,
+     "www.", query, fragment or trailing slash -- the bridge's _url_key() is the twin. */
+  const normUrl = u => {
+    const m = /^https?:\/\/([^/?#\s]+)([^?#\s]*)/i.exec(String(u || "").trim());
+    return m ? (m[1].toLowerCase().replace(/^www\./, "") + m[2].replace(/\/+$/, "")).slice(0, 500) : "";
+  };
+  function indexMarks(list) {
+    P.marks = (list || []).map(m => ({ url: m.URL || "", key: m.Key || normUrl(m.URL), site: m.Site || "",
+      date: m.Published ? d10(m.Published) : null, by: m["Entered By"] || "", at: d10(m["Entered At"]) })).filter(m => m.key);
+  }
+  function saveMark(body) {
+    return fetch(ZTZ.API + "/api/_mktmark", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json().catch(() => ({})).then(j => {
+      if (!r.ok || j.error) {
+        if (j && j.code === "view_as_readonly") throw new Error("preview mode — marks are not saved while viewing as someone else");
+        throw new Error(j.error || ("HTTP " + r.status));
+      }
+      indexMarks(j.marks || []);
+    }));
+  }
+  const whoShort = e => String(e || "").split("@")[0].replace(/^./, c => c.toUpperCase());
+  // Ahrefs' new links in [a, b]: a SITE is new when its first link on file falls in the window. A
+  // site carrying a marked page shows that page; OURS = the period's marked links (by Ahrefs' first
+  // seen) and the pages added by hand (by their date) that Ahrefs has not found.
   function linkStats(a, b) {
-    const firstBy = {};
-    P.links.forEach(r => { if (!firstBy[r.dom] || r.d < firstBy[r.dom]) firstBy[r.dom] = r.d; });
+    const firstBy = {}, markBy = {}, onFile = new Set();
+    P.marks.forEach(m => { markBy[m.key] = m; });
+    P.links.forEach(r => { if (!firstBy[r.dom] || r.d < firstBy[r.dom]) firstBy[r.dom] = r.d; onFile.add(normUrl(r.url)); });
     const rows = P.links.filter(r => r.d >= a && r.d <= b);
-    const sites = groupBy(rows.filter(r => firstBy[r.dom] >= a), r => r.dom).map(x => {
+    const site = x => {
       const top = x.rows.slice().sort((p, q) => (q.dr || 0) - (p.dr || 0))[0];
-      return { dom: x.k, n: x.rows.length, dr: top.dr, spam: x.rows.some(r => r.spam), url: top.url, title: top.title,
-               d: x.rows.reduce((m, r) => (r.d < m ? r.d : m), x.rows[0].d) };
-    });
-    const clean = sites.filter(x => !x.spam).sort((p, q) => (q.dr || 0) - (p.dr || 0) || q.n - p.n);
-    return { links: rows.length, sites: sites.length, clean, spam: sites.length - clean.length,
+      const mr = x.rows.find(r => markBy[normUrl(r.url)]) || null, show = mr || top;
+      return { dom: x.k, n: x.rows.length, dr: top.dr, spam: x.rows.some(r => r.spam), url: show.url, title: show.title,
+               d: x.rows.reduce((m, r) => (r.d < m ? r.d : m), x.rows[0].d), mark: mr ? markBy[normUrl(mr.url)] : null };
+    };
+    const sites = groupBy(rows.filter(r => firstBy[r.dom] >= a), r => r.dom).map(site);
+    const byDr = (p, q) => (q.dr || 0) - (p.dr || 0) || q.n - p.n;
+    const clean = sites.filter(x => !x.spam).sort(byDr);
+    const ours = rows.filter(r => markBy[normUrl(r.url)]).map(r => ({ dom: r.dom, n: 1, dr: r.dr, spam: r.spam, url: r.url,
+      title: r.title, d: r.d, mark: markBy[normUrl(r.url)] }))
+      .concat(P.marks.filter(m => !onFile.has(m.key) && (m.date || m.at) >= a && (m.date || m.at) <= b)
+        .map(m => ({ dom: m.site, n: 1, dr: null, spam: false, url: m.url, title: "", d: m.date || m.at, mark: m, hand: true })))
+      .sort(byDr);
+    return { links: rows.length, sites: sites.length, clean, spam: sites.length - clean.length, all: sites.sort(byDr), ours,
              big: sites.slice().sort((p, q) => q.n - p.n)[0] || null };
+  }
+  // the backlinks list: clean sites (with every marked site, spam or not), our guest posts, or all
+  function linksBody(lk) {
+    const view = S.linkView;
+    const list = view === "ours" ? lk.ours : view === "all" ? lk.all
+      : lk.clean.concat(lk.all.filter(x => x.spam && x.mark)).sort((p, q) => (q.dr || 0) - (p.dr || 0) || q.n - p.n);
+    const SHOW = 25;
+    const seg = [["clean", "Clean sites · " + fmtN(lk.clean.length)], ["ours", "Our guest posts · " + fmtN(lk.ours.length)],
+                 ["all", "Show spam too"]];
+    return '<div class="rs-kpis" id="mkoK-links"></div>'
+      + '<div class="mko-lk-bar"><div class="rs-seg">' + seg.map(([k, l]) => '<button type="button" data-lview="' + k + '"'
+        + (k === view ? ' class="on"' : "") + ">" + esc(l) + "</button>").join("") + "</div>"
+      + '<button type="button" class="rs-btn" data-ladd="1">+ Add a guest post Ahrefs hasn\'t found</button></div>'
+      + (S.linkAdd ? '<div class="mko-lk-add"><input class="rs-inp mko-lk-url" type="url" placeholder="https://site.com/the-article" '
+        + 'aria-label="Address of the guest post"><input class="rs-inp mko-lk-day" type="date" value="' + today() + '" '
+        + 'aria-label="Date it went live"><button type="button" class="rs-btn" data-lsave="1">Save</button>'
+        + '<button type="button" class="rs-btn" data-lcancel="1">Cancel</button><span class="mko-lk-msg" role="status"></span></div>' : "")
+      + '<div class="mko-lk-msg mko-lk-top" role="status"></div>'
+      + (list.length ? ptable([
+        { h: "Site", name: true, cell: x => '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.dom) + " ↗</a>"
+            + (x.mark ? " " + pill("Guest post", "ok") : "") + (x.spam ? " " + pill("spam flag", "mute") : "")
+            + (x.title || x.mark ? '<div class="mko-sub">' + esc((x.title || "").slice(0, 90))
+              + (x.mark ? (x.title ? " · " : "") + "marked by " + esc(whoShort(x.mark.by)) + ", " + esc(shortDay(x.mark.at))
+                + (x.hand ? " · added by hand, Ahrefs hasn't found it yet" : "") : "") + "</div>" : "") },
+        { h: "DR", num: true, tip: "Ahrefs Domain Rating of the linking site", cell: x => x.dr == null ? "—" : String(Math.round(x.dr)) },
+        { h: "Links", num: true, cell: x => fmtN(x.n) },
+        { h: "First seen", num: true, cell: x => esc(shortDay(x.d)) },
+        { h: "Ours?", num: true, cell: x => '<button type="button" class="rs-btn mko-lk-mark' + (x.mark ? " on" : "") + '" data-lmark="'
+            + esc(x.url) + '" data-lon="' + (x.mark ? "0" : "1") + '">' + (x.mark ? "✓ Guest post" : "Mark as ours") + "</button>" }],
+        list.slice(0, SHOW), null)
+        + (list.length > SHOW ? '<p class="rs-hint">And ' + fmtN(list.length - SHOW) + " more.</p>" : "")
+        : '<div class="mko-empty">' + (view === "ours" ? "No guest post marked in this period yet." : "No new linking site in this period.") + "</div>")
+      + (P.err.marks ? '<p class="rs-hint">The marks could not load — ' + esc(P.err.marks) + "</p>" : "");
+  }
+  // draws the backlinks box for [a, b] from the links and the marks as they stand, and wires it; a
+  // mark or a view change redraws the box alone, so the page keeps its place
+  function wireLinks(host, a, b, cw, note) {
+    const box = host.querySelector("#mkoLinks");
+    if (!box) return;
+    const lk = linkStats(a, b), lkPrev = cw && cw.a >= LINKS_FROM ? linkStats(cw.a, cw.b) : null;
+    box.innerHTML = linksBody(lk);
+    if (note) box.querySelector(".mko-lk-top").textContent = note;
+    const redraw = msg => wireLinks(host, a, b, cw, msg);
+    const drs = lk.ours.map(x => x.dr).filter(v => v != null), hand = lk.ours.filter(x => x.hand).length;
+    RSC.kpis(box.querySelector("#mkoK-links"), [
+      { label: "New linking sites", value: fmtN(lk.sites) + (lkPrev ? delta(lk.sites, lkPrev.sites, null) : ""),
+        sub: (lkPrev ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmtN(lkPrev.sites) + " · " : "")
+          + fmtN(lk.links) + " links" },
+      { label: "Clean sites", value: fmtN(lk.clean.length), sub: "not flagged as spam" },
+      { label: "Our guest posts", value: fmtN(lk.ours.length), sub: !drs.length ? "marked by the team"
+          : "DR " + Math.round(Math.min.apply(null, drs)) + (drs.length > 1 && Math.min.apply(null, drs) !== Math.max.apply(null, drs)
+            ? "–" + Math.round(Math.max.apply(null, drs)) : "") + (hand ? " · " + hand + " added by hand" : "") },
+      { label: "Spam sites", value: fmtN(lk.spam), sub: lk.sites ? pct(lk.spam / lk.sites) + " of the new sites" : "" },
+    ]);
+    box.querySelectorAll("[data-lview]").forEach(btn => { btn.onclick = () => { S.linkView = btn.dataset.lview; redraw(); }; });
+    const add = box.querySelector("[data-ladd]");
+    if (add) add.onclick = () => { S.linkAdd = !S.linkAdd; redraw(); const u = box.querySelector(".mko-lk-url"); if (u) u.focus(); };
+    const cancel = box.querySelector("[data-lcancel]");
+    if (cancel) cancel.onclick = () => { S.linkAdd = false; redraw(); };
+    const save = box.querySelector("[data-lsave]");
+    if (save) save.onclick = () => {
+      const url = box.querySelector(".mko-lk-url").value.trim(), dd = box.querySelector(".mko-lk-day").value;
+      const msg = box.querySelector(".mko-lk-add .mko-lk-msg");
+      msg.classList.remove("bad");
+      if (!normUrl(url)) { msg.textContent = "Give the page's full address, starting http:// or https://"; msg.classList.add("bad"); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dd)) { msg.textContent = "Pick the date it went live."; msg.classList.add("bad"); return; }
+      save.disabled = true; msg.textContent = "Saving…";
+      saveMark({ url, mark: true, date: dd })
+        .then(() => { S.linkAdd = false; S.linkView = "ours"; redraw("Saved: " + normUrl(url).split("/")[0] + " is marked as our guest post."); })
+        .catch(e => { save.disabled = false; msg.textContent = "Not saved: " + e.message; msg.classList.add("bad"); });
+    };
+    box.querySelectorAll("[data-lmark]").forEach(btn => {
+      btn.onclick = () => {
+        const on = btn.dataset.lon === "1";
+        btn.disabled = true; btn.textContent = "Saving…";
+        saveMark({ url: btn.dataset.lmark, mark: on })
+          .then(() => redraw(on ? "Marked as our guest post." : "Mark taken off."))
+          .catch(e => { btn.disabled = false; btn.textContent = on ? "Mark as ours" : "✓ Guest post";
+            const top = box.querySelector(".mko-lk-top"); top.textContent = "Not saved: " + e.message; top.classList.add("bad"); });
+      };
+    });
   }
   function seoReport(gw, w, cw, ms) {
     const pms = gw && gw.cw ? months(gw.cw.a, gw.cw.b) : [];
@@ -2049,18 +2178,11 @@
         + "after it goes live; a post out at a month's end counts in the next month.</p>")
       + "</div>"
       + panel("New backlinks · Ahrefs", "sites linking to us for the first time · " + esc(day(la)) + " – " + esc(day(w.bEff)),
-        '<div class="rs-kpis mko-k3" id="mkoK-links"></div>'
-        + (lk.clean.length ? ptable([
-          { h: "Site", name: true, cell: x => '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.dom) + " ↗</a>"
-              + (x.title ? '<div class="mko-sub">' + esc(x.title.slice(0, 90)) + "</div>" : "") },
-          { h: "DR", num: true, tip: "Ahrefs Domain Rating of the linking site", cell: x => x.dr == null ? "—" : String(Math.round(x.dr)) },
-          { h: "Links", num: true, cell: x => fmtN(x.n) },
-          { h: "First seen", num: true, cell: x => esc(shortDay(x.d)) }], lk.clean.slice(0, 15), null)
-          + (lk.clean.length > 15 ? '<p class="rs-hint">And ' + fmtN(lk.clean.length - 15) + " more clean sites.</p>" : "")
-          : '<div class="mko-empty">No clean new linking site in this period.</div>')
-        + '<p class="rs-hint">Ahrefs flags ' + fmtN(lk.spam) + " of the " + fmtN(lk.sites) + " new sites as spam (link farms); they "
-        + "are counted, not listed." + (lk.big && lk.big.n > 50 ? " " + esc(lk.big.dom) + " alone added " + fmtN(lk.big.n) + " links." : "")
-        + " Ahrefs does not say which links are our guest posts."
+        '<div id="mkoLinks"></div>'
+        + '<p class="rs-hint">Ahrefs flags ' + fmtN(lk.spam) + " of the " + fmtN(lk.sites) + " new sites as spam (link farms); "
+        + "they are listed only under Show spam too." + (lk.big && lk.big.n > 50 ? " " + esc(lk.big.dom) + " alone added "
+        + fmtN(lk.big.n) + " links." : "") + " Ahrefs does not say which links are ours: anyone on this page marks a guest "
+        + "post, and the mark keeps who set it and when."
         + (w.a < LINKS_FROM ? " New links are tracked from " + esc(day(LINKS_FROM)) + "." : "") + "</p>")
       + '<p class="rs-hint">AI Overviews / AI Mode impressions and the social profiles\' search clicks are only on Google\'s '
       + "Search Console site; its API has neither (checked 20 Oct 2026), so they are not here.</p>"
@@ -2069,13 +2191,7 @@
       html, brand: brand(ms), brandPrev: pms.length ? brand(pms) : null, lk, lkPrev,
       best: best ? { m: best, clk: byM[best].clk } : null,
       wire(host) {
-        const k = host.querySelector("#mkoK-links");
-        if (k) RSC.kpis(k, [
-          { label: "New linking sites", value: fmtN(lk.sites) + (lkPrev ? delta(lk.sites, lkPrev.sites, null) : ""),
-            sub: (lkPrev ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmtN(lkPrev.sites) + " · " : "") + fmtN(lk.links) + " links" },
-          { label: "Clean sites", value: fmtN(lk.clean.length), sub: "not flagged as spam" },
-          { label: "Spam sites", value: fmtN(lk.spam), sub: lk.sites ? pct(lk.spam / lk.sites) + " of the new sites" : "" },
-        ]);
+        wireLinks(host, la, w.bEff, cw);
         const el = host.querySelector("#mkoC-seom");
         if (!el || !m12.length) return;
         RSC.chartCard(el, {
@@ -2817,15 +2933,18 @@
         plat("mkt_rcount", "rc"), plat("mkt_rgoal", "rg"), plat("mkt_adsnet", "net"), plat("mkt_adsnetc", "netc"),
         plat("mkt_gscp", "gscp"), plat("mkt_links", "links"), plat("mkt_ga4ev", "ga4ev"), plat("mkt_ga4dev", "ga4dev"),
         plat("mkt_ga4lp", "ga4lp"), plat("mkt_ga4u", "ga4u"), plat("mkt_negrev", "neg"),
+        ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
+          .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg]) => {
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
         indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
         indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc });
         indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg });
+        indexMarks(marks);
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
