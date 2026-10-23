@@ -65,10 +65,10 @@
    bill has a pool per job type: local, STRAIGHT and REGULAR (19% / 9% by default -- what those crews
    earn of their bills today, 18.8% / 8.7%). A CUSTOM JOB tab applies all four models to one job typed in
    or filled from a real one; today's pay there is this year's average per seat unless Settings says.
-   - DAILY RATE: a day rate per seat per person per day, plus the foreman's % of packing sold
-     ("keep the % from packing materials thing so they have interest in selling them"), nothing
-     else ("bulky is fully ours"); rates rounded to $5 and starting at break-even (today's pay per
-     day for the seat, less the packing %). */
+   - DAILY RATE: the hourly WAGE becomes a day rate per seat per person per day, and everything else
+     is paid as today (his rule 2026-10-23: "it should replaces only hourly salaries as daily salaries -
+     the rest should stay as is" -- it replaced his first take, a day rate + the foreman's packing and
+     nothing else); rates rounded to $5 and starting at break-even (today's wage per day for the seat). */
 if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
   RS.DATASETS.crew_pay_compare = {
     table: "mart_crew_pay_compare",
@@ -117,7 +117,7 @@ registerPage({
       pctB1From: 0, pctB1: 35, pctB2From: 800, pctB2: 61, pctB3From: 1600, pctB3: 88,
       pctB4From: 2400, pctB4: 106, pctB5From: 3200, pctB5: 134, pctB6From: 4000, pctB6: 186,
       // daily rate -- empty = break-even; the foreman's packing % stays
-      dayForeman: "", dayDriver: "", dayHelper: "", dayPackPct: 20,
+      dayForeman: "", dayDriver: "", dayHelper: "",
       // today's pay for the custom job -- empty = this year's average
       todayForeman: "", todayDriver: "", todayHelper: "", todayLdDriver: "", todayLdHelper: "", todayReview: "",
       todayPackPct: 20, todayStairsShare: 100, todayBulkyShare: 50,
@@ -131,14 +131,14 @@ registerPage({
       ldTypes: "Long-distance job types",
       bonusMinShifts: "Shifts in the month, at least", bonusMinHours: "Hours in the month, at least", bonusMinJobs: "Jobs as foreman, at least",
       pctPool: "Local moving pool, of the splitable bill", pctStraight: "Straight moving pool, of the bill", pctRegular: "Regular moving pool, of the bill", pctBonus: "Bonus pool, of the splitable bill", pctBonusPaid: "Bonus pool paid out",
-      dayForeman: "Foreman", dayDriver: "Driver", dayHelper: "Helper", dayPackPct: "Foreman's packing, of materials sold",
+      dayForeman: "Foreman", dayDriver: "Driver", dayHelper: "Helper",
       todayForeman: "Foreman", todayDriver: "Driver", todayHelper: "Helper", todayLdDriver: "Long-distance driver",
       todayLdHelper: "Long-distance helper", todayReview: "Review pay, a reviewed job", todayPackPct: "Foreman's packing, of materials sold",
       todayStairsShare: "Of the stairs fee, to the crew", todayBulkyShare: "Of the bulky-item fee, to the crew",
     };
     // the unit drawn beside each box: $ in front; %, /h, months after
     const UNIT = {};
-    [["%", "pctPool pctBonus pctBonusPaid pctStraight pctRegular crewPackPct crewPackDriverShare dayPackPct band1Share band2Share band3Share band0Share todayPackPct todayStairsShare todayBulkyShare"],
+    [["%", "pctPool pctBonus pctBonusPaid pctStraight pctRegular crewPackPct crewPackDriverShare band1Share band2Share band3Share band0Share todayPackPct todayStairsShare todayBulkyShare"],
      ["$/h", "helperEntry helperExp driver foreman seniorForeman todayForeman todayDriver todayHelper"], ["$/day", "dayForeman dayDriver dayHelper todayLdDriver todayLdHelper"],
      ["$", "band1Amt band2Amt band3Amt todayReview"], ["months", "expHelperMonths"], ["years", "seniorForemanYears"],
      ["h", "bonusMinHours"], ["shifts", "bonusMinShifts"], ["jobs", "bonusMinJobs"]]
@@ -433,26 +433,28 @@ registerPage({
         x.pct = { share, poolRaw: p.pool * share, bonusRaw: p.bonus * share, pool: ceil$(p.pool * share), bonus: ceil$(p.bonus * share) };
         x.pct.total = x.pct.pool + x.pct.bonus;
       });
-      // DAILY RATE: one day rate per person per day (a long-distance trip row brings its own days), plus
-      // the foreman's % of packing sold; break-even = today's pay per day for the seat, less that packing
+      // DAILY RATE (his rule 2026-10-23: "it should replaces only hourly salaries as daily salaries - the
+      // rest should stay as is"): the hourly WAGE becomes one rate per person per day -- a second job the
+      // same day adds nothing -- and everything else is paid as today: the foreman's packing commission,
+      // stairs, bulky, review and hoisting/storage/junk pay, and a long-distance trip's day pay (already by
+      // the day). Break-even = today's wage per day for the seat, rounded to $5.
       const seen = {};
       lines.forEach(x => {
         const k = x.who + "|" + x.r["Date"];
         x.dayN = x.dayRow ? x.days : (seen[k] ? 0 : 1);
         if (!x.dayRow) seen[k] = true;
-        x.dayPack = x.role === "Foreman" ? num(x.r["Packing Sold"]) * num(c.dayPackPct) / 100 / Math.max(1, x.j.nf) : 0;
       });
       const be = {};
       SEATS.forEach(s => {
-        const xs = lines.filter(x => x.role === s), d = xs.reduce((a, x) => a + x.dayN, 0);
-        be[s] = d ? round5((xs.reduce((a, x) => a + x.T, 0) - xs.reduce((a, x) => a + x.dayPack, 0)) / d) : 0;
+        const xs = lines.filter(x => x.role === s && !x.dayRow), d = xs.reduce((a, x) => a + x.dayN, 0);
+        be[s] = d ? round5(xs.reduce((a, x) => a + x.a.wage, 0) / d) : 0;
       });
       const RK = { Foreman: "dayForeman", Driver: "dayDriver", Helper: "dayHelper" };
       const rateOf = s => { const v = c[RK[s]]; return v === "" || v == null ? (be[s] || 0) : num(v); };
       lines.forEach(x => {
         const rate = rateOf(x.role);
-        x.daily = { rate, dayPay: x.dayN * rate, pack: x.dayPack };
-        x.daily.total = x.daily.dayPay + x.daily.pack;
+        const dayPay = x.dayRow ? 0 : x.dayN * rate, kept = x.dayRow ? x.T : x.T - x.a.wage;
+        x.daily = { rate, dayPay, kept, total: dayPay + kept };
       });
       const mk = (key, label, N) => ({ key, label, N, total: lines.reduce((s, x) => s + N(x), 0) });
       const pct = mk("pct", "% of bill", x => x.pct.total);
@@ -619,8 +621,8 @@ registerPage({
           ["Packing pool", `${num(c.crewPackPct)}% of packing sold, for the driver and the helpers`, s(x => x.bonus.poolN)],
           ["Foreman bonus", "qualifying months × the band mix, spread over the foreman's jobs", s(x => x.bonus.bonusN)],
           ["Paid as today", "the foreman's packing commission, stairs, bulky, review and hoisting/storage/junk pay, long-distance day pay", s(x => x.bonus.kept)]];
-      return [["Day pay", "a day rate per person per day", s(x => x.daily.dayPay)],
-        ["Foreman's packing", `${num(c.dayPackPct)}% of packing sold`, s(x => x.daily.pack)]];
+      return [["Day pay", "a day rate per person per day, in place of the hourly wage", s(x => x.daily.dayPay)],
+        ["Paid as today", "the foreman's packing commission, stairs, bulky, review and hoisting/storage/junk pay, long-distance day pay", s(x => x.daily.kept)]];
     }
     // HOW PAY WORKS in each model, from the numbers in force (his ask: "each tab to have a small
     // explanation of how the compensation structure will be")
@@ -630,7 +632,7 @@ registerPage({
         actual: `Each crew member is paid by the hour at their own rate, for the job's hours — labor or the minimum, plus travel from the miles lookup. On top, the foreman gets ${num(c.todayPackPct)}% of packing sold and the review bonus, and the crew splits all of the stairs fee, half of the bulky-item fee and any hoisting, storage or junk pay. Long-distance drivers and helpers are paid by the day. Tips are the crew's.`,
         pct: `The crew shares a pool from every job: <b>${num(c.pctPool)}%</b> of the bill on local moves, <b>${num(c.pctStraight)}%</b> on straight and <b>${num(c.pctRegular)}%</b> on regular long distance. Local jobs add a <b>${num(c.pctBonus)}%</b> bonus pool, cut when something goes wrong. The foreman takes one share plus an extra that grows with the bill (${Math.min(...bands)}% to ${Math.max(...bands)}%); the driver and every helper take one share each. Each salary is rounded up to the dollar. Nothing else is paid on top, and tips stay with the crew.`,
         bonus: `One hourly rate per seat, raised by tenure: helpers <b>${$(c.helperEntry)}</b>, then <b>${$(c.helperExp)}</b> after ${num(c.expHelperMonths)} months; drivers <b>${$(c.driver)}</b>; foremen <b>${$(c.foreman)}</b>, then <b>${$(c.seniorForeman)}</b> after ${num(c.seniorForemanYears)} years as foreman — for every hour paid, travel included. Drivers and helpers share a packing pool of ${num(c.crewPackPct)}% of materials sold. A foreman with ${num(c.bonusMinShifts)} shifts, ${num(c.bonusMinHours)} hours and ${num(c.bonusMinJobs)} jobs in a month earns a bonus of ${$(c.band1Amt)}, ${$(c.band2Amt)} or ${$(c.band3Amt)} by score. Everything else is paid as today, and tips stay with the crew.`,
-        daily: `One rate per person per day: foreman <b>$${SC.daily.rateOf("Foreman")}</b>, driver <b>$${SC.daily.rateOf("Driver")}</b>, helper <b>$${SC.daily.rateOf("Helper")}</b>${["dayForeman", "dayDriver", "dayHelper"].some(k => c[k] === "" || c[k] == null) ? " (a rate left blank is today's pay per day, rounded to $5)" : ""}. A second job the same day adds nothing; a long-distance trip pays its days. The foreman keeps ${num(c.dayPackPct)}% of packing sold, so selling packing still pays. Nothing else: stairs, bulky items and reviews stay with the company. Tips stay with the crew.`,
+        daily: `The hourly wage becomes one rate per person per day: foreman <b>$${SC.daily.rateOf("Foreman")}</b>, driver <b>$${SC.daily.rateOf("Driver")}</b>, helper <b>$${SC.daily.rateOf("Helper")}</b>${["dayForeman", "dayDriver", "dayHelper"].some(k => c[k] === "" || c[k] == null) ? " (a rate left blank is today's wage per day, rounded to $5)" : ""}. A second job the same day adds nothing. Everything else is paid exactly as today — the foreman's packing commission and review bonus, the crew's stairs, bulky-item and hoisting/storage/junk pay, and long-distance day pay. Tips stay with the crew.`,
         custom: `Enter a job — the crew, the hours and the bill — and see what each seat earns under all four models, with the working under every amount. Today's pay uses this year's average rates (Settings can change them); start from a real job to fill everything in.`,
       };
       return `<section class="cpc-explain"><div class="cpc-ex-h">How pay works ${key === "actual" ? "today" : key === "custom" ? "on one job" : "in this model"}</div><p>${T[key]}</p></section>`;
@@ -789,10 +791,13 @@ registerPage({
         const bn = s === "Foreman" ? SC.bonus.perJob : 0, kept = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
         out.bonus[s] = { v: wage.v + pl + bn + kept, how: [wage.how, extras([[pl, "packing pool"], [bn, "bonus (a job's average)"], [kept, "paid as today"]])].filter(Boolean).join(" + ") };
       });
-      // DAILY RATE
+      // DAILY RATE: the day rate in place of the wage; the extras -- and a trip's day pay -- as today
       out.daily = {};
-      SEATS.forEach(s => { const r = SC.daily.rateOf(s), pk = s === "Foreman" ? J.pack * num(c.dayPackPct) / 100 : 0;
-        out.daily[s] = { v: J.days * r + pk, how: `${h2(J.days)} ${J.days === 1 ? "day" : "days"} × $${r}${pk ? ` + ${m2(pk)} packing` : ""}` }; });
+      SEATS.forEach(s => {
+        const r = SC.daily.rateOf(s), kept = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
+        const day = isLd && s !== "Foreman" ? { v: base(s).v, how: base(s).how + " (as today)" } : { v: J.days * r, how: `${h2(J.days)} ${J.days === 1 ? "day" : "days"} × $${r}` };
+        out.daily[s] = { v: day.v + kept, how: [day.how, extras([[kept, "paid as today"]])].filter(Boolean).join(" + ") };
+      });
       const cnt = { Foreman: 1, Driver: J.drivers, Helper: J.helpers };
       const crewOf = k => SEATS.reduce((a, s) => a + out[k][s].v * cnt[s], 0);
       return { out, cnt, bill, sv, band, kind, isLd, crewOf, tR };
@@ -916,9 +921,11 @@ registerPage({
           if (b.kept > 0.004) L2.push(ln(`+ ${m2(b.kept)} paid as today (${[x.dayRow ? "day pay" : "", keptWhat].filter(Boolean).join(", ")})`));
           L2.push(ln(`= ${m2(b.total)}`, "cpc-tot"));
         } else {
-          L2.push(ln(x.daily.dayPay > 0 ? `${h2(x.dayN)} ${x.dayN === 1 ? "day" : "days"} × ${m2(x.daily.rate)} = <b>${m2(x.daily.dayPay)}</b>`
+          if (!x.dayRow) L2.push(ln(x.daily.dayPay > 0 ? `${h2(x.dayN)} ${x.dayN === 1 ? "day" : "days"} × ${m2(x.daily.rate)} = <b>${m2(x.daily.dayPay)}</b>`
             : `another job the same day — the day is paid once`, x.daily.dayPay > 0 ? "" : "cpc-sub"));
-          if (x.daily.pack > 0) L2.push(ln(`+ ${num(c.dayPackPct)}% of ${m2(num(r0["Packing Sold"]))} packing = <b>${m2(x.daily.pack)}</b>`));
+          const keptWhat = [x.dayRow ? "day pay" : ""].concat([["pack", "packing commission"], ["stairs", "stairs"], ["bulky", "bulky"], ["review", "review"], ["other", "hoisting, storage, junk"]]
+            .filter(([k]) => x.a[k] > 0.004).map(([, l]) => l)).filter(Boolean).join(", ");
+          if (x.daily.kept > 0.004) L2.push(ln(`${L2.length ? "+ " : ""}${m2(x.daily.kept)} paid as today (${keptWhat})`));
           L2.push(ln(`= ${m2(x.daily.total)}`, "cpc-tot"));
         }
         return L2.join("");
@@ -1023,9 +1030,8 @@ registerPage({
 
         <h2 class="cpc-seth">Daily rate</h2>
         <div class="cpc-sets">
-          ${sec("Day rates", `One rate per person per day — a second job the same day adds no day. An empty rate is break-even: today's pay per day for the seat, less the packing below, rounded to $5 (now foreman $${SC.daily.be.Foreman || 0}, driver $${SC.daily.be.Driver || 0}, helper $${SC.daily.be.Helper || 0}).`,
+          ${sec("Day rates", `One rate per person per day in place of the hourly wage — a second job the same day adds no day; everything else is paid as today. An empty rate is break-even: today's wage per day for the seat, rounded to $5 (now foreman $${SC.daily.be.Foreman || 0}, driver $${SC.daily.be.Driver || 0}, helper $${SC.daily.be.Helper || 0}).`,
             fields(["dayForeman", "dayDriver", "dayHelper"], { dayForeman: { ph: String(SC.daily.be.Foreman || 0) }, dayDriver: { ph: String(SC.daily.be.Driver || 0) }, dayHelper: { ph: String(SC.daily.be.Helper || 0) } }))}
-          ${sec("Packing", "The foreman keeps a % of packing sold, so selling it still pays. Nothing else is paid on top: stairs, bulky items, reviews and the rest stay with the company.", fields(["dayPackPct"]))}
         </div>
 
         <h2 class="cpc-seth">Custom job — today's pay</h2>
