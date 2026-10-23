@@ -1,4 +1,4 @@
-/* Crew Salary Comparison (Different Analysis, his ask 2026-10-06).
+/* Crew Salary Reconciliation (Different Analysis; "Crew Salary Comparison" until 2026-10-23, his ask 2026-10-06).
 
    "Re-calculate what the difference over 1 year would be if we paid salaries with a different
    model" -- the drafted Zip to Zip Compensation & Performance Plan. One year of jobs is replayed
@@ -57,6 +57,14 @@
      ($0 0.35 ... $4,000 1.86), the driver and every helper 1 share (his pick: the driver as a
      helper); each salary rounded UP to the dollar, as the Excel does. Nothing else: no stairs,
      bulky, packing or review pay. No hourly floor (his pick) -- the minimum-wage count is shown.
+   RECONCILIATION (his ask 2026-10-23, the page renamed): every model's tab has ONE layout -- how pay
+   works in it (written from the numbers in force), the year against Actual, what each seat earns on an
+   average DAY (his pick; no list of people), what the pay is made of, month by month, one job line by
+   line and the revenue that keeps this year's profit. The Bonus plan is replayed job by job like the
+   others (its monthly foreman bonus spread over the month's jobs) instead of its old walk-through. % of
+   bill has a pool per job type: local, STRAIGHT and REGULAR (19% / 9% by default -- what those crews
+   earn of their bills today, 18.8% / 8.7%). A CUSTOM JOB tab applies all four models to one job typed in
+   or filled from a real one; today's pay there is this year's average per seat unless Settings says.
    - DAILY RATE: a day rate per seat per person per day, plus the foreman's % of packing sold
      ("keep the % from packing materials thing so they have interest in selling them"), nothing
      else ("bulky is fully ours"); rates rounded to $5 and starting at break-even (today's pay per
@@ -67,7 +75,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
     cols: ["Unique Key", "Date", "Month", "Company", "Job No", "Request #", "Customer", "Moving Type",
            "Job Foreman", "Role", "Person", "Hours", "Rate", "Salary", "Tip", "First Job",
            "First Foreman Job", "Crew Size", "Job Bill", "Packing Sold", "Packing Commission",
-           "Has Contract", "Travel Hours", "Stairs Paid", "Bulky Paid", "Review Paid", "Other Extras Paid",
+           "Has Contract", "Travel Hours", "Stairs Fee", "Bulky Fee", "Stairs Paid", "Bulky Paid", "Review Paid", "Other Extras Paid",
            "Job Type", "Labor Charge", "Cash Discount Pct", "Packing Charged", "Fees Charged", "Discounts",
            "Sales Commission", "Card Fee", "Profit Before Fixed"],
     dateCols: {}, defaultDate: null,
@@ -77,7 +85,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
 registerPage({
   id: "crew-pay-compare",
   group: "different",
-  title: "Crew Salary Comparison",
+  title: "Crew Salary Reconciliation",
   async render(host) {
     const esc = RSC.esc;
     const num = v => (v == null || v === "" || isNaN(v) ? 0 : +v);
@@ -105,11 +113,14 @@ registerPage({
       band1Amt: 1000, band2Amt: 750, band3Amt: 400,
       band1Share: 30, band2Share: 40, band3Share: 20, band0Share: 10,
       // % of bill -- his Excel's numbers
-      pctPool: 30, pctBonus: 5, pctBonusPaid: 100, pctLd: 14,
+      pctPool: 30, pctBonus: 5, pctBonusPaid: 100, pctStraight: 19, pctRegular: 9,
       pctB1From: 0, pctB1: 35, pctB2From: 800, pctB2: 61, pctB3From: 1600, pctB3: 88,
       pctB4From: 2400, pctB4: 106, pctB5From: 3200, pctB5: 134, pctB6From: 4000, pctB6: 186,
       // daily rate -- empty = break-even; the foreman's packing % stays
       dayForeman: "", dayDriver: "", dayHelper: "", dayPackPct: 20,
+      // today's pay for the custom job -- empty = this year's average
+      todayForeman: "", todayDriver: "", todayHelper: "", todayLdDriver: "", todayLdHelper: "", todayReview: "",
+      todayPackPct: 20, todayStairsShare: 100, todayBulkyShare: 50,
     };
     const MIN_WAGE = 15.92;   // New Jersey, 2026 -- shown, never applied (his pick: no floor)
     const LABELS = {
@@ -119,14 +130,17 @@ registerPage({
       crewPackPct: "Driver + helpers' pool, of materials sold", crewPackDriverShare: "The driver seat's share of that pool",
       ldTypes: "Long-distance job types",
       bonusMinShifts: "Shifts in the month, at least", bonusMinHours: "Hours in the month, at least", bonusMinJobs: "Jobs as foreman, at least",
-      pctPool: "Salary pool, of the splitable bill", pctLd: "Long-distance pool, of the bill", pctBonus: "Bonus pool, of the splitable bill", pctBonusPaid: "Bonus pool paid out",
+      pctPool: "Local moving pool, of the splitable bill", pctStraight: "Straight moving pool, of the bill", pctRegular: "Regular moving pool, of the bill", pctBonus: "Bonus pool, of the splitable bill", pctBonusPaid: "Bonus pool paid out",
       dayForeman: "Foreman", dayDriver: "Driver", dayHelper: "Helper", dayPackPct: "Foreman's packing, of materials sold",
+      todayForeman: "Foreman", todayDriver: "Driver", todayHelper: "Helper", todayLdDriver: "Long-distance driver",
+      todayLdHelper: "Long-distance helper", todayReview: "Review pay, a reviewed job", todayPackPct: "Foreman's packing, of materials sold",
+      todayStairsShare: "Of the stairs fee, to the crew", todayBulkyShare: "Of the bulky-item fee, to the crew",
     };
     // the unit drawn beside each box: $ in front; %, /h, months after
     const UNIT = {};
-    [["%", "pctPool pctBonus pctBonusPaid pctLd crewPackPct crewPackDriverShare dayPackPct band1Share band2Share band3Share band0Share"],
-     ["$/h", "helperEntry helperExp driver foreman seniorForeman"], ["$/day", "dayForeman dayDriver dayHelper"],
-     ["$", "band1Amt band2Amt band3Amt"], ["months", "expHelperMonths"], ["years", "seniorForemanYears"],
+    [["%", "pctPool pctBonus pctBonusPaid pctStraight pctRegular crewPackPct crewPackDriverShare dayPackPct band1Share band2Share band3Share band0Share todayPackPct todayStairsShare todayBulkyShare"],
+     ["$/h", "helperEntry helperExp driver foreman seniorForeman todayForeman todayDriver todayHelper"], ["$/day", "dayForeman dayDriver dayHelper todayLdDriver todayLdHelper"],
+     ["$", "band1Amt band2Amt band3Amt todayReview"], ["months", "expHelperMonths"], ["years", "seniorForemanYears"],
      ["h", "bonusMinHours"], ["shifts", "bonusMinShifts"], ["jobs", "bonusMinJobs"]]
       .forEach(([u, ks]) => ks.split(" ").forEach(k => { UNIT[k] = u; }));
     for (let i = 1; i <= 6; i++) { UNIT["pctB" + i + "From"] = "$"; UNIT["pctB" + i] = "%"; }
@@ -134,11 +148,11 @@ registerPage({
        settings part should be separately. i dont want too many selectors, yet i want the main ones to be
        there". Each scenario tab carries its few main numbers in one row; everything else is on Settings. */
     const LEVERS = {
-      pct: ["pctPool", "pctBonus", "pctLd"],
+      pct: ["pctPool", "pctStraight", "pctRegular", "pctBonus"],
       bonus: ["helperEntry", "helperExp", "driver", "foreman", "seniorForeman"],
       daily: ["dayForeman", "dayDriver", "dayHelper"],
     };
-    const SHORT = { pctPool: "Salary pool", pctBonus: "Bonus pool", pctLd: "Long distance",
+    const SHORT = { pctPool: "Local", pctStraight: "Straight", pctRegular: "Regular", pctBonus: "Bonus pool",
       helperEntry: "Entry helper", helperExp: "Exp. helper", driver: "Driver", foreman: "Foreman", seniorForeman: "Senior foreman",
       dayForeman: "Foreman", dayDriver: "Driver", dayHelper: "Helper" };
     // the Bonus plan's own groups on Settings (its bands are a table of their own)
@@ -160,7 +174,7 @@ registerPage({
       if (r.ok) saved = await r.json();
     } catch (e) { /* the plan's defaults stand in */ }
     const S = window.__cpcState = window.__cpcState
-      || { tab: /[#&]tab=settings/.test(location.hash) ? "settings" : "actual", sort: "diff", q: "", draft: null };
+      || { tab: /[#&]tab=settings/.test(location.hash) ? "settings" : "actual", draft: null };
     // the drafted plan was the whole page before the four tabs: its old walk-through tab opens the Bonus plan
     if (S.tab === "analysis") S.tab = "bonus";
     const savedSet = Object.assign({}, PLAN, saved.value || {});
@@ -301,18 +315,19 @@ registerPage({
     /* ---------- paint ---------- */
     const fmtDay = s => { const d = new Date(s + "T00:00:00"); return isNaN(d) ? s : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); };
     const mlabel = ym => { const [y, m] = ym.split("-"); return RS.monthName(+m).slice(0, 3) + " " + y.slice(2); };
-    const TABS = [["actual", "Actual"], ["pct", "% of bill"], ["bonus", "Bonus plan"], ["daily", "Daily rate"], ["settings", "Settings"]];
+    const TABS = [["actual", "Actual"], ["pct", "% of bill"], ["bonus", "Bonus plan"], ["daily", "Daily rate"], ["custom", "Custom job"], ["settings", "Settings"]];
     function paint() {
       const c = cfg();
       host.innerHTML = `
         <div class="cpc">
-          <div class="rs-page-head"><h1>Crew Salary Comparison</h1>
-            <p>A year of crew pay four ways — what we actually paid, and three other ways of paying the same jobs ·
+          <div class="rs-page-head"><h1>Crew Salary Reconciliation</h1>
+            <p>A year of crew pay four ways — what we actually paid, and three other ways of paying the same jobs — and any one job under all four ·
               Zip to Zip jobs · ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}</p></div>
           <div class="rs-tabs cpc-tabs">${TABS.map(([k, l]) =>
             (k === "settings" && S.draft ? `<span class="cpc-sub cpc-unsaved">unsaved changes</span>` : "")
             + `<button class="rs-tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
           <div id="cpcStrip"></div>
+          <div id="cpcExplain"></div>
           <div id="cpcLevers"></div>
           <div id="cpcBody"></div>
         </div>`;
@@ -320,171 +335,17 @@ registerPage({
       const body = host.querySelector("#cpcBody");
       const SC = scenarios(c);
       paintStrip(host.querySelector("#cpcStrip"), SC);
+      host.querySelector("#cpcExplain").innerHTML = S.tab === "settings" ? "" : explain(S.tab, c, SC);
       paintLevers(host.querySelector("#cpcLevers"), c, SC);
-      if (S.tab === "actual") paintActual(body, c, SC);
-      else if (S.tab === "pct") paintScenario(body, c, SC, SC.pct);
-      else if (S.tab === "daily") paintScenario(body, c, SC, SC.daily);
+      if (S.tab === "pct") paintModel(body, c, SC, SC.pct);
+      else if (S.tab === "bonus") paintModel(body, c, SC, SC.bonus);
+      else if (S.tab === "daily") paintModel(body, c, SC, SC.daily);
+      else if (S.tab === "custom") paintCustom(body, c, SC);
       else if (S.tab === "settings") paintSettings(body, c, SC);
-      else paintAnalysis(body, c, SC);
+      else paintModel(body, c, SC, null);
     }
 
-    function paintAnalysis(body, c, SC) {
-      const R = compute(c), tot = R.tot, t = R.T(tot), n = R.N(tot);
-      // THE WALK-THROUGH (his ask 2026-10-09: "i see the final results, but i am slightly confused
-      // with how we got there"). Every part of pay is one step from today's total to the plan's,
-      // and each says how it is worked out with this period's own inputs.
-      const $ = v => money(num(v));
-      const TIER_ORDER = ["Entry helper", "Experienced helper", "Driver", "Foreman", "Senior foreman"];
-      const tiers = TIER_ORDER.map(k => R.byTier[k]).filter(Boolean)
-        .concat(Object.values(R.byTier).filter(b => !TIER_ORDER.includes(b.tier)));
-      const tierT = tiers.reduce((a, b) => a + b.t, 0), tierN = tiers.reduce((a, b) => a + b.n, 0), tierH = tiers.reduce((a, b) => a + b.hours, 0);
-      const steps = [
-        { k: "Hourly wages", short: "Hourly rates", t: tot.hourlyT, n: tot.hourlyN,
-          how: `${Math.round(tierH).toLocaleString()} hours paid (travel included) × each seat's new rate — seat by seat below. Today: what the sheets paid for the same hours.${R.ldLegs ? ` Includes ${R.ldLegs} hourly legs of long-distance jobs (loading and the like).` : ""}` },
-        { k: "Packing pool — drivers & helpers", short: "Packing pool", t: 0, n: tot.poolN,
-          how: `${num(c.crewPackPct)}% × ${money(R.soldTot)} of packing materials sold: ${num(c.crewPackDriverShare)}% to the driver, the rest split over the helpers (a missing seat's half goes to the other). New — today they get none.` },
-        { k: "Foreman bonus", short: "Foreman bonus", t: 0, n: tot.bonusN,
-          how: `${R.eligMonths} of ${R.fmMonths} foreman-months qualify (${num(c.bonusMinShifts)} shifts, ${num(c.bonusMinHours)} h, ${num(c.bonusMinJobs)} jobs) × ${money(R.ev)} each = ${num(c.band1Share)}% × ${$(c.band1Amt)} + ${num(c.band2Share)}% × ${$(c.band2Amt)} + ${num(c.band3Share)}% × ${$(c.band3Amt)}, the band mix assumed in Settings. New.` },
-      ].sort((a, b) => (b.n - b.t) - (a.n - a.t));
-      const maxAbs = Math.max(1, ...steps.map(p => Math.abs(p.n - p.t)));
-      const seats = ["Foreman", "Driver", "Helper"].filter(s => R.bySeat[s]);
-      const months = Object.keys(R.byMonth).sort();
-      const people = Object.values(R.people).filter(p => !S.q || p.who.toLowerCase().includes(S.q.toLowerCase()));
-      const key = { diff: p => R.N(p) - R.T(p), today: p => R.T(p), new: p => R.N(p), name: p => p.who };
-      people.sort((a, b) => S.sort === "name" ? a.who.localeCompare(b.who) : key[S.sort](b) - key[S.sort](a));
-      const mainRole = p => Object.entries(p.roles).sort((a, b) => b[1] - a[1])[0][0];
-      body.innerHTML = `
-        <div class="rs-kpis" style="--kpi-cols:5">
-          <div class="kpi"><div class="l">Paid today</div><div class="v">${moneyK(t)}</div><div class="s">hourly wages · what the plan doesn't change is left out</div></div>
-          <div class="kpi"><div class="l">Under the new plan</div><div class="v">${moneyK(n)}</div><div class="s">same jobs, same hours</div></div>
-          <div class="kpi cpc-kd"><div class="l">Difference over the year</div><div class="v">${n >= t ? "+" : "−"}${moneyK(Math.abs(n - t)).replace("−", "")}</div>
-            <div class="s">${delta(n, t)} vs today</div></div>
-          <div class="kpi"><div class="l">Share of revenue</div><div class="v">${R.revenue ? (t / R.revenue * 100).toFixed(1) + "% → " + (n / R.revenue * 100).toFixed(1) + "%" : "—"}</div>
-            <div class="s">crew pay ÷ the same jobs' bills (${moneyK(R.revenue)})</div></div>
-          <div class="kpi"><div class="l">Tips (unchanged)</div><div class="v">${moneyK(tot.tips)}</div><div class="s">${Object.keys(R.people).length} people · ${R.jobs.toLocaleString()} jobs</div></div>
-        </div>
-        ${SC ? holdPanel(SC, SC.bonus) : ""}
-        <section class="panel cpc-walk">
-          <div class="panel-head"><span class="panel-title">How we got here</span>
-            <span class="cpc-sub">${money(t)} paid today → ${money(n)} under the plan, one step at a time</span></div>
-          <div class="chartbox cpc-wfbox"><canvas id="cpcWf" role="img" aria-label="From pay today to the new plan, step by step"></canvas></div>
-          <div class="rs-tablewrap"><table class="rs-table cpc-parts">
-            <thead><tr><th class="cpc-stepn">#</th><th>Step</th><th>How it is worked out</th><th class="num">Today</th><th class="num">New plan</th><th class="num">Difference</th><th></th></tr></thead>
-            <tbody>
-              <tr class="cpc-totrow"><td class="cpc-stepn"></td><td><b>Paid today</b></td><td class="cpc-howcell">Hourly wages on ${R.jobs.toLocaleString()} Zip to Zip jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}. Tips, stairs, bulky-item pay, the foreman's 20% packing commission and long-distance day pay are left out — the plan pays them as today.</td>
-                <td class="num">${money(t)}</td><td></td><td></td><td></td></tr>
-              ${steps.map((p, i) => {
-                const d = p.n - p.t, w = Math.round(Math.abs(d) / maxAbs * 100);
-                return `<tr><td class="cpc-stepn">${i + 1}</td><td><b>${esc(p.k)}</b></td><td class="cpc-howcell">${p.how}</td>
-                  <td class="num">${money(p.t)}</td><td class="num">${money(p.n)}</td>
-                  <td class="num ${d > 0.5 ? "cpc-up" : d < -0.5 ? "cpc-down" : ""}">${Math.abs(d) < 0.5 ? "—" : signMoney(d)}</td>
-                  <td class="cpc-barcell"><span class="cpc-bar ${d >= 0 ? "pos" : "neg"}" style="width:${w}%"></span></td></tr>`;
-              }).join("")}</tbody>
-            <tfoot><tr><td></td><td>Under the new plan</td><td></td><td class="num">${money(t)}</td><td class="num">${money(n)}</td><td class="num">${signMoney(n - t)}</td><td></td></tr></tfoot>
-          </table></div>
-        </section>
-        <div class="cpc-grid">
-          <section class="panel">
-            <div class="panel-head"><span class="panel-title">Hourly rates, seat by seat</span></div>
-            <div class="rs-tablewrap"><table class="rs-table">
-              <thead><tr><th>Seat</th><th class="num">People</th><th class="num">Hours paid</th><th class="num">Today</th><th class="num">Today / hour</th><th class="num">New rate</th><th class="num">New plan</th><th class="num">Difference</th></tr></thead>
-              <tbody>${tiers.map(b => `<tr><td><b>${esc(b.tier)}</b></td><td class="num">${b.people.size}</td><td class="num">${Math.round(b.hours).toLocaleString()}</td>
-                <td class="num">${money(b.t)}</td><td class="num">${b.hours ? "$" + (b.t / b.hours).toFixed(2) : "—"}</td><td class="num"><b>${$(b.rate)}</b></td>
-                <td class="num">${money(b.n)}</td><td class="num ${b.n - b.t > 0.5 ? "cpc-up" : b.n - b.t < -0.5 ? "cpc-down" : ""}">${signMoney(b.n - b.t)}</td></tr>`).join("")}</tbody>
-              <tfoot><tr><td>Hourly wages</td><td></td><td class="num">${Math.round(tierH).toLocaleString()}</td><td class="num">${money(tierT)}</td><td class="num">${tierH ? "$" + (tierT / tierH).toFixed(2) : ""}</td><td></td><td class="num">${money(tierN)}</td><td class="num">${signMoney(tierN - tierT)}</td></tr></tfoot>
-            </table></div>
-            <p class="cpc-note">New plan = hours paid × the seat's one new rate. "Today / hour" is the average the sheets paid for the same hours — people in one seat are on different rates today. The seat is decided per job by tenure: experienced helper after ${num(c.expHelperMonths)} months with us, senior foreman after ${num(c.seniorForemanYears)} years as foreman. Long-distance drivers and helpers are paid by the day instead (step above).</p>
-          </section>
-          <section class="panel">
-            <div class="panel-head"><span class="panel-title">By seat</span></div>
-            <div class="rs-tablewrap"><table class="rs-table">
-              <thead><tr><th>Seat</th><th class="num">Today</th><th class="num">New plan</th><th class="num">Difference</th><th class="num">$ / hour today → new</th></tr></thead>
-              <tbody>${seats.map(s => {
-                const o = R.bySeat[s], h = R.seatHours[s] || 0;
-                return `<tr><td><b>${s === "Foreman" ? "Foremen" : s + "s"}</b></td><td class="num">${money(R.T(o))}</td><td class="num">${money(R.N(o))}</td>
-                  <td class="num">${delta(R.N(o), R.T(o))}</td>
-                  <td class="num">${h ? "$" + (R.T(o) / h).toFixed(2) + " → $" + (R.N(o) / h).toFixed(2) : "—"}</td></tr>`;
-              }).join("")}</tbody>
-            </table></div>
-            <p class="cpc-note">$ per hour here is everything in the comparison divided by hours worked, so it includes packing and the bonus — not the base rate.</p>
-          </section>
-        </div>
-        <section class="panel cpc-job" id="cpcJob"></section>
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">Month by month</span></div>
-          <div class="chartbox" style="height:280px"><canvas id="cpcChart"></canvas></div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">Everyone · ${people.length}</span><span class="spacer"></span>
-            <input class="cpc-q" id="cpcQ" placeholder="Find a person" value="${esc(S.q)}" aria-label="Find a person">
-            <div class="rs-seg cpc-sort">${[["diff", "Biggest change"], ["new", "New pay"], ["today", "Pay today"], ["name", "Name"]].map(([k, l]) =>
-              `<button data-sort="${k}" class="${S.sort === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
-          <div class="rs-tablewrap" style="max-height:620px"><table class="rs-table rs-sticky">
-            <thead><tr><th>Person</th><th>Seat · tier at period end</th><th class="num">Jobs</th><th class="num">Hours</th><th class="num">Today</th><th class="num">New plan</th><th class="num">Difference</th></tr></thead>
-            <tbody>${people.slice(0, 400).map(p => `<tr class="click" data-who="${esc(p.who)}"><td><b>${esc(p.who)}</b></td>
-              <td>${esc(p.tier || mainRole(p))}${Object.keys(p.roles).length > 1 ? ` <span class="cpc-sub">also ${esc(Object.keys(p.roles).filter(r => r !== mainRole(p)).join(", ").toLowerCase())}</span>` : ""}</td>
-              <td class="num">${p.jobs}</td><td class="num">${Math.round(p.hours).toLocaleString()}</td>
-              <td class="num">${money(R.T(p))}</td><td class="num">${money(R.N(p))}</td><td class="num">${delta(R.N(p), R.T(p))}</td></tr>`).join("")}</tbody>
-          </table></div>
-        </section>
-        <section class="panel cpc-how">
-          <div class="panel-head"><span class="panel-title">How this is counted</span></div>
-          <ul>
-            <li><b>Today</b> is the hourly wage paid on Zip to Zip jobs (Tuji, Boston and Virginia are left out) — a foreman's without his packing commission. Tips, stairs, bulky-item pay, the foreman's packing commission (20% since December 2025, the plan's number) and long-distance day pay stay as they are, so they sit outside the comparison.</li>
-            <li><b>Hours</b> are the hours the wage was paid for (wage ÷ rate). The closing sheet only shows whole hours — a 10.5-hour job shows as 11 — so the new plan is replayed on ${Math.round(R.paidHours).toLocaleString()} hours, not the ${Math.round(R.shownHours).toLocaleString()} the sheets show.</li>
-            ${R.travelBase ? `<li><b>Travel</b> stays as it is today: the foreman enters the miles, a lookup turns them into hours (1 h up to about 110 miles, then roughly ½ h more per 20 miles), and they are added to the job's hours. On the ${R.travelJobs.toLocaleString()} local jobs with a contract, ${Math.round(R.travelHours).toLocaleString()} of ${Math.round(R.travelBase).toLocaleString()} hours (${Math.round(R.travelHours / R.travelBase * 100)}%) are drive time. Both models pay drive time at the seat's full rate — today's contracts already do — so nothing is subtracted or paid at a lower rate.</li>` : ""}
-            <li><b>Packing pool:</b> new money for drivers and helpers on ${R.poolJobs.toLocaleString()} jobs with packing sold. Today they get none of it; the foreman's own 20% is unchanged.</li>
-            <li><b>Long distance:</b> ${R.ldJobs} jobs. Drivers and helpers paid by the day (${R.ldRows} rows, ${+(R.ldDays.Driver + R.ldDays.Helper).toFixed(1)} days, ${money(R.ldPaid)}) are left out — the plan's $250 / $200 a day is what they earn today. ${R.ldLegs} hourly legs (loading and the like) and the foremen are paid hourly in both. The plan's 15% CF share for the foreman is not counted (about $4k a year).</li>
-            <li><b>Foreman bonus:</b> ${R.eligMonths} of ${R.fmMonths} foreman-months meet the shift, hour and job minimums. Each eligible month is paid the band mix's expected ${money(R.ev)} (Settings).</li>
-            <li><b>Not modelled:</b> overtime (his call), and the plan's documentation rule.${R.noHours ? ` ${R.noHours} rows had pay but no hours or rate — they keep what was paid in both models.` : ""}</li>
-          </ul>
-        </section>`;
-      // chart
-      try {
-        new Chart(body.querySelector("#cpcChart"), {
-          type: "bar",
-          data: { labels: months.map(mlabel), datasets: [
-            { label: "Paid today", data: months.map(m => Math.round(R.T(R.byMonth[m]))), backgroundColor: RS.isV2 && RS.isV2() ? RS.V2.ctx : "#5c6a7c", borderRadius: 4 },
-            { label: "New plan", data: months.map(m => Math.round(R.N(R.byMonth[m]))), backgroundColor: RS.isV2 && RS.isV2() ? RS.V2.navy : "#b7e23b", borderRadius: 4 },
-          ] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" },
-            tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.raw) } } },
-            scales: { y: { ticks: { callback: v => moneyK(v) } } } },
-        });
-      } catch (e) { console.warn("crew-pay chart:", e); }
-      // the waterfall: today, each step in the table's order, the plan
-      try {
-        const v2 = RS.isV2 && RS.isV2(), V = RS.V2 || {};
-        const cTot = v2 ? V.navy : "#5c6a7c", cUp = v2 ? V.accent : "#b7e23b", cDown = v2 ? V.other : "#64748b", cInk = v2 ? V.ink : "#e6edf6";
-        let run = t; const bars = [[0, t]], cols = [cTot], labs = ["Paid today"], vals = [t];
-        steps.forEach(p => { const d = p.n - p.t; bars.push([run, run + d]); run += d; cols.push(d >= 0 ? cUp : cDown); labs.push(p.short); vals.push(d); });
-        bars.push([0, n]); cols.push(cTot); labs.push("New plan"); vals.push(n);
-        const lo = Math.min(t, n, ...bars.map(b => Math.min(b[0], b[1])).filter(x => x > 0));
-        const floor = Math.max(0, Math.floor(lo * 0.85 / 100000) * 100000);
-        const lab = (v, i) => (i === 0 || i === vals.length - 1) ? moneyK(v) : (v >= 0 ? "+" : "−") + moneyK(Math.abs(v)).replace("−", "");
-        new Chart(body.querySelector("#cpcWf"), {
-          type: "bar",
-          data: { labels: labs, datasets: [{ data: bars, backgroundColor: cols, borderRadius: 4, borderSkipped: false, maxBarThickness: 64 }] },
-          options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 22 } },
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => lab(vals[x.dataIndex], x.dataIndex) } } },
-            scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0 } },
-                      y: { min: floor, ticks: { callback: v => moneyK(v) } } } },
-          plugins: [{ id: "cpcWfLab", afterDatasetsDraw(ch) {
-            const x = ch.ctx; x.save(); x.font = "700 12px " + ((RS.V2 && RS.V2.font) || "sans-serif"); x.fillStyle = cInk; x.textAlign = "center"; x.textBaseline = "bottom";
-            ch.getDatasetMeta(0).data.forEach((el, i) => x.fillText(lab(vals[i], i), el.x, Math.min(el.y, el.base) - 4));
-            x.restore(); } }],
-        });
-      } catch (e) { console.warn("crew-pay waterfall:", e); }
-      paintJob(R, c);
-      const q = body.querySelector("#cpcQ");
-      q.oninput = () => { S.q = q.value; const pos = q.selectionStart; paintAnalysis(body, c); const q2 = body.querySelector("#cpcQ"); q2.focus(); q2.setSelectionRange(pos, pos); };
-      body.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { S.sort = b.dataset.sort; paintAnalysis(body, c); });
-      body.querySelectorAll("tr[data-who]").forEach(tr => tr.onclick = () => openPerson(R, tr.dataset.who));
-    }
-
-    /* ONE JOB, LINE BY LINE -- the same arithmetic as the totals, for one job, person by person.
-       Opens on a typical recent job (local, contract, driver + two helpers, packing sold); any job
-       can be found by request #, customer, foreman or date. */
+    /* the job lines' numbers: cents only where there are cents */
     const m2 = v => { const r = Math.round(v * 100) / 100; return (r < 0 ? "−$" : "$") + Math.abs(r).toLocaleString("en-US", { minimumFractionDigits: r % 1 ? 2 : 0, maximumFractionDigits: 2 }); };
     const h2 = v => String(+(+v).toFixed(2));
     const tenureTxt = te => {
@@ -493,94 +354,6 @@ registerPage({
       return (te.m >= 24 ? (te.m / 12).toFixed(1) + " years " : m === 1 ? "1 month " : m + " months ") + te.as;
     };
     const shareTxt = f => f >= 0.999 ? "all" : Math.abs(f - 0.5) < 0.001 ? "half" : Math.round(f * 100) + "%";
-    function typicalJob(R) {
-      let best = null, bestD = "";
-      Object.entries(R.byJob).forEach(([uk, xs]) => {
-        const r0 = xs[0].r, d = r0["Date"];
-        if (xs[0].isLD || !num(r0["Has Contract"]) || !(num(r0["Packing Sold"]) > 0) || d <= bestD) return;
-        if (xs.length !== 4 || xs.filter(x => x.role === "Driver").length !== 1 || xs.filter(x => x.role === "Helper").length !== 2) return;
-        const hs = xs.map(x => x.hours);
-        if (!(Math.min(...hs) > 0) || Math.max(...hs) - Math.min(...hs) > 0.6) return;
-        best = uk; bestD = d;
-      });
-      return best || Object.keys(R.byJob)[0];
-    }
-    function paintJob(R, c) {
-      const box = host.querySelector("#cpcJob");
-      if (!box) return;
-      const uk = S.job && R.byJob[S.job] ? S.job : typicalJob(R);
-      const xs = (R.byJob[uk] || []).slice().sort((a, b) => ["Foreman", "Driver", "Helper"].indexOf(a.role) - ["Foreman", "Driver", "Helper"].indexOf(b.role));
-      if (!xs.length) { box.innerHTML = ""; return; }
-      const r0 = xs[0].r, crew = Math.max(1, num(r0["Crew Size"])), sold = num(r0["Packing Sold"]);
-      const nD = xs.filter(x => x.role === "Driver").length, nH = xs.filter(x => x.role === "Helper").length;
-      const dShare = !nH ? 1 : !nD ? 0 : Math.min(1, num(c.crewPackDriverShare) / 100);
-      const paidH = xs[0].hours, shownH = xs[0].shown;   // the foreman's, or the first seat's
-      const trav = r0["Travel Hours"] != null && r0["Travel Hours"] !== "" ? num(r0["Travel Hours"]) : null;
-      const ln = (txt, cls) => `<div class="${cls || ""}">${txt}</div>`;
-      const rowsHtml = xs.map(x => {
-        const T = [], N = [];
-        // today
-        if (x.t.hourlyT) T.push(ln(x.hours && Math.abs(x.hours * x.rate - x.t.hourlyT) < 0.5
-          ? `${h2(x.hours)} h × ${m2(x.rate)} = <b>${m2(x.t.hourlyT)}</b>` : `wage <b>${m2(x.t.hourlyT)}</b>`));
-        const dl = v => h2(v) + (Math.abs(v - 1) < 0.001 ? " day" : " days");
-        const dayTxt = x.dayRow ? (Math.abs(x.days * x.rate - num(x.r["Salary"])) < 1 ? `${dl(x.days)} × ${m2(x.rate)} = ${m2(num(x.r["Salary"]))}` : `day pay ${m2(num(x.r["Salary"]))}`) : "";
-        if (x.dayRow) T.push(ln(`${dayTxt} — by the day, left out`, "cpc-sub"));
-        if (!x.T && !x.dayRow) T.push(ln("nothing in the comparison", "cpc-sub"));
-        T.push(ln(`= ${m2(x.T)}`, "cpc-tot"));
-        if (x.shown && Math.abs(x.shown - x.hours) >= 0.01 && x.hours) T.push(ln(`the sheet shows ${h2(x.shown)} h`, "cpc-sub"));
-        // the plan
-        if (x.newRate != null && x.hours) N.push(ln(`${h2(x.hours)} h × ${m2(x.newRate)} = <b>${m2(x.n.hourlyN)}</b>`));
-        else if (x.n.hourlyN) N.push(ln(`wage kept as paid <b>${m2(x.n.hourlyN)}</b>`));
-        if (x.dayRow) N.push(ln("same day pay as today — left out", "cpc-sub"));
-        if (x.n.poolN) N.push(ln(`+ ${m2(x.n.poolN)} packing pool (${shareTxt(x.role === "Driver" ? dShare : 1 - dShare)} of ${num(c.crewPackPct)}% of ${m2(sold)}${x.role === "Helper" && nH > 1 ? ", ÷ " + nH + " helpers" : ""})`));
-        if (!x.N && !x.dayRow) N.push(ln("nothing in the comparison", "cpc-sub"));
-        N.push(ln(`= ${m2(x.N)}`, "cpc-tot"));
-        const d = x.N - x.T;
-        return `<tr><td><b>${esc(x.who)}</b><div class="cpc-sub">${esc(x.tier)}${tenureTxt(x.tenure) ? " · " + esc(tenureTxt(x.tenure)) : ""}</div></td>
-          <td class="cpc-ln">${T.join("")}</td><td class="cpc-ln">${N.join("")}</td>
-          <td class="num ${d > 0.5 ? "cpc-up" : d < -0.5 ? "cpc-down" : ""}">${Math.abs(d) < 0.005 ? "—" : (d > 0 ? "+" : "−") + m2(Math.abs(d))}</td></tr>`;
-      }).join("");
-      const jT = xs.reduce((a, x) => a + x.T, 0), jN = xs.reduce((a, x) => a + x.N, 0);
-      const fms = xs.filter(x => x.role === "Foreman").map(x => {
-        const pm = R.people[x.who] && R.people[x.who].months[r0["Month"]], e = pm && pm.elig;
-        if (!e) return "";
-        return `${esc(x.who)} in ${mlabel(r0["Month"])}: ${e.ok ? `qualifies — ${money(R.ev)} expected for the month` : `does not qualify (${e.shifts} shifts, ${Math.round(e.hours)} h, ${e.jobs} jobs)`}`;
-      }).filter(Boolean);
-      box.innerHTML = `
-        <div class="panel-head"><span class="panel-title">One job, line by line</span><span class="spacer"></span>
-          <div class="cpc-jobpick"><input class="cpc-q" id="cpcJobQ" placeholder="Find a job — request #, customer, foreman or date" aria-label="Find a job" autocomplete="off" value="${esc(S.jobQ || "")}">
-            <div class="cpc-hits" id="cpcHits"></div></div></div>
-        <div class="cpc-jobfacts">
-          <span><b>${esc(fmtDay(r0["Date"]))}</b></span><span>request <b>${esc(r0["Request #"] || "—")}</b></span><span>${esc(r0["Customer"] || "")}</span>
-          <span>${esc(r0["Moving Type"] || "")}</span><span>crew of <b>${crew}</b></span><span>bill <b>${money(num(r0["Job Bill"]))}</b></span>
-          <span><b>${h2(paidH)} h</b> paid to the ${esc(xs[0].role.toLowerCase())}${shownH && Math.abs(shownH - paidH) >= 0.01 ? ` (the sheet shows ${h2(shownH)})` : ""}${trav != null ? ` · ${h2(trav)} h of it travel from the miles lookup` : ""}</span>
-          <span>packing sold <b>${money(sold)}</b></span>
-        </div>
-        <div class="rs-tablewrap"><table class="rs-table cpc-jobt">
-          <thead><tr><th>Person</th><th>Today</th><th>New plan</th><th class="num">Difference</th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-          <tfoot><tr><td>The job</td><td>${money(jT)}</td><td>${money(jN)}</td><td class="num">${delta(jN, jT)}</td></tr></tfoot>
-        </table></div>
-        <p class="cpc-note">Tips, stairs, bulky-item pay, the foreman's 20% packing commission and long-distance day pay are left out of both — the plan pays them as today. The foreman bonus is paid per month, not per job${fms.length ? ": " + fms.join("; ") : ""}.</p>`;
-      const q = box.querySelector("#cpcJobQ"), hits = box.querySelector("#cpcHits");
-      const index = () => R._jobIndex = R._jobIndex || Object.entries(R.byJob).map(([k, ys]) => {
-        const a = ys[0].r, fm = (ys.find(y => y.role === "Foreman") || {}).who || "";
-        return { k, d: a["Date"], label: `${fmtDay(a["Date"])} · ${a["Request #"] || "—"} · ${a["Customer"] || ""} · ${fm}`,
-                 text: [a["Date"], fmtDay(a["Date"]), a["Request #"], a["Customer"], fm, a["Job No"]].join(" ").toLowerCase() };
-      }).sort((a, b) => b.d.localeCompare(a.d));
-      const find = () => {
-        S.jobQ = q.value;
-        const words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
-        if (!words.length) { hits.innerHTML = ""; return; }
-        const found = index().filter(j => words.every(w => j.text.includes(w))).slice(0, 8);
-        hits.innerHTML = found.length ? found.map(j => `<button data-uk="${esc(j.k)}">${esc(j.label)}</button>`).join("")
-          : `<div class="cpc-nohit">No job matches</div>`;
-        hits.querySelectorAll("button[data-uk]").forEach(b => b.onclick = () => { S.job = b.dataset.uk; S.jobQ = ""; paintJob(R, c); });
-      };
-      q.oninput = find;
-      q.onkeydown = e => { if (e.key === "Escape") { q.value = ""; find(); } };
-    }
-
     /* ---------- FOUR SCENARIOS on the same jobs (his ask 2026-10-23) ---------- */
     const SEATS = ["Foreman", "Driver", "Helper"];
     const seatName = s => s === "Foreman" ? "Foremen" : s + "s";
@@ -646,11 +419,13 @@ registerPage({
       Object.values(jobs).forEach(j => {
         const s = splitOf(j.r0), b = j.nf ? bandOf(c, s.v) : { from: 0, pct: 0 };
         const d = b.pct / 100, fShare = j.n ? (j.nf + d) / (j.n + d) : 0, oEach = j.n - j.nf ? (1 - fShare) / (j.n - j.nf) : 0;
-        // A LONG-DISTANCE JOB HAS ITS OWN POOL % (his pick 2026-10-23): his 30% is the local-job
-        // template's, and an LD bill carries the haul -- LD crews earn 14% of it today (Straight 18.8%,
-        // Regular 8.7%), so 14% is the default; no bonus pool on them (his call: "having bonus for locals only is enough")
-        const isLd = ld.has(j.r0["Moving Type"]), poolPct = isLd ? num(c.pctLd) : num(c.pctPool);
-        j.pct = { s, b, d, fShare, oEach, isLd, poolPct, pool: poolPct / 100 * s.v,
+        // A POOL PER JOB TYPE (his asks 2026-10-23: "Give LD its own %", then "straight should have
+        // different and regular should have different"): his 30% is the local-job template's, and a
+        // long-distance bill carries the haul -- Straight crews earn 18.8% of it today, Regular 8.7%, so
+        // 19% / 9% are the defaults; no bonus pool on them ("having bonus for locals only is enough")
+        const isLd = ld.has(j.r0["Moving Type"]), kind = !isLd ? "local" : j.r0["Moving Type"] === "Straight Moving" ? "straight" : "regular";
+        const poolPct = num(c[{ local: "pctPool", straight: "pctStraight", regular: "pctRegular" }[kind]]);
+        j.pct = { s, b, d, fShare, oEach, isLd, kind, poolPct, pool: poolPct / 100 * s.v,
                   bonus: isLd ? 0 : num(c.pctBonus) / 100 * s.v * num(c.pctBonusPaid) / 100 };
       });
       lines.forEach(x => {
@@ -682,11 +457,34 @@ registerPage({
       const mk = (key, label, N) => ({ key, label, N, total: lines.reduce((s, x) => s + N(x), 0) });
       const pct = mk("pct", "% of bill", x => x.pct.total);
       const daily = Object.assign(mk("daily", "Daily rate", x => x.daily.total), { be, rateOf });
-      // BONUS PLAN: the drafted plan changes the hourly wage, adds the pool and the bonus; everything
-      // else is paid as today, so its all-in total is Actual + the plan's own difference
-      const R = compute(c);
-      const bonus = { key: "bonus", label: "Bonus plan", total: A + R.N(R.tot) - R.T(R.tot) };
-      const SC = { c, rows, jobs, lines, revenue, A, tips, pct, daily, bonus, rates };
+      // BONUS PLAN, job by job: the plan's hourly wage and packing pool replace today's wage; the
+      // foreman's monthly bonus is spread over his jobs that month; everything else is paid as today --
+      // so its all-in total is Actual + the plan's own difference (the drafted plan's replay, compute())
+      const R = compute(c), plan = new Map(), fmJobs = {};
+      Object.values(R.byJob).forEach(ys => ys.forEach(y => {
+        plan.set(y.r, y);
+        if (y.role === "Foreman") { const k = y.who + "|" + y.r["Month"]; fmJobs[k] = (fmJobs[k] || 0) + 1; }
+      }));
+      lines.forEach(x => {
+        const y = plan.get(x.r);
+        if (!y) { x.bonus = { y: null, hourlyN: 0, poolN: 0, bonusN: 0, kept: x.T, total: x.T }; return; }
+        const pm = x.role === "Foreman" && R.people[y.who] && R.people[y.who].months[x.r["Month"]];
+        const bonusN = pm && pm.bonus ? pm.bonus / fmJobs[y.who + "|" + x.r["Month"]] : 0;
+        const kept = x.T - y.t.hourlyT;   // packing commission, stairs, bulky, review, other -- and an LD day row's pay
+        x.bonus = { y, hourlyN: y.n.hourlyN, poolN: y.n.poolN, bonusN, kept, total: kept + y.n.hourlyN + y.n.poolN + bonusN };
+      });
+      const bonus = mk("bonus", "Bonus plan", x => x.bonus.total);
+      const fmLines = lines.filter(x => x.role === "Foreman").length;
+      bonus.perJob = fmLines ? lines.reduce((a, x) => a + x.bonus.bonusN, 0) / fmLines : 0;
+      // TODAY'S PAY, for the custom job: each seat's wage over the hours it paid, a long-distance trip's
+      // day rate, and the review pay on a job that had one -- this year's, unless Settings overrides
+      const today = {}, rateOver = xs => { const h = xs.reduce((a, x) => a + x.hours, 0); return h ? xs.reduce((a, x) => a + x.a.wage, 0) / h : 0; };
+      SEATS.forEach(s => { today[s] = rateOver(lines.filter(x => x.role === s && !x.dayRow && x.hours > 0 && x.a.wage > 0)); });
+      ["Driver", "Helper"].forEach(s => { const xs = lines.filter(x => x.role === s && x.dayRow && x.days > 0), d = xs.reduce((a, x) => a + x.days, 0);
+        today["ld" + s] = d ? xs.reduce((a, x) => a + x.a.wage, 0) / d : 0; });
+      const rv = Object.values(jobs).filter(j => num(j.r0["Review Paid"]) > 0);
+      today.review = rv.length ? rv.reduce((a, j) => a + num(j.r0["Review Paid"]), 0) / rv.length : 0;
+      const SC = { c, rows, jobs, lines, revenue, A, tips, pct, daily, bonus, rates, R, today };
       // the crew's own cut of an extra dollar: only the % plan pays out of the bill itself
       [[pct, revenue ? pct.total / revenue : 0], [daily, 0], [bonus, 0]].forEach(([P, s]) => { P.hold = holdOf(SC, P.total, s); });
       return SC;
@@ -744,7 +542,6 @@ registerPage({
 
     const byKey = (xs, f) => { const o = {}; xs.forEach(x => { const k = f(x); (o[k] = o[k] || []).push(x); }); return o; };
     const sumOf = (xs, f) => xs.reduce((s, x) => s + f(x), 0);
-    const mainRoleOf = xs => Object.entries(byKey(xs, x => x.role)).sort((a, b) => b[1].length - a[1].length)[0][0];
     function monthChart(canvas, SC, series) {
       const byM = byKey(SC.lines, x => x.r["Month"]), ms = Object.keys(byM).sort();
       const v2 = RS.isV2 && RS.isV2(), V = RS.V2 || {};
@@ -757,84 +554,135 @@ registerPage({
             tooltip: { callbacks: { label: x => x.dataset.label + ": " + money(x.raw) } } }, scales: { y: { ticks: { callback: v => moneyK(v) } } } } });
       } catch (e) { console.warn("crew-pay month chart:", e); }
     }
-    function underMin(SC, f) {
-      let n = 0, of = 0;
-      SC.lines.forEach(x => { if (x.dayRow || !(x.hours > 0)) return; of++; if (f(x) / x.hours < MIN_WAGE) n++; });
-      return { n, of };
-    }
 
-    /* ACTUAL -- what the crews were paid, every part of it */
-    function paintActual(body, c, SC) {
-      const L = SC.lines, nj = Object.keys(SC.jobs).length;
-      const cov = Object.values(SC.jobs).filter(j => num(j.r0["Has Contract"])).length;
-      const PARTS = [
-        ["wage", "Wages", "hourly pay — travel from the miles lookup included — or the day pay on a long-distance trip"],
-        ["pack", "Packing commission", "the foreman's share of packing materials sold (20% since December 2025)"],
-        ["stairs", "Stairs pay", "all of the stairs fee, split over the crew"],
-        ["bulky", "Bulky-item pay", "half of the bulky-item fee, split over the crew"],
-        ["review", "Review bonus", "the foreman's, per review"],
-        ["other", "Hoisting, storage and junk pay", "from the contract, split over the crew"]];
-      const hours = sumOf(L, x => x.hours), days = sumOf(L, x => x.days);
-      const seats = SEATS.filter(s => L.some(x => x.role === s));
-      const people = Object.entries(byKey(L, x => x.who)).map(([who, xs]) => ({ who, xs, T: sumOf(xs, x => x.T),
-        wage: sumOf(xs, x => x.a.wage), extra: sumOf(xs, x => x.T - x.a.wage), tip: sumOf(xs, x => x.tip), hours: sumOf(xs, x => x.hours) }))
-        .filter(p => !S.q || p.who.toLowerCase().includes(S.q.toLowerCase()))
-        .sort((a, b) => S.sort === "name" ? a.who.localeCompare(b.who) : b.T - a.T);
+    /* EVERY MODEL'S TAB, ONE LAYOUT (his ask 2026-10-23: "i need bonus plan page to dont be so different
+       from others ... i am not interested on person level salary increases - i just need an average of
+       how much the salary for foreman will increase, for helper and for driver"): how pay works, the year
+       against Actual, what each seat earns on an average DAY (his pick), what the pay is made of, month by
+       month, one job line by line, and the revenue that keeps this year's profit. No list of people. */
+    const PARTS = [
+      ["wage", "Wages", "hourly pay — travel from the miles lookup included — or the day pay on a long-distance trip"],
+      ["pack", "Packing commission", "the foreman's share of packing materials sold (20% since December 2025)"],
+      ["stairs", "Stairs pay", "all of the stairs fee, split over the crew"],
+      ["bulky", "Bulky-item pay", "half of the bulky-item fee, split over the crew"],
+      ["review", "Review bonus", "the foreman's, per review"],
+      ["other", "Hoisting, storage and junk pay", "from the contract, split over the crew"]];
+    const YEAR_DAYS = 250;   // a full-time year: five days a week, fifty weeks
+    // a seat's average DAY: a person's jobs on one date are one day, a long-distance trip row pays its own
+    // days; per hour divides by the hours paid (trip rows have none); a year is YEAR_DAYS of those days
+    function seatStats(SC, N) {
+      const out = {};
+      SEATS.forEach(s => {
+        const xs = SC.lines.filter(x => x.role === s);
+        if (!xs.length) return;
+        const hx = xs.filter(x => !x.dayRow && x.hours > 0), days = sumOf(xs, x => x.dayN), hrs = sumOf(hx, x => x.hours);
+        const g = byKey(xs, x => x.who + "|" + x.r["Date"] + (x.dayRow ? "|" + x.r["Unique Key"] : ""));
+        const dl = Object.values(g).map(ys => ({ t: sumOf(ys, y => y.T), n: sumOf(ys, N), h: sumOf(ys, y => y.dayRow ? 0 : y.hours), trip: ys[0].dayRow }));
+        const T = sumOf(xs, x => x.T), Nn = sumOf(xs, N);
+        out[s] = { days, people: new Set(xs.map(x => x.who)).size, T, N: Nn,
+          dayT: days ? T / days : 0, dayN: days ? Nn / days : 0,
+          hourT: hrs ? sumOf(hx, x => x.T) / hrs : 0, hourN: hrs ? sumOf(hx, N) / hrs : 0,
+          up: dl.filter(v => v.n > v.t + 0.5).length, down: dl.filter(v => v.n < v.t - 0.5).length, of: dl.length,
+          underT: dl.filter(v => !v.trip && v.h > 0 && v.t / v.h < MIN_WAGE).length,
+          underN: dl.filter(v => !v.trip && v.h > 0 && v.n / v.h < MIN_WAGE).length };
+      });
+      return out;
+    }
+    function seatCards(SC, N, isA) {
+      const st = seatStats(SC, N), pc = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+      const one = s => { const o = st[s]; if (!o) return "";
+        const d = o.dayN - o.dayT;
+        return `<div class="cpc-seat"><span>${s} · a day</span>
+          <b>${isA ? money(o.dayT) : money(o.dayT) + " → " + money(o.dayN)}</b>
+          ${isA ? `<em>${o.people} people · ${Math.round(o.days).toLocaleString()} days</em>`
+                : `<em class="${d >= 0 ? "cpc-up" : "cpc-down"}">${d >= 0 ? "+" : "−"}${money(Math.abs(d)).replace("−", "")} · ${d >= 0 ? "+" : "−"}${Math.abs(o.dayT ? d / o.dayT * 100 : 0).toFixed(1)}%</em>`}
+          <div class="cpc-sub">${isA ? "$" + o.hourT.toFixed(2) + " an hour · " + moneyK(o.dayT * YEAR_DAYS) + " a full-time year"
+            : "$" + o.hourT.toFixed(2) + " → $" + o.hourN.toFixed(2) + " an hour · " + moneyK(o.dayT * YEAR_DAYS) + " → " + moneyK(o.dayN * YEAR_DAYS) + " a full-time year"}</div>
+          <div class="cpc-sub">${isA ? (o.underT ? o.underT.toLocaleString() + " days under $" + MIN_WAGE + "/h" : "no day under $" + MIN_WAGE + "/h")
+            : "paid more on " + pc(o.up, o.of) + " of days, less on " + pc(o.down, o.of) + (o.underN ? " · " + o.underN.toLocaleString() + " days under $" + MIN_WAGE + "/h" : "")}</div></div>`; };
+      return `<section class="panel"><div class="panel-head"><span class="panel-title">What each seat earns on an average day</span>
+          <span class="cpc-sub">a person's jobs on one date are one day · a full-time year is ${YEAR_DAYS} days</span></div>
+        <div class="cpc-seats">${SEATS.map(one).join("")}</div></section>`;
+    }
+    // what each model's crew pay is made of, over the year
+    function madeOf(SC, key) {
+      const L = SC.lines, c = SC.c, s = f => sumOf(L, f);
+      if (key === "actual") return PARTS.map(([k, l, how]) => [l, how, s(x => x.a[k])]);
+      if (key === "pct") {
+        const k = x => x.j.pct.kind;
+        return [["Salary pool — local jobs", `${num(c.pctPool)}% of the splitable bill, shared out`, s(x => k(x) === "local" ? x.pct.pool : 0)],
+          ["Salary pool — straight moving", `${num(c.pctStraight)}% of the bill`, s(x => k(x) === "straight" ? x.pct.pool : 0)],
+          ["Salary pool — regular moving", `${num(c.pctRegular)}% of the bill`, s(x => k(x) === "regular" ? x.pct.pool : 0)],
+          ["Bonus pool — local jobs", `${num(c.pctBonus)}% of the splitable bill, ${num(c.pctBonusPaid)}% of it paid out`, s(x => x.pct.bonus)]];
+      }
+      if (key === "bonus") return [["Hourly wages", "the hours paid × the seat's plan rate, by tenure", s(x => x.bonus.hourlyN)],
+          ["Packing pool", `${num(c.crewPackPct)}% of packing sold, for the driver and the helpers`, s(x => x.bonus.poolN)],
+          ["Foreman bonus", "qualifying months × the band mix, spread over the foreman's jobs", s(x => x.bonus.bonusN)],
+          ["Paid as today", "the foreman's packing commission, stairs, bulky, review and hoisting/storage/junk pay, long-distance day pay", s(x => x.bonus.kept)]];
+      return [["Day pay", "a day rate per person per day", s(x => x.daily.dayPay)],
+        ["Foreman's packing", `${num(c.dayPackPct)}% of packing sold`, s(x => x.daily.pack)]];
+    }
+    // HOW PAY WORKS in each model, from the numbers in force (his ask: "each tab to have a small
+    // explanation of how the compensation structure will be")
+    function explain(key, c, SC) {
+      const $ = v => money(num(v)), bands = [1, 2, 3, 4, 5, 6].map(i => num(c["pctB" + i]));
+      const T = {
+        actual: `Each crew member is paid by the hour at their own rate, for the job's hours — labor or the minimum, plus travel from the miles lookup. On top, the foreman gets ${num(c.todayPackPct)}% of packing sold and the review bonus, and the crew splits all of the stairs fee, half of the bulky-item fee and any hoisting, storage or junk pay. Long-distance drivers and helpers are paid by the day. Tips are the crew's.`,
+        pct: `The crew shares a pool from every job: <b>${num(c.pctPool)}%</b> of the bill on local moves, <b>${num(c.pctStraight)}%</b> on straight and <b>${num(c.pctRegular)}%</b> on regular long distance. Local jobs add a <b>${num(c.pctBonus)}%</b> bonus pool, cut when something goes wrong. The foreman takes one share plus an extra that grows with the bill (${Math.min(...bands)}% to ${Math.max(...bands)}%); the driver and every helper take one share each. Each salary is rounded up to the dollar. Nothing else is paid on top, and tips stay with the crew.`,
+        bonus: `One hourly rate per seat, raised by tenure: helpers <b>${$(c.helperEntry)}</b>, then <b>${$(c.helperExp)}</b> after ${num(c.expHelperMonths)} months; drivers <b>${$(c.driver)}</b>; foremen <b>${$(c.foreman)}</b>, then <b>${$(c.seniorForeman)}</b> after ${num(c.seniorForemanYears)} years as foreman — for every hour paid, travel included. Drivers and helpers share a packing pool of ${num(c.crewPackPct)}% of materials sold. A foreman with ${num(c.bonusMinShifts)} shifts, ${num(c.bonusMinHours)} hours and ${num(c.bonusMinJobs)} jobs in a month earns a bonus of ${$(c.band1Amt)}, ${$(c.band2Amt)} or ${$(c.band3Amt)} by score. Everything else is paid as today, and tips stay with the crew.`,
+        daily: `One rate per person per day: foreman <b>$${SC.daily.rateOf("Foreman")}</b>, driver <b>$${SC.daily.rateOf("Driver")}</b>, helper <b>$${SC.daily.rateOf("Helper")}</b>${["dayForeman", "dayDriver", "dayHelper"].some(k => c[k] === "" || c[k] == null) ? " (a rate left blank is today's pay per day, rounded to $5)" : ""}. A second job the same day adds nothing; a long-distance trip pays its days. The foreman keeps ${num(c.dayPackPct)}% of packing sold, so selling packing still pays. Nothing else: stairs, bulky items and reviews stay with the company. Tips stay with the crew.`,
+        custom: `Enter a job — the crew, the hours and the bill — and see what each seat earns under all four models, with the working under every amount. Today's pay uses this year's average rates (Settings can change them); start from a real job to fill everything in.`,
+      };
+      return `<section class="cpc-explain"><div class="cpc-ex-h">How pay works ${key === "actual" ? "today" : key === "custom" ? "on one job" : "in this model"}</div><p>${T[key]}</p></section>`;
+    }
+    function paintModel(body, c, SC, P) {
+      const isA = !P, key = isA ? "actual" : P.key, N = isA ? (x => x.T) : P.N, tot = isA ? SC.A : P.total;
+      const label = isA ? "Actual" : P.label, nj = Object.keys(SC.jobs).length, parts = madeOf(SC, key);
+      const h = isA ? null : P.hold;
       body.innerHTML = `
         <div class="rs-kpis" style="--kpi-cols:4">
-          <div class="kpi"><div class="l">Crew pay, the year</div><div class="v">${moneyK(SC.A)}</div><div class="s">every part below · tips apart</div></div>
-          <div class="kpi"><div class="l">Share of the bills</div><div class="v">${pct1(SC.A, SC.revenue)}</div><div class="s">of ${moneyK(SC.revenue)} billed on these jobs</div></div>
-          <div class="kpi"><div class="l">Per job</div><div class="v">${money(nj ? SC.A / nj : 0)}</div><div class="s">${nj.toLocaleString()} jobs · ${Object.keys(byKey(L, x => x.who)).length} people</div></div>
-          <div class="kpi"><div class="l">Tips</div><div class="v">${moneyK(SC.tips)}</div><div class="s">the crew's own · the same in every scenario</div></div>
+          <div class="kpi"><div class="l">Crew pay, the year</div><div class="v">${moneyK(tot)}</div><div class="s">${isA ? "every part of it · tips apart" : "actual " + moneyK(SC.A)}</div></div>
+          ${isA ? `<div class="kpi"><div class="l">Per job</div><div class="v">${money(nj ? SC.A / nj : 0)}</div><div class="s">${nj.toLocaleString()} jobs</div></div>`
+                : `<div class="kpi cpc-kd"><div class="l">Against Actual</div><div class="v">${signK(tot - SC.A)}</div><div class="s">${delta(tot, SC.A)}</div></div>`}
+          <div class="kpi"><div class="l">Share of the bills</div><div class="v">${pct1(tot, SC.revenue)}</div><div class="s">${isA ? "of " + moneyK(SC.revenue) + " billed" : "actual " + pct1(SC.A, SC.revenue)}</div></div>
+          ${isA ? `<div class="kpi"><div class="l">Tips</div><div class="v">${moneyK(SC.tips)}</div><div class="s">the crew's own · the same in every model</div></div>`
+                : `<div class="kpi"><div class="l">Same profit needs</div><div class="v">${!SC.rates.jobs ? "—" : h.dC < 0.5 ? "no change" : h.pricePct != null ? pctS(h.pricePct) : "—"}</div><div class="s">revenue next year, through prices</div></div>`}
         </div>
-        ${SC.rates.jobs ? `<section class="panel cpc-hold"><div class="panel-head"><span class="panel-title">To keep this year's profit</span>
-            <span class="cpc-sub">how much revenue has to grow next year to pay for each way of paying</span></div>
-          <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>Scenario</th><th class="num">Extra crew cost a year</th><th class="num">Through prices — the same jobs</th><th class="num">Or through more jobs</th></tr></thead>
-            <tbody>${[SC.pct, SC.bonus, SC.daily].map(P => { const h = P.hold;
-              return `<tr class="click" data-go="${P.key}"><td><b>${esc(P.label)}</b></td><td class="num">${signK(h.dC)}</td>
-                <td class="num">${h.dC < 0.5 ? "—" : h.price != null ? "<b>" + signK(h.price) + "</b> · " + pctS(h.pricePct) : "—"}</td>
-                <td class="num">${h.dC < 0.5 ? "—" : h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) + ` <span class="cpc-sub">≈ ${Math.round(h.volume / h.avgBill).toLocaleString()} jobs</span>` : "not reachable"}</td></tr>`; }).join("")}</tbody>
-          </table></div>
-          <p class="cpc-note">Revenue next year (this year: ${moneyK(SC.revenue)}) that leaves the profit exactly where it is. Through prices, every extra dollar still pays the sales commission (${(SC.rates.comm * 100).toFixed(1)}¢) and card fees (${(SC.rates.card * 100).toFixed(1)}¢) — and under % of bill the crew's share. Through more jobs, each new job keeps only its margin before fixed costs (${(SC.rates.margin * 100).toFixed(1)}% today, less the raise). Each scenario's tab shows the working.</p>
-        </section>` : ""}
+        ${seatCards(SC, N, isA)}
         <section class="panel"><div class="panel-head"><span class="panel-title">What the pay is made of</span></div>
-          <div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>Part</th><th>How it is paid today</th><th class="num">The year</th><th class="num">Of the bills</th><th class="num">Of crew pay</th></tr></thead>
-            <tbody>${PARTS.map(([k, l, how]) => { const v = sumOf(L, x => x.a[k]);
-              return `<tr><td><b>${l}</b></td><td class="cpc-howcell">${how}</td><td class="num">${money(v)}</td><td class="num">${pct1(v, SC.revenue)}</td><td class="num">${pct1(v, SC.A)}</td></tr>`; }).join("")}</tbody>
-            <tfoot><tr><td>Crew pay</td><td></td><td class="num">${money(SC.A)}</td><td class="num">${pct1(SC.A, SC.revenue)}</td><td class="num">100%</td></tr></tfoot>
-          </table></div>
-          <p class="cpc-note">Stairs, bulky-item, hoisting/storage/junk and review pay are known from the digital contract — ${cov.toLocaleString()} of these ${nj.toLocaleString()} jobs have one; the rest show wages and packing only. ${days ? `Long-distance trip pay counts ${+days.toFixed(1)} days paid by the day.` : ""}</p>
-        </section>
-        <div class="cpc-grid">
-          <section class="panel"><div class="panel-head"><span class="panel-title">By seat</span></div>
-            <div class="rs-tablewrap"><table class="rs-table">
-              <thead><tr><th>Seat</th><th class="num">People</th><th class="num">Jobs</th><th class="num">Hours paid</th><th class="num">Pay</th><th class="num">Per job</th><th class="num">Per hour</th></tr></thead>
-              <tbody>${seats.map(s => { const xs = L.filter(x => x.role === s), h = sumOf(xs, x => x.hours), t = sumOf(xs, x => x.T);
-                return `<tr><td><b>${seatName(s)}</b></td><td class="num">${new Set(xs.map(x => x.who)).size}</td><td class="num">${xs.length.toLocaleString()}</td>
-                  <td class="num">${Math.round(h).toLocaleString()}</td><td class="num">${money(t)}</td><td class="num">${money(t / xs.length)}</td>
-                  <td class="num">${h ? "$" + (sumOf(xs.filter(x => !x.dayRow), x => x.T) / h).toFixed(2) : "—"}</td></tr>`; }).join("")}</tbody>
-            </table></div>
-            <p class="cpc-note">Per hour is everything a seat was paid on hourly jobs divided by the hours paid — base rate, packing, stairs, bulky and reviews together.</p>
-          </section>
-          <section class="panel"><div class="panel-head"><span class="panel-title">Month by month</span></div>
-            <div class="chartbox" style="height:260px"><canvas id="cpcChart"></canvas></div></section>
-        </div>
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">Everyone · ${people.length}</span><span class="spacer"></span>
-            <input class="cpc-q" id="cpcQ" placeholder="Find a person" value="${esc(S.q)}" aria-label="Find a person"></div>
-          <div class="rs-tablewrap" style="max-height:620px"><table class="rs-table rs-sticky">
-            <thead><tr><th>Person</th><th>Seat</th><th class="num">Jobs</th><th class="num">Hours</th><th class="num">Wages</th><th class="num">Everything else</th><th class="num">Pay</th><th class="num">Tips</th></tr></thead>
-            <tbody>${people.slice(0, 400).map(p => `<tr><td><b>${esc(p.who)}</b></td><td>${esc(mainRoleOf(p.xs))}</td><td class="num">${p.xs.length}</td>
-              <td class="num">${Math.round(p.hours).toLocaleString()}</td><td class="num">${money(p.wage)}</td><td class="num">${money(p.extra)}</td>
-              <td class="num"><b>${money(p.T)}</b></td><td class="num">${money(p.tip)}</td></tr>`).join("")}</tbody>
-          </table></div>
-        </section>`;
-      monthChart(body.querySelector("#cpcChart"), SC, [["Actual", x => x.T]]);
+            <div class="rs-tablewrap"><table class="rs-table cpc-parts">
+              <thead><tr><th>Part</th><th>How it is paid</th><th class="num">The year</th><th class="num">Of the bills</th><th class="num">Of crew pay</th></tr></thead>
+              <tbody>${parts.map(([l, how, v]) => `<tr><td><b>${l}</b></td><td class="cpc-howcell">${how}</td><td class="num">${money(v)}</td><td class="num">${pct1(v, SC.revenue)}</td><td class="num">${pct1(v, tot)}</td></tr>`).join("")}</tbody>
+              <tfoot><tr><td>${esc(label)}</td><td></td><td class="num">${money(tot)}</td><td class="num">${pct1(tot, SC.revenue)}</td><td class="num">100%</td></tr></tfoot>
+            </table></div></section>
+        <section class="panel"><div class="panel-head"><span class="panel-title">Month by month</span></div>
+          <div class="chartbox" style="height:240px"><canvas id="cpcChart"></canvas></div></section>
+        ${isA ? holdTable(SC) : `<section class="panel cpc-job" id="cpcJob2"></section>${holdPanel(SC, P)}`}
+        <section class="panel cpc-how"><div class="panel-head"><span class="panel-title">How this is counted</span></div><ul>
+          <li><b>The jobs:</b> ${nj.toLocaleString()} Zip to Zip jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}, every crew member on each — the same jobs in every model. Tuji, Boston and Virginia are left out.</li>
+          <li><b>Actual</b> is everything paid on these jobs — wages, the foreman's packing commission, stairs, bulky-item, hoisting/storage/junk pay and review bonuses. Tips are the crew's in every model and sit apart.</li>
+          <li><b>Hours</b> are the hours the wage was paid for (wage ÷ rate): labor or the minimum, plus travel from the miles lookup. The closing sheet shows them rounded to whole hours.</li>
+          ${key === "pct" ? `<li><b>Splitable bill</b> comes from the digital contract — the moving fee at the cash price, packing and the fees, less discounts; ${Object.values(SC.jobs).filter(j => j.pct.s.src === "bill").length.toLocaleString()} of ${nj.toLocaleString()} jobs have no contract and use the closing's bill. Long-distance jobs split their whole bill. There is no hourly floor (your call).</li>` : ""}
+          ${key === "bonus" ? `<li><b>Tenure</b> decides the rate per job: an experienced helper after ${num(c.expHelperMonths)} months with us, a senior foreman after ${num(c.seniorForemanYears)} years as foreman. <b>The foreman bonus</b> is real eligibility (${SC.R.eligMonths} of ${SC.R.fmMonths} foreman-months qualify) × the band mix set in Settings, ${money(SC.R.ev)} a qualifying month, spread over that month's jobs. Long-distance drivers and helpers paid by the day keep today's day pay.</li>` : ""}
+          ${key === "daily" ? `<li><b>A day</b> is one person on one date: a second job the same day adds nothing; a long-distance trip row pays its own days. Long days earn the same as short ones — the days under $${MIN_WAGE} an hour are counted per seat.</li>` : ""}
+        </ul></section>`;
+      monthChart(body.querySelector("#cpcChart"), SC, isA ? [["Actual", x => x.T]] : [["Actual", x => x.T], [label, N]]);
+      if (!isA) paintJob2(body.querySelector("#cpcJob2"), SC, P, c);
       body.querySelectorAll("tr[data-go]").forEach(tr => tr.onclick = () => { S.tab = tr.dataset.go; paint(); });
-      const q = body.querySelector("#cpcQ");
-      q.oninput = () => { S.q = q.value; const pos = q.selectionStart; paintActual(body, c, SC); const q2 = body.querySelector("#cpcQ"); q2.focus(); q2.setSelectionRange(pos, pos); };
+    }
+    function holdTable(SC) {
+      if (!SC.rates.jobs) return "";
+      return `<section class="panel cpc-hold"><div class="panel-head"><span class="panel-title">To keep this year's profit</span>
+          <span class="cpc-sub">how much revenue has to grow next year to pay for each way of paying</span></div>
+        <div class="rs-tablewrap"><table class="rs-table">
+          <thead><tr><th>Model</th><th class="num">Extra crew cost a year</th><th class="num">Through prices — the same jobs</th><th class="num">Or through more jobs</th></tr></thead>
+          <tbody>${[SC.pct, SC.bonus, SC.daily].map(P => { const h = P.hold;
+            return `<tr class="click" data-go="${P.key}"><td><b>${esc(P.label)}</b></td><td class="num">${signK(h.dC)}</td>
+              <td class="num">${h.dC < 0.5 ? "—" : h.price != null ? "<b>" + signK(h.price) + "</b> · " + pctS(h.pricePct) : "—"}</td>
+              <td class="num">${h.dC < 0.5 ? "—" : h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) + ` <span class="cpc-sub">≈ ${Math.round(h.volume / h.avgBill).toLocaleString()} jobs</span>` : "not reachable"}</td></tr>`; }).join("")}</tbody>
+        </table></div>
+        <p class="cpc-note">Revenue next year (this year: ${moneyK(SC.revenue)}) that leaves the profit exactly where it is. Through prices, every extra dollar still pays the sales commission (${(SC.rates.comm * 100).toFixed(1)}¢) and card fees (${(SC.rates.card * 100).toFixed(1)}¢) — and under % of bill the crew's share. Through more jobs, each new job keeps only its margin before fixed costs (${(SC.rates.margin * 100).toFixed(1)}% today, less the raise). Each model's tab shows the working.</p>
+      </section>`;
     }
 
     /* one number box, its unit drawn beside it -- the same box on the levers row and on Settings */
@@ -875,15 +723,10 @@ registerPage({
       const keys = LEVERS[S.tab];
       if (!keys) { el.innerHTML = ""; return; }
       const be = SC.daily.be, seatOf = { dayForeman: "Foreman", dayDriver: "Driver", dayHelper: "Helper" };
-      const rule = {
-        pct: `${num(c.pctPool)}% of the splitable bill + a ${num(c.pctBonus)}% bonus pool on local jobs, split in shares — the foreman's extra share grows with the bill. Long distance: ${num(c.pctLd)}% of the bill, no bonus.`,
-        bonus: `One hourly rate per seat by tenure, a ${num(c.crewPackPct)}% packing pool for drivers and helpers, and a monthly foreman bonus.`,
-        daily: `One rate per person per day, plus the foreman's ${num(c.dayPackPct)}% of packing sold. An empty rate is break-even, rounded to $5.`,
-      }[S.tab];
+      // how the model works is said once, in the explanation above
       el.innerHTML = `<section class="cpc-levers">
           <div class="cpc-lvrow">${keys.map(k => `<label class="cpc-lv"><span>${SHORT[k]}</span>${box(k, c, { ph: seatOf[k] ? String(be[seatOf[k]] || 0) : "" })}</label>`).join("")}</div>
-          <div class="cpc-lvside">${actions()}<button class="btn" data-go="settings">All settings</button></div>
-          <p class="cpc-note">${rule}</p></section>`;
+          <div class="cpc-lvside">${actions()}<button class="btn" data-go="settings">All settings</button></div></section>`;
       wireInputs(el);
     }
     async function saveDraft(b) {
@@ -904,58 +747,131 @@ registerPage({
       }
     }
 
-    /* % OF BILL and DAILY RATE -- each against Actual, on the same jobs */
-    function paintScenario(body, c, SC, P) {
-      const L = SC.lines, N = P.N, tot = P.total, d = tot - SC.A;
-      const um = underMin(SC, N), umT = underMin(SC, x => x.T);
-      const seats = SEATS.filter(s => L.some(x => x.role === s));
-      const people = Object.entries(byKey(L, x => x.who)).map(([who, xs]) => ({ who, xs, T: sumOf(xs, x => x.T), N: sumOf(xs, N) }))
-        .filter(p => !S.q || p.who.toLowerCase().includes(S.q.toLowerCase()))
-        .sort((a, b) => S.sort === "name" ? a.who.localeCompare(b.who) : (b.N - b.T) - (a.N - a.T));
-      const extra = P.key === "pct"
-        ? `<div class="kpi"><div class="l">Of it, the bonus pool</div><div class="v">${moneyK(sumOf(L, x => x.pct.bonus))}</div><div class="s">${num(c.pctBonus)}% · ${num(c.pctBonusPaid)}% paid out</div></div>`
-        : `<div class="kpi"><div class="l">Day rates</div><div class="v cpc-rates">${SEATS.map(s => "$" + P.rateOf(s)).join(" · ")}</div><div class="s">foreman · driver · helper</div></div>`;
+    /* CUSTOM JOB (his ask 2026-10-23: "1 custom job situation ... when user will tell us crew size, bill,
+       bulky, packing, this, that and see the salaries comparison for all 4 models"). Every model's rule
+       applied to one job typed in -- or filled from a real one. TODAY's pay uses this year's average rate
+       per seat (wage ÷ hours paid), the long-distance day rates and the review pay on a reviewed job, unless
+       Settings overrides them. The Bonus plan's monthly foreman bonus shows as this year's average per job. */
+    const CJ0 = { type: "Local Moving", drivers: 1, helpers: 1, hours: 6, days: 1, labor: 1600, cash: 4, pack: 200,
+                  bulky: 100, stairs: 0, other: 0, disc: 0, review: 0, expHelper: 1, senior: 0 };
+    const todayOf = (c, SC, k, s) => c[k] === "" || c[k] == null ? SC.today[s] : num(c[k]);
+    function customJob(c, SC, J) {
+      const n = 1 + J.drivers + J.helpers, isLd = J.type !== "Local Moving";
+      const kind = !isLd ? "local" : J.type === "Straight Moving" ? "straight" : "regular";
+      const bill = J.labor + J.pack + J.bulky + J.stairs + J.other - J.disc;
+      const tR = { Foreman: todayOf(c, SC, "todayForeman", "Foreman"), Driver: todayOf(c, SC, "todayDriver", "Driver"), Helper: todayOf(c, SC, "todayHelper", "Helper"),
+                   ldDriver: todayOf(c, SC, "todayLdDriver", "ldDriver"), ldHelper: todayOf(c, SC, "todayLdHelper", "ldHelper"), review: todayOf(c, SC, "todayReview", "review") };
+      const stairsEach = J.stairs * num(c.todayStairsShare) / 100 / n, bulkyEach = J.bulky * num(c.todayBulkyShare) / 100 / n;
+      const fmPack = J.pack * num(c.todayPackPct) / 100, rev = J.review ? tR.review : 0;
+      const extras = list => list.filter(([v]) => v > 0.004).map(([v, l]) => `${m2(v)} ${l}`).join(" + ");
+      const out = {};
+      const base = s => isLd && s !== "Foreman" ? { v: J.days * tR["ld" + s], how: `${h2(J.days)} ${J.days === 1 ? "day" : "days"} × ${m2(tR["ld" + s])}` }
+                                               : { v: J.hours * tR[s], how: `${h2(J.hours)} h × ${m2(tR[s])}` };
+      // ACTUAL: today's rules
+      out.actual = {};
+      SEATS.forEach(s => { const b = base(s), sh = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
+        out.actual[s] = { v: b.v + sh, how: [b.how, extras([[s === "Foreman" ? fmPack : 0, "packing"], [stairsEach, "stairs"], [bulkyEach, "bulky"], [s === "Foreman" ? rev : 0, "review"]])].filter(Boolean).join(" + ") }; });
+      // % OF BILL
+      const sv = isLd ? bill : Math.max(0, J.labor * (1 - J.cash / 100) + J.pack + J.bulky + J.stairs + J.other - J.disc);
+      const band = bandOf(c, sv), dd = band.pct / 100, fShare = (1 + dd) / (n + dd), oEach = n > 1 ? (1 - fShare) / (n - 1) : 0;
+      const poolPct = num(c[{ local: "pctPool", straight: "pctStraight", regular: "pctRegular" }[kind]]);
+      const bonusPct = isLd ? 0 : num(c.pctBonus) * num(c.pctBonusPaid) / 100;
+      out.pct = {};
+      SEATS.forEach(s => { const sh = s === "Foreman" ? fShare : oEach, p = ceil$(poolPct / 100 * sv * sh), b = ceil$(bonusPct / 100 * sv * sh);
+        out.pct[s] = { v: p + b, how: `${poolPct}% × ${m2(sv)} × ${(sh * 100).toFixed(1)}% → ${m2(p)}${b ? ` + bonus ${m2(b)}` : ""}` }; });
+      // BONUS PLAN
+      const pR = { Foreman: num(J.senior ? c.seniorForeman : c.foreman), Driver: num(c.driver), Helper: num(J.expHelper ? c.helperExp : c.helperEntry) };
+      const dShare = !J.helpers ? 1 : !J.drivers ? 0 : Math.min(1, num(c.crewPackDriverShare) / 100), pool = J.pack * num(c.crewPackPct) / 100;
+      out.bonus = {};
+      SEATS.forEach(s => {
+        const wage = isLd && s !== "Foreman" ? base(s) : { v: J.hours * pR[s], how: `${h2(J.hours)} h × ${m2(pR[s])}` };
+        const pl = s === "Driver" ? (J.drivers ? pool * dShare / J.drivers : 0) : s === "Helper" ? (J.helpers ? pool * (1 - dShare) / J.helpers : 0) : 0;
+        const bn = s === "Foreman" ? SC.bonus.perJob : 0, kept = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
+        out.bonus[s] = { v: wage.v + pl + bn + kept, how: [wage.how, extras([[pl, "packing pool"], [bn, "bonus (a job's average)"], [kept, "paid as today"]])].filter(Boolean).join(" + ") };
+      });
+      // DAILY RATE
+      out.daily = {};
+      SEATS.forEach(s => { const r = SC.daily.rateOf(s), pk = s === "Foreman" ? J.pack * num(c.dayPackPct) / 100 : 0;
+        out.daily[s] = { v: J.days * r + pk, how: `${h2(J.days)} ${J.days === 1 ? "day" : "days"} × $${r}${pk ? ` + ${m2(pk)} packing` : ""}` }; });
+      const cnt = { Foreman: 1, Driver: J.drivers, Helper: J.helpers };
+      const crewOf = k => SEATS.reduce((a, s) => a + out[k][s].v * cnt[s], 0);
+      return { out, cnt, bill, sv, band, kind, isLd, crewOf, tR };
+    }
+    function paintCustom(body, c, SC) {
+      const J = S.custom = Object.assign({}, CJ0, S.custom || {}), R = customJob(c, SC, J);
+      const MODELS = [["actual", "Actual"], ["pct", "% of bill"], ["bonus", "Bonus plan"], ["daily", "Daily rate"]];
+      const nf = (k, l, o = {}) => `<label class="cpc-lv"><span>${l}</span><span class="cpc-in">${o.pre ? `<i>${o.pre}</i>` : ""}<input data-cj="${k}" type="number" step="any" min="0" value="${esc(String(J[k]))}">${o.post ? `<i>${o.post}</i>` : ""}</span></label>`;
+      const ck = (k, l) => `<label class="cpc-ck"><input data-cj="${k}" type="checkbox" ${J[k] ? "checked" : ""}> ${l}</label>`;
+      const best = Math.min(...MODELS.map(([k]) => R.crewOf(k)));
       body.innerHTML = `
-        <div class="rs-kpis" style="--kpi-cols:5">
-          <div class="kpi"><div class="l">${esc(P.label)}, the year</div><div class="v">${moneyK(tot)}</div><div class="s">tips apart, as in Actual</div></div>
-          <div class="kpi cpc-kd"><div class="l">Against Actual</div><div class="v">${d >= 0 ? "+" : "−"}${moneyK(Math.abs(d)).replace("−", "")}</div><div class="s">${delta(tot, SC.A)}</div></div>
-          <div class="kpi"><div class="l">Share of the bills</div><div class="v">${pct1(SC.A, SC.revenue)} → ${pct1(tot, SC.revenue)}</div><div class="s">actual → ${esc(P.label.toLowerCase())}</div></div>
-          ${extra}
-          <div class="kpi"><div class="l">Under minimum wage</div><div class="v">${um.n.toLocaleString()}</div><div class="s">crew-days under $${MIN_WAGE} per paid hour · today ${umT.n.toLocaleString()} of ${um.of.toLocaleString()}</div></div>
-        </div>
-        ${holdPanel(SC, P)}
-        <div class="cpc-grid">
-          <section class="panel"><div class="panel-head"><span class="panel-title">By seat</span></div>
-            <div class="rs-tablewrap"><table class="rs-table">
-              <thead><tr><th>Seat</th><th class="num">Actual</th><th class="num">${esc(P.label)}</th><th class="num">Difference</th><th class="num">Per job, actual → new</th></tr></thead>
-              <tbody>${seats.map(s => { const xs = L.filter(x => x.role === s), t = sumOf(xs, x => x.T), n = sumOf(xs, N);
-                return `<tr><td><b>${seatName(s)}</b></td><td class="num">${money(t)}</td><td class="num">${money(n)}</td><td class="num">${delta(n, t)}</td>
-                  <td class="num">${money(t / xs.length)} → ${money(n / xs.length)}</td></tr>`; }).join("")}</tbody>
-            </table></div></section>
-          <section class="panel"><div class="panel-head"><span class="panel-title">Month by month</span></div>
-            <div class="chartbox" style="height:260px"><canvas id="cpcChart"></canvas></div></section>
-        </div>
-        <section class="panel cpc-job" id="cpcJob2"></section>
-        <section class="panel">
-          <div class="panel-head"><span class="panel-title">Everyone · ${people.length}</span><span class="spacer"></span>
-            <input class="cpc-q" id="cpcQ" placeholder="Find a person" value="${esc(S.q)}" aria-label="Find a person"></div>
-          <div class="rs-tablewrap" style="max-height:620px"><table class="rs-table rs-sticky">
-            <thead><tr><th>Person</th><th>Seat</th><th class="num">Jobs</th><th class="num">Actual</th><th class="num">${esc(P.label)}</th><th class="num">Difference</th></tr></thead>
-            <tbody>${people.slice(0, 400).map(p => `<tr><td><b>${esc(p.who)}</b></td><td>${esc(mainRoleOf(p.xs))}</td><td class="num">${p.xs.length}</td>
-              <td class="num">${money(p.T)}</td><td class="num">${money(p.N)}</td><td class="num">${delta(p.N, p.T)}</td></tr>`).join("")}</tbody>
-          </table></div>
+        <section class="panel"><div class="panel-head"><span class="panel-title">The job</span><span class="spacer"></span>
+            <div class="cpc-jobpick"><input class="cpc-q" id="cpcCjQ" placeholder="Start from a real job — request #, customer, foreman or date" aria-label="Start from a real job" autocomplete="off" value="${esc(S.cjQ || "")}">
+              <div class="cpc-hits" id="cpcCjHits"></div></div></div>
+          ${S.cjFrom ? `<p class="cpc-note cpc-jobrule">Filled from ${esc(S.cjFrom)} — change anything.</p>` : ""}
+          <div class="cpc-cj">
+            <label class="cpc-lv"><span>Move type</span><select data-cj="type">${["Local Moving", "Straight Moving", "Regular Moving"].map(t => `<option ${J.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+            <label class="cpc-lv"><span>Foreman</span><span class="cpc-in"><input type="number" value="1" disabled></span></label>
+            ${nf("drivers", "Drivers")}${nf("helpers", "Helpers")}${nf("hours", "Hours paid", { post: "h" })}${nf("days", "Days", { post: "days" })}
+          </div>
+          <div class="cpc-cj">
+            ${nf("labor", "Moving fee", { pre: "$" })}${nf("cash", "Cash discount", { post: "%" })}${nf("pack", "Packing sold", { pre: "$" })}
+            ${nf("bulky", "Bulky fee", { pre: "$" })}${nf("stairs", "Stairs fee", { pre: "$" })}${nf("other", "Other fees", { pre: "$" })}${nf("disc", "Discounts", { pre: "$" })}
+          </div>
+          <div class="cpc-cjck">${ck("review", "The foreman got a review")}${ck("expHelper", `Helpers ${num(c.expHelperMonths)}+ months with us`)}${ck("senior", `Senior foreman (${num(c.seniorForemanYears)}+ years)`)}</div>
+          <p class="cpc-note">Bill <b>${money(R.bill)}</b>${R.isLd ? "" : ` · splitable bill ${money(R.sv)} (the moving fee at the cash price, packing and fees, less discounts)`} · the foreman's extra share for it: ${R.band.pct}%. Hours paid include travel; days count for long-distance trips and the daily rate.</p>
         </section>
-        <section class="panel cpc-how"><div class="panel-head"><span class="panel-title">How this is counted</span></div><ul>
-          <li><b>Actual</b> is everything paid on these jobs — wages, the foreman's packing commission, stairs, bulky-item, hoisting/storage/junk pay and review bonuses. Tips are the crew's in every scenario and sit apart.</li>
-          ${P.key === "pct" ? `<li><b>Splitable bill</b> comes from the digital contract; ${Object.values(SC.jobs).filter(j => j.pct.s.src === "bill").length.toLocaleString()} of ${Object.keys(SC.jobs).length.toLocaleString()} jobs have none and use the closing's bill instead.</li>
-          <li><b>No hourly floor</b> (your call): a long job with a small bill can pay under the minimum wage for the hours worked — the count is above. Hours here are the hours paid today, travel included.</li>`
-          : `<li><b>A day</b> is one person on one date: a second job the same day adds nothing; a long-distance trip row pays its own days. Break-even rates make the year cost what it costs today.</li>
-          <li><b>Long days</b> earn the same as short ones — the minimum-wage count above shows where a day rate falls under $${MIN_WAGE} an hour.</li>`}
-        </ul></section>`;
-      monthChart(body.querySelector("#cpcChart"), SC, [["Actual", x => x.T], [P.label, N]]);
-      paintJob2(body.querySelector("#cpcJob2"), SC, P, c);
-      const q = body.querySelector("#cpcQ");
-      q.oninput = () => { S.q = q.value; const pos = q.selectionStart; paintScenario(body, c, SC, P); const q2 = body.querySelector("#cpcQ"); q2.focus(); q2.setSelectionRange(pos, pos); };
+        <section class="panel"><div class="panel-head"><span class="panel-title">What each seat earns on this job</span></div>
+          <div class="rs-tablewrap"><table class="rs-table cpc-cjt">
+            <thead><tr><th>Seat</th>${MODELS.map(([, l]) => `<th class="num">${l}</th>`).join("")}</tr></thead>
+            <tbody>${SEATS.filter(s => R.cnt[s]).map(s => `<tr><td><b>${s}</b>${R.cnt[s] > 1 ? `<div class="cpc-sub">each of ${R.cnt[s]}</div>` : ""}</td>
+              ${MODELS.map(([k]) => `<td class="num"><b>${m2(R.out[k][s].v)}</b><div class="cpc-sub">${R.out[k][s].how}</div></td>`).join("")}</tr>`).join("")}</tbody>
+            <tfoot>
+              <tr><td>Crew</td>${MODELS.map(([k]) => `<td class="num ${Math.abs(R.crewOf(k) - best) < 0.005 ? "cpc-best" : ""}">${money(R.crewOf(k))}</td>`).join("")}</tr>
+              <tr><td>Of the bill</td>${MODELS.map(([k]) => `<td class="num">${pct1(R.crewOf(k), R.bill)}</td>`).join("")}</tr>
+              <tr><td>Against Actual</td>${MODELS.map(([k]) => `<td class="num">${k === "actual" ? "—" : delta(R.crewOf(k), R.crewOf("actual"))}</td>`).join("")}</tr>
+              <tr><td>The company keeps</td>${MODELS.map(([k]) => `<td class="num">${money(R.bill - R.crewOf(k))}</td>`).join("")}</tr>
+            </tfoot>
+          </table></div>
+          <p class="cpc-note">Today's pay here: foreman ${m2(R.tR.Foreman)}/h, driver ${m2(R.tR.Driver)}/h, helper ${m2(R.tR.Helper)}/h; long distance driver ${m2(R.tR.ldDriver)}, helper ${m2(R.tR.ldHelper)} a day; review ${m2(R.tR.review)} — this year's averages unless Settings sets them. Tips are the crew's in every model and left out.</p>
+        </section>`;
+      body.querySelectorAll("[data-cj]").forEach(el => el.onchange = () => {
+        const k = el.dataset.cj;
+        S.custom = Object.assign({}, J, { [k]: el.type === "checkbox" ? (el.checked ? 1 : 0) : el.tagName === "SELECT" ? el.value : Math.max(0, num(el.value)) });
+        if (S.cjFrom && !/ — changed$/.test(S.cjFrom)) S.cjFrom += " — changed";
+        paintCustom(body, c, SC);
+      });
+      // START FROM A REAL JOB: its crew, hours and bill lines fill the inputs
+      const q = body.querySelector("#cpcCjQ"), hits = body.querySelector("#cpcCjHits");
+      const fill = uk => {
+        const j = SC.jobs[uk], r0 = j.r0, xs = SC.lines.filter(x => x.j === j), fm = xs.find(x => x.role === "Foreman") || xs[0];
+        const hasC = r0["Labor Charge"] != null && r0["Labor Charge"] !== "";
+        const bulky = num(r0["Bulky Fee"]), stairs = num(r0["Stairs Fee"]), fees = num(r0["Fees Charged"]);
+        S.custom = { type: ["Straight Moving", "Regular Moving"].includes(r0["Moving Type"]) ? r0["Moving Type"] : "Local Moving",
+          drivers: xs.filter(x => x.role === "Driver").length, helpers: xs.filter(x => x.role === "Helper").length,
+          hours: +(fm.hours || 0).toFixed(2), days: Math.max(1, ...xs.map(x => x.dayRow ? x.days : 1)),
+          labor: hasC ? num(r0["Labor Charge"]) : Math.max(0, num(r0["Job Bill"]) - num(r0["Packing Sold"])),
+          cash: +(num(r0["Cash Discount Pct"]) * 100).toFixed(2), pack: hasC ? num(r0["Packing Charged"]) : num(r0["Packing Sold"]),
+          bulky, stairs, other: hasC ? Math.max(0, fees - bulky - stairs) : 0, disc: hasC ? num(r0["Discounts"]) : 0,
+          review: num(r0["Review Paid"]) > 0 ? 1 : 0, expHelper: J.expHelper, senior: J.senior };
+        S.cjFrom = `${fmtDay(r0["Date"])} · request ${r0["Request #"] || "—"} · ${r0["Customer"] || ""}`;
+        S.cjQ = "";
+        paintCustom(body, c, SC);
+      };
+      const index = () => SC._jobIndex = SC._jobIndex || Object.values(SC.jobs).map(jj => {
+        const a = jj.r0, fmn = (jj.rows.find(y => y["Role"] === "Foreman") || {})["Person"] || "";
+        return { k: jj.uk, d: a["Date"], label: `${fmtDay(a["Date"])} · ${a["Request #"] || "—"} · ${a["Customer"] || ""} · ${fmn}`,
+                 text: [a["Date"], fmtDay(a["Date"]), a["Request #"], a["Customer"], fmn, a["Job No"]].join(" ").toLowerCase() };
+      }).sort((a, b) => b.d.localeCompare(a.d));
+      const find = () => {
+        S.cjQ = q.value;
+        const words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
+        if (!words.length) { hits.innerHTML = ""; return; }
+        const found = index().filter(jj => words.every(w => jj.text.includes(w))).slice(0, 8);
+        hits.innerHTML = found.length ? found.map(jj => `<button data-uk="${esc(jj.k)}">${esc(jj.label)}</button>`).join("") : `<div class="cpc-nohit">No job matches</div>`;
+        hits.querySelectorAll("button[data-uk]").forEach(b => b.onclick = () => fill(b.dataset.uk));
+      };
+      q.oninput = find;
+      q.onkeydown = e => { if (e.key === "Escape") { q.value = ""; find(); } };
     }
 
     /* one job, line by line, in a scenario tab */
@@ -985,9 +901,20 @@ registerPage({
       const newLines = x => {
         const L2 = [];
         if (P.key === "pct") {
-          L2.push(ln(`${p.poolPct}%${p.isLd ? " (long distance)" : ""} × ${m2(s.v)} × ${(x.pct.share * 100).toFixed(1)}% = ${m2(x.pct.poolRaw)} → <b>${m2(x.pct.pool)}</b>`));
+          L2.push(ln(`${p.poolPct}%${p.isLd ? " (" + p.kind + ")" : ""} × ${m2(s.v)} × ${(x.pct.share * 100).toFixed(1)}% = ${m2(x.pct.poolRaw)} → <b>${m2(x.pct.pool)}</b>`));
           if (x.pct.bonusRaw > 0) L2.push(ln(`+ bonus ${num(c.pctBonus)}%${num(c.pctBonusPaid) !== 100 ? " × " + num(c.pctBonusPaid) + "% paid" : ""} × ${(x.pct.share * 100).toFixed(1)}% → <b>${m2(x.pct.bonus)}</b>`));
           L2.push(ln(`= ${m2(x.pct.total)}`, "cpc-tot"));
+        } else if (P.key === "bonus") {
+          const b = x.bonus, y = b.y, nD = x.j.rows.filter(r => r["Role"] === "Driver").length, nH = x.j.rows.filter(r => r["Role"] === "Helper").length;
+          const dShare = !nH ? 1 : !nD ? 0 : Math.min(1, num(c.crewPackDriverShare) / 100);
+          if (y && y.newRate != null && y.hours) L2.push(ln(`${h2(y.hours)} h × ${m2(y.newRate)} = <b>${m2(b.hourlyN)}</b>`));
+          else if (b.hourlyN) L2.push(ln(`wage kept as paid <b>${m2(b.hourlyN)}</b>`));
+          if (b.poolN) L2.push(ln(`+ ${m2(b.poolN)} packing pool (${shareTxt(x.role === "Driver" ? dShare : 1 - dShare)} of ${num(c.crewPackPct)}% of ${m2(num(r0["Packing Sold"]))}${x.role === "Helper" && nH > 1 ? ", ÷ " + nH + " helpers" : ""})`));
+          if (b.bonusN) L2.push(ln(`+ ${m2(b.bonusN)} foreman bonus (the month's ${money(SC.R.ev)} over its ${Math.round(SC.R.ev / b.bonusN)} jobs)`));
+          const keptWhat = [["pack", "packing commission"], ["stairs", "stairs"], ["bulky", "bulky"], ["review", "review"], ["other", "hoisting, storage, junk"]]
+            .filter(([k]) => x.a[k] > 0.004).map(([, l]) => l).join(", ");
+          if (b.kept > 0.004) L2.push(ln(`+ ${m2(b.kept)} paid as today (${[x.dayRow ? "day pay" : "", keptWhat].filter(Boolean).join(", ")})`));
+          L2.push(ln(`= ${m2(b.total)}`, "cpc-tot"));
         } else {
           L2.push(ln(x.daily.dayPay > 0 ? `${h2(x.dayN)} ${x.dayN === 1 ? "day" : "days"} × ${m2(x.daily.rate)} = <b>${m2(x.daily.dayPay)}</b>`
             : `another job the same day — the day is paid once`, x.daily.dayPay > 0 ? "" : "cpc-sub"));
@@ -1001,6 +928,7 @@ registerPage({
           ? `splitable bill: moving fee ${m2(s.lab)}${s.cp ? ` at the cash price (−${+(s.cp * 100).toFixed(2)}%) ${m2(s.lab * (1 - s.cp))}` : ""} + packing ${m2(s.pack)} + fees ${m2(s.fees)} − discounts ${m2(s.disc)} = <b>${m2(s.v)}</b>`
           : `no contract — the closing's bill <b>${m2(s.v)}</b> is split`)
           + ` · bill from ${money(p.b.from)} → foreman extra ${p.b.pct}%: the foreman ${(p.fShare * 100).toFixed(1)}%${j.n - j.nf ? `, everyone else ${(p.oEach * 100).toFixed(1)}% each` : ""}`
+        : P.key === "bonus" ? `plan rates: helper ${money(num(c.helperEntry))} → ${money(num(c.helperExp))} after ${num(c.expHelperMonths)} months, driver ${money(num(c.driver))}, foreman ${money(num(c.foreman))} → ${money(num(c.seniorForeman))} after ${num(c.seniorForemanYears)} years`
         : `day rates: foreman $${P.rateOf("Foreman")}, driver $${P.rateOf("Driver")}, helper $${P.rateOf("Helper")}`;
       const jT = sumOf(xs, x => x.T), jN = sumOf(xs, P.N);
       box.innerHTML = `
@@ -1009,12 +937,14 @@ registerPage({
             <div class="cpc-hits" id="cpcHits2"></div></div></div>
         <div class="cpc-jobfacts"><span><b>${esc(fmtDay(r0["Date"]))}</b></span><span>request <b>${esc(r0["Request #"] || "—")}</b></span>
           <span>${esc(r0["Customer"] || "")}</span><span>${esc(r0["Moving Type"] || "")}${r0["Job Type"] ? " · " + esc(String(r0["Job Type"]).toLowerCase()) : ""}</span>
-          <span>crew of <b>${j.n}</b></span><span>bill <b>${money(num(r0["Job Bill"]))}</b></span><span>packing sold <b>${money(num(r0["Packing Sold"]))}</b></span></div>
+          <span>crew of <b>${j.n}</b></span><span>bill <b>${money(num(r0["Job Bill"]))}</b></span><span>packing sold <b>${money(num(r0["Packing Sold"]))}</b></span>
+          ${r0["Travel Hours"] != null && r0["Travel Hours"] !== "" ? `<span>${h2(num(r0["Travel Hours"]))} h of the hours travel from the miles lookup</span>` : ""}</div>
         <p class="cpc-note cpc-jobrule">${facts}</p>
         <div class="rs-tablewrap"><table class="rs-table cpc-jobt">
           <thead><tr><th>Person</th><th>Actual</th><th>${esc(P.label)}</th><th class="num">Difference</th></tr></thead>
           <tbody>${xs.map(x => { const dd = P.N(x) - x.T;
-            return `<tr><td><b>${esc(x.who)}</b><div class="cpc-sub">${esc(x.role)}${x.hours ? " · " + h2(x.hours) + " h paid" : ""}</div></td>
+            const te = P.key === "bonus" && x.bonus.y ? " · " + esc(x.bonus.y.tier) + (tenureTxt(x.bonus.y.tenure) ? ", " + esc(tenureTxt(x.bonus.y.tenure)) : "") : "";
+            return `<tr><td><b>${esc(x.who)}</b><div class="cpc-sub">${esc(x.role)}${x.hours ? " · " + h2(x.hours) + " h paid" : ""}${te}</div></td>
               <td class="cpc-ln">${todayLines(x)}</td><td class="cpc-ln">${newLines(x)}</td>
               <td class="num ${dd > 0.5 ? "cpc-up" : dd < -0.5 ? "cpc-down" : ""}">${Math.abs(dd) < 0.005 ? "—" : (dd > 0 ? "+" : "−") + m2(Math.abs(dd))}</td></tr>`; }).join("")}</tbody>
           <tfoot><tr><td>The job</td><td>${money(jT)}</td><td>${money(jN)}</td><td class="num">${delta(jN, jT)}</td></tr></tfoot>
@@ -1036,33 +966,6 @@ registerPage({
       };
       q.oninput = find;
       q.onkeydown = e => { if (e.key === "Escape") { q.value = ""; find(); } };
-    }
-
-    function openPerson(R, who) {
-      const p = R.people[who];
-      if (!p) return;
-      const ms = Object.keys(p.months).sort();
-      const dim = document.createElement("div");
-      dim.className = "cpc-dim";
-      dim.innerHTML = `<aside class="cpc-sheet" role="dialog" aria-label="${esc(who)}">
-        <div class="cpc-sh-head"><div><div class="cpc-sub">${esc(p.tier || "")} · ${p.jobs} jobs · ${Math.round(p.hours).toLocaleString()} hours</div>
-          <h2>${esc(who)}</h2></div><button class="cpc-x" aria-label="Close">×</button></div>
-        <div class="cpc-sh-sum"><div><span>Today</span><b>${money(R.T(p))}</b></div><div><span>New plan</span><b>${money(R.N(p))}</b></div>
-          <div><span>Difference</span><b>${delta(R.N(p), R.T(p))}</b></div><div><span>Tips</span><b>${money(p.tips)}</b></div></div>
-        <div class="rs-tablewrap"><table class="rs-table">
-          <thead><tr><th>Month</th><th class="num">Jobs</th><th class="num">Today</th><th class="num">New plan</th><th>Foreman bonus</th></tr></thead>
-          <tbody>${ms.map(m => { const x = p.months[m], e = x.elig;
-            return `<tr><td>${mlabel(m)}</td><td class="num">${x.jobs}</td><td class="num">${money(x.t)}</td><td class="num">${money(x.n)}</td>
-              <td>${!e ? '<span class="cpc-sub">not a foreman this month</span>'
-                : e.ok ? `<span class="rs-pill ok">Eligible · ${money(x.bonus)}</span>`
-                : `<span class="rs-pill mute">Not eligible</span> <span class="cpc-sub">${e.shifts} shifts · ${Math.round(e.hours)} h · ${e.jobs} jobs</span>`}</td></tr>`; }).join("")}</tbody>
-        </table></div></aside>`;
-      document.body.appendChild(dim);
-      const close = () => { dim.remove(); document.removeEventListener("keydown", onKey); };
-      const onKey = e => { if (e.key === "Escape") close(); };
-      document.addEventListener("keydown", onKey);
-      dim.addEventListener("click", e => { if (e.target === dim) close(); });
-      dim.querySelector(".cpc-x").onclick = close;
     }
 
     /* SETTINGS -- every rule of every scenario on its own tab (his ask 2026-10-23: "This is something we
@@ -1110,8 +1013,8 @@ registerPage({
 
         <h2 class="cpc-seth">% of bill</h2>
         <div class="cpc-sets">
-          ${sec("Pools", `One pool per job: the salary pool, plus on local jobs a bonus pool that is cut when something goes wrong (the paid-out % is what this replay pays of it). The splitable bill is the moving fee at the cash price, plus packing materials and the fees, less discounts — the service fee and waiting time stay out. Long-distance jobs (${ld}) use their own pool on the whole bill, as their bill carries the haul. Each salary is rounded up to the dollar; tips stay with the crew.`,
-            fields(["pctPool", "pctBonus", "pctBonusPaid", "pctLd"]))}
+          ${sec("Pools", `One pool per job, by job type: local moves share a % of the splitable bill — the moving fee at the cash price, plus packing materials and the fees, less discounts (the service fee and waiting time stay out); straight and regular long-distance moves share a % of the whole bill, which carries the haul (their crews earn 18.8% and 8.7% of it today). Local jobs add a bonus pool that is cut when something goes wrong; the paid-out % is what this replay pays of it. Each salary is rounded up to the dollar; tips stay with the crew.`,
+            fields(["pctPool", "pctStraight", "pctRegular", "pctBonus", "pctBonusPaid"]))}
           ${sec("Foreman's extra share", "The foreman takes 1 share + the extra share for the job's splitable bill; the driver and every helper take 1 share each. The last three columns show what that makes the foreman's part of the pool.",
             `<div class="rs-tablewrap"><table class="rs-table cpc-bandt">
               <thead><tr><th>Bill from</th><th></th><th>Extra share</th><th class="num">Crew of 3</th><th class="num">Crew of 4</th><th class="num">Crew of 5</th></tr></thead>
@@ -1123,6 +1026,16 @@ registerPage({
           ${sec("Day rates", `One rate per person per day — a second job the same day adds no day. An empty rate is break-even: today's pay per day for the seat, less the packing below, rounded to $5 (now foreman $${SC.daily.be.Foreman || 0}, driver $${SC.daily.be.Driver || 0}, helper $${SC.daily.be.Helper || 0}).`,
             fields(["dayForeman", "dayDriver", "dayHelper"], { dayForeman: { ph: String(SC.daily.be.Foreman || 0) }, dayDriver: { ph: String(SC.daily.be.Driver || 0) }, dayHelper: { ph: String(SC.daily.be.Helper || 0) } }))}
           ${sec("Packing", "The foreman keeps a % of packing sold, so selling it still pays. Nothing else is paid on top: stairs, bulky items, reviews and the rest stay with the company.", fields(["dayPackPct"]))}
+        </div>
+
+        <h2 class="cpc-seth">Custom job — today's pay</h2>
+        <div class="cpc-sets">
+          ${sec("Today's rates", `What Actual pays on a custom job. Left blank, each is this year's average: the seat's wage over the hours it paid, a long-distance trip's day rate, and the review pay on a reviewed job.`,
+            fields(["todayForeman", "todayDriver", "todayHelper", "todayLdDriver", "todayLdHelper", "todayReview"],
+              { todayForeman: { ph: (SC.today.Foreman || 0).toFixed(2) }, todayDriver: { ph: (SC.today.Driver || 0).toFixed(2) }, todayHelper: { ph: (SC.today.Helper || 0).toFixed(2) },
+                todayLdDriver: { ph: Math.round(SC.today.ldDriver || 0) }, todayLdHelper: { ph: Math.round(SC.today.ldHelper || 0) }, todayReview: { ph: Math.round(SC.today.review || 0) } }))}
+          ${sec("Today's extras", "How today's contract shares the extras out: the foreman's packing commission, and the part of the stairs and bulky-item fees split over the crew.",
+            fields(["todayPackPct", "todayStairsShare", "todayBulkyShare"]))}
         </div>
 
         <h2 class="cpc-seth">Bonus plan</h2>
@@ -1158,7 +1071,6 @@ registerPage({
         .cpc-bar.pos{background:var(--brand)}
         .cpc-bar.neg{background:var(--faint)}
         .cpc-q{font:inherit;font-size:13px;border:1px solid var(--line-2);border-radius:999px;padding:7px 14px;background:var(--panel);color:var(--ink);min-width:200px}
-        .cpc-sort{margin-left:8px}
         .cpc-how ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.6}
         .cpc-how b{color:var(--ink)}
         .cpc-setbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -1246,6 +1158,22 @@ registerPage({
         .cpc-bandt .cpc-in input{width:62px}
         .cpc-rates{font-size:18px}
         .cpc-jobrule{margin:0 0 10px}
+        .cpc-explain{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:0;padding:12px 16px;margin:0 0 16px}
+        .cpc-ex-h{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+        .cpc-explain p{margin:0;font-size:14px;line-height:1.65;color:var(--muted)}
+        .cpc-explain b{color:var(--ink)}
+        .cpc-seats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:12px;margin-top:10px}
+        .cpc-seat{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+        .cpc-seat>span{font-size:12.5px;color:var(--muted);font-weight:600}
+        .cpc-seat>b{font-size:21px;color:var(--ink);font-variant-numeric:tabular-nums}
+        .cpc-seat>em{font-style:normal;font-size:13px;color:var(--muted)}
+        .cpc-cj{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:12px}
+        .cpc-cj select{font:inherit;font-size:14px;border:1px solid var(--line-2);border-radius:8px;padding:7px 8px;background:var(--panel);color:var(--ink)}
+        .cpc-cjck{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:12px;font-size:13px;color:var(--muted)}
+        .cpc-ck{display:flex;align-items:center;gap:6px;cursor:pointer}
+        .cpc-cjt td{vertical-align:top}
+        .cpc-cjt td .cpc-sub{font-size:11.5px;line-height:1.4;margin-top:2px;white-space:normal}
+        .cpc-cjt tfoot td.cpc-best{color:var(--brand)}
       `;
       document.head.appendChild(s);
     }

@@ -55,6 +55,11 @@
  *   * REDDIT ADS (ext_reddit_ads_day, 2026-10-23): spend, impressions, clicks per campaign, GMT days.
  *     The bank's Reddit total is more than this account (an agency fee and other charges), so the
  *     Channels table keeps the bank and this panel is the account's own figures.
+ *   * COST PER BOOKING on every platform (2026-10-23, the marketing team), and per Google Ads campaign:
+ *     bookings traced by the form's UTM campaign or the campaign's CallRail number
+ *     (mart_mkt_campaign_lead), the rest on one "not traced" row; coloured against $600.
+ *   * SEARCH AND SEO IN TOPIC TABS (2026-10-23), with the CITATION MAP from Ahrefs (ext_ahrefs_refdomain,
+ *     ext_ahrefs_anchor, weekly) and AI visibility planned on Ahrefs Brand Radar.
  *   Every live account is Zip to Zip's: with Tuji picked the section says so instead of zeros.
  *   A comparison is drawn only when the platform already had data on the comparison's first day.
  *   The cost a panel shows is the same live spend the channel table reads for that family.
@@ -187,6 +192,12 @@
     // 2026-10-23: Reddit Ads per campaign-day (src/reddit_ads.py), the account's own figures
     mkt_reddit: { table: "ext_reddit_ads_day", cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks",
                                                       "Spend", "Conversions"] },
+    // 2026-10-23: the citation map (Ahrefs, weekly) and Google bookings traced to a campaign
+    mkt_refdom: { table: "ext_ahrefs_refdomain", cols: ["Domain", "Domain Rating", "Is Spam", "Dofollow Links", "Links",
+                                                        "First Seen", "Last Seen"] },
+    mkt_anchor: { table: "ext_ahrefs_anchor", cols: ["Anchor", "Ref Domains", "Links", "Dofollow Links", "First Seen",
+                                                     "Last Seen"] },
+    mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -198,6 +209,11 @@
   const LS_PERIOD = "mkoPeriod", LS_CMP = "mkoCmp", LS_TAB = "mkoTab";
   const TABS = [["ov", "Overview"], ["paid", "Paid ads"], ["seo", "Search and SEO"], ["web", "Website"],
                 ["rev", "Reviews"], ["set", "Settings"]];
+  // the Search and SEO tab's topics (2026-10-23, his pick: topic tabs), the last one remembered
+  const SEO_TOPICS = [["ov", "Overview"], ["kw", "Keywords and pages"], ["blog", "Blog"],
+                      ["links", "Backlinks and citations"], ["ai", "AI visibility"], ["onpage", "On-page"],
+                      ["local", "Local rankings"]];
+  const LS_SEO = "mkoSeoTopic";
   // Google's conversion categories that are a lead; everything else (YouTube follow-on views,
   // engagement, page views) is counted apart
   const CONV_LEAD = new Set(["SUBMIT_LEAD_FORM", "PHONE_CALL_LEAD", "REQUEST_QUOTE", "CONTACT", "BOOK_APPOINTMENT",
@@ -222,14 +238,14 @@
   const PILL = { "Up to date": "ok", "Behind": "warn", "No data": "bad", "Not connected": "mute" };
 
   // module memory: survives a theme re-render, not a page load
-  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", tab: "ov", booted: false, linkView: "clean", linkAdd: false };
+  const S = { co: LIVE_CO, from: null, to: null, cmp: "ly", tab: "ov", booted: false, linkView: "clean", linkAdd: false, seoTopic: "ov" };
   const D = { ready: false, conn: [], connErr: null, rows: [], chErr: null,
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [],
+              gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -340,6 +356,21 @@
       + ".mko .mko-pnav button{font:inherit;font-weight:600;color:var(--ink);background:none;border:0;padding:0;"
       + "cursor:pointer;border-bottom:1px dotted currentColor}"
       + ".mko .mko-pnav button:hover{color:var(--brand)}"
+      + ".mko .mko-topics{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 14px}"
+      + ".mko .mko-topics button{font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);background:none;"
+      + "border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer}"
+      + ".mko .mko-topics button:hover{color:var(--ink)}"
+      + ".mko .mko-topics button.on{color:var(--ink);border-color:var(--brand);background:rgba(132,204,22,.12)}"
+      + ".mko table.mko-camp td.mko-bk,.mko table.mko-camp th.mko-bk{background:rgba(132,204,22,.10)}"
+      + ".mko table.mko-camp td:first-child,.mko table.mko-camp th:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}"
+      + ".mko .mko-amb{color:#D97706;font-weight:600}"
+      + ".mko .mko-cmap{width:100%;max-width:620px;display:block;margin:0 auto;color:var(--ink)}"
+      + ".mko .mko-cmap text{font-size:10px;fill:var(--muted)}"
+      + ".mko .mko-ctodo{margin:0;padding-left:18px}.mko .mko-ctodo li{margin:0 0 8px;line-height:1.5}"
+      + ".mko .mko-q{font:inherit;font-size:12.5px;width:100%;max-width:320px;margin:0 0 8px;padding:5px 9px;"
+      + "border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink)}"
+      + ".mko .mko-lnk{font:inherit;font-weight:600;color:var(--brand);background:none;border:0;padding:0;"
+      + "cursor:pointer;text-decoration:underline}"
       + ".mko .mko-plat{border-top:1px solid var(--line);margin-top:18px;padding-top:4px}"
       + ".mko .mko-ph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:12px 0 10px}"
       + ".mko .mko-ph h3{margin:0;font-size:15.5px;font-weight:800;color:var(--ink)}"
@@ -564,6 +595,8 @@
     if (c === "ly" || c === "prev") S.cmp = c;
     const t = lsGet(LS_TAB);
     if (TABS.some(x => x[0] === t)) S.tab = t;
+    const st = lsGet(LS_SEO);
+    if (SEO_TOPICS.some(x => x[0] === st)) S.seoTopic = st;
   }
   // a preset by NAME (so "This month" moves with the calendar), anything else by its dates
   function savePeriod() {
@@ -716,6 +749,18 @@
     let f = null, l = null;
     P[key].forEach(r => { if (!f || r.d < f) f = r.d; if (!l || r.d > l) l = r.d; });
     P.first[key] = f; P.last[key] = l;
+  }
+  // 2026-10-23: the citation map's domains (each typed once) and anchors, and the campaign tracing
+  function indexBatch3(t) {
+    P.refdom = (t.refdom || []).map(r => ({ dom: String(r.Domain || "").toLowerCase(),
+      dr: r["Domain Rating"] == null ? null : num(r["Domain Rating"]), spam: num(r["Is Spam"]) === 1,
+      dof: num(r["Dofollow Links"]), links: num(r.Links), first: d10(r["First Seen"]) || null,
+      last: d10(r["Last Seen"]) || null })).filter(r => r.dom);
+    P.refdom.forEach(r => { r.type = citeType(r.dom); });
+    P.anchor = (t.anchor || []).map(r => ({ text: String(r.Anchor == null ? "" : r.Anchor), rd: num(r["Ref Domains"]),
+      links: num(r.Links), first: d10(r["First Seen"]) || null }));
+    indexPlat("ctrace", t.ctrace, r => ({ d: d10(r.Date), cid: String(r["Campaign Id"]), via: r.Via || "",
+      leads: num(r.Leads), booked: num(r.Booked) }));
   }
   // Reddit reports only days that ran, so a paused account's last row is its last delivery: its data
   // runs through the last PULL (the connectors row's Newest Data, from ext_reddit_ads_pull)
@@ -1053,9 +1098,8 @@
       + '<div class="mko-g2"><div id="mkoC-ads"></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By campaign type</span></div>'
       + adsTypeTable(rows, cur, cv) + "</div></div>"
-      + adsCampHtml(rows, cv);
+      + adsCampHtml(rows, cv, pw);
     return { html, wire(host) {
-      const f = famStat("Google", pw.a, pw.b);
       RSC.kpis(host.querySelector("#mkoK-ads"), [
         kp("Impressions", cur.imp, prev.imp, compact, false, "", pw),
         kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
@@ -1066,8 +1110,7 @@
            cvAll ? fmtN(cvLead) + " leads · " + fmtN(cvAll - cvLead) + " other" : "Google's count", pw),
         kp("Cost per conv.", cpa(cur), cmp ? cpa(prev) : undefined, money0, true,
            cvLead ? "per lead conversion " + money0(ratio(cur.cost, cvLead)) : "", pw),
-        { label: "Cost per booking", value: f && f.cpb != null ? money0(f.cpb) : "—",
-          sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " Google leads" : "our side" },
+        cpbKp("Google", pw, "Google"),
       ]);
       costCard(host.querySelector("#mkoC-ads"), "ads", "Cost", pw, rows, cmp,
                { label: "Conversions", val: r => r.conv, fmt: fmtN });
@@ -1175,48 +1218,97 @@
     return wrap(ptable(cols, list, tot)
       + (notes.length ? '<p class="rs-hint">' + notes.map(esc).join(" ") + "</p>" : ""));
   }
-  /* the campaigns, ACTIVE (enabled) first: each one's own conversions split into leads and the rest,
-     and its cost per lead conversion; a paused campaign that still spent in the period sits below */
-  function adsCampHtml(rows, cv) {
+  /* the campaigns, ACTIVE (enabled) first; a paused campaign that still spent sits below. The marketing
+     team's layout (2026-10-23, his picks): Clicks over CTR · CPC, Google's lead conversions over their
+     cost, OUR bookings traced to the campaign over the cost per booking (coloured against CPB_TARGET),
+     and Google's own total. A booking sits on a campaign only where the website form's UTM campaign or a
+     call to the campaign's CallRail number proves it (mart_mkt_campaign_lead); a "not traced" row keeps
+     the column adding up to the Google bookings of the Channels table. */
+  const CPB_TARGET = 600;
+  const cpbCls = v => v <= CPB_TARGET ? "mko-pos" : v <= CPB_TARGET * 1.25 ? "mko-amb" : "mko-neg";
+  function adsCampHtml(rows, cv, pw) {
     const lead = {}, other = {};
     cv.forEach(r => { const m = CONV_LEAD.has(r.cat) ? lead : other; m[r.cid] = (m[r.cid] || 0) + r.n; });
+    const tr = {};
+    inRange(P.ctrace, pw.a, pw.b).forEach(r => {
+      const x = tr[r.cid] = tr[r.cid] || { leads: 0, bk: 0 };
+      x.leads += r.leads; x.bk += r.booked;
+    });
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
       const c = P.camp[String(x.k)] || {};
       return Object.assign({ id: String(x.k), name: last.name, type: last.type, status: c.status || "",
-                             lead: lead[x.k] || 0, other: other[x.k] || 0, conv: sum(x.rows, "conv") }, clickStats(x.rows));
+                             lead: lead[x.k] || 0, other: other[x.k] || 0, conv: sum(x.rows, "conv"),
+                             bk: (tr[String(x.k)] || {}).bk || 0 }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
     const known = Object.keys(P.camp).length > 0;
     const active = known ? list.filter(x => x.status === "ENABLED") : list;
     const paused = known ? list.filter(x => x.status !== "ENABLED") : [];
     const idle = Object.entries(P.camp).filter(([id, c]) => c.status === "ENABLED" && !list.some(x => x.id === id));
+    const g = famStat("Google", pw.a, pw.b), gBooked = g ? g.booked : 0;
+    const traced = Object.values(tr).reduce((a, x) => a + x.bk, 0);
+    const bkCell = r => {
+      if (r.nt) return "<b>" + fmtN(r.bk) + "</b>";
+      if (r.tot) return "<b>" + fmtN(r.bk) + "</b>" + '<div class="mko-sub">' + (r.cpb != null ? money0(r.cpb) + " each" : "—") + "</div>";
+      return "<b>" + fmtN(r.bk) + "</b>" + '<div class="mko-sub">' + (r.bk ? '<span class="' + cpbCls(r.cost / r.bk) + '">'
+        + money0(r.cost / r.bk) + " each</span>" : r.cost >= 1 ? '<span class="mko-neg">' + money0(r.cost) + " spent</span>" : "—") + "</div>";
+    };
+    const dash = '<span class="mko-sub">—</span>';
     const cols = [
-      { h: "Campaign", name: true, cell: r => esc(r.name)
-          + (r.type ? '<div class="mko-sub">' + esc(ADS_TYPE[r.type] || prettyCode(r.type)) + "</div>" : "") },
-      { h: "Cost", num: true, cell: r => money0(r.cost) },
-      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
-      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
-      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
-      { h: "CPC", num: true, cell: r => cents(r.cpc) },
-      { h: "Lead conv.", num: true, tip: "forms, calls and quote requests Google counted", cell: r => "<b>" + fmtN(r.lead) + "</b>" },
-      { h: "Other conv.", num: true, tip: "YouTube follow-on views, engagements, page views", cell: r => fmtN(r.other) },
-      { h: "Cost / lead conv.", num: true, cell: r => money0(ratio(r.cost, r.lead)) },
+      { h: "Campaign", cell: r => r.nt ? '<span class="mko-sub"><b>Not traced to a campaign</b></span><div class="mko-sub">calls '
+          + "to the main number, Moveboard's own Google leads, forms without a campaign</div>"
+          : r.tot ? "<b>" + esc(r.name) + "</b>" + (r.sub ? '<div class="mko-sub">' + esc(r.sub) + "</div>" : "")
+          : esc(r.name) + (r.type ? '<div class="mko-sub">' + esc(ADS_TYPE[r.type] || prettyCode(r.type)) + "</div>" : "") },
+      { h: "Cost", num: true, cell: r => r.nt ? dash : money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => r.nt ? dash : compact(r.imp) },
+      { h: "Clicks", num: true, tip: "CTR · CPC beneath", cell: r => r.nt ? dash : fmtN(r.clk) + '<div class="mko-sub">'
+          + pct2(r.ctr) + " · " + cents(r.cpc) + "</div>" },
+      { h: "Leads", num: true, tip: "lead conversions Google counted (forms, calls, quote requests), with Google's cost per lead",
+        cell: r => r.nt ? dash : "<b>" + fmtN(r.lead) + "</b>" + '<div class="mko-sub">' + (r.lead >= 0.5 ? money0(r.cost / r.lead) + " each" : "—") + "</div>" },
+      { h: "Bookings", num: true, cls: "mko-bk", tip: "our leads created in the period that booked (as the Channels table), traced "
+          + "to the campaign by the website form's UTM campaign or a call to its CallRail number; colour against $"
+          + CPB_TARGET + " a booking", cell: bkCell },
       // his call 2026-10-21: Google's own number beside the split, as the marketing team's dashboard shows it
       { h: "Google's total", num: true, tip: "Google's own conversions: leads, YouTube follow-on views and engagements "
-          + "together, with Google's cost per conversion", cell: r => fmtN(r.conv)
-          + '<div class="mko-sub">' + money0(ratio(r.cost, r.conv)) + " each</div>" },
+          + "together, with Google's cost per conversion", cell: r => r.nt ? dash : fmtN(r.conv)
+          + (r.conv >= 0.5 ? '<div class="mko-sub">' + money0(ratio(r.cost, r.conv)) + " each</div>" : "") },
     ];
-    const tot = xs => Object.assign({ name: "All", type: "", lead: sum(xs, "lead"), other: sum(xs, "other"), conv: sum(xs, "conv") },
-      { cost: sum(xs, "cost"), imp: sum(xs, "imp"), clk: sum(xs, "clk") },
-      { ctr: ratio(sum(xs, "clk"), sum(xs, "imp")), cpc: ratio(sum(xs, "cost"), sum(xs, "clk")) });
+    const table = rs => '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-camp"><thead><tr>'
+      + cols.map(c => '<th class="' + [c.num ? "mko-num" : "", c.cls || ""].join(" ").trim() + '"'
+        + (c.tip ? ' title="' + esc(c.tip) + '"' : "") + ">" + esc(c.h) + "</th>").join("") + "</tr></thead><tbody>"
+      + rs.map(r => "<tr" + (r.tot ? ' class="mko-tot"' : "") + ">" + cols.map(c => '<td class="'
+        + [c.num ? "mko-num" : "mko-name", c.cls || ""].join(" ").trim() + '">' + c.cell(r) + "</td>").join("") + "</tr>").join("")
+      + "</tbody></table></div>";
+    const sumOf = xs => ({ cost: sum(xs, "cost"), imp: sum(xs, "imp"), clk: sum(xs, "clk"), lead: sum(xs, "lead"),
+                           conv: sum(xs, "conv"), ctr: ratio(sum(xs, "clk"), sum(xs, "imp")), cpc: ratio(sum(xs, "cost"), sum(xs, "clk")) });
+    // the totals are every campaign of the period (paused ones too) against all of Google's bookings
+    const allRow = Object.assign({ tot: true, name: "All Google", sub: paused.length ? "the paused campaigns below included" : "",
+                                   bk: gBooked, cpb: g ? g.cpb : null }, sumOf(list));
+    const ntRow = { nt: true, bk: Math.max(gBooked - traced, 0) };
+    const formTo = P.ctrace.filter(r => r.via === "Form").reduce((a, r) => (r.d > a ? r.d : a), "");
+    const notes = ["Colours against $" + fmtN(CPB_TARGET) + " a booking: green under, amber up to $" + fmtN(CPB_TARGET * 1.25)
+      + ", red above it or spend with no booking."];
+    if (formTo && pw.b > addDays(formTo, 7)) {
+      notes.push("Website forms are traced through " + day(formTo) + ": the CMS form export has not arrived since, so later "
+        + "bookings trace through CallRail calls only.");
+    }
+    if (P.err.ctrace) notes.unshift("Bookings by campaign could not load — " + P.err.ctrace + ".");
     return '<div class="panel"><div class="panel-head"><span class="panel-title">Active campaigns</span>'
       + '<span class="mko-sub">' + (known ? "enabled in Google Ads, most cost first" : "every campaign that showed an ad")
-      + "</span></div>" + (active.length ? ptable(cols, active, active.length > 1 ? tot(active) : null)
+      + (gBooked ? " · " + fmtN(traced) + " of " + fmtN(gBooked) + " Google bookings traced to a campaign" : "") + "</span></div>"
+      + (active.length ? table(active.concat(gBooked ? [ntRow] : [], [allRow]))
         : '<div class="mko-empty">No active campaign spent in this period.</div>')
+      + '<p class="rs-hint">' + notes.map(esc).join(" ") + "</p>"
       + (idle.length ? '<p class="rs-hint">Enabled but no spend in the period: ' + esc(idle.map(([, c]) => c.name).join(", ")) + ".</p>" : "")
       + "</div>"
       + (paused.length ? '<div class="panel"><div class="panel-head"><span class="panel-title">Paused campaigns that spent in the period</span></div>'
-        + ptable(cols, paused, paused.length > 1 ? tot(paused) : null) + "</div>" : "");
+        + table(paused) + "</div>" : "");
+  }
+  // the Channels table's cost per booking for a platform's source family (2026-10-23: on every platform)
+  function cpbKp(fam, pw, word, mark) {
+    const f = famStat(fam, pw.a, pw.b);
+    return { label: "Cost per booking", value: f && f.cpb != null ? money0(f.cpb) + (mark || "") : "—",
+             sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " " + word + " leads" : "our side" };
   }
   function adsCampTable(rows, cur) {
     const list = groupBy(rows, r => r.id).map(x => {
@@ -1277,6 +1369,7 @@
         kp("Cost per charged lead", cur.cpcl, prev.cpcl, money0, true, "cost ÷ charged leads", pw),
         kp("Credited", cur.Credited, prev.Credited, fmtN, null,
            cur["In review"] ? fmtN(cur["In review"]) + " in review" : "billed, then refunded", pw),
+        cpbKp("Google Local", pw, "Google Local"),
       ]);
       lsaCard(host.querySelector("#mkoC-lsa"), pw, cost, leads);
     } };
@@ -1430,6 +1523,7 @@
                + (mr.others ? " · +" + mr.others + " other kind" + (mr.others > 1 ? "s" : "") : ""), pw)
            : { label: "Results", value: "—", sub: "no campaign returned one" },
         kp("Cost", cur.cost, prev.cost, money, null, "", pw),
+        cpbKp("Meta", pw, "Meta"),
       ]);
       costCard(host.querySelector("#mkoC-meta"), "meta", "Spend", pw, rows, cmp,
                { label: "Leads", val: r => r.leads, fmt: fmtN });
@@ -1525,6 +1619,7 @@
         tracked ? kp("Conversions", cur.conv, prev.conv, fmtN, false, "ChatGPT's count", pw)
           : { label: "Conversions", value: '<span class="mko-cov">not measured</span>',
               sub: "no conversion event set up" },
+        cpbKp("ChatGPT", pw, "ChatGPT"),
       ];
       RSC.kpis(host.querySelector("#mkoK-gpt"), k);
       costCard(host.querySelector("#mkoC-gpt"), "gpt", "Spend", pw, rows, cmp, null);
@@ -1579,6 +1674,7 @@
         kp("Avg CPM", cur.cpm, prev.cpm, cents, true, "spend per 1,000 impressions", pw),
         kp("Spend", cur.cost, prev.cost, money, null, "the ad account only", pw),
         { label: "Conversions", value: '<span class="mko-cov">not measured</span>', sub: "no Lead event set up" },
+        (k => Object.assign(k, { sub: k.sub + " · † the bank's Reddit spend" }))(cpbKp("Reddit", pw, "Reddit", "†")),
       ]);
       costCard(host.querySelector("#mkoC-reddit"), "reddit", "Spend", pw, rows, cmp, null);
     } };
@@ -2252,18 +2348,24 @@
       + '</span><span class="mko-sub">' + sub + "</span></div>" + body + "</div>";
     const noCmp = '<div class="mko-empty">Pick a period with a comparison to see what gained and lost.</div>';
     const span = esc(spanCur) + (cmp ? " against " + esc(dayRange(cmp.a, cmp.b)) : "");
-    const html = '<div class="mko-h"><h2>SEO report</h2><span class="mko-sub">' + span
+    const head = '<div class="mko-h"><h2>SEO report</h2><span class="mko-sub">' + span
       + " · Search Console" + (cur && gw.last && cur.b === gw.last ? " to " + esc(day(gw.last)) : "")
-      + " and Ahrefs' new links</span></div>"
-      + '<div class="mko-g2e"><div id="mkoC-seom"></div>'
-      + panel("Keywords", "clicks in the period and the change", kwMv ? movesHtml(kwMv, k => esc(k), 6) : noCmp) + "</div>"
-      + '<div class="mko-g2e">'
-      + panel("Pages", "Business Profile listings apart", (pgMv ? movesHtml(pgMv, k => postId(k)
-          ? "Blog · " + esc(postTitle(k)) : esc(pagePath(k)), 5) : noCmp)
-        + (function () { const L = listing(cur); return '<p class="rs-hint"><b>Google Business Profile:</b> ' + fmtN(L.n)
+      + " and Ahrefs' new links</span></div>";
+    // one piece per topic tab (2026-10-23): Overview, Keywords and pages, Blog, Backlinks and citations
+    const parts = {
+      ov: head + '<div id="mkoC-seom"></div>'
+        + '<p class="rs-hint">AI Overviews / AI Mode impressions and the social profiles\' search clicks are only on Google\'s '
+        + "Search Console site; its API has neither (checked 20 Oct 2026), so they are not here.</p>",
+      kw: '<div class="mko-h"><h2>Keywords and pages</h2><span class="mko-sub">' + span + "</span></div>"
+        + '<div class="mko-g2e">'
+        + panel("Keywords", "clicks in the period and the change", kwMv ? movesHtml(kwMv, k => esc(k), 6) : noCmp)
+        + panel("Pages", "Business Profile listings apart", (pgMv ? movesHtml(pgMv, k => postId(k)
+            ? "Blog · " + esc(postTitle(k)) : esc(pagePath(k)), 5) : noCmp)
+          + (function () { const L = listing(cur); return '<p class="rs-hint"><b>Google Business Profile:</b> ' + fmtN(L.n)
           + " listings brought " + fmtN(L.clk) + " clicks"
           + (cmp ? " (" + fmtN(listing(cmp).clk) + " on the comparison days)" : "") + ".</p>"; })())
-      + panel("Blog", esc(monthSpan(ms)) + " · " + fmtN(blogClk) + " clicks · " + fmtN(freshList.length) + " new posts",
+        + "</div>",
+      blog: panel("Blog", esc(monthSpan(ms)) + " · " + fmtN(blogClk) + " clicks · " + fmtN(freshList.length) + " new posts",
         (posts.length ? ptable([
           { h: "Post", name: true, cell: x => esc(x.title) },
           { h: "Clicks", num: true, cell: x => fmtN(x.clk) },
@@ -2273,20 +2375,17 @@
         + (freshList.length ? '<div class="mko-sub">' + freshList.map(x => "#" + x.id + " " + esc(x.title || "(no title)")).join("<br>") + "</div>"
           : '<div class="mko-empty">No new post reached Search Console in these months.</div>')
         + '<p class="rs-hint">New = the first month a post number shows in Search Console, which is one to two weeks '
-        + "after it goes live; a post out at a month's end counts in the next month.</p>")
-      + "</div>"
-      + panel("New backlinks · Ahrefs", "sites linking to us for the first time · " + esc(day(la)) + " – " + esc(day(w.bEff)),
+        + "after it goes live; a post out at a month's end counts in the next month.</p>"),
+      links: panel("New backlinks · Ahrefs", "sites linking to us for the first time · " + esc(day(la)) + " – " + esc(day(w.bEff)),
         '<div id="mkoLinks"></div>'
         + '<p class="rs-hint">Ahrefs flags ' + fmtN(lk.spam) + " of the " + fmtN(lk.sites) + " new sites as spam (link farms); "
         + "they are listed only under Show spam too." + (lk.big && lk.big.n > 50 ? " " + esc(lk.big.dom) + " alone added "
         + fmtN(lk.big.n) + " links." : "") + " Ahrefs does not say which links are ours: anyone on this page marks a guest "
         + "post, and the mark keeps who set it and when."
-        + (w.a < LINKS_FROM ? " New links are tracked from " + esc(day(LINKS_FROM)) + "." : "") + "</p>")
-      + '<p class="rs-hint">AI Overviews / AI Mode impressions and the social profiles\' search clicks are only on Google\'s '
-      + "Search Console site; its API has neither (checked 20 Oct 2026), so they are not here.</p>"
-      + '<div class="mko-h"><h2>Search Console, site and rankings</h2></div>';
+        + (w.a < LINKS_FROM ? " New links are tracked from " + esc(day(LINKS_FROM)) + "." : "") + "</p>"),
+    };
     return {
-      html, brand: brand(cur), brandPrev: cmp ? brand(cmp) : null, spanCur, lk, lkPrev,
+      parts, brand: brand(cur), brandPrev: cmp ? brand(cmp) : null, spanCur, lk, lkPrev,
       best: best ? { m: best, clk: byM[best].clk } : null,
       wire(host) {
         wireLinks(host, la, w.bEff, cw);
@@ -2319,6 +2418,9 @@
     };
   }
 
+  /* SEARCH AND SEO IN TOPICS (2026-10-23, the marketing head: "click a topic and it opens its full data";
+     his pick: topic tabs). The KPI strip stays on top, one topic shows at a time, and the page keeps the
+     last one (LS_SEO). */
   function seoTab(w, cw) {
     const gw = platWin("gsc", w, cw);
     const gRows = gw && !gw.before && !gw.after ? inRange(P.gsc, gw.a, gw.b) : [];
@@ -2336,42 +2438,40 @@
     const allClk = sum(qs, "clk"), brandClk = sum(qs.filter(q => q.type === "Brand"), "clk");
     const gate = platGate("Search Console", "gsc", gw, gRows);
     const rep = seoReport(gw, w, cw, ms);
-    const html = '<div class="rs-kpis" id="mkoK-seo"></div>'
-      + (gate ? "" : rep.html)
-      + '<div class="mko-g2e">'
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Search Console</span>'
-      + '<span class="mko-sub">Google search' + (gw && gw.last ? " · data through " + esc(day(gw.last)) : "") + "</span></div>"
-      + (gate || '<div id="mkoC-gsc"></div>'
-        + '<h3 class="mko-h3">Top queries</h3><div class="mko-sub">' + esc(monthSpan(ms)) + " (the query list is monthly)"
-        + (allClk ? " · searches for our name bring " + pct(brandClk / allClk) + " of the clicks" : "") + "</div>"
-        + ptable([
+    const topic = SEO_TOPICS.some(t => t[0] === S.seoTopic) ? S.seoTopic : "ov";
+    const nav = '<nav class="mko-topics" aria-label="Search and SEO topics">' + SEO_TOPICS.map(([k, l]) =>
+      '<button type="button" data-topic="' + k + '"' + (k === topic ? ' class="on" aria-current="true"' : "") + ">"
+      + esc(l) + "</button>").join("") + "</nav>";
+    const panel = (title, sub, body) => '<div class="panel"><div class="panel-head"><span class="panel-title">' + title
+      + '</span><span class="mko-sub">' + sub + "</span></div>" + body + "</div>";
+    const topics = {
+      ov: () => (gate ? "" : rep.parts.ov)
+        + panel("Search clicks", "Google search" + (gw && gw.last ? " · data through " + esc(day(gw.last)) : ""),
+          gate || '<div id="mkoC-gsc"></div>'),
+      kw: () => gate || rep.parts.kw + '<div class="mko-g2e">'
+        + panel("Top queries", esc(monthSpan(ms)) + " (the query list is monthly)"
+          + (allClk ? " · searches for our name bring " + pct(brandClk / allClk) + " of the clicks" : ""), ptable([
           { h: "Query", name: true, cell: q => esc(q.q) + " " + pill(q.type === "Brand" ? "brand" : q.type, q.type === "Brand" ? "mute" : "ok") },
           { h: "Clicks", num: true, cell: q => fmtN(q.clk) },
           { h: "Impr.", num: true, tip: "impressions", cell: q => fmtN(q.imp) },
           { h: "Position", num: true, tip: "average, weighted by impressions", cell: q => q.pos == null ? "—" : q.pos.toFixed(1) },
         ], qs.slice(0, 10), null, true))
-      + "</div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Keywords by service</span>'
-      + '<span class="mko-sub">' + esc(monthSpan(ms)) + " · Search Console, monthly</span></div>"
-      + svcHtml(qs) + "</div>"
-      + "</div>"
-      + '<div class="mko-g2e">'
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">On-page · Ahrefs Site Audit</span>'
-      + '<span class="mko-sub">' + (P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet") + "</span></div>"
-      + onPageHtml() + "</div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Off-page · Ahrefs</span>'
-      + '<span class="mko-sub">' + (snap ? "snapshot " + esc(day(snap.d)) : "no snapshot yet") + "</span></div>"
-      + (P.err.ahd ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap ? "" :
-        '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
-        + '<p class="rs-hint">Ahrefs\' own estimates from its crawler and keyword panel, not our measured '
-        + "traffic (that is Search Console and Analytics).</p>")
-      + "</div></div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Local rankings · BrightLocal</span>'
-      + '<span class="mko-sub">weekly rank reports, Mondays</span></div>' + blHtml()
-      + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so citations are not '
-      + "pulled yet. Semrush: not upgrading (your call, 16 Oct); Ahrefs covers its numbers.</p></div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">AI visibility</span>'
-      + '<span class="mko-sub">the prompt universe: where AI answers leave us out</span></div>' + aiVisHtml() + "</div>";
+        + panel("Keywords by service", esc(monthSpan(ms)) + " · Search Console, monthly", svcHtml(qs)) + "</div>",
+      blog: () => gate || rep.parts.blog,
+      links: () => rep.parts.links + citeHtml(w)
+        + panel("Off-page · Ahrefs", snap ? "snapshot " + esc(day(snap.d)) : "no snapshot yet",
+          P.err.ahd ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap ? "" :
+          '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
+          + '<p class="rs-hint">Ahrefs\' own estimates from its crawler and keyword panel, not our measured '
+          + "traffic (that is Search Console and Analytics).</p>"),
+      ai: () => panel("AI visibility", "how often AI answers name us, and who they name instead", aiVisHtml()),
+      onpage: () => panel("On-page · Ahrefs Site Audit", P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet", onPageHtml()),
+      local: () => panel("Local rankings · BrightLocal", "weekly rank reports, Mondays", blHtml()
+        + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so its citations are not '
+        + "pulled; the Backlinks and citations topic maps every site linking to us from Ahrefs. Semrush: not "
+        + "upgrading (your call, 16 Oct).</p>"),
+    };
+    const html = '<div class="rs-kpis" id="mkoK-seo"></div>' + nav + topics[topic]();
     return { html, wire(host) {
       const on = !!(gw && gw.cw);
       RSC.kpis(host.querySelector("#mkoK-seo"), [
@@ -2387,7 +2487,15 @@
         { label: "New linking sites", value: fmtN(rep.lk.sites) + (rep.lkPrev ? delta(rep.lk.sites, rep.lkPrev.sites, null) : ""),
           sub: fmtN(rep.lk.clean.length) + " clean · " + fmtN(rep.lk.spam) + " flagged spam · Ahrefs" },
       ]);
-      if (!gate) rep.wire(host);
+      host.querySelectorAll(".mko-topics [data-topic]").forEach(b => {
+        b.onclick = () => {
+          S.seoTopic = b.dataset.topic; lsSet(LS_SEO, S.seoTopic); paint(host);
+          const tn = host.querySelector(".mko-topics");
+          if (tn && tn.getBoundingClientRect().top < 0) tn.scrollIntoView({ block: "start" });
+        };
+      });
+      rep.wire(host);           // the month chart and the new links, wherever their boxes are on the page
+      citeWire(host, w);
       if (!gate && host.querySelector("#mkoC-gsc")) {
         const keys = bucketsOf(gw.a, gw.b, gw.g);
         barCard(host.querySelector("#mkoC-gsc"), "gsc-clk", "Search clicks by " + GRAIN_WORD[gw.g], keys, gw.g,
@@ -2478,13 +2586,244 @@
         { h: "Change", num: true, tip: "since the previous crawl", cell: r => r.change ? (r.change > 0 ? "+" : "") + fmtN(r.change) : "—" },
       ], list, null, true);
   }
+  /* === CITATIONS (2026-10-23, the marketing head's citation map; his picks: from Ahrefs, not Semrush) ===
+     Every domain linking to us (ext_ahrefs_refdomain, pulled weekly): Domain Rating stands in for
+     Semrush's Authority Score and Ahrefs' spam flag for its 0-2 tier. A domain's TYPE comes from the
+     lists below first, then from words in its name; everything else is "Blogs and other". */
+  const CITE_OTHER = "Blogs and other";
+  const CITE_TYPES = [
+    ["Reviews and ratings", ["bbb.org", "homeadvisor.com", "birdeye.com", "consumeraffairs.com", "yelp.com", "trustpilot.com",
+      "angi.com", "angieslist.com", "thumbtack.com", "houzz.com", "porch.com", "bark.com", "provenexpert.com",
+      "threebestrated.com", "expertise.com", "mymovingreviews.com", "moverreviews.com", "sitejabber.com", "clutch.co",
+      "trustindex.io", "topratedlocal.com", "reviewsdir.com"],
+     /review|rating|rated|trust|yelp|angi|thumbtack|houzz|porch|bark/],
+    ["Directories", ["yellowpages.com", "yp.com", "manta.com", "mapquest.com", "dexknows.com", "superpages.com",
+      "citysquares.com", "freelistingusa.com", "find-us-here.com", "loc8nearme.com", "bizapedia.com", "crunchbase.com",
+      "theorg.com", "chamberofcommerce.com", "hotfrog.com", "cylex.us.com", "brownbook.net", "merchantcircle.com",
+      "ezlocal.com", "showmelocal.com", "bestprosintown.com", "bippermedia.com", "n49.com", "foursquare.com",
+      "yahoo.com", "bing.com", "apple.com", "nearfinderus.com", "us-business.info", "storeboard.com"],
+     /yellowpages|directory|listing|citysquares|manta|mapquest|chamber|superpages|hotfrog|cylex|brownbook|merchantcircle|showmelocal|ezlocal|bizapedia/],
+    ["Moving and storage", ["unpakt.com", "extraspace.com", "moving.com", "movers.com"],
+     /mov(e|er|ers|ing)|relocat|van-?lines|storage/],
+    ["Press", ["accessnewswire.com", "phillymag.com", "artdaily.com", "artdaily.cc", "usatoday.com", "nj.com", "patch.com",
+      "digitaljournal.com", "prnewswire.com", "einpresswire.com", "newswire.com", "app.com"],
+     /news|times|press|journal|herald|gazette|tribune|magazine/],
+    ["Social", ["facebook.com", "instagram.com", "linkedin.com", "pinterest.com", "youtube.com", "tiktok.com", "x.com",
+      "twitter.com", "reddit.com", "nextdoor.com", "medium.com", "quora.com", "tumblr.com", "substack.com"], null],
+  ];
+  const CITE_ORDER = CITE_TYPES.map(t => t[0]).concat([CITE_OTHER]);
+  const CITE_COLOR = { "Reviews and ratings": "#7F77DD", Directories: "#1D9E75", "Moving and storage": "#D85A30",
+                       Press: "#D4537E", Social: "#378ADD", [CITE_OTHER]: "#888780" };
+  function citeType(dom) {
+    const d = String(dom || "").replace(/^www\./, "");
+    for (const [t, list] of CITE_TYPES) if (list.some(x => d === x || d.endsWith("." + x))) return t;
+    for (const [t, , rx] of CITE_TYPES) if (rx && rx.test(d)) return t;
+    return CITE_OTHER;
+  }
+  // anchors that sell links: the September 2026 waves ("Premium SEO Links...", "DR boost services...")
+  const SPAM_ANCHOR = /\bseo\b|backlink|link (insertion|package|building)|\bpbn\b|telegram|guest post|dr boost|authority link|dofollow|casino|crypto/i;
+  // the review sites and directories a mover should be listed on (the "what to do" list names the missing)
+  const KEY_SITES = ["yelp.com", "bbb.org", "angi.com", "thumbtack.com", "trustpilot.com", "homeadvisor.com",
+                     "yellowpages.com", "nextdoor.com", "mapquest.com", "facebook.com", "houzz.com", "porch.com"];
+  // hosting and CDN domains carry links for whatever they host: not a citation, so never counted
+  const CITE_INFRA = /(^|\.)(cloudfront\.net|cloudflare\.net|azurewebsites\.net|amazonaws\.com|googleusercontent\.com|herokuapp\.com|netlify\.app|vercel\.app|github\.io|za\.com)$/;
+  function citeStats(a, b) {
+    const doms = P.refdom.filter(r => !CITE_INFRA.test(r.dom));
+    const live = doms.filter(r => !r.last), lost = doms.filter(r => r.last);
+    const clean = live.filter(r => !r.spam), dr = r => r.dr || 0;
+    return { live, lost, clean, spam: live.filter(r => r.spam),
+             strong: clean.filter(r => dr(r) >= 40), mid: clean.filter(r => dr(r) >= 20 && dr(r) < 40),
+             lostClean: lost.filter(r => !r.spam && dr(r) >= 20),
+             newIn: live.filter(r => r.first && r.first >= a && r.first <= b),
+             newSpam: live.filter(r => r.spam && r.first && r.first >= a && r.first <= b) };
+  }
+  // us at the centre; each clean site from DR 20 in its type's sector, closer = stronger, hollow = lost
+  function citeMapSvg(st) {
+    const W = 620, H = 430, cx = W / 2, cy = H / 2 + 4, rMin = 30, rMax = 170;
+    const seg = 2 * Math.PI / CITE_ORDER.length;
+    const dist = v => rMin + (100 - Math.min(Math.max(v, 20), 100)) / 80 * (rMax - rMin);
+    const hash = s => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+    const xy = (ang, r) => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)].map(v => v.toFixed(1));
+    let svg = '<svg class="mko-cmap" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Citation map: the sites '
+      + 'linking to us by type and Domain Rating">';
+    [80, 60, 40, 20].forEach(v => {
+      svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + dist(v).toFixed(1) + '" fill="none" stroke="currentColor" '
+        + 'stroke-opacity=".18" stroke-width="1"/><text x="' + (cx + 3) + '" y="' + (cy - dist(v) - 2).toFixed(1) + '">DR ' + v + "</text>";
+    });
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (rMax + 14) + '" fill="none" stroke="#E24B4A" stroke-opacity=".55" '
+      + 'stroke-dasharray="3 4"/>';
+    CITE_ORDER.forEach((t, i) => {
+      const a0 = -Math.PI / 2 + i * seg, [x1, y1] = xy(a0, rMin - 8), [x2, y2] = xy(a0, rMax + 6);
+      svg += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="currentColor" stroke-opacity=".12"/>';
+      const [lx, ly] = xy(a0 + seg / 2, rMax + 32);
+      svg += '<text x="' + lx + '" y="' + ly + '" text-anchor="middle" style="fill:' + CITE_COLOR[t] + ';font-weight:600">'
+        + esc(t) + "</text>";
+    });
+    st.clean.concat(st.lostClean).filter(r => (r.dr || 0) >= 20).forEach(r => {
+      const i = CITE_ORDER.indexOf(r.type), ang = -Math.PI / 2 + i * seg + seg * (0.08 + 0.84 * (hash(r.dom) % 1000) / 1000);
+      const [x, y] = xy(ang, dist(r.dr)), rad = (2 + r.dr / 22).toFixed(1), c = CITE_COLOR[r.type];
+      svg += '<circle cx="' + x + '" cy="' + y + '" r="' + rad + '" ' + (r.last ? 'fill="none" stroke="' + c + '" stroke-width="1.4"'
+        : 'fill="' + c + '" fill-opacity=".85"') + "><title>" + esc(r.dom + " · DR " + Math.round(r.dr) + " · " + r.type
+        + (r.last ? " · lost since " + day(r.last) : "")) + "</title></circle>";
+    });
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="15" fill="#639922"/><text x="' + cx + '" y="' + (cy + 3.5)
+      + '" text-anchor="middle" style="fill:#fff;font-weight:700">ZtZ</text></svg>';
+    return svg + '<p class="rs-hint">Rings at Domain Rating 80, 60, 40 and 20 from the middle out; a dot is a site, '
+      + "sized by its rating; hollow = it no longer links to us. The red dotted ring stands for the "
+      + fmtN(st.spam.length) + " spam-flagged sites, which are not drawn.</p>";
+  }
+  function citeHtml(w) {
+    const err = P.err.refdom;
+    const wrap = body => '<div class="mko-h"><h2>Citation map</h2><span class="mko-sub">every site linking to '
+      + "ziptozipmoving.com · Ahrefs, weekly</span></div>" + body;
+    if (err) return wrap('<div class="panel"><div class="mko-empty">The citation map could not load — ' + esc(err)
+      + (/404|unknown dataset|not granted|403/i.test(err) ? " (it arrives with the next bridge deploy or pipeline run)" : "") + "</div></div>");
+    if (!P.refdom.length) return wrap('<div class="panel"><div class="mko-empty">The citation map arrives with the next weekly '
+      + "Ahrefs pull (Mondays).</div></div>");
+    const st = citeStats(w.a, w.bEff), panel = (t, s, b) => '<div class="panel"><div class="panel-head"><span class="panel-title">'
+      + t + '</span><span class="mko-sub">' + s + "</span></div>" + b + "</div>";
+    const byType = CITE_ORDER.map(t => {
+      const xs = st.clean.filter(r => r.type === t && (r.dr || 0) >= 20);
+      return { k: t, n: xs.length, strong: xs.filter(r => r.dr >= 40).length,
+               lost: st.lostClean.filter(r => r.type === t).length,
+               top: xs.slice().sort((a, b) => b.dr - a.dr).slice(0, 3).map(r => r.dom) };
+    });
+    const nT = sum(byType, "n");
+    const bands = [["Flagged spam", st.spam], ["DR 80+", st.clean.filter(r => r.dr >= 80)],
+                   ["DR 60–79", st.clean.filter(r => r.dr >= 60 && r.dr < 80)], ["DR 40–59", st.clean.filter(r => r.dr >= 40 && r.dr < 60)],
+                   ["DR 20–39", st.mid], ["DR 0–19", st.clean.filter(r => (r.dr || 0) < 20)]].map(([k, xs]) => ({ k, n: xs.length }));
+    const anchors = P.anchor.filter(a => SPAM_ANCHOR.test(a.text) || a.text.length > 120).sort((a, b) => b.rd - a.rd);
+    const newest = st.live.slice().sort((a, b) => (a.first < b.first ? 1 : -1)).slice(0, 50);
+    const inv = st.clean.filter(r => r.dr >= 20).concat(st.lostClean).sort((a, b) => b.dr - a.dr);
+    const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+    // what to do: rules over the same numbers, never a judgement call
+    const todo = [];
+    if (st.spam.length) {
+      todo.push("<b>Disavow the spam network.</b> " + fmtN(st.spam.length) + " of the " + fmtN(st.live.length)
+        + " sites linking to us carry Ahrefs' spam flag (" + pct(st.spam.length / st.live.length) + ")"
+        + (st.newSpam.length ? ", " + fmtN(st.newSpam.length) + " of them new in this period" : "")
+        + '. <button type="button" class="mko-lnk" id="mkoDisavow">Download a disavow file</button> for Google Search '
+        + "Console, and confirm no agency bought them.");
+    }
+    if (anchors.length) {
+      todo.push("<b>" + fmtN(anchors.length) + " anchor texts sell links</b>, the biggest on " + fmtN(anchors[0].rd)
+        + " sites since " + esc(day(anchors[0].first)) + ": “" + esc(cut(anchors[0].text, 90)) + "”. Treat them as "
+        + "negative SEO or an unapproved vendor.");
+    }
+    const yearAgo = addDays(w.bEff, -365);
+    const lapsed = st.lostClean.filter(r => r.dr >= 40 && r.last >= yearAgo).sort((a, b) => b.dr - a.dr).slice(0, 6);
+    if (lapsed.length) {
+      todo.push("<b>Win back lapsed citations.</b> " + esc(lapsed.map(r => r.dom + " (DR " + Math.round(r.dr) + ")").join(", "))
+        + " stopped linking in the last year: check each listing is live, has the right name, address and phone, and "
+        + "still links to ziptozipmoving.com.");
+    }
+    const have = new Set(st.live.map(r => r.dom.replace(/^www\./, "")));
+    const missing = KEY_SITES.filter(d => !have.has(d) && ![...have].some(h => h.endsWith("." + d)));
+    if (missing.length) {
+      todo.push("<b>Fill the gaps in reviews and directories.</b> No live link from " + esc(missing.join(", "))
+        + " (or Ahrefs has not seen one).");
+    }
+    const press = st.clean.filter(r => r.type === "Press" && r.dr >= 40);
+    todo.push("<b>Earn editorial citations.</b> " + fmtN(press.length) + " press site" + (press.length === 1 ? "" : "s")
+      + " at DR 40+ link to us" + (press.length ? " (" + esc(press.slice(0, 4).map(r => r.dom).join(", ")) + ")" : "")
+      + ": local press and “best movers” roundups are the links AI answers cite.");
+    return wrap('<div id="mkoCite"><div class="rs-kpis" id="mkoK-cite"></div>'
+      + '<div class="mko-g2e">'
+      + panel("Citation map", "clean sites from Domain Rating 20, by type", citeMapSvg(st))
+      + panel("Citations by type", "clean sites from DR 20, live and lost", ptable([
+          { h: "Type", name: true, cell: r => shareName('<b style="color:' + CITE_COLOR[r.k] + '">' + esc(r.k) + "</b>", r.n, nT)
+              + (r.top.length ? '<div class="mko-sub">' + esc(r.top.join(" · ")) + "</div>" : "") },
+          { h: "Live", num: true, cell: r => fmtN(r.n) },
+          { h: "DR 40+", num: true, cell: r => fmtN(r.strong) },
+          { h: "Lost", num: true, tip: "no longer linking, DR 20+", cell: r => fmtN(r.lost) }], byType, null, true)
+        + '<h3 class="mko-h3">Domain Rating mix</h3>'
+        + ptable([{ h: "Band", name: true, cell: r => shareName(esc(r.k), r.n, st.live.length) },
+                  { h: "Sites", num: true, cell: r => withShare(fmtN(r.n), r.n, st.live.length) }], bands, null, true)) + "</div>"
+      + '<div id="mkoC-cite"></div>'
+      + '<div class="mko-g2e">'
+      + panel("Anchors that sell links", "anchor text on the most sites, flagged by its words", anchors.length ? ptable([
+          { h: "Anchor", name: true, cell: a => esc(cut(a.text, 110)) },
+          { h: "Sites", num: true, cell: a => fmtN(a.rd) },
+          { h: "Links", num: true, cell: a => fmtN(a.links) },
+          { h: "First seen", num: true, cell: a => esc(shortDay(a.first)) }], anchors.slice(0, 12), null, true)
+          : '<div class="mko-empty">No anchor reads like a paid link.</div>')
+      + panel("Newest referring domains", "the 50 most recent · " + fmtN(newest.filter(r => r.spam).length) + " flagged spam", ptable([
+          { h: "Site", name: true, cell: r => esc(r.dom) + " " + (r.spam ? pill("spam", "bad") : "") + '<div class="mko-sub">' + esc(r.type) + "</div>" },
+          { h: "DR", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) },
+          { h: "First seen", num: true, cell: r => esc(shortDay(r.first)) }], newest, null, true)) + "</div>"
+      + panel("Citation inventory", fmtN(inv.length) + " clean sites from DR 20, strongest first",
+        '<input type="search" class="mko-q" id="mkoCiteQ" placeholder="Search a site or a type" aria-label="Search the inventory">'
+        + '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight" id="mkoCiteInv"><thead><tr><th>Site</th><th>Type</th>'
+        + '<th class="mko-num">DR</th><th class="mko-num" title="links to us, dofollow beneath">Links</th>'
+        + '<th class="mko-num">First seen</th><th class="mko-num">Status</th></tr></thead><tbody>'
+        + inv.map(r => '<tr data-q="' + esc((r.dom + " " + r.type).toLowerCase()) + '"><td class="mko-name">' + esc(r.dom) + "</td><td>"
+          + esc(r.type) + '</td><td class="mko-num">' + Math.round(r.dr) + '</td><td class="mko-num">' + fmtN(r.links)
+          + '<div class="mko-sub">' + fmtN(r.dof) + ' dofollow</div></td><td class="mko-num">' + esc(shortDay(r.first)) + '</td><td class="mko-num">'
+          + (r.last ? '<span class="mko-neg">lost ' + esc(shortDay(r.last)) + "</span>" : '<span class="mko-pos">live</span>') + "</td></tr>").join("")
+        + "</tbody></table></div>")
+      + panel("What to do", "from the numbers above", '<ol class="mko-ctodo">' + todo.map(t => "<li>" + t + "</li>").join("") + "</ol>")
+      + "</div>");
+  }
+  function citeWire(host, w) {
+    const box = host.querySelector("#mkoCite");
+    if (!box) return;
+    const st = citeStats(w.a, w.bEff), snap = P.ahd.length ? P.ahd[P.ahd.length - 1] : null;
+    RSC.kpis(box.querySelector("#mkoK-cite"), [
+      { label: "Domain rating", value: snap && snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "Ahrefs, out of 100" },
+      { label: "Referring domains", value: fmtN(st.live.length), sub: fmtN(st.newIn.length) + " new in the period" },
+      { label: "Flagged spam", value: '<span class="mko-neg">' + fmtN(st.spam.length) + "</span>",
+        sub: pct(ratio(st.spam.length, st.live.length)) + " of them · Ahrefs' flag" },
+      { label: "Strong citations", value: fmtN(st.strong.length), sub: "clean, Domain Rating 40+" },
+      { label: "Clean DR 20–39", value: fmtN(st.mid.length), sub: fmtN(st.clean.length) + " clean in all" },
+      { label: "Lost citations", value: fmtN(st.lostClean.length), sub: "clean, DR 20+, no longer linking" },
+    ]);
+    const hist = P.ahm.filter(r => r.rdh != null).slice(-14);
+    const el = box.querySelector("#mkoC-cite");
+    if (el && hist.length) {
+      RSC.chartCard(el, {
+        title: "Referring domains by month", key: "mko-cite-month",
+        buildChart(canvas) {
+          const C = palette();
+          return new Chart(canvas, { type: "bar",
+            data: { labels: hist.map(r => monthWord(r.m)), datasets: [{ label: "Referring domains", data: hist.map(r => r.rdh),
+              backgroundColor: C.main, borderRadius: 3, maxBarThickness: 26 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true } } } } });
+        },
+        buildTable() {
+          return ptable([{ h: "Month", cell: r => esc(monthWord(r.m)) },
+            { h: "Referring domains", num: true, tip: "Ahrefs' monthly history count, a stricter definition than the live figure",
+              cell: r => fmtN(r.rdh) }], hist.slice().reverse());
+        },
+      });
+    }
+    const q = box.querySelector("#mkoCiteQ");
+    if (q) q.oninput = () => {
+      const v = q.value.trim().toLowerCase();
+      box.querySelectorAll("#mkoCiteInv tbody tr").forEach(tr => { tr.hidden = !!v && !tr.dataset.q.includes(v); });
+    };
+    const dis = box.querySelector("#mkoDisavow");
+    if (dis) dis.onclick = () => {
+      const txt = "# Spam-flagged domains linking to ziptozipmoving.com (Ahrefs, " + day(today()) + "): review before uploading\n"
+        + st.spam.map(r => "domain:" + r.dom).sort().join("\n") + "\n";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([txt], { type: "text/plain" }));
+      a.download = "disavow-ziptozipmoving.txt";
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+  }
   function aiVisHtml() {
     const ai = P.issues.filter(r => /ai discoverab/i.test(r.cat));
-    return '<div class="mko-nm"><p>BrightLocal\'s <b>Local AI Visibility</b> report works with our key, but '
-      + "the account holds no such report yet. Creating one per location (Tinton Falls, Arlington) is the next "
-      + "step; once it runs, this panel lists the prompts where ChatGPT, Gemini and Perplexity name competitors "
-      + "and not us.</p>"
-      + (ai.length ? "<p>Meanwhile the site audit already flags " + ai.length + " AI-discoverability issue"
+    return '<div class="mko-nm"><p><b>Coming from Ahrefs Brand Radar</b> (your pick, 23 Oct): about 150 prompts a week on '
+      + "ChatGPT, Perplexity and Google AI Overviews, read back as a visibility score, share of voice against the "
+      + "competitors, visibility by engine, sentiment, and the sites the answers cite.</p>"
+      + "<p>Waiting on two things: the Brand Radar custom-prompt package (Basic, $50 a month) on the marketing@ Ahrefs "
+      + "account, and Sophie's edit of the drafted prompts and competitor list. Our Ahrefs key already reaches "
+      + "custom-prompt reports (it answers “needs a report”, not “missing add-on”).</p>"
+      + "<p>Last outside reading, Searchable on 26 May 2026 over 150 answers: visibility 23.3 (bottom 31% of brands), "
+      + "share of voice 7.1% (first of the movers named); mentioned in 18% of ChatGPT, 28% of Perplexity and 24% of "
+      + "AI Overviews answers.</p>"
+      + (ai.length ? "<p>Meanwhile the site audit flags " + ai.length + " AI-discoverability issue"
         + (ai.length > 1 ? "s" : "") + ": " + esc(ai.map(r => r.name + " (" + r.pages + " pages)").join("; ")) + ".</p>" : "")
       + "</div>";
   }
@@ -3034,9 +3373,10 @@
         ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
         plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
+        plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit]) => {
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -3045,6 +3385,7 @@
         indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, gscqd, gscpd });
         indexMarks(marks);
         indexReddit(reddit);
+        indexBatch3({ refdom, anchor, ctrace });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
