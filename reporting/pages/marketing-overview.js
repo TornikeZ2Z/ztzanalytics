@@ -52,6 +52,9 @@
  *   * CHATGPT ADS (ext_chatgpt_ads_day): spend, impressions, clicks. No conversion event is
  *     attached in Ads Manager, so its 0 conversions mean "not measured" and the panel says so
  *     instead of printing 0 as a result.
+ *   * REDDIT ADS (ext_reddit_ads_day, 2026-10-23): spend, impressions, clicks per campaign, GMT days.
+ *     The bank's Reddit total is more than this account (an agency fee and other charges), so the
+ *     Channels table keeps the bank and this panel is the account's own figures.
  *   Every live account is Zip to Zip's: with Tuji picked the section says so instead of zeros.
  *   A comparison is drawn only when the platform already had data on the comparison's first day.
  *   The cost a panel shows is the same live spend the channel table reads for that family.
@@ -181,6 +184,9 @@
     // share and listing clicks read the day-grain twins of the two marts (days with a click only)
     mkt_gscqd: { table: "mart_gsc_query_click_day", cols: ["Date", "Query", "Type", "Clicks"] },
     mkt_gscpd: { table: "mart_gsc_page_click_day", cols: ["Date", "Page", "Family", "Clicks"] },
+    // 2026-10-23: Reddit Ads per campaign-day (src/reddit_ads.py), the account's own figures
+    mkt_reddit: { table: "ext_reddit_ads_day", cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks",
+                                                      "Spend", "Conversions"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -223,7 +229,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [],
+              gscqd: [], gscpd: [], reddit: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -710,6 +716,14 @@
     let f = null, l = null;
     P[key].forEach(r => { if (!f || r.d < f) f = r.d; if (!l || r.d > l) l = r.d; });
     P.first[key] = f; P.last[key] = l;
+  }
+  // Reddit reports only days that ran, so a paused account's last row is its last delivery: its data
+  // runs through the last PULL (the connectors row's Newest Data, from ext_reddit_ads_pull)
+  function indexReddit(rows) {
+    indexPlat("reddit", rows, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: (r.Campaign || "").trim() || "(no name)",
+      cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
+    const c = D.conn.find(r => r.Key === "reddit"), pulled = c && c["Newest Data"] ? d10(c["Newest Data"]) : null;
+    if (P.first.reddit && pulled && pulled > P.last.reddit) P.last.reddit = pulled;
   }
   function indexPlatforms(ads, lsaC, lsaL, meta, gpt) {
     indexPlat("ads", ads, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
@@ -1517,6 +1531,59 @@
     } };
   }
 
+  /* Reddit Ads (2026-10-23): the account's own figures. The bank's Reddit total is more than this
+     account, so the Channels table keeps the bank and this panel says why the two differ. */
+  function redditSection(w, cw) {
+    const pw = platWin("reddit", w, cw);
+    const head = platHead("reddit", "Reddit Ads", "Reddit Ads Manager · GMT days", pw);
+    const rows = pw ? inRange(P.reddit, pw.a, pw.b) : [];
+    const gate = platGate("Reddit Ads", "reddit", pw, rows);
+    if (gate) return { html: head + gate };
+    const cmp = pw.cw ? inRange(P.reddit, pw.cw.a, pw.cw.b) : null;
+    const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      const days = x.rows.map(r => r.d).sort();
+      return Object.assign({ name: last.name, from: days[0], to: days[days.length - 1] }, clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => (a.to < b.to ? 1 : -1));
+    const cols = [
+      { h: "Campaign", name: true, cell: r => esc(r.name) + '<div class="mko-sub">' + esc(shortDay(r.from))
+          + (r.to !== r.from ? " – " + esc(shortDay(r.to)) : "") + "</div>" },
+      { h: "Spend", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
+    ];
+    const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
+      + "Why the bank shows more</span></div><div class=\"mko-nm\">"
+      + "<p>This is the ad account alone. The bank's Reddit total also carries Taktical Digital's "
+      + "$3,500 a month (May 2025 – May 2026) and other charges filed under Reddit (Apr – Jul 2026, when "
+      + "the account spent nothing), so the Channels table keeps the bank as Reddit's money.</p>"
+      + "<p>Conversions read <b>not measured</b>: no Lead event is set up on Reddit's pixel, so its 0 "
+      + "does not mean the ads brought nothing. The Reddit row in the Channels table counts the leads "
+      + "filed under Reddit.</p></div></div>";
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-reddit"></div>' + noCmpHint("Reddit Ads", pw)
+      + '<div class="mko-g2"><div id="mkoC-reddit"></div>' + note + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
+      + '<span class="mko-sub">newest first</span></div>'
+      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-reddit"), [
+        kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
+        kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
+        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        kp("Avg CPM", cur.cpm, prev.cpm, cents, true, "spend per 1,000 impressions", pw),
+        kp("Spend", cur.cost, prev.cost, money, null, "the ad account only", pw),
+        { label: "Conversions", value: '<span class="mko-cov">not measured</span>', sub: "no Lead event set up" },
+      ]);
+      costCard(host.querySelector("#mkoC-reddit"), "reddit", "Spend", pw, rows, cmp, null);
+    } };
+  }
+
   /* ChatGPT per ad, with the ad's own words: "Ad 1" / "Ad 2" say nothing by themselves */
   function gptAdsHtml(pw) {
     if (P.err.gptad) return "";
@@ -1572,12 +1639,13 @@
       + "charged, what it showed and what it counts as a result, with the metrics your team tracks.</p>";
     if (S.co === "Tuji") {
       return { html: head + '<div class="panel"><div class="mko-nm">Every live ad account here (Google '
-        + "Ads, Local Services, Meta, ChatGPT) is Zip to Zip's. Tuji has none: its spend reaches us "
+        + "Ads, Local Services, Meta, ChatGPT, Reddit) is Zip to Zip's. Tuji has none: its spend reaches us "
         + "through the bank ledger only, in the Overview's channel table. Pick Zip to Zip or Both "
         + "companies to see the platforms.</div></div>", wire() {} };
     }
     const parts = [["ads", "Google Ads", adsSection], ["lsa", "Local Services", lsaSection],
-                   ["meta", "Meta", metaSection], ["gpt", "ChatGPT Ads", gptSection]]
+                   ["meta", "Meta", metaSection], ["gpt", "ChatGPT Ads", gptSection],
+                   ["reddit", "Reddit Ads", redditSection]]
       .map(([k, name, fn]) => Object.assign({ k, name }, fn(w, cw)));
     const nav = '<div class="mko-pnav"><span>Jump to:</span>' + parts.map(p =>
       '<button type="button" data-go="mkoP-' + p.k + '">' + esc(p.name) + "</button>").join("") + "</div>";
@@ -1651,9 +1719,9 @@
 
   /* --- the platform scoreboard: each ad platform's own claim beside what we booked from it --- */
   const AD_PLATFORMS = [["ads", "Google Ads", "Google"], ["lsa", "Local Services", "Google Local"],
-                        ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"]];
+                        ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"], ["reddit", "Reddit Ads", "Reddit"]];
   // the ad platforms with no connector yet, and the family their leads are filed under
-  const OFF_ADS = { reddit: "Reddit", nextdoor: "Nextdoor", linkedin: "LinkedIn", tiktok: "TikTok" };
+  const OFF_ADS = { nextdoor: "Nextdoor", linkedin: "LinkedIn", tiktok: "TikTok" };
   const OFF_KEYS = { tiktok: "parked", semrush: "not upgrading" };
   function scoreRows(w) {
     const out = [];
@@ -1671,7 +1739,7 @@
           Object.assign(o, { spend: c.cost, imp: c.imp, clk: c.clk, ctr: c.ctr, cpc: c.cpc });
           if (k === "ads") o.says = fmtN(sum(rows, "conv")) + " conversions";
           if (k === "meta") { const m = metaResult(rows); o.says = m ? compact(m.top.res) + " " + metaKind(m.top.k) : "no result"; }
-          if (k === "gpt") o.says = P.gpt.some(r => r.conv > 0) ? fmtN(sum(rows, "conv")) + " conversions" : "not measured";
+          if (k === "gpt" || k === "reddit") o.says = P[k].some(r => r.conv > 0) ? fmtN(sum(rows, "conv")) + " conversions" : "not measured";
         }
       }
       const f = famStat(fam, w.a, w.bEff);
@@ -1701,7 +1769,8 @@
       + '<td class="mko-num">' + (r.live ? esc(r.says) : dash) + "</td>"
       + '<td class="mko-num mko-ours">' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</td>"
       + '<td class="mko-num mko-ours">' + fmtN(r.booked) + "</td>"
-      + '<td class="mko-num mko-ours"><b>' + (r.live && r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "") : "—") + "</b></td></tr>";
+      + '<td class="mko-num mko-ours"><b>' + (r.live && r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
+        + (r.k === "reddit" ? "†" : "") : "—") + "</b></td></tr>";
     return '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr>'
       + "<th>Platform</th>"
       + '<th class="mko-num">Spend</th><th class="mko-num" title="impressions">Impr.</th>'
@@ -1712,7 +1781,9 @@
       + '<th class="mko-num mko-ours" title="spend ÷ booked jobs, as in the Channels table">Cost / booking</th>'
       + "</tr></thead><tbody>" + live.map(tr).join("") + off.map(tr).join("") + "</tbody></table></div>"
       + '<p class="rs-hint">Platforms with no connector yet show what the bank ledger paid them this '
-      + "year, so they stay on the board. * ChatGPT leads include visitors from chatgpt.com answers.</p>";
+      + "year, so they stay on the board. * ChatGPT leads include visitors from chatgpt.com answers. "
+      + "† Reddit's cost per booking is the Channels table's: the bank's Reddit total, which is more than "
+      + "the ad account (an agency fee and other charges).</p>";
   }
   // cost per booking, one bar per live platform, cheapest first; the dearest is drawn red when it
   // costs at least 1.8 times the cheapest, a thin sample is drawn faint
@@ -2962,10 +3033,10 @@
         plat("mkt_ga4lp", "ga4lp"), plat("mkt_ga4u", "ga4u"), plat("mkt_negrev", "neg"),
         ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
-        plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"),
+        plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd]) => {
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -2973,6 +3044,7 @@
         indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc });
         indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, gscqd, gscpd });
         indexMarks(marks);
+        indexReddit(reddit);
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
