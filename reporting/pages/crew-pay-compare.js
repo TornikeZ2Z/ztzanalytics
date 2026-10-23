@@ -68,7 +68,8 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
            "Job Foreman", "Role", "Person", "Hours", "Rate", "Salary", "Tip", "First Job",
            "First Foreman Job", "Crew Size", "Job Bill", "Packing Sold", "Packing Commission",
            "Has Contract", "Travel Hours", "Stairs Paid", "Bulky Paid", "Review Paid", "Other Extras Paid",
-           "Job Type", "Labor Charge", "Cash Discount Pct", "Packing Charged", "Fees Charged", "Discounts"],
+           "Job Type", "Labor Charge", "Cash Discount Pct", "Packing Charged", "Fees Charged", "Discounts",
+           "Sales Commission", "Card Fee", "Profit Before Fixed"],
     dateCols: {}, defaultDate: null,
   };
 }
@@ -324,10 +325,10 @@ registerPage({
       else if (S.tab === "pct") paintScenario(body, c, SC, SC.pct);
       else if (S.tab === "daily") paintScenario(body, c, SC, SC.daily);
       else if (S.tab === "settings") paintSettings(body, c, SC);
-      else paintAnalysis(body, c);
+      else paintAnalysis(body, c, SC);
     }
 
-    function paintAnalysis(body, c) {
+    function paintAnalysis(body, c, SC) {
       const R = compute(c), tot = R.tot, t = R.T(tot), n = R.N(tot);
       // THE WALK-THROUGH (his ask 2026-10-09: "i see the final results, but i am slightly confused
       // with how we got there"). Every part of pay is one step from today's total to the plan's,
@@ -362,6 +363,7 @@ registerPage({
             <div class="s">crew pay ÷ the same jobs' bills (${moneyK(R.revenue)})</div></div>
           <div class="kpi"><div class="l">Tips (unchanged)</div><div class="v">${moneyK(tot.tips)}</div><div class="s">${Object.keys(R.people).length} people · ${R.jobs.toLocaleString()} jobs</div></div>
         </div>
+        ${SC ? holdPanel(SC, SC.bonus) : ""}
         <section class="panel cpc-walk">
           <div class="panel-head"><span class="panel-title">How we got here</span>
             <span class="cpc-sub">${money(t)} paid today → ${money(n)} under the plan, one step at a time</span></div>
@@ -632,6 +634,13 @@ registerPage({
       });
       let revenue = 0;
       Object.values(jobs).forEach(j => { revenue += num(j.r0["Job Bill"]); });
+      // WHAT RIDES ON EACH DOLLAR OF THE BILL (the job's P&L): sales commission and card fees grow with
+      // any revenue; the profit before fixed costs is what a whole extra job keeps
+      const pl = { bill: 0, comm: 0, card: 0, pre: 0, jobs: 0 };
+      Object.values(jobs).forEach(j => { const r0 = j.r0;
+        if (r0["Profit Before Fixed"] == null || r0["Profit Before Fixed"] === "") return;
+        pl.jobs++; pl.bill += num(r0["Job Bill"]); pl.comm += num(r0["Sales Commission"]); pl.card += num(r0["Card Fee"]); pl.pre += num(r0["Profit Before Fixed"]); });
+      const rates = { comm: pl.bill ? pl.comm / pl.bill : 0, card: pl.bill ? pl.card / pl.bill : 0, margin: pl.bill ? pl.pre / pl.bill : 0, jobs: pl.jobs };
       const A = lines.reduce((s, x) => s + x.T, 0), tips = lines.reduce((s, x) => s + x.tip, 0);
       // % OF BILL (his Excel): one pool per job, the foreman 1 + an extra share, everyone else 1 share
       Object.values(jobs).forEach(j => {
@@ -677,18 +686,59 @@ registerPage({
       // else is paid as today, so its all-in total is Actual + the plan's own difference
       const R = compute(c);
       const bonus = { key: "bonus", label: "Bonus plan", total: A + R.N(R.tot) - R.T(R.tot) };
-      return { c, rows, jobs, lines, revenue, A, tips, pct, daily, bonus };
+      const SC = { c, rows, jobs, lines, revenue, A, tips, pct, daily, bonus, rates };
+      // the crew's own cut of an extra dollar: only the % plan pays out of the bill itself
+      [[pct, revenue ? pct.total / revenue : 0], [daily, 0], [bonus, 0]].forEach(([P, s]) => { P.hold = holdOf(SC, P.total, s); });
+      return SC;
+    }
+
+    /* HOLD THE PROFIT -- his ask 2026-10-23: "we increase the cost by X - how much we should increase
+       the revenue next year - to get exactly same profit at the end of the period". Two ways to earn it:
+       - PRICES, the same jobs: an extra dollar of bill pays the sales commission and the card fee again
+         (this year's shares, from the job's P&L), and under the % plan the crew's own share too, so
+         revenue must rise by the extra cost / what stays of the dollar;
+       - MORE JOBS, today's prices: a job keeps its margin before fixed costs (after its crew, truck, fuel,
+         ads and fees), less the raise, so revenue must rise by the extra cost / that margin.
+       Fixed costs stay where they are in both. */
+    function holdOf(SC, total, crewShare) {
+      const H = SC.rates, R = SC.revenue, dC = total - SC.A, nj = Object.keys(SC.jobs).length;
+      const keep = 1 - H.comm - H.card - crewShare, mNew = R ? H.margin - dC / R : 0;
+      const price = keep > 0 ? dC / keep : null, volume = mNew > 0 ? dC / mNew : null;
+      return { dC, crewShare, keep, mNew, price, volume, avgBill: nj ? R / nj : 0,
+               pricePct: R && price != null ? price / R : null, volumePct: R && volume != null ? volume / R : null };
+    }
+    const signK = v => (v < 0 ? "−" : "+") + moneyK(Math.abs(v)).replace("−", "");
+    const pctS = v => (v < 0 ? "−" : "+") + Math.abs(v * 100).toFixed(1) + "%";
+    function holdPanel(SC, P) {
+      const h = P.hold, H = SC.rates, c$ = v => (v * 100).toFixed(1) + "¢";
+      if (!H.jobs) return "";
+      const head = `<div class="panel-head"><span class="panel-title">To keep this year's profit</span>
+        <span class="cpc-sub">how much revenue has to grow next year to pay for ${esc(P.label.toLowerCase())}</span></div>`;
+      if (h.dC < 0.5) return `<section class="panel cpc-hold">${head}<p class="cpc-note">${esc(P.label)} costs ${h.dC < -0.5 ? moneyK(-h.dC) + " less than" : "the same as"} Actual — revenue can stay where it is${h.dC < -0.5 ? " and the profit grows by that much" : ""}.</p></section>`;
+      return `<section class="panel cpc-hold">${head}
+        <div class="cpc-holdg">
+          <div class="cpc-hb"><span>Extra crew cost a year</span><b>${signK(h.dC)}</b><em>${esc(P.label)} against Actual</em></div>
+          <div class="cpc-hb main"><span>Through prices — the same jobs</span><b>${h.price != null ? signK(h.price) + " · " + pctS(h.pricePct) : "—"}</b><em>revenue next year</em></div>
+          <div class="cpc-hb"><span>Or through more jobs — today's prices</span><b>${h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) : "not reachable"}</b>
+            <em>${h.volume != null ? "about " + Math.round(h.volume / h.avgBill).toLocaleString() + " more jobs" : "a job no longer covers its own costs"}</em></div>
+        </div>
+        <p class="cpc-note"><b>Prices:</b> of every extra dollar billed, ${c$(H.comm)} goes to sales commission and ${c$(H.card)} to card fees${h.crewShare ? `, and ${c$(h.crewShare)} to the crew under this plan` : ""} — ${c$(h.keep)} stays, so ${money(h.dC)} ÷ ${h.keep.toFixed(3)} = <b>${money(h.price || 0)}</b>.
+          <b>More jobs:</b> a job keeps ${(H.margin * 100).toFixed(1)}% of its bill before fixed costs today (after its crew, truck, fuel, ads and fees); with this plan ${(h.mNew * 100).toFixed(1)}%,
+          so ${money(h.dC)} ÷ ${(h.mNew * 100).toFixed(1)}% = <b>${h.volume != null ? money(h.volume) : "—"}</b>${h.volume != null ? `, at the ${money(h.avgBill)} average bill` : ""}. Fixed costs stay as they are. From the Job P&L of ${H.jobs.toLocaleString()} of these jobs.</p>
+      </section>`;
     }
 
     function paintStrip(el, SC) {
       const vs = v => { const d = v - SC.A;
         return Math.abs(d) < 0.5 ? "same as actual" : `${d > 0 ? "+" : "−"}${moneyK(Math.abs(d)).replace("−", "")} · ${d > 0 ? "+" : "−"}${Math.abs(d / SC.A * 100).toFixed(1)}%`; };
-      const card = (k, l, v, sub) => `<button class="cpc-sc ${S.tab === k ? "on" : ""}" data-sc="${k}"><span>${l}</span><b>${moneyK(v)}</b><em>${sub}</em></button>`;
+      // and how much more revenue keeps the profit, through prices
+      const keepOf = P => P.hold.dC < 0.5 ? "same profit on today's revenue" : P.hold.pricePct != null ? "same profit: revenue " + pctS(P.hold.pricePct) : "";
+      const card = (k, l, v, sub, hold) => `<button class="cpc-sc ${S.tab === k ? "on" : ""}" data-sc="${k}"><span>${l}</span><b>${moneyK(v)}</b><em>${sub}</em>${hold ? `<i>${hold}</i>` : ""}</button>`;
       el.innerHTML = `<div class="cpc-strip">
-        ${card("actual", "Actual", SC.A, SC.revenue ? pct1(SC.A, SC.revenue) + " of bills" : "")}
-        ${card("pct", "% of bill", SC.pct.total, vs(SC.pct.total))}
-        ${card("bonus", "Bonus plan", SC.bonus.total, vs(SC.bonus.total))}
-        ${card("daily", "Daily rate", SC.daily.total, vs(SC.daily.total))}</div>`;
+        ${card("actual", "Actual", SC.A, SC.revenue ? pct1(SC.A, SC.revenue) + " of bills" : "", SC.rates.jobs ? "the profit to keep" : "")}
+        ${card("pct", "% of bill", SC.pct.total, vs(SC.pct.total), SC.rates.jobs && keepOf(SC.pct))}
+        ${card("bonus", "Bonus plan", SC.bonus.total, vs(SC.bonus.total), SC.rates.jobs && keepOf(SC.bonus))}
+        ${card("daily", "Daily rate", SC.daily.total, vs(SC.daily.total), SC.rates.jobs && keepOf(SC.daily))}</div>`;
       el.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { S.tab = b.dataset.sc; paint(); });
     }
 
@@ -737,6 +787,17 @@ registerPage({
           <div class="kpi"><div class="l">Per job</div><div class="v">${money(nj ? SC.A / nj : 0)}</div><div class="s">${nj.toLocaleString()} jobs · ${Object.keys(byKey(L, x => x.who)).length} people</div></div>
           <div class="kpi"><div class="l">Tips</div><div class="v">${moneyK(SC.tips)}</div><div class="s">the crew's own · the same in every scenario</div></div>
         </div>
+        ${SC.rates.jobs ? `<section class="panel cpc-hold"><div class="panel-head"><span class="panel-title">To keep this year's profit</span>
+            <span class="cpc-sub">how much revenue has to grow next year to pay for each way of paying</span></div>
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>Scenario</th><th class="num">Extra crew cost a year</th><th class="num">Through prices — the same jobs</th><th class="num">Or through more jobs</th></tr></thead>
+            <tbody>${[SC.pct, SC.bonus, SC.daily].map(P => { const h = P.hold;
+              return `<tr class="click" data-go="${P.key}"><td><b>${esc(P.label)}</b></td><td class="num">${signK(h.dC)}</td>
+                <td class="num">${h.dC < 0.5 ? "—" : h.price != null ? "<b>" + signK(h.price) + "</b> · " + pctS(h.pricePct) : "—"}</td>
+                <td class="num">${h.dC < 0.5 ? "—" : h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) + ` <span class="cpc-sub">≈ ${Math.round(h.volume / h.avgBill).toLocaleString()} jobs</span>` : "not reachable"}</td></tr>`; }).join("")}</tbody>
+          </table></div>
+          <p class="cpc-note">Revenue next year (this year: ${moneyK(SC.revenue)}) that leaves the profit exactly where it is. Through prices, every extra dollar still pays the sales commission (${(SC.rates.comm * 100).toFixed(1)}¢) and card fees (${(SC.rates.card * 100).toFixed(1)}¢) — and under % of bill the crew's share. Through more jobs, each new job keeps only its margin before fixed costs (${(SC.rates.margin * 100).toFixed(1)}% today, less the raise). Each scenario's tab shows the working.</p>
+        </section>` : ""}
         <section class="panel"><div class="panel-head"><span class="panel-title">What the pay is made of</span></div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Part</th><th>How it is paid today</th><th class="num">The year</th><th class="num">Of the bills</th><th class="num">Of crew pay</th></tr></thead>
@@ -771,6 +832,7 @@ registerPage({
           </table></div>
         </section>`;
       monthChart(body.querySelector("#cpcChart"), SC, [["Actual", x => x.T]]);
+      body.querySelectorAll("tr[data-go]").forEach(tr => tr.onclick = () => { S.tab = tr.dataset.go; paint(); });
       const q = body.querySelector("#cpcQ");
       q.oninput = () => { S.q = q.value; const pos = q.selectionStart; paintActual(body, c, SC); const q2 = body.querySelector("#cpcQ"); q2.focus(); q2.setSelectionRange(pos, pos); };
     }
@@ -861,6 +923,7 @@ registerPage({
           ${extra}
           <div class="kpi"><div class="l">Under minimum wage</div><div class="v">${um.n.toLocaleString()}</div><div class="s">crew-days under $${MIN_WAGE} per paid hour · today ${umT.n.toLocaleString()} of ${um.of.toLocaleString()}</div></div>
         </div>
+        ${holdPanel(SC, P)}
         <div class="cpc-grid">
           <section class="panel"><div class="panel-head"><span class="panel-title">By seat</span></div>
             <div class="rs-tablewrap"><table class="rs-table">
@@ -1100,7 +1163,7 @@ registerPage({
         .cpc-how b{color:var(--ink)}
         .cpc-setbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
         .cpc-warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px}
-        .cpc-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr));gap:16px}
+        .cpc-sets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr));gap:16px}
         .cpc-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:12px}
         .cpc-f{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
         .cpc-f>span{font-size:12.5px;color:var(--muted)}
@@ -1158,6 +1221,15 @@ registerPage({
         .cpc-sc span{font-size:12.5px;color:var(--muted);font-weight:600}
         .cpc-sc b{font-size:22px;font-variant-numeric:tabular-nums}
         .cpc-sc em{font-style:normal;font-size:12px;color:var(--faint)}
+        .cpc-sc i{font-style:normal;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+        .cpc-holdg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+        @media(max-width:900px){.cpc-holdg{grid-template-columns:1fr}}
+        .cpc-hb{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+        .cpc-hb.main{border:2px solid var(--brand);padding:9px 13px}
+        .cpc-hb span{font-size:12.5px;color:var(--muted);font-weight:600}
+        .cpc-hb b{font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
+        .cpc-hb em{font-style:normal;font-size:12px;color:var(--faint)}
+        .cpc-hold tr.click{cursor:pointer}
         .cpc-tabs .rs-tab[data-tab="settings"],.cpc-tabs .cpc-unsaved{margin-left:auto}
         .cpc-tabs .cpc-unsaved+.rs-tab{margin-left:0}
         .cpc-levers{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 16px}
