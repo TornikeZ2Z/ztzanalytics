@@ -153,7 +153,7 @@ registerPage({
        there". Each option's tab carries its few main numbers in one row; everything else is on Settings. */
     const LEVERS = {
       pct: ["pctPool", "pctStraight", "pctRegular", "pctBonus"],
-      hourly: ["travelMph", "hrTravelForeman", "hrJobForeman", "hrBonusForeman", "hrCrewPackPct"],
+      hourly: Object.values(HR).flat().concat(["travelMph", "hrFmPackPct", "hrCrewPackPct"]),
     };
     const SHORT = { pctPool: "Local", pctStraight: "Straight", pctRegular: "Regular", pctBonus: "Bonus pool",
       travelMph: "Truck speed", hrTravelForeman: "Foreman travel", hrJobForeman: "Foreman job", hrBonusForeman: "Foreman bonus", hrCrewPackPct: "Crew packing" };
@@ -351,7 +351,24 @@ registerPage({
         today["ld" + s] = d ? xs.reduce((a, x) => a + x.a.wage, 0) / d : 0; });
       const rv = Object.values(jobs).filter(j => num(j.r0["Review Paid"]) > 0);
       today.review = rv.length ? rv.reduce((a, j) => a + num(j.r0["Review Paid"]), 0) / rv.length : 0;
-      const SC = { c, rows, jobs, lines, revenue, A, tips, pct, hourly, rates, today, G };
+      // TRAVEL PAID AGAINST THE REAL DRIVE, in crew-hours -- every person on a crew is paid the job's travel
+      // (his ask 2026-10-24: "if we paid 100 hours, reality is 150 hours and once we account for this 50
+      // hours too this will increase our salary pool by X"). The extra hours cost the option's travel rate;
+      // at today's pay they would cost each person's own hourly rate.
+      const TR = { paid: 0, real: 0, costNew: 0, costToday: 0,
+        bands: [[0, 40, "under 40"], [40, 80, "40–80"], [80, 120, "80–120"], [120, 200, "120–200"], [200, 1e9, "200 and over"]]
+          .map(([lo, hi, l]) => ({ lo, hi, l, n: 0, miles: 0, paid: 0, real: 0 })) };
+      lines.forEach(x => {
+        if (x.hr.asToday || x.j.pct.isLd) return;
+        const tp = x.j.trav.paid, tr = x.j.trav.real, rate = num(x.r["Rate"]);
+        TR.paid += tp; TR.real += tr;
+        TR.costNew += (tr - tp) * num(c[(HR[x.role] || HR.Helper)[0]]);
+        TR.costToday += (tr - tp) * (rate > 0 && rate < LD_DAY_RATE ? rate : today[x.role] || 0);
+      });
+      Object.values(jobs).forEach(j => { if (j.trav.miles == null) return;
+        const b = TR.bands.find(b => j.trav.miles >= b.lo && j.trav.miles < b.hi);
+        b.n++; b.miles += j.trav.miles; b.paid += j.trav.paid; b.real += j.trav.real; });
+      const SC = { c, rows, jobs, lines, revenue, A, tips, pct, hourly, rates, today, G, TR };
       // the crew's own cut of an extra dollar: only the flat rate pays out of the bill itself
       [[pct, revenue ? pct.total / revenue : 0], [hourly, 0]].forEach(([P, s]) => { P.hold = holdOf(SC, P.total, s); });
       return SC;
@@ -531,6 +548,7 @@ registerPage({
                 : `<div class="kpi"><div class="l">Same profit needs</div><div class="v">${!SC.rates.jobs ? "—" : h.dC < 0.5 ? "no change" : h.pricePct != null ? pctS(h.pricePct) : "—"}</div><div class="s">revenue next year, through prices</div></div>`}
         </div>
         ${seatCards(SC, N, isA)}
+        ${key === "hourly" ? travelPanel(SC, c) : ""}
         ${isA ? "" : seatsByType(SC, N, label)}
         <section class="panel"><div class="panel-head"><span class="panel-title">What the pay is made of</span><span class="cpc-sub">the year, by moving type</span></div>
           <div class="rs-tablewrap"><table class="rs-table cpc-parts">
@@ -553,8 +571,47 @@ registerPage({
           <li><b>Job hours</b> are the hours paid less today's travel${G.share ? ` (a job without a contract: ${Math.round(G.share * 100)}% of its hours are taken as travel, the contract jobs' share)` : ""}. <b>Claims</b> are the Job P&L's: a job with one gets no bonus rate.</li>` : ""}
         </ul></section>`;
       monthChart(body.querySelector("#cpcChart"), SC, isA ? [["Actual", x => x.T]] : [["Actual", x => x.T], [label, N]]);
+      if (key === "hourly") travelChart(body.querySelector("#cpcTravelChart"), SC);
       if (!isA) paintJob2(body.querySelector("#cpcJob2"), SC, P, c);
       body.querySelectorAll("tr[data-go]").forEach(tr => tr.onclick = () => { S.tab = tr.dataset.go; paint(); });
+    }
+    /* TRAVEL: WHAT WE PAID AGAINST THE REAL DRIVE (his ask 2026-10-24: "i need to see what is the approximate
+       travel time that we have paid out and what is reality"): crew-hours paid by the miles table, the
+       real drive at the truck speed, the hours never paid, and what paying them adds to the pool */
+    function travelPanel(SC, c) {
+      const T = SC.TR, G = SC.G, mph = num(c.travelMph), extra = T.real - T.paid;
+      const rowsB = T.bands.filter(b => b.n).map(b => `<tr><td><b>${b.l}</b> <span class="cpc-sub">miles</span></td><td class="num">${b.n.toLocaleString()}</td>
+          <td class="num">${(b.paid / b.n).toFixed(1)} h</td><td class="num"><b>${(b.real / b.n).toFixed(1)} h</b></td>
+          <td class="num">${b.paid ? Math.round(b.miles / b.paid) + " mph" : "—"}</td></tr>`).join("");
+      return `<section class="panel cpc-travel"><div class="panel-head"><span class="panel-title">Travel: what we paid against the real drive</span>
+          <span class="cpc-sub">crew-hours over the year — every person on a crew is paid the job's travel</span></div>
+        <div class="cpc-trk">
+          <div><span>Travel paid today</span><b>${Math.round(T.paid).toLocaleString()} h</b><em>from the miles table</em></div>
+          <div><span>The real drive</span><b>${Math.round(T.real).toLocaleString()} h</b><em>GPS miles at ${mph} mph</em></div>
+          <div class="main"><span>Never paid today</span><b>+${Math.round(extra).toLocaleString()} h</b><em>${T.paid ? "+" + Math.round(extra / T.paid * 100) + "% on top of what was paid" : ""}</em></div>
+          <div><span>Paying those hours adds</span><b>${moneyK(T.costNew)}</b><em>at the travel rates · ${moneyK(T.costToday)} at today's own rates</em></div>
+        </div>
+        <div class="cpc-trgrid">
+          <div><div class="cpc-kh">A job's travel, by its base-leg miles</div>
+            <div class="chartbox" style="height:230px"><canvas id="cpcTravelChart" role="img" aria-label="Travel hours a job: paid by the table against the real drive, by miles"></canvas></div></div>
+          <div class="rs-tablewrap"><table class="rs-table">
+            <thead><tr><th>Base-leg miles</th><th class="num">GPS jobs</th><th class="num">Table paid</th><th class="num">Real drive</th><th class="num">The table assumes</th></tr></thead>
+            <tbody>${rowsB}</tbody></table></div>
+        </div>
+        <p class="cpc-note">The table pays 1 hour up to 113 miles, then half an hour per 25 miles. The real drive is the GPS form's base-leg miles at ${mph} mph, never below the table — ${G.jobs.toLocaleString()} of ${G.local.toLocaleString()} local jobs have a GPS form, and the rest are scaled by the same ratio (×${G.ratio.toFixed(2)}). "Today's own rates" is each person's hourly rate on the job; long-distance jobs have no travel line.</p>
+      </section>`;
+    }
+    function travelChart(canvas, SC) {
+      const bs = SC.TR.bands.filter(b => b.n), v2 = RS.isV2 && RS.isV2(), V = RS.V2 || {};
+      try {
+        new Chart(canvas, { type: "bar",
+          data: { labels: bs.map(b => b.l + " mi"), datasets: [
+            { label: "Paid by the table", data: bs.map(b => +(b.paid / b.n).toFixed(2)), backgroundColor: v2 ? V.ctx : "#5c6a7c", borderRadius: 4 },
+            { label: "The real drive", data: bs.map(b => +(b.real / b.n).toFixed(2)), backgroundColor: v2 ? V.navy : "#b7e23b", borderRadius: 4 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" },
+            tooltip: { callbacks: { label: x => x.dataset.label + ": " + x.raw + " h a job" } } },
+            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: v => v + " h" } } } } });
+      } catch (e) { console.warn("crew-pay travel chart:", e); }
     }
     function holdTable(SC) {
       if (!SC.rates.jobs) return "";
@@ -609,6 +666,27 @@ registerPage({
     function paintLevers(el, c) {
       const keys = LEVERS[S.tab];
       if (!keys) { el.innerHTML = ""; return; }
+      // THE HOURLY OPTION'S NUMBERS, ALL OF THEM (his ask 2026-10-24: "i am missing here other crew members
+      // salaries, + packing for foreman and etc. i need more settings on this page, + visually better"):
+      // one rate table per seat -- travel, job, bonus -- and the travel speed and the two packing shares
+      if (S.tab === "hourly") {
+        el.innerHTML = `<section class="cpc-levers cpc-knobs">
+            <div class="cpc-knobt"><div class="cpc-kh">Hourly rates</div>
+              <div class="rs-tablewrap"><table class="rs-table cpc-bandt">
+                <thead><tr><th>Seat</th><th>Travel</th><th>Job</th><th>Bonus</th><th class="num">On the job</th></tr></thead>
+                <tbody>${SEATS.map(st => { const [tk, jk, bk] = HR[st];
+                  return `<tr><td><b>${st}</b></td><td>${box(tk, c, { aria: st + ": travel rate" })}</td><td>${box(jk, c, { aria: st + ": job rate" })}</td>
+                    <td>${box(bk, c, { aria: st + ": bonus rate" })}</td><td class="num">$${+(num(c[jk]) + num(c[bk])).toFixed(2)}/h</td></tr>`; }).join("")}</tbody>
+              </table></div></div>
+            <div class="cpc-knobside"><div class="cpc-kh">Travel and packing</div>
+              <label class="cpc-lv"><span>Truck speed, travelling</span>${box("travelMph", c)}</label>
+              <label class="cpc-lv"><span>Foreman's packing, of materials sold</span>${box("hrFmPackPct", c)}</label>
+              <label class="cpc-lv"><span>Crew packing pool, split over the driver and helpers</span>${box("hrCrewPackPct", c)}</label>
+              <div class="cpc-lvside">${actions()}<button class="btn" data-go="settings">All settings</button></div>
+            </div></section>`;
+        wireInputs(el);
+        return;
+      }
       // how the model works is said once, in the explanation above
       el.innerHTML = `<section class="cpc-levers">
           <div class="cpc-lvrow">${keys.map(k => `<label class="cpc-lv"><span>${SHORT[k]}</span>${box(k, c)}</label>`).join("")}</div>
@@ -1056,6 +1134,21 @@ registerPage({
         .cpc-cjt td{vertical-align:top}
         .cpc-cjt td .cpc-sub{font-size:11.5px;line-height:1.4;margin-top:2px;white-space:normal}
         .cpc-cjt tfoot td.cpc-best{color:var(--brand)}
+        .cpc-knobs{align-items:stretch;gap:16px 28px}
+        .cpc-knobt{flex:1 1 460px;min-width:0}
+        .cpc-knobt .rs-table{margin-top:4px}
+        .cpc-knobside{flex:1 1 260px;display:flex;flex-direction:column;gap:10px}
+        .cpc-knobside .cpc-lvside{margin-left:0;margin-top:auto}
+        .cpc-knobside .cpc-lv{align-items:flex-start}
+        .cpc-kh{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+        .cpc-trk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px;margin:10px 0 14px}
+        .cpc-trk>div{display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+        .cpc-trk>div.main{border:2px solid var(--brand);padding:9px 13px}
+        .cpc-trk span{font-size:12.5px;color:var(--muted);font-weight:600}
+        .cpc-trk b{font-size:21px;color:var(--ink);font-variant-numeric:tabular-nums}
+        .cpc-trk em{font-style:normal;font-size:12px;color:var(--faint)}
+        .cpc-trgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:16px;align-items:start}
+        .cpc-trgrid>*{min-width:0}
         .cpc-bytype td{vertical-align:top}
         .cpc-bytype td.num div{font-size:12px;margin-top:2px}
       `;
