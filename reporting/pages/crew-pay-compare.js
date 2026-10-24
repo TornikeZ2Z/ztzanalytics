@@ -6,8 +6,10 @@
    the NEW plan, whose every number lives on the Settings tab.
 
    Facts: mart_crew_pay_compare (src/crew_pay_compare.py) -- a row per person per job.
-   Settings: app_settings.crew_pay_plan, read by everyone via /api/_crewplan, written by admins
-   through /api/_gset. Nothing saved = the plan's own numbers (PLAN below).
+   Settings: app_settings.crew_pay_plan, read by everyone via /api/_crewplan. Anyone with the page
+   changes any number on their own screen (his word 2026-10-24: Bacho "wants to play with the number");
+   saving it for everyone (POST /api/_crewplan) takes an admin or the "crew-pay-editor" grant.
+   Nothing saved = the plan's own numbers (PLAN below).
 
    His decisions (2026-10-06): helper tier and senior foreman by TENURE (thresholds editable;
    3 months for an experienced helper); overtime NOT modelled; LD driver/helper day pay = one day
@@ -113,6 +115,7 @@ registerPage({
     const PLAN = {
       from: "2025-10-01", to: "2026-09-30",
       ldTypes: "Straight Moving,Regular Moving",
+      netMargin: 25,   // his number (2026-10-24): "25% is the net profit margin that we have"
       // FLAT RATE (% of bill) -- his Excel's numbers
       pctPool: 30, pctBonus: 5, pctBonusPaid: 100, pctStraight: 19, pctRegular: 9,
       pctB1From: 0, pctB1: 35, pctB2From: 800, pctB2: 61, pctB3From: 1600, pctB3: 88,
@@ -130,7 +133,7 @@ registerPage({
     };
     const MIN_WAGE = 15.92;   // New Jersey, 2026 -- shown, never applied (his pick: no floor)
     const LABELS = {
-      from: "From", to: "To", ldTypes: "Long-distance job types",
+      from: "From", to: "To", ldTypes: "Long-distance job types", netMargin: "Net profit margin",
       pctPool: "Local moving pool, of the splitable bill", pctStraight: "Straight moving pool, of the bill", pctRegular: "Regular moving pool, of the bill", pctBonus: "Bonus pool, of the splitable bill", pctBonusPaid: "Bonus pool paid out",
       travelMph: "Truck speed, travelling", hrFmPackPct: "Foreman's packing, of materials sold", hrCrewPackPct: "Crew packing pool, of materials sold",
       todayForeman: "Foreman", todayDriver: "Driver", todayHelper: "Helper", todayLdForeman: "Long-distance foreman", todayLdDriver: "Long-distance driver",
@@ -143,7 +146,7 @@ registerPage({
     Object.entries(HR).forEach(([s, ks]) => ks.forEach((k, i) => { LABELS[k] = s + " · " + ["travel", "job", "bonus"][i]; }));
     // the unit drawn beside each box: $ in front; %, /h, mph after
     const UNIT = {};
-    [["%", "pctPool pctBonus pctBonusPaid pctStraight pctRegular hrFmPackPct hrCrewPackPct todayPackPct todayStairsShare todayBulkyShare"],
+    [["%", "netMargin pctPool pctBonus pctBonusPaid pctStraight pctRegular hrFmPackPct hrCrewPackPct todayPackPct todayStairsShare todayBulkyShare"],
      ["$/h", Object.values(HR).flat().join(" ") + " todayForeman todayDriver todayHelper"], ["$/day", "todayLdForeman todayLdDriver todayLdHelper"],
      ["$", "todayReview"], ["mph", "travelMph"]]
       .forEach(([u, ks]) => ks.split(" ").forEach(k => { UNIT[k] = u; }));
@@ -375,39 +378,38 @@ registerPage({
     }
 
 
-    /* HOLD THE PROFIT -- his ask 2026-10-23: "we increase the cost by X - how much we should increase
-       the revenue next year - to get exactly same profit at the end of the period". Two ways to earn it:
-       - PRICES, the same jobs: an extra dollar of bill pays the sales commission and the card fee again
-         (this year's shares, from the job's P&L), and under the % plan the crew's own share too, so
-         revenue must rise by the extra cost / what stays of the dollar;
-       - MORE JOBS, today's prices: a job keeps its margin before fixed costs (after its crew, truck, fuel,
-         ads and fees), less the raise, so revenue must rise by the extra cost / that margin.
-       Fixed costs stay where they are in both. */
+    /* HOLD THE PROFIT -- his ask 2026-10-23 ("we increase the cost by X - how much we should increase the
+       revenue next year - to get exactly same profit at the end of the period"), on his terms since
+       2026-10-24: "at the end of the day - 25% is the net profit margin that we have. thats how i want you
+       to look at it ... 5% more revenue ... 500,000 --> 125,000 profit - is it enough to cover that extra
+       500,000 expense? no". A new dollar of revenue keeps the net margin -- less the share of the bill the
+       raise adds to crew pay, because the new jobs pay the new rates too:
+         revenue needed = extra cost ÷ (net margin − extra cost ÷ revenue).
+       The price-only route (the same jobs at higher prices: only the sales commission and card fees ride on
+       it, from the Job P&L) is a footnote. */
     function holdOf(SC, total, crewShare) {
       const H = SC.rates, R = SC.revenue, dC = total - SC.A, nj = Object.keys(SC.jobs).length;
-      const keep = 1 - H.comm - H.card - crewShare, mNew = R ? H.margin - dC / R : 0;
-      const price = keep > 0 ? dC / keep : null, volume = mNew > 0 ? dC / mNew : null;
-      return { dC, crewShare, keep, mNew, price, volume, avgBill: nj ? R / nj : 0,
-               pricePct: R && price != null ? price / R : null, volumePct: R && volume != null ? volume / R : null };
+      const net = num(SC.c.netMargin) / 100, raise = R ? dC / R : 0, mNew = net - raise;
+      const need = mNew > 0 ? dC / mNew : null;
+      const keep = 1 - H.comm - H.card - crewShare, price = H.jobs && keep > 0 ? dC / keep : null;
+      return { dC, net, raise, mNew, need, needPct: R && need != null ? need / R : null, avgBill: nj ? R / nj : 0,
+               crewShare, keep, price, pricePct: R && price != null ? price / R : null };
     }
     const signK = v => (v < 0 ? "−" : "+") + moneyK(Math.abs(v)).replace("−", "");
     const pctS = v => (v < 0 ? "−" : "+") + Math.abs(v * 100).toFixed(1) + "%";
     function holdPanel(SC, P) {
-      const h = P.hold, H = SC.rates, c$ = v => (v * 100).toFixed(1) + "¢";
-      if (!H.jobs) return "";
+      const h = P.hold, H = SC.rates, c$ = v => (v * 100).toFixed(1) + "¢", pc = v => (v * 100).toFixed(1).replace(/\.0$/, "") + "%";
       const head = `<div class="panel-head"><span class="panel-title">To keep this year's profit</span>
         <span class="cpc-sub">how much revenue has to grow next year to pay for ${esc(P.label.toLowerCase())}</span></div>`;
       if (h.dC < 0.5) return `<section class="panel cpc-hold">${head}<p class="cpc-note">${esc(P.label)} costs ${h.dC < -0.5 ? moneyK(-h.dC) + " less than" : "the same as"} Actual — revenue can stay where it is${h.dC < -0.5 ? " and the profit grows by that much" : ""}.</p></section>`;
       return `<section class="panel cpc-hold">${head}
         <div class="cpc-holdg">
           <div class="cpc-hb"><span>Extra crew cost a year</span><b>${signK(h.dC)}</b><em>${esc(P.label)} against Actual</em></div>
-          <div class="cpc-hb main"><span>Through prices — the same jobs</span><b>${h.price != null ? signK(h.price) + " · " + pctS(h.pricePct) : "—"}</b><em>revenue next year</em></div>
-          <div class="cpc-hb"><span>Or through more jobs — today's prices</span><b>${h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) : "not reachable"}</b>
-            <em>${h.volume != null ? "about " + Math.round(h.volume / h.avgBill).toLocaleString() + " more jobs" : "a job no longer covers its own costs"}</em></div>
+          <div class="cpc-hb main"><span>Revenue needed next year</span><b>${h.need != null ? signK(h.need) + " · " + pctS(h.needPct) : "not reachable"}</b><em>at a ${pc(h.net)} net profit margin</em></div>
+          <div class="cpc-hb"><span>In jobs</span><b>${h.need != null ? "≈ " + Math.round(h.need / h.avgBill).toLocaleString() : "—"}</b><em>more jobs at the ${money(h.avgBill)} average bill</em></div>
         </div>
-        <p class="cpc-note"><b>Prices:</b> of every extra dollar billed, ${c$(H.comm)} goes to sales commission and ${c$(H.card)} to card fees${h.crewShare ? `, and ${c$(h.crewShare)} to the crew under this plan` : ""} — ${c$(h.keep)} stays, so ${money(h.dC)} ÷ ${h.keep.toFixed(3)} = <b>${money(h.price || 0)}</b>.
-          <b>More jobs:</b> a job keeps ${(H.margin * 100).toFixed(1)}% of its bill before fixed costs today (after its crew, truck, fuel, ads and fees); with this plan ${(h.mNew * 100).toFixed(1)}%,
-          so ${money(h.dC)} ÷ ${(h.mNew * 100).toFixed(1)}% = <b>${h.volume != null ? money(h.volume) : "—"}</b>${h.volume != null ? `, at the ${money(h.avgBill)} average bill` : ""}. Fixed costs stay as they are. From the Job P&L of ${H.jobs.toLocaleString()} of these jobs.</p>
+        <p class="cpc-note">Every new dollar of revenue keeps the ${pc(h.net)} net margin today. The new jobs pay the new crew rates too, so under this option a new dollar keeps <b>${c$(h.mNew)}</b> — ${pc(h.net)} less the ${pc(h.raise)} of the bill the raise adds to crew pay. ${money(h.dC)} ÷ ${pc(h.mNew)} = <b>${h.need != null ? money(h.need) : "—"}</b> of new revenue, on this year's ${moneyK(SC.revenue)}.${h.need == null ? " The raise is bigger than the margin: no amount of new business pays for it." : ""}
+          ${h.price != null ? `<br>If it all came from raising prices on the same jobs instead, ${money(h.price)} (${pctS(h.pricePct)}) would do — a higher price adds no crew, truck or fuel cost; only the sales commission (${c$(H.comm)}) and card fees (${c$(H.card)})${h.crewShare ? `, and under the flat rate the crew's ${c$(h.crewShare)},` : ""} ride on it.` : ""}</p>
       </section>`;
     }
 
@@ -415,12 +417,12 @@ registerPage({
       const vs = v => { const d = v - SC.A;
         return Math.abs(d) < 0.5 ? "same as actual" : `${d > 0 ? "+" : "−"}${moneyK(Math.abs(d)).replace("−", "")} · ${d > 0 ? "+" : "−"}${Math.abs(d / SC.A * 100).toFixed(1)}%`; };
       // and how much more revenue keeps the profit, through prices
-      const keepOf = P => P.hold.dC < 0.5 ? "same profit on today's revenue" : P.hold.pricePct != null ? "same profit: revenue " + pctS(P.hold.pricePct) : "";
+      const keepOf = P => P.hold.dC < 0.5 ? "same profit on today's revenue" : P.hold.needPct != null ? "same profit: revenue " + pctS(P.hold.needPct) : "the margin cannot carry it";
       const card = (k, l, v, sub, hold) => `<button class="cpc-sc ${S.tab === k ? "on" : ""}" data-sc="${k}"><span>${l}</span><b>${moneyK(v)}</b><em>${sub}</em>${hold ? `<i>${hold}</i>` : ""}</button>`;
       el.innerHTML = `<div class="cpc-strip">
-        ${card("actual", "Actual", SC.A, SC.revenue ? pct1(SC.A, SC.revenue) + " of bills" : "", SC.rates.jobs ? "the profit to keep" : "")}
-        ${card("pct", "Flat rate", SC.pct.total, vs(SC.pct.total), SC.rates.jobs && keepOf(SC.pct))}
-        ${card("hourly", "Hourly + travel", SC.hourly.total, vs(SC.hourly.total), SC.rates.jobs && keepOf(SC.hourly))}</div>`;
+        ${card("actual", "Actual", SC.A, SC.revenue ? pct1(SC.A, SC.revenue) + " of bills" : "", "the profit to keep")}
+        ${card("pct", "Flat rate", SC.pct.total, vs(SC.pct.total), keepOf(SC.pct))}
+        ${card("hourly", "Hourly + travel", SC.hourly.total, vs(SC.hourly.total), keepOf(SC.hourly))}</div>`;
       el.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { S.tab = b.dataset.sc; paint(); });
     }
 
@@ -545,7 +547,7 @@ registerPage({
                 : `<div class="kpi cpc-kd"><div class="l">Against Actual</div><div class="v">${signK(tot - SC.A)}</div><div class="s">${delta(tot, SC.A)}</div></div>`}
           <div class="kpi"><div class="l">Share of the bills</div><div class="v">${pct1(tot, SC.revenue)}</div><div class="s">${isA ? "of " + moneyK(SC.revenue) + " billed" : "actual " + pct1(SC.A, SC.revenue)}</div></div>
           ${isA ? `<div class="kpi"><div class="l">Tips</div><div class="v">${moneyK(SC.tips)}</div><div class="s">the crew's own · the same in every option</div></div>`
-                : `<div class="kpi"><div class="l">Same profit needs</div><div class="v">${!SC.rates.jobs ? "—" : h.dC < 0.5 ? "no change" : h.pricePct != null ? pctS(h.pricePct) : "—"}</div><div class="s">revenue next year, through prices</div></div>`}
+                : `<div class="kpi"><div class="l">Same profit needs</div><div class="v">${h.dC < 0.5 ? "no change" : h.needPct != null ? pctS(h.needPct) : "—"}</div><div class="s">revenue next year · ${num(c.netMargin)}% net margin</div></div>`}
         </div>
         ${seatCards(SC, N, isA)}
         ${key === "hourly" ? travelPanel(SC, c) : ""}
@@ -614,17 +616,18 @@ registerPage({
       } catch (e) { console.warn("crew-pay travel chart:", e); }
     }
     function holdTable(SC) {
-      if (!SC.rates.jobs) return "";
+      const net = num(SC.c.netMargin);
       return `<section class="panel cpc-hold"><div class="panel-head"><span class="panel-title">To keep this year's profit</span>
-          <span class="cpc-sub">how much revenue has to grow next year to pay for each option</span></div>
+          <span class="cpc-sub">how much revenue has to grow next year to pay for each option · ${net}% net profit margin</span></div>
         <div class="rs-tablewrap"><table class="rs-table">
-          <thead><tr><th>Option</th><th class="num">Extra crew cost a year</th><th class="num">Through prices — the same jobs</th><th class="num">Or through more jobs</th></tr></thead>
+          <thead><tr><th>Option</th><th class="num">Extra crew cost a year</th><th class="num">A new dollar keeps</th><th class="num">Revenue needed next year</th><th class="num">In jobs</th></tr></thead>
           <tbody>${[SC.pct, SC.hourly].map(P => { const h = P.hold;
             return `<tr class="click" data-go="${P.key}"><td><b>${esc(P.label)}</b></td><td class="num">${signK(h.dC)}</td>
-              <td class="num">${h.dC < 0.5 ? "—" : h.price != null ? "<b>" + signK(h.price) + "</b> · " + pctS(h.pricePct) : "—"}</td>
-              <td class="num">${h.dC < 0.5 ? "—" : h.volume != null ? signK(h.volume) + " · " + pctS(h.volumePct) + ` <span class="cpc-sub">≈ ${Math.round(h.volume / h.avgBill).toLocaleString()} jobs</span>` : "not reachable"}</td></tr>`; }).join("")}</tbody>
+              <td class="num">${(h.mNew * 100).toFixed(1)}¢</td>
+              <td class="num">${h.dC < 0.5 ? "—" : h.need != null ? "<b>" + signK(h.need) + "</b> · " + pctS(h.needPct) : "not reachable"}</td>
+              <td class="num">${h.dC < 0.5 || h.need == null ? "—" : "≈ " + Math.round(h.need / h.avgBill).toLocaleString()}</td></tr>`; }).join("")}</tbody>
         </table></div>
-        <p class="cpc-note">Revenue next year (this year: ${moneyK(SC.revenue)}) that leaves the profit exactly where it is. Through prices, every extra dollar still pays the sales commission (${(SC.rates.comm * 100).toFixed(1)}¢) and card fees (${(SC.rates.card * 100).toFixed(1)}¢) — and under the flat rate the crew's share. Through more jobs, each new job keeps only its margin before fixed costs (${(SC.rates.margin * 100).toFixed(1)}% today, less the raise). Each option's tab shows the working.</p>
+        <p class="cpc-note">Revenue next year (this year: ${moneyK(SC.revenue)}) that leaves the profit exactly where it is. Every new dollar keeps the ${net}% net margin today — less the share of the bill an option adds to crew pay, because the new jobs pay the new rates too. Each option's tab shows the working, and what raising prices on the same jobs alone would take.</p>
       </section>`;
     }
 
@@ -636,17 +639,19 @@ registerPage({
       const chg = String(v) !== String(PLAN[k]);
       return `<span class="cpc-in${isText ? " wide" : ""}${chg ? " chg" : ""}" ${chg ? `title="default ${esc(dflt(k))}"` : ""}>${pre ? `<i>${pre}</i>` : ""}<input
         data-k="${k}" type="${isDate ? "date" : isText ? "text" : "number"}" ${isDate || isText ? "" : 'step="any" min="0" inputmode="decimal"'}
-        value="${esc(String(v))}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ""} aria-label="${esc(o.aria || LABELS[k] || k)}" ${saved.can_edit ? "" : "disabled"}>${post ? `<i>${post}</i>` : ""}</span>`;
+        value="${esc(String(v))}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ""} aria-label="${esc(o.aria || LABELS[k] || k)}">${post ? `<i>${post}</i>` : ""}</span>`;
     }
     const dflt = k => { const u = UNIT[k] || "", v = PLAN[k];
       return v === "" ? "break-even" : (u[0] === "$" ? "$" + v : v + (u === "%" ? "%" : u ? " " + u : "")); };
     // a labelled box, with the default named once it has been changed
     const field = (k, c, o = {}) => `<label class="cpc-f"><span>${o.label || LABELS[k]}</span>${box(k, c, o)}
       <em>${String(c[k] == null ? "" : c[k]) !== String(PLAN[k]) ? "default " + esc(dflt(k)) : ""}</em></label>`;
-    // Discard / Save: one draft for the whole page, whichever tab it was changed on; shown once there is one
+    // Discard / Save: one draft for the whole page, whichever tab it was changed on; shown once there is one.
+    // Anyone tries numbers; only an editor saves them for everyone.
     function actions() {
-      if (!saved.can_edit || !S.draft) return "";
-      return `<button class="btn" data-act="discard">Discard changes</button><button class="btn brand" data-act="save">Save for everyone</button>`;
+      if (!S.draft) return "";
+      return `<button class="btn" data-act="discard">Discard changes</button>`
+        + (saved.can_edit ? `<button class="btn brand" data-act="save">Save for everyone</button>` : "");
     }
     function wireInputs(scope) {
       scope.querySelectorAll("input[data-k]").forEach(inp => inp.onchange = () => {
@@ -696,7 +701,7 @@ registerPage({
     async function saveDraft(b) {
       b.disabled = true; b.textContent = "Saving…";
       try {
-        const r = await fetch(ZTZ.API + "/api/_gset", { method: "POST",
+        const r = await fetch(ZTZ.API + "/api/_crewplan", { method: "POST",
           headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
           body: JSON.stringify({ name: "crew_pay_plan", value: S.draft }) });
         const j = await r.json().catch(() => ({}));
@@ -965,16 +970,18 @@ registerPage({
       body.innerHTML = `
         <div class="cpc-setbar">
           <div class="cpc-sub">${saved.at ? "Saved " + esc(String(saved.at).slice(0, 16)) + (saved.by ? " by " + esc(saved.by) : "") : "Using the default numbers — nothing saved yet."}
-            ${saved.can_edit ? "" : " · Only an admin can change these."}</div>
+            ${saved.can_edit ? "" : " · Change any number to see it on every tab; saving for everyone takes an admin or the “Change crew salary settings” access."}</div>
           <span class="spacer"></span>
-          ${saved.can_edit ? `<button class="btn" data-act="reset">Reset to defaults</button>${actions()}` : ""}
+          <button class="btn" data-act="reset">Reset to defaults</button>${actions()}
         </div>
-        ${S.draft ? `<div class="cpc-warn">Unsaved — every tab already shows these numbers; Save to make them everyone's.</div>` : ""}
+        ${S.draft ? `<div class="cpc-warn">${saved.can_edit ? "Unsaved — every tab already shows these numbers; Save to make them everyone's."
+          : "Your numbers — every tab shows them, on your screen only, until you leave the page or discard them."}</div>` : ""}
         ${rising ? "" : `<div class="cpc-warn">The bill bands should rise from top to bottom — each "bill from" above the one before.</div>`}
 
         <h2 class="cpc-seth">Every scenario</h2>
         <div class="cpc-sets">
           ${sec("Period", "The year being replayed, by job date.", fields(["from", "to"]))}
+          ${sec("Profit", "The company's net profit margin. The 'same profit' figures divide an option's extra crew cost by what a new dollar of revenue keeps: this margin, less the share of the bill the option adds to crew pay.", fields(["netMargin"]))}
           ${sec("Long distance", "Jobs of these moving types, comma separated. On the flat rate they have their own pool and no bonus; on the hourly option their hours are all job hours and their day-rate drivers and helpers keep today's day pay.", fields(["ldTypes"]))}
         </div>
 

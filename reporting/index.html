@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="8a2db39994f6fd26b1b34c0cbc315a404d731ab2">
+<meta name="ztz-ref" content="563e6cd9346a2ad7d1ead8866ab2ffc473b2c82c">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -2100,6 +2100,9 @@ registerPage({
       // 2026-10-16: who is on the sales team is the sales manager's call, not the whole department's
       { id: "sales-team-manager", label: "Manage sales team",
         note: "Switch sales reps on and off on Sales › Sales team (who gets the daily lead emails, and who reports group under Former reps). Admins can always." },
+      // 2026-10-24: Bacho saves the crew pay plan; everyone with the page tries numbers on their own screen
+      { id: "crew-pay-editor", label: "Change crew salary settings",
+        note: "Save the numbers on Different Analysis › Crew Salary Reconciliation for everyone. Anyone with the page can try numbers on their own screen. Admins can always." },
       // the "meta-referrals" lone-grant tile left with its page (RETIRED 2026-08-19): the
       // grant bought only the upload UI, and a grantee would now land on Source Trace
       // holding no tables for it. Existing grants keep working at the API; none are offered.
@@ -2345,7 +2348,7 @@ registerPage({
 <script src="pages/salaries.js?v=9"></script>
 <script src="pages/branch-owner.js?v=13"></script>
 <script src="pages/bo-salary.js?v=5"></script>
-<script src="pages/crew-pay-compare.js?v=16"></script>
+<script src="pages/crew-pay-compare.js?v=17"></script>
 <script src="pages/day-closing.js?v=9"></script>
 <script src="pages/money-flow.js?v=77"></script>
 <script src="pages/ld-planning.js?v=85"></script>
