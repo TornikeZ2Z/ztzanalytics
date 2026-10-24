@@ -1106,6 +1106,11 @@ registerPage({
       var nNear = days.filter(function (d) { return d.Status === "tight"; }).length;
       var tightest = days.slice().sort(function (a, b) { return (+a.Spare) - (+b.Spare); })[0];
       var totJobs = days.reduce(function (a, d) { return a + (+d.Jobs || 0); }, 0);
+      // CHAINS, BOTH KINDS (2026-10-24): the card counted only the board's own chains, so a day with
+      // three office-booked chains read "Chains already counted: 0" and Nova took it as "no chains".
+      // A job booked in the calendar to share a crew is Jobs - Routes As Booked; the board's are
+      // Chains Applied. Both are already inside every day's crews-needed count.
+      var calChain = days.reduce(function (a, d) { return a + Math.max(0, (+d.Jobs || 0) - (+d["Routes As Booked"] || +d.Jobs || 0)); }, 0);
       var totChain = days.reduce(function (a, d) { return a + (+d["Chains Applied"] || 0); }, 0);
 
       // five tiles, always five, so the kit's balanced-column variable is a constant here
@@ -1125,8 +1130,8 @@ registerPage({
         + "<div class='v'>" + money(totJobs) + "</div>"
         + "<div class='s'>" + days.length + " days</div></div>"
         + "<div class='kpi'><div class='l'>Chains already counted</div>"
-        + "<div class='v'>" + totChain + "</div>"
-        + "<div class='s'>jobs the board put on one crew</div></div>"
+        + "<div class='v'>" + (calChain + totChain) + "</div>"
+        + "<div class='s'>" + calChain + " booked in the calendar · " + totChain + " by the board</div></div>"
         + "</div>";
 
       // an empty filtered strip took the arrows with it and said nothing -- see below
