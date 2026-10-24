@@ -615,6 +615,201 @@ registerPage({
             scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: v => v + " h" } } } } });
       } catch (e) { console.warn("crew-pay travel chart:", e); }
     }
+
+    /* THE TRAVEL REPORT AS A PDF (his asks 2026-10-24: "i need that single page as pdf - and i need more data
+       structure + evidence for what is the travel time, what is the current one, what would have been real one
+       and why do we assume that, and how much the price would increase", then "i need PDF download to be inside
+       that page"). Built from the numbers on screen, saved or not: the page's truck speed and the speeds
+       around it, each replayed in full. The browser's own print dialog does the rest -- its "Save as PDF" is
+       the download (RSC.printDoc). */
+    function travelFacts(SC) {
+      const c = SC.c, f = { paid: SC.TR.paid, real: SC.TR.real, payToday: 0, payNew: 0, seat: {} };
+      SC.lines.forEach(x => {
+        if (x.hr.asToday || x.j.pct.isLd) return;
+        const tp = x.j.trav.paid, tr = x.j.trav.real, r = num(x.r["Rate"]);
+        const own = r > 0 && r < LD_DAY_RATE ? r : SC.today[x.role] || 0, rate = num(c[(HR[x.role] || HR.Helper)[0]]);
+        const s = f.seat[x.role] = f.seat[x.role] || { who: new Set(), paid: 0, real: 0, payToday: 0, payNew: 0 };
+        f.payToday += tp * own; f.payNew += tr * rate;
+        s.who.add(x.who); s.paid += tp; s.real += tr; s.payToday += tp * own; s.payNew += tr * rate;
+      });
+      return f;
+    }
+    function travelDoc(c) {
+      const SC = scenarios(c), mph = num(c.travelMph), B = travelFacts(SC), G = SC.G, H = SC.hourly.hold, F = SC.pct.hold;
+      const speeds = [...new Set([30, 35, 40, 45, mph])].filter(s => s > 0).sort((a, b) => a - b);
+      const at = speeds.map(s => { const X = s === mph ? SC : scenarios(Object.assign({}, c, { travelMph: s }));
+        return { s, f: s === mph ? B : travelFacts(X), hourly: X.hourly.total, hold: X.hourly.hold }; });
+      const hrs = v => Math.round(v).toLocaleString("en-US") + " h", rt = k => "$" + +num(c[k]).toFixed(2);
+      const perSeat = (i, tail) => SEATS.every(s => num(c[HR[s][i]]) === num(c[HR.Foreman[i]]))
+        ? rt(HR.Foreman[i]) + tail + " for every seat" : SEATS.map(s => rt(HR[s][i]) + " " + s.toLowerCase()).join(", ") + tail;
+      const travelTxt = perSeat(0, " an hour"), jobTxt = SEATS.map(s => rt(HR[s][1]) + " " + s.toLowerCase()).join(", "), bonusTxt = perSeat(2, " an hour");
+      const fmPack = num(c.hrFmPackPct), crewPack = num(c.hrCrewPackPct);
+      const own = B.paid ? B.payToday / B.paid : 0, change = B.payNew - B.payToday;
+      const lower = SEATS.every(s => num(c[HR[s][0]]) < own) ? "a lower travel rate" : "a travel rate";
+      const alt = at.filter(a => a.s < mph).pop();
+      // the bands the GPS forms fill: what share of the real drive the table pays, short trips and long
+      const bs = SC.TR.bands.filter(b => b.n && b.real), far = bs.filter(b => b.lo >= 40), near = bs.find(b => b.lo === 0);
+      const shares = far.map(b => b.paid / b.real), fast = bs.filter(b => b.paid).reduce((a, b) => !a || b.miles / b.paid > a.miles / a.paid ? b : a, null);
+      // three real jobs: local, a crew of 3 or 4, near 60, 100 and 160 base-leg miles
+      const pool = Object.values(SC.jobs).filter(j => j.trav && j.trav.miles != null && !j.pct.isLd && j.n >= 3 && j.n <= 4 && j.trav.src === "contract");
+      const examples = [...new Set([60, 100, 160].map(t => pool.slice().sort((a, b) => Math.abs(a.trav.miles - t) - Math.abs(b.trav.miles - t)
+        || String(b.r0["Date"]).localeCompare(String(a.r0["Date"])))[0]).filter(Boolean))].map(j => {
+        const xs = SC.lines.filter(x => x.j === j), ownOf = x => { const r = num(x.r["Rate"]); return r > 0 && r < LD_DAY_RATE ? r : SC.today[x.role] || 0; };
+        return { j, payToday: xs.reduce((a, x) => a + j.trav.paid * ownOf(x), 0), payNew: xs.reduce((a, x) => a + j.trav.real * num(c[(HR[x.role] || HR.Helper)[0]]), 0) };
+      });
+      // today vs the hourly option, part by part
+      const P = { tTravel: 0, tJob: 0, tPack: 0, tOther: 0, oTravel: 0, oJob: 0, oBonus: 0, oWithheld: 0, oPack: 0, oKept: 0 };
+      SC.lines.forEach(x => {
+        if (x.hr.asToday) { P.tOther += x.T; P.oKept += x.hr.total; return; }
+        const perH = x.a.wage / Math.max(x.hours, 1e-9), tp = Math.min(x.j.trav.paid, x.hours) * perH;
+        P.tTravel += tp; P.tJob += x.a.wage - tp; P.tPack += x.a.pack; P.tOther += x.a.stairs + x.a.bulky + x.a.review + x.a.other;
+        P.oTravel += x.hr.travelPay; P.oJob += x.hr.jobPay; P.oBonus += x.hr.bonusPay; P.oWithheld += x.hr.withheld; P.oPack += x.hr.pack; P.oKept += x.hr.kept;
+      });
+      const claimJobs = Object.values(SC.jobs).filter(j => num(j.r0["Claims Filed"]) > 0).length;
+      const tToday = P.tTravel + P.tJob + P.tPack + P.tOther, tOpt = P.oTravel + P.oJob + P.oBonus + P.oPack + P.oKept;
+      const dash = (v, f) => Math.abs(v) < 0.5 ? "—" : f(v);
+      const parts = [["Travel", P.tTravel, P.oTravel, `today: the table's hours at each person's own rate · option: the real drive at ${travelTxt}`],
+        ["Job hours", P.tJob, P.oJob, `labor or the minimum · option: ${jobTxt}`],
+        ["Bonus rate", 0, P.oBonus, `${bonusTxt} on the job; withheld on the ${claimJobs.toLocaleString()} jobs with a claim (${moneyK(P.oWithheld)})`],
+        ["Packing", P.tPack, P.oPack, `today: the foreman's commission · option: ${fmPack}% to the foreman${crewPack ? ` + a ${crewPack}% pool over the crew` : ""}`],
+        ["Everything else", P.tOther, P.oKept, "stairs, bulky, review, hoisting/storage/junk, long-distance day pay — as today"]];
+      // the chart: a job's travel hours, table against the real drive, by base-leg miles
+      const W = 620, Hh = 230, pl = 36, pb = 40, pt = 14, mx = Math.max(1, ...bs.map(b => b.real / b.n)) * 1.15, step = (W - pl - 10) / Math.max(1, bs.length), bw = step * 0.3;
+      const svg = [`<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="Travel hours a job, table against the real drive">`];
+      for (let t = 0; t <= Math.floor(mx); t++) { const y = pt + (Hh - pt - pb) * (1 - t / mx);
+        svg.push(`<line x1="${pl}" x2="${W - 4}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e5e7eb"/><text x="${pl - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#6b7280">${t} h</text>`); }
+      bs.forEach((b, i) => { const x0 = pl + i * step + step * 0.18;
+        [[b.paid / b.n, "#c9ced6"], [b.real / b.n, "#14301f"]].forEach(([v, col], k) => { const hg = (Hh - pt - pb) * v / mx, x = x0 + k * (bw + 3), y = Hh - pb - hg;
+          svg.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${hg.toFixed(1)}" rx="3" fill="${col}"/><text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="#111827">${v.toFixed(1)}</text>`); });
+        svg.push(`<text x="${(x0 + bw + 1.5).toFixed(1)}" y="${Hh - pb + 16}" text-anchor="middle" font-size="10.5" fill="#374151">${b.l} mi</text>`); });
+      svg.push(`<rect x="${pl}" y="${Hh - 12}" width="10" height="10" rx="2" fill="#c9ced6"/><text x="${pl + 14}" y="${Hh - 3}" font-size="10.5" fill="#374151">Paid by the table</text>
+        <rect x="${pl + 120}" y="${Hh - 12}" width="10" height="10" rx="2" fill="#14301f"/><text x="${pl + 134}" y="${Hh - 3}" font-size="10.5" fill="#374151">The real drive at ${mph} mph</text></svg>`);
+      const lookup = [1, 113, 138, 163, 188, 213, 238, 263].map((lo, i, a) => { const t = tableTravel(lo);
+        return `<td>${lo}–${a[i + 1] || lo + 25} mi<br><b>${Math.floor(t)}:${t % 1 ? "30" : "00"}</b></td>`; }).join("");
+      const five = 0.05 * SC.revenue, mpc = v => (v * 100).toFixed(1).replace(/\.0$/, "") + "%";
+      const keepBox = H.dC < 0.5 ? `<p><b>The hourly option costs no more than today — this year's profit stands.</b></p>`
+        : H.need == null ? `<p><b>No amount of new business pays for it:</b> the option adds ${mpc(H.raise)} of every bill to crew pay, more than the ${mpc(H.net)} net profit margin.</p>`
+        : `<p><b>To keep this year's profit, revenue has to grow ${mpc(H.needPct)} — about ${signK(H.need)}</b> on this year's ${moneyK(SC.revenue)}, roughly ${Math.round(H.need / H.avgBill).toLocaleString()} more jobs at the ${money(H.avgBill)} average bill.</p>
+          <p>Our net profit margin is ${mpc(H.net)}: a new dollar of revenue keeps ${(H.net * 100).toFixed(0)}¢. But the new jobs pay the new crew rates too — this option adds ${mpc(H.raise)} of every bill to crew pay — so a new dollar keeps only <b>${(H.mNew * 100).toFixed(1)}¢</b>.
+          ${signK(H.dC)} ÷ ${mpc(H.mNew)} = <b>${moneyK(H.need)}</b>. Put the other way: 5% more revenue (${moneyK(five)}) would bring only ${moneyK(five * H.mNew)} of profit — against ${moneyK(H.dC)} of extra crew pay.</p>`;
+      const priceNote = [H.price != null && H.dC >= 0.5 ? `Raising prices on the same jobs is the cheaper route: a higher price adds no crew, truck or fuel cost, only sales commission and card fees, so ${pctS(H.pricePct)} on prices would cover it.` : "",
+        `The flat-rate option, for comparison, costs ${moneyK(SC.pct.total)} (${signK(F.dC)})${F.dC < 0.5 ? "" : F.need != null ? `: ${pctS(F.needPct)} revenue at the same margin` : ": more than the margin can carry"}${F.price != null && F.dC >= 0.5 ? `, or ${pctS(F.pricePct)} on prices` : ""}.`].join(" ");
+      let logo = "logo-wide.png";
+      try { logo = new URL("logo-wide.png", document.baseURI).href; } catch (e) { /* relative is fine */ }
+      const when = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const basis = S.draft ? "with numbers changed on screen, not saved" : saved.at ? "its saved settings" : "its default numbers";
+      return `<!doctype html><html><head><meta charset="utf-8"><title>Crew travel time - paid vs real</title>
+<style>
+@page { size: Letter; margin: 13mm 14mm 14mm; @bottom-left { content: "Zip to Zip Moving · Crew travel time — paid vs real"; font: 500 8px "Segoe UI", Arial, sans-serif; color: #64748B }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 600 8px "Segoe UI", Arial, sans-serif; color: #475569 } }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: "Segoe UI", Arial, sans-serif; color: #111827; font-size: 10.5pt; line-height: 1.45; margin: 0; }
+.hd { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; border-bottom: 2.5px solid #14301f; padding-bottom: 7px; margin-bottom: 10px; }
+.hd .brand { background: #9BBB3B; border-radius: 6px; padding: 6px 9px; } .hd .brand img { height: 20px; display: block; }
+.hd .kind { font-size: 7.5pt; font-weight: 700; letter-spacing: .14em; color: #3F7D20; } .hd .when { font-size: 8.5pt; color: #64748B; white-space: nowrap; }
+h1 { font-size: 17pt; margin: 0; color: #14301f; }
+h2 { font-size: 12.5pt; margin: 18px 0 6px; color: #14301f; border-bottom: 2px solid #14301f; padding-bottom: 3px; break-after: avoid; }
+.sub { color: #6b7280; font-size: 9pt; }
+.box { border: 2px solid #14301f; border-radius: 8px; padding: 10px 14px; margin: 8px 0 4px; }
+.kp { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
+.kp div { border: 1px solid #d1d5db; border-radius: 8px; padding: 7px 10px; }
+.kp span { display: block; color: #6b7280; font-size: 8.5pt; font-weight: 600; } .kp b { display: block; font-size: 15pt; color: #14301f; }
+.kp em { font-style: normal; color: #6b7280; font-size: 8.5pt; }
+table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 9.5pt; }
+th { text-align: left; color: #6b7280; font-weight: 600; font-size: 8.5pt; border-bottom: 1px solid #9ca3af; padding: 4px 6px; }
+td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.hl td { background: #eef3ee; } tfoot td { font-weight: 700; border-top: 1.5px solid #374151; border-bottom: 0; }
+.s { color: #6b7280; font-size: 8.5pt; } .lookup td { text-align: center; font-size: 8.5pt; border: 1px solid #e5e7eb; }
+p { margin: 4px 0 6px; } ul { margin: 4px 0 6px 18px; padding: 0; } li { margin: 2px 0; }
+table, .box, svg, ul, .keep { break-inside: avoid; } .src { font-size: 8.5pt; color: #6b7280; } .src a { color: #14301f; }
+</style></head><body>
+<div class="hd"><div class="brand"><img alt="Zip to Zip Moving" src="${esc(logo)}"></div>
+  <div><div class="kind">CREW SALARY RECONCILIATION</div><h1>Travel time: what we pay, what is real, and what it costs</h1>
+  <div class="sub">Zip to Zip crews · local moves · ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))} · from the page, ${basis}</div></div>
+  <span class="when">Printed ${esc(when)}</span></div>
+
+<div class="box">
+<p><b>Today we pay travel at the full hourly rate — but on hours that a miles table makes up, not on the time the drive takes.</b>
+The table pays 1 hour for anything up to 113 miles; on the GPS forms that works out to trucks averaging <b>${Math.round(G.mph)} mph</b> door to door${fast ? ` (<b>${Math.round(fast.miles / fast.paid)} mph</b> on ${fast.l}-mile days)` : ""}.
+The proposal turns that around: <b>pay the real hours, at ${lower}</b> (${travelTxt}).</p>
+<div class="kp">
+  <div><span>Travel paid today</span><b>${hrs(B.paid)}</b><em>× ~$${own.toFixed(2)} (own rates) = ${moneyK(B.payToday)}</em></div>
+  <div><span>The real drive (${mph} mph)</span><b>${hrs(B.real)}</b><em>${B.paid ? "+" + Math.round((B.real / B.paid - 1) * 100) + "% more hours" : ""}</em></div>
+  <div><span>Real hours × the travel rate</span><b>${moneyK(B.payNew)}</b><em>proposed travel pay</em></div>
+  <div><span>Travel costs us</span><b>${signK(change)}</b><em>a year${B.payToday ? ` (${pctS(change / B.payToday).replace(/\.\d%/, "%")})` : ""}${alt ? ` · ${signK(alt.f.payNew - alt.f.payToday)} at ${alt.s} mph` : ""}</em></div>
+</div>
+<p class="s">Crew-hours: every person on a crew is paid the job's travel. Long-distance jobs have no travel line and are left out of these travel numbers.</p>
+</div>
+
+<h2>1 · How travel is counted today</h2>
+<p>The foreman enters the miles; a lookup turns them into hours, which are added to the job's hours and paid at each person's full hourly rate:</p>
+<table class="lookup"><tr>${lookup}<td>… then +½ h<br>per 25 mi</td></tr></table>
+<p>The hours step only every 25 miles and start from a full hour at 113 — so a 30-mile day and a 110-mile day are both paid <b>1 hour</b>. Nothing in the table measures time.</p>
+
+<h2>2 · The evidence: what the table pays against the miles driven</h2>
+<p>Since December 2025 the GPS control form records the real miles of both base legs (base → pickup, delivery → base) on <b>${G.jobs.toLocaleString()}</b> of the ${G.local.toLocaleString()} local jobs. Grouped by those miles:</p>
+<table><thead><tr><th>Base-leg miles</th><th class="n">GPS jobs</th><th class="n">Average miles</th><th class="n">The table paid</th><th class="n">Real drive at ${mph} mph</th><th class="n">Speed the table assumes</th></tr></thead>
+<tbody>${bs.map(b => `<tr><td>${b.l} mi</td><td class="n">${b.n.toLocaleString()}</td><td class="n">${Math.round(b.miles / b.n)} mi</td><td class="n">${(b.paid / b.n).toFixed(1)} h</td>
+  <td class="n"><b>${(b.real / b.n).toFixed(1)} h</b></td><td class="n">${b.paid ? Math.round(b.miles / b.paid) + " mph" : "—"}</td></tr>`).join("")}</tbody></table>
+${svg.join("")}
+<p>${near ? `Under 40 miles the table pays ${Math.round(near.paid / near.real * 100)}% of the real drive — the 1-hour minimum covers ${near.paid / near.real >= 0.99 ? "it" : "most of it"}. ` : ""}${far.length ? `From 40 miles up it pays only <b>${Math.round(Math.min(...shares) * 100)}–${Math.round(Math.max(...shares) * 100)}%</b> of the real drive.` : ""}</p>
+${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real hours at the travel rate):</p>
+<table><thead><tr><th>Date</th><th>Request</th><th class="n">Crew</th><th class="n">Base-leg miles</th><th class="n">Table paid</th><th class="n">Real drive</th><th class="n">Crew travel pay today</th><th class="n">Proposed</th></tr></thead>
+<tbody>${examples.map(e => `<tr><td>${esc(e.j.r0["Date"])}</td><td>${esc(e.j.r0["Request #"] || "")}</td><td class="n">${e.j.n}</td><td class="n">${Math.round(e.j.trav.miles)} mi</td>
+  <td class="n">${+e.j.trav.paid.toFixed(2)} h</td><td class="n"><b>${e.j.trav.real.toFixed(1)} h</b></td><td class="n">${money(e.payToday)}</td><td class="n">${money(e.payNew)}</td></tr>`).join("")}</tbody></table>` : ""}
+
+<h2>3 · Why ${mph} mph — the one assumption</h2>
+<p>Nobody records when a crew leaves or gets back to the base: the contract's start/end times and the GPS form's arrival/departure are both <i>at the customer</i>. The miles are measured; the speed has to be assumed. The evidence:</p>
+<ul>
+<li><b>ATRI 2025:</b> trucks at the Fort Lee, NJ bottleneck (I-95 / George Washington Bridge / Route 4) average <b>26 mph</b>, and <b>15 mph</b> at 8 a.m.; across the top-10 U.S. truck bottlenecks rush-hour speeds average <b>29.6 mph</b>, and <b>33.2 mph</b> across all bottlenecks at peak.</li>
+<li><b>FHWA:</b> even on the Interstates of large metro areas, average truck speeds run about <b>43–57 mph</b> — on the highway alone, before local streets, lights and the customer's block.</li>
+<li><b>Our trucks:</b> a loaded 26-ft box truck, door to door, on NJ/NY roads with posted limits of 55–65 mph. The table's ${Math.round(G.mph)} mph is not believable as an average.</li>
+<li><b>40 mph is generous to the company</b> — it assumes good traffic most of the time. This report uses <b>${mph} mph</b> (the page's setting): the real hours are ${B.paid ? (B.real / B.paid).toFixed(1) : "—"}× the paid ones.</li>
+</ul>
+<div class="keep"><p><b>The result at other speeds</b> (the page recalculates for any speed). The last column is the revenue growth next year that pays for the whole hourly option at our ${mpc(H.net)} net profit margin — section 5 shows the working.</p>
+<table><thead><tr><th>Truck speed</th><th class="n">Real travel</th><th class="n">vs paid ${hrs(B.paid)}</th><th class="n">Travel pay</th><th class="n">Change vs today (${moneyK(B.payToday)})</th><th class="n">Whole hourly option</th><th class="n">Revenue to keep profit</th></tr></thead>
+<tbody>${at.map(a => `<tr class="${a.s === mph ? "hl" : ""}"><td>${a.s} mph${a.s === mph ? " — this report" : ""}</td><td class="n">${hrs(a.f.real)}</td>
+  <td class="n">${a.f.paid ? "+" + Math.round((a.f.real / a.f.paid - 1) * 100) + "%" : "—"}</td><td class="n">${moneyK(a.f.payNew)}</td><td class="n"><b>${signK(a.f.payNew - a.f.payToday)}</b></td>
+  <td class="n">${moneyK(a.hourly)}</td><td class="n">${a.hold.dC < 0.5 ? "—" : a.hold.needPct != null ? pctS(a.hold.needPct) : "not reachable"}</td></tr>`).join("")}</tbody></table></div>
+
+<h2>4 · Real hours at the travel rate — by seat</h2>
+<table><thead><tr><th>Seat</th><th class="n">People</th><th class="n">Travel paid</th><th class="n">Real drive</th><th class="n">Rate paid today</th><th class="n">Travel rate</th><th class="n">Travel pay today</th><th class="n">Proposed</th><th class="n">Change</th></tr></thead>
+<tbody>${SEATS.filter(s => B.seat[s]).map(s => { const x = B.seat[s];
+  return `<tr><td><b>${s}</b></td><td class="n">${x.who.size}</td><td class="n">${hrs(x.paid)}</td><td class="n">${hrs(x.real)}</td><td class="n">$${(x.paid ? x.payToday / x.paid : 0).toFixed(2)}</td>
+    <td class="n">${rt(HR[s][0])}</td><td class="n">${moneyK(x.payToday)}</td><td class="n">${moneyK(x.payNew)}</td><td class="n"><b>${signK(x.payNew - x.payToday)}</b></td></tr>`; }).join("")}</tbody>
+<tfoot><tr><td>All</td><td></td><td class="n">${hrs(B.paid)}</td><td class="n">${hrs(B.real)}</td><td class="n">$${own.toFixed(2)}</td><td></td><td class="n">${moneyK(B.payToday)}</td><td class="n">${moneyK(B.payNew)}</td><td class="n">${signK(change)}</td></tr></tfoot></table>
+<p>Today a travel hour costs each person's own hourly rate (about $${own.toFixed(2)} on average); the option pays ${travelTxt} — on the real hours, so the crew is paid for the time it actually spends.</p>
+
+<h2>5 · The whole hourly option, part by part</h2>
+<table><thead><tr><th>Part</th><th class="n">Today</th><th class="n">Hourly option</th><th class="n">Change</th></tr></thead>
+<tbody>${parts.map(([l, t, o, w]) => `<tr><td><b>${l}</b><div class="s">${w}</div></td><td class="n">${dash(t, moneyK)}</td><td class="n">${moneyK(o)}</td><td class="n"><b>${dash(o - t, signK)}</b></td></tr>`).join("")}</tbody>
+<tfoot><tr><td>Crew pay, the year</td><td class="n">${moneyK(tToday)}</td><td class="n">${moneyK(tOpt)}</td><td class="n">${signK(tOpt - tToday)}${tToday ? ` (${pctS(tOpt / tToday - 1)})` : ""}</td></tr></tfoot></table>
+<p>Travel is <b>${signK(P.oTravel - P.tTravel)}</b> of the <b>${signK(tOpt - tToday)}</b>; the rest is the job rates, the bonus rate and packing.</p>
+<div class="box">${keepBox}<p class="s">${priceNote}</p></div>
+
+<h2>6 · Data and method</h2>
+<ul class="s">
+<li><b>Period and scope:</b> Zip to Zip jobs, ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}; every crew member on each job; tips left out. Tuji, Boston and Virginia are not included.</li>
+<li><b>Travel paid today:</b> the contract's travel hours for each job (the miles table). A job without a contract is given ${(G.share * 100).toFixed(1)}% of its hours as travel — the contract jobs' share.</li>
+<li><b>Real drive:</b> the GPS control form's base-leg miles ÷ ${mph} mph, never less than what the table paid. Jobs without a GPS form (${(G.local - G.jobs).toLocaleString()}) are scaled by the GPS jobs' ratio (×${G.ratio.toFixed(2)}).</li>
+<li><b>Rates today:</b> each person's own hourly rate on the job. <b>Option rates:</b> travel ${travelTxt}; job ${jobTxt}; bonus ${bonusTxt} (withheld on a job with a claim); packing ${fmPack}% foreman${crewPack ? `, ${crewPack}% crew pool` : ""}.</li>
+<li><b>Keeping the profit:</b> revenue needed = the extra crew cost ÷ (the ${mpc(H.net)} net profit margin − the extra crew cost as a share of this year's revenue). Fixed costs stay where they are.</li>
+<li>Live and adjustable: ziptozip.systems/reporting → Different Analysis → Crew Salary Reconciliation → Hourly + travel.</li>
+</ul>
+<p class="src">Sources: ATRI, “Top Truck Bottlenecks” 2025/2026, via <a href="https://fleetowner.com/operations/media-gallery/55267539/what-us-highways-have-the-worst-truck-traffic">FleetOwner</a> and <a href="https://www.freightwaves.com/?p=570615">FreightWaves</a>; FHWA, <a href="https://ops.fhwa.dot.gov/Freight/freight_analysis/nat_freight_stats/docs/13factsfigures/figure3_20.htm">Freight Facts and Figures 2013, average truck speeds</a> and <a href="https://ops-dr.fhwa.dot.gov/freight/freight_analysis/nat_freight_stats/docs/13factsfigures/table3_17.htm">metro Interstate truck speeds</a>.</p>
+</body></html>`;
+    }
+    function printTravel(b) {
+      if (b) { b.disabled = true; b.textContent = "Preparing…"; }
+      // a beat for the button to repaint: the report replays the year at every speed
+      return new Promise(done => setTimeout(() => {
+        try { RSC.printDoc(travelDoc(cfg()), { title: "Crew travel time - paid vs real", width: "216mm", height: "279mm" }); }
+        catch (e) { console.warn("crew-pay travel PDF:", e); alert("Could not build the PDF: " + e.message); }
+        if (b) { b.disabled = false; b.textContent = "Download PDF"; }
+        done();
+      }, 30));
+    }
     function holdTable(SC) {
       const net = num(SC.c.netMargin);
       return `<section class="panel cpc-hold"><div class="panel-head"><span class="panel-title">To keep this year's profit</span>
@@ -665,6 +860,7 @@ registerPage({
       if (act("discard")) act("discard").onclick = () => { S.draft = null; paint(); };
       if (act("save")) act("save").onclick = () => saveDraft(act("save"));
       if (act("reset")) act("reset").onclick = () => { S.draft = Object.assign({}, PLAN); paint(); };
+      if (act("pdf")) act("pdf").onclick = () => printTravel(act("pdf"));
       scope.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { S.tab = b.dataset.go; paint(); });
     }
     // the option tab's main numbers, in one row above it
@@ -687,7 +883,7 @@ registerPage({
               <label class="cpc-lv"><span>Truck speed, travelling</span>${box("travelMph", c)}</label>
               <label class="cpc-lv"><span>Foreman's packing, of materials sold</span>${box("hrFmPackPct", c)}</label>
               <label class="cpc-lv"><span>Crew packing pool, split over the driver and helpers</span>${box("hrCrewPackPct", c)}</label>
-              <div class="cpc-lvside">${actions()}<button class="btn" data-go="settings">All settings</button></div>
+              <div class="cpc-lvside">${actions()}<button class="btn" data-act="pdf" title="The travel report from the numbers on screen">Download PDF</button><button class="btn" data-go="settings">All settings</button></div>
             </div></section>`;
         wireInputs(el);
         return;
