@@ -202,6 +202,11 @@
     mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
     mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
     mkt_brcit: { table: "ext_brandradar_citation", cols: ["Date", "Engine", "Prompt Key", "Domain", "Is Ours"] },
+    // 2026-10-26 Ahrefs API units: each pull's measured cost and the month's quota (src/ahrefs_budget.py)
+    mkt_ahuse: { table: "ext_ahrefs_usage", cols: ["Run At", "Step", "Ran", "Reason", "Cadence Days", "Calls", "Units",
+                                                   "Est Units"] },
+    mkt_ahquota: { table: "ext_ahrefs_quota", cols: ["Checked At", "When", "Units Limit", "Units Used", "Key Used",
+                                                     "Reset Date"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -250,6 +255,7 @@
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
               gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              ahU: [], ahQ: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -784,6 +790,16 @@
       us: yes(r["Is Us"]), sent: r.Sentiment || null })).filter(r => r.d && r.pk && r.brand);
     P.brC = (t.brcit || []).map(r => ({ d: d10(r.Date), eng: r.Engine, pk: r["Prompt Key"],
       dom: String(r.Domain || "").toLowerCase(), ours: yes(r["Is Ours"]) })).filter(r => r.d && r.pk);
+  }
+  // 2026-10-26: Ahrefs API units, every run's steps (UTC times) and the month's quota readings
+  function indexAhrefsUsage(t) {
+    const at = v => String(v || "").replace("T", " ").slice(0, 19);
+    P.ahU = (t.ahuse || []).map(r => ({ at: at(r["Run At"]), step: r.Step, ran: num(r.Ran) === 1, why: r.Reason || "",
+      days: r["Cadence Days"] == null ? null : num(r["Cadence Days"]), calls: num(r.Calls), units: num(r.Units),
+      est: num(r["Est Units"]) })).filter(r => r.at && r.step).sort((a, b) => (a.at < b.at ? -1 : 1));
+    P.ahQ = (t.ahquota || []).map(r => ({ at: at(r["Checked At"]), limit: num(r["Units Limit"]), used: num(r["Units Used"]),
+      key: r["Key Used"] == null ? null : num(r["Key Used"]), reset: d10(r["Reset Date"]) }))
+      .filter(r => r.at && r.limit).sort((a, b) => (a.at < b.at ? -1 : 1));
   }
   // Reddit reports only days that ran, so a paused account's last row is its last delivery: its data
   // runs through the last PULL (the connectors row's Newest Data, from ext_reddit_ads_pull)
@@ -3442,6 +3458,102 @@
     } };
   }
 
+  /* === AHREFS API UNITS (2026-10-26, his ask: track what Ahrefs costs and pace the pulls to it) ===
+     The loader measures every call and plans each pull's cadence inside the month (src/ahrefs_budget.py,
+     ext_ahrefs_usage and ext_ahrefs_quota). This shows the month against the plan's limit, what each
+     pull costs and how often it runs now. Times are UTC, as the loader writes them. */
+  const AH_STEPS = [["snapshot", "Daily snapshot", "DR, keywords, traffic, backlinks"],
+    ["history", "Monthly history", "the months Ahrefs keeps revising"], ["audit", "Site Audit", "health score and issues"],
+    ["links", "New backlinks", "links first seen since the last pull"],
+    ["citations", "Citations", "every referring domain and the top anchors"]];
+  const AH_NORMAL = { snapshot: 1, history: 1, audit: 1, links: 1, citations: 7 };
+  const AH_RESERVE = 0.10;   // src/ahrefs_budget.RESERVE: left for the workspace's MCP key and people
+  function ahUsageModel() {
+    if (!P.ahQ.length) return null;
+    const q = P.ahQ[P.ahQ.length - 1], ms = s => Date.parse(s.replace(" ", "T") + "Z");
+    const now = ms(q.at), reset = q.reset ? Date.parse(q.reset + "T00:00:00Z") : null;
+    const start = reset ? (d => { d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 19).replace("T", " "); })(new Date(reset)) : "";
+    const week = new Date(now - 7 * 864e5).toISOString().slice(0, 19).replace("T", " ");
+    const first = P.ahU.length ? ms(P.ahU[0].at) : now;
+    const span = Math.min(7, Math.max(1, (now - first) / 864e5));
+    const perDay = P.ahU.filter(r => r.at >= week).reduce((s, r) => s + r.units, 0) / span;
+    const daysLeft = reset ? Math.max(0, (reset - now) / 864e5) : null;
+    const steps = AH_STEPS.map(([k, name, what]) => {
+      const mine = P.ahU.filter(r => r.step === k), lastRow = mine[mine.length - 1], lastRan = mine.filter(r => r.ran).pop();
+      return { k, name, what, row: lastRow, ran: lastRan, normal: AH_NORMAL[k] };
+    });
+    return { q, reset: q.reset, daysLeft, perDay, projected: daysLeft == null ? null : q.used + perDay * daysLeft,
+             left: q.limit * (1 - AH_RESERVE) - q.used, ours: P.ahU.filter(r => r.at >= start).reduce((s, r) => s + r.units, 0),
+             others: q.key == null ? null : Math.max(0, q.used - q.key), steps };
+  }
+  function ahUsageHtml() {
+    const head = sub => '<div class="panel"><div class="panel-head"><span class="panel-title">Ahrefs API units</span>'
+      + '<span class="mko-sub">' + sub + "</span></div>";
+    const err = P.err.ahuse || P.err.ahquota;
+    if (err) {
+      return head("what each Ahrefs pull costs") + '<div class="mko-empty">The usage log could not load — ' + esc(err)
+        + (/404|unknown dataset|not granted|403/i.test(err) ? " (it arrives with the next bridge deploy or pipeline run)" : "") + "</div></div>";
+    }
+    const m = ahUsageModel();
+    if (!m) {
+      return head("what each Ahrefs pull costs") + '<div class="mko-empty">Measured from the next daily Ahrefs run: the month\'s '
+        + "limit and usage, and the units each pull spends.</div></div>";
+    }
+    const how = d => d == null ? "paused" : d === 1 ? "daily" : d === 7 ? "weekly" : "every " + d + " days";
+    const at = s => s ? day(s.slice(0, 10)) + " " + s.slice(11, 16) : "—";
+    return head(fmtN(m.q.limit) + " units a month on the Lite plan · resets " + esc(day(m.reset)) + " · times UTC")
+      + '<div class="rs-kpis" id="mkoK-ahu"></div>'
+      + ptable([
+        { h: "Pull", name: true, cell: s => esc(s.name) + '<div class="mko-sub">' + esc(s.what) + "</div>" },
+        { h: "How often now", cell: s => !s.row ? "—" : how(s.row.days)
+            + (s.row.days == null || s.row.days > s.normal ? ' <span class="rs-pill warn">' + (s.row.days == null ? "paused" : "stretched") + "</span>" : "")
+            + '<div class="mko-sub">normally ' + how(s.normal) + "</div>" },
+        { h: "Last pull", num: true, cell: s => esc(at(s.ran && s.ran.at)) },
+        { h: "Units then", num: true, cell: s => s.ran ? fmtN(s.ran.units) : "—" },
+        { h: "Typical", num: true, tip: "the median of its last runs, what the planner budgets", cell: s => s.row ? fmtN(s.row.est) : "—" },
+        { h: "Latest decision", cell: s => s.row ? esc(s.row.why) : "—" }], m.steps, null, true)
+      + '<div id="mkoC-ahu"></div>'
+      + '<p class="rs-hint">The loader keeps ' + pct(AH_RESERVE) + " of the month (" + fmtN(m.q.limit * AH_RESERVE)
+      + " units) for the workspace's other key and people. When the normal cadences would spend more than is left before "
+      + "the reset, it pulls the dearest step less often (the citations first, down to monthly), and pauses steps until the "
+      + "reset only if that is not enough. Free calls (the quota itself, Brand Radar's AI answers) cost nothing.</p></div>";
+  }
+  function ahUsageWire(host) {
+    const m = ahUsageModel(), box = host.querySelector("#mkoK-ahu");
+    if (!m || !box) return;
+    RSC.kpis(box, [
+      { label: "Units used", value: pct(ratio(m.q.used, m.q.limit)),
+        sub: fmtN(m.q.used) + " of " + fmtN(m.q.limit) + " · resets " + day(m.reset) },
+      { label: "On pace for", value: m.projected == null ? "—" : fmtN(m.projected),
+        sub: (m.projected == null ? "" : pct(ratio(m.projected, m.q.limit)) + " of the limit · ") + fmtN(m.perDay) + " a day lately" },
+      { label: "Left to spend", value: fmtN(Math.max(0, m.left)),
+        sub: (m.daysLeft == null ? "" : Math.ceil(m.daysLeft) + " days to the reset · ") + "after the reserve" },
+      { label: "Our loader this month", value: fmtN(m.ours),
+        sub: m.others == null ? "measured since this log began" : fmtN(m.others) + " by the workspace's other keys" },
+    ]);
+    const el = host.querySelector("#mkoC-ahu");
+    const days = [...new Set(P.ahU.map(r => r.at.slice(0, 10)))].sort().slice(-30);
+    if (!el || !days.length) return;
+    const units = (k, d) => P.ahU.filter(r => r.step === k && r.at.slice(0, 10) === d).reduce((s, r) => s + r.units, 0);
+    RSC.chartCard(el, {
+      title: "Units spent a day, by pull", key: "mko-ahrefs-units",
+      buildChart(canvas) {
+        const C = palette(), col = [C.main, C.alt, C.light, C.violet, C.faint];
+        return new Chart(canvas, { type: "bar",
+          data: { labels: days.map(d => day(d)), datasets: AH_STEPS.map(([k, name], i) => ({ label: name,
+            data: days.map(d => units(k, d)), backgroundColor: col[i], borderRadius: 2, maxBarThickness: 26 })) },
+          options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
+            scales: { x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true } },
+                      y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmtN(v) } } } } });
+      },
+      buildTable() {
+        return ptable([{ h: "Day", cell: d => esc(day(d)) }].concat(AH_STEPS.map(([k, name]) =>
+          ({ h: name, num: true, cell: d => fmtN(units(k, d)) }))), days.slice().reverse());
+      },
+    });
+  }
+
   /* === SETTINGS === */
   function settingsTab() {
     const plat = D.conn.filter(r => r.Group === "Marketing platforms");
@@ -3451,7 +3563,8 @@
     const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]);
     const behind = ours.filter(r => r.Status === "Behind");
     const names = list => list.map(r => r.Platform.replace(/ \(.*\)$/, "")).join(", ");
-    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + sourcesHtml(), wire(host) {
+    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + ahUsageHtml() + sourcesHtml(), wire(host) {
+      ahUsageWire(host);
       RSC.kpis(host.querySelector("#mkoK-set"), [
         { label: "Live", value: String(live.length), sub: "platforms pulled by API" },
         { label: "Waiting on others", value: String(wait.length), sub: names(wait) || "none" },
@@ -3640,10 +3753,11 @@
         plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
         plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"),
         plat("mkt_brans", "brans"), plat("mkt_brmen", "brmen"), plat("mkt_brcit", "brcit"),
+        plat("mkt_ahuse", "ahuse"), plat("mkt_ahquota", "ahquota"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
-                brans, brmen, brcit]) => {
+                brans, brmen, brcit, ahuse, ahquota]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -3654,6 +3768,7 @@
         indexReddit(reddit);
         indexBatch3({ refdom, anchor, ctrace });
         indexBrandRadar({ brans, brmen, brcit });
+        indexAhrefsUsage({ ahuse, ahquota });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
