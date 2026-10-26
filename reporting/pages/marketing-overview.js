@@ -3474,16 +3474,22 @@
     const now = ms(q.at), reset = q.reset ? Date.parse(q.reset + "T00:00:00Z") : null;
     const start = reset ? (d => { d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 19).replace("T", " "); })(new Date(reset)) : "";
     const week = new Date(now - 7 * 864e5).toISOString().slice(0, 19).replace("T", " ");
-    const first = P.ahU.length ? ms(P.ahU[0].at) : now;
-    const span = Math.min(7, Math.max(1, (now - first) / 864e5));
-    const perDay = P.ahU.filter(r => r.at >= week).reduce((s, r) => s + r.units, 0) / span;
     const daysLeft = reset ? Math.max(0, (reset - now) / 864e5) : null;
     const steps = AH_STEPS.map(([k, name, what]) => {
       const mine = P.ahU.filter(r => r.step === k), lastRow = mine[mine.length - 1], lastRan = mine.filter(r => r.ran).pop();
       return { k, name, what, row: lastRow, ran: lastRan, normal: AH_NORMAL[k] };
     });
-    return { q, reset: q.reset, daysLeft, perDay, projected: daysLeft == null ? null : q.used + perDay * daysLeft,
-             left: q.limit * (1 - AH_RESERVE) - q.used, ours: P.ahU.filter(r => r.at >= start).reduce((s, r) => s + r.units, 0),
+    // the pace: measured once the log holds 2+ days of real pulls; before that, what the planner expects
+    // (each pull's typical units / its cadence now) -- a log of free runs would read "0 a day" (26 Oct)
+    const firstRan = P.ahU.find(r => r.ran);
+    const span = firstRan ? Math.min(7, (now - ms(firstRan.at)) / 864e5) : 0;
+    const measured = span >= 2;
+    const perDay = measured ? P.ahU.filter(r => r.at >= week).reduce((s, r) => s + r.units, 0) / span
+      : steps.reduce((s, x) => s + (x.row && x.row.days ? x.row.est / x.row.days : 0), 0);
+    // our key's month is Ahrefs' own count; the log only knows the runs since it began
+    const logged = P.ahU.filter(r => r.at >= start).reduce((s, r) => s + r.units, 0);
+    return { q, reset: q.reset, daysLeft, perDay, measured, projected: daysLeft == null ? null : q.used + perDay * daysLeft,
+             left: q.limit * (1 - AH_RESERVE) - q.used, ours: q.key == null ? logged : q.key, logged,
              others: q.key == null ? null : Math.max(0, q.used - q.key), steps };
   }
   function ahUsageHtml() {
@@ -3513,7 +3519,7 @@
         { h: "Typical", num: true, tip: "the median of its last runs, what the planner budgets", cell: s => s.row ? fmtN(s.row.est) : "—" },
         { h: "Latest decision", cell: s => s.row ? esc(s.row.why) : "—" }], m.steps, null, true)
       + '<div id="mkoC-ahu"></div>'
-      + '<p class="rs-hint">The loader keeps ' + pct(AH_RESERVE) + " of the month (" + fmtN(m.q.limit * AH_RESERVE)
+      + '<p class="rs-hint">The loader keeps ' + Math.round(100 * AH_RESERVE) + "% of the month (" + fmtN(m.q.limit * AH_RESERVE)
       + " units) for the workspace's other key and people. When the normal cadences would spend more than is left before "
       + "the reset, it pulls the dearest step less often (the citations first, down to monthly), and pauses steps until the "
       + "reset only if that is not enough. Free calls (the quota itself, Brand Radar's AI answers) cost nothing.</p></div>";
@@ -3525,15 +3531,20 @@
       { label: "Units used", value: pct(ratio(m.q.used, m.q.limit)),
         sub: fmtN(m.q.used) + " of " + fmtN(m.q.limit) + " · resets " + day(m.reset) },
       { label: "On pace for", value: m.projected == null ? "—" : fmtN(m.projected),
-        sub: (m.projected == null ? "" : pct(ratio(m.projected, m.q.limit)) + " of the limit · ") + fmtN(m.perDay) + " a day lately" },
+        sub: (m.projected == null ? "" : pct(ratio(m.projected, m.q.limit)) + " of the limit · ") + fmtN(m.perDay)
+          + (m.measured ? " a day lately" : " a day planned (measured after 2 days of pulls)") },
       { label: "Left to spend", value: fmtN(Math.max(0, m.left)),
         sub: (m.daysLeft == null ? "" : Math.ceil(m.daysLeft) + " days to the reset · ") + "after the reserve" },
-      { label: "Our loader this month", value: fmtN(m.ours),
+      { label: "Our loader's key this month", value: fmtN(m.ours),
         sub: m.others == null ? "measured since this log began" : fmtN(m.others) + " by the workspace's other keys" },
     ]);
     const el = host.querySelector("#mkoC-ahu");
     const days = [...new Set(P.ahU.map(r => r.at.slice(0, 10)))].sort().slice(-30);
     if (!el || !days.length) return;
+    if (!P.ahU.some(r => r.units > 0)) {
+      el.innerHTML = '<div class="mko-empty">No units spent in the logged runs yet: the chart starts with the next paid pull.</div>';
+      return;
+    }
     const units = (k, d) => P.ahU.filter(r => r.step === k && r.at.slice(0, 10) === d).reduce((s, r) => s + r.units, 0);
     RSC.chartCard(el, {
       title: "Units spent a day, by pull", key: "mko-ahrefs-units",
@@ -3545,7 +3556,7 @@
           options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
             plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
             scales: { x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true } },
-                      y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmtN(v) } } } } });
+                      y: { stacked: true, beginAtZero: true, ticks: { precision: 0, callback: v => fmtN(v) } } } } });
       },
       buildTable() {
         return ptable([{ h: "Day", cell: d => esc(day(d)) }].concat(AH_STEPS.map(([k, name]) =>
