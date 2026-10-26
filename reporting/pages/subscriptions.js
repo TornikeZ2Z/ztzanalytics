@@ -8,8 +8,13 @@
    The warehouse finds the charges (src/subscriptions.py -> mart_subscription_charge: a curated vendor
    list, plus anything off the list that recurs like a subscription); this page works out, per vendor
    and for the company picked:
-   - CADENCE from the gaps between charges: monthly, quarterly, yearly, or "as used" when it bills
-     more than twice a month (ad platforms charging at a spend threshold);
+   - CADENCE from the gaps between charges: monthly, quarterly, yearly; more than twice a month is
+     "as used" for an ad platform (it charges at a spend threshold) and "several a month" for anything
+     else (storage units, truck loans, phone lines). A YEAR PAID UP FRONT (his pick, 2026-10-26: the
+     Specialty Program insurance, monthly instalments and then $93k in one go) is a latest charge at
+     least 6x the vendor's usual amount and $1,000, with nothing after it for 60 days: yearly, active
+     for 400 days from it, a twelfth of it a month. A lump that more charges follow (a truck loan
+     paid down) or that has only just landed stays as it is;
    - STATUS against the last day the bank data covers: active while the next charge is not overdue
      (45 days for monthly, 120 quarterly, 400 yearly), stopped after that, new in its first 90 days;
    - MONTHLY COST of what is active: the last three full months ÷ 3 (monthly, as used), the last 12
@@ -75,20 +80,25 @@ registerPage({
                 show: ["active", "stopped", "all"].includes(saved.show) ? saved.show : "active", q: "", open: new Set() };
 
     /* ---------- one vendor, worked out from its charges ---------- */
-    function vendorStats(xs) {
+    function vendorStats(xs, group) {
       xs = xs.slice().sort((a, b) => (a.Date < b.Date ? -1 : 1));
       const first = xs[0], last = xs[xs.length - 1];
       const months = new Set(xs.map(r => r.Month));
       const perMonth = xs.length / months.size;
       const gaps = []; for (let i = 1; i < xs.length; i++) gaps.push(days(xs[i - 1].Date, xs[i].Date));
       const gap = median(gaps.filter(g => g > 0));
-      const cad = xs.length === 1 ? "once" : perMonth > 2 ? "used" : gap >= 300 ? "yearly" : gap >= 75 ? "quarterly" : "monthly";
-      const late = { yearly: 400, quarterly: 120 }[cad] || 45;
       const since = days(last.Date, END);
+      const usual = xs.length >= 3 ? median(xs.slice(0, -1).map(r => r.amt)) : null;
+      const upFront = usual > 0 && last.amt >= 6 * usual && last.amt >= 1000 && since > 60;
+      const cad = xs.length === 1 ? "once" : upFront ? "upfront"
+        : perMonth > 2 ? (group === "Marketing ads" ? "used" : "several")
+        : gap >= 300 ? "yearly" : gap >= 75 ? "quarterly" : "monthly";
+      const late = { yearly: 400, upfront: 400, quarterly: 120 }[cad] || 45;
       const active = since <= late;
       const y12 = xs.filter(r => r.Date > from12).reduce((s, r) => s + r.amt, 0);
       const m3 = xs.filter(r => last3.includes(r.Month)).reduce((s, r) => s + r.amt, 0);
-      const monthly = !active ? 0 : cad === "yearly" || cad === "quarterly" ? y12 / 12 : cad === "once" ? 0 : m3 / 3;
+      const monthly = !active ? 0 : cad === "upfront" ? last.amt / 12
+        : cad === "yearly" || cad === "quarterly" ? y12 / 12 : cad === "once" ? 0 : m3 / 3;
       let change = null;
       if (cad === "monthly" && xs.length >= 4) {
         const before = median(xs.slice(-4, -1).map(r => r.amt)), d = last.amt - before;
@@ -103,10 +113,11 @@ registerPage({
       const by = {};
       rows.forEach(r => { const k = r.Group + "\u0001" + r.Vendor; (by[k] = by[k] || []).push(r); });
       return Object.values(by).map(xs => Object.assign({ group: xs[0].Group, vendor: xs[0].Vendor, what: xs[0].What,
-        pattern: xs.some(r => r["Found By"] === "pattern"), accounts: [...new Set(xs.map(r => r.Account))] }, vendorStats(xs)));
+        pattern: xs.some(r => r["Found By"] === "pattern"), accounts: [...new Set(xs.map(r => r.Account))] }, vendorStats(xs, xs[0].Group)));
     }
 
-    const CAD = { monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly", used: "As used", once: "One charge" };
+    const CAD = { monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly", upfront: "Yearly, paid up front",
+                  used: "As used", several: "Several a month", once: "One charge" };
 
     function paint() {
       const V = model(), inGrp = v => S.grp === "All" || v.group === S.grp;
@@ -177,7 +188,7 @@ registerPage({
             <div class="sub-chips" role="group" aria-label="Status">${chip("show", "active", S.show, "Active")}${chip("show", "stopped", S.show, "Stopped")}${chip("show", "all", S.show, "All")}</div>
             <input type="search" class="sub-q" id="subQ" placeholder="Search a vendor" aria-label="Search a vendor" value="${esc(S.q)}">
           </div>
-          <div class="rs-tablewrap sub-scroll"><table class="rs-table sub-list">
+          <div class="rs-tablewrap sub-scroll"><table class="rs-table">
             <thead><tr><th>Vendor</th><th>Billed</th><th class="num">Monthly cost</th><th class="num">Last charge</th><th class="num">Last 12 months</th><th class="num">Paying since</th><th class="num">Status</th></tr></thead>
             <tbody>${listed.map(v => { const k = v.group + "\u0001" + v.vendor;
               return `<tr class="sub-row${S.open.has(k) ? " open" : ""}" data-k="${esc(k)}" tabindex="0">
@@ -194,8 +205,8 @@ registerPage({
         <section class="panel sub-how"><div class="panel-head"><span class="panel-title">How this is counted</span></div><ul>
           <li><b>The charges</b> are the bank's: the checking account, the credit card and the marketing card, from January 2024 to ${esc(fmtDay(END))} (the bank file is added once a month). Paying our own cards, transfers, Zelle and checks to people, payroll, taxes, card-processing fees, fuel, tolls, truck rental and repairs, packing material and supplies are never counted.</li>
           <li><b>A vendor</b> comes from the vendor list, which reads the bank description (and the bank's own category for PayPal and ACH payments). Anything off the list that is charged about once a month at a steady amount in 4 of the last 12 months is added as <b>Other recurring</b>, marked <i>to review</i>.</li>
-          <li><b>Billed</b> follows the gaps between charges: monthly, quarterly, yearly, or <b>as used</b> when it charges more than twice a month (ad platforms billing at a spend threshold).</li>
-          <li><b>Active</b> means the next charge is not overdue on ${esc(fmtDay(END))}: 45 days for monthly, 120 for quarterly, 400 for yearly. <b>Monthly cost</b> is what an active vendor cost over ${esc(last3.slice().reverse().map(mlabel).join(", "))} ÷ 3, or its last 12 months ÷ 12 when it bills quarterly or yearly.</li>
+          <li><b>Billed</b> follows the gaps between charges: monthly, quarterly, yearly; more than twice a month is <b>as used</b> for an ad platform (it bills at a spend threshold) and <b>several a month</b> for anything else (storage units, truck loans, phone lines). A latest charge at least 6× the vendor's usual amount and $1,000, with nothing after it for 60 days, is a <b>year paid up front</b>.</li>
+          <li><b>Active</b> means the next charge is not overdue on ${esc(fmtDay(END))}: 45 days for monthly and several a month, 120 for quarterly, 400 for yearly and paid up front. <b>Monthly cost</b> is what an active vendor cost over ${esc(last3.slice().reverse().map(mlabel).join(", "))} ÷ 3, its last 12 months ÷ 12 when it bills quarterly or yearly, or a twelfth of a year paid up front.</li>
           <li><b>A price change</b> is a monthly charge whose latest amount is at least 5% and $5 away from the three before it.</li>
         </ul></section>
       </div>`;
