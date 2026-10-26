@@ -367,6 +367,9 @@
       + ".mko .mko-cmap{width:100%;max-width:620px;display:block;margin:0 auto;color:var(--ink)}"
       + ".mko .mko-cmap text{font-size:10px;fill:var(--muted)}"
       + ".mko .mko-ctodo{margin:0;padding-left:18px}.mko .mko-ctodo li{margin:0 0 8px;line-height:1.5}"
+      // the citation lists scroll inside their panel, header pinned (2026-10-26, the marketing head: "too long")
+      + ".mko .mko-scroll .rs-tablewrap{max-height:340px;overscroll-behavior:contain}"
+      + ".mko .mko-scroll thead th{position:sticky;top:0;z-index:2;background:var(--panel)}"
       + ".mko .mko-q{font:inherit;font-size:12.5px;width:100%;max-width:320px;margin:0 0 8px;padding:5px 9px;"
       + "border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink)}"
       + ".mko .mko-lnk{font:inherit;font-weight:600;color:var(--brand);background:none;border:0;padding:0;"
@@ -1633,6 +1636,12 @@
     const head = platHead("reddit", "Reddit Ads", "Reddit Ads Manager · GMT days", pw);
     const rows = pw ? inRange(P.reddit, pw.a, pw.b) : [];
     const gate = platGate("Reddit Ads", "reddit", pw, rows);
+    // a paused account reads as "nothing here?" (2026-10-26): say when it last spent
+    const ran = P.reddit.filter(r => r.cost > 0 && (!pw || r.d < pw.a)).reduce((a, r) => (r.d > a ? r.d : a), "");
+    if (gate && ran && /activity in this period/.test(gate)) {
+      return { html: head + '<div class="mko-empty">No Reddit Ads spend in this period: the account last spent on '
+        + esc(day(ran)) + ". The pull still runs daily, so new spend shows up the day after it happens.</div>" };
+    }
     if (gate) return { html: head + gate };
     const cmp = pw.cw ? inRange(P.reddit, pw.cw.a, pw.cw.b) : null;
     const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
@@ -2741,26 +2750,26 @@
                   { h: "Sites", num: true, cell: r => withShare(fmtN(r.n), r.n, st.live.length) }], bands, null, true)) + "</div>"
       + '<div id="mkoC-cite"></div>'
       + '<div class="mko-g2e">'
-      + panel("Anchors that sell links", "anchor text on the most sites, flagged by its words", anchors.length ? ptable([
+      + panel("Anchors that sell links", "anchor text on the most sites, flagged by its words", anchors.length ? '<div class="mko-scroll">' + ptable([
           { h: "Anchor", name: true, cell: a => esc(cut(a.text, 110)) },
           { h: "Sites", num: true, cell: a => fmtN(a.rd) },
           { h: "Links", num: true, cell: a => fmtN(a.links) },
-          { h: "First seen", num: true, cell: a => esc(shortDay(a.first)) }], anchors.slice(0, 12), null, true)
+          { h: "First seen", num: true, cell: a => esc(shortDay(a.first)) }], anchors, null, true) + "</div>"
           : '<div class="mko-empty">No anchor reads like a paid link.</div>')
-      + panel("Newest referring domains", "the 50 most recent · " + fmtN(newest.filter(r => r.spam).length) + " flagged spam", ptable([
+      + panel("Newest referring domains", "the 50 most recent · " + fmtN(newest.filter(r => r.spam).length) + " flagged spam", '<div class="mko-scroll">' + ptable([
           { h: "Site", name: true, cell: r => esc(r.dom) + " " + (r.spam ? pill("spam", "bad") : "") + '<div class="mko-sub">' + esc(r.type) + "</div>" },
           { h: "DR", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) },
-          { h: "First seen", num: true, cell: r => esc(shortDay(r.first)) }], newest, null, true)) + "</div>"
+          { h: "First seen", num: true, cell: r => esc(shortDay(r.first)) }], newest, null, true) + "</div>") + "</div>"
       + panel("Citation inventory", fmtN(inv.length) + " clean sites from DR 20, strongest first",
         '<input type="search" class="mko-q" id="mkoCiteQ" placeholder="Search a site or a type" aria-label="Search the inventory">'
-        + '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight" id="mkoCiteInv"><thead><tr><th>Site</th><th>Type</th>'
+        + '<div class="mko-scroll"><div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight" id="mkoCiteInv"><thead><tr><th>Site</th><th>Type</th>'
         + '<th class="mko-num">DR</th><th class="mko-num" title="links to us, dofollow beneath">Links</th>'
         + '<th class="mko-num">First seen</th><th class="mko-num">Status</th></tr></thead><tbody>'
         + inv.map(r => '<tr data-q="' + esc((r.dom + " " + r.type).toLowerCase()) + '"><td class="mko-name">' + esc(r.dom) + "</td><td>"
           + esc(r.type) + '</td><td class="mko-num">' + Math.round(r.dr) + '</td><td class="mko-num">' + fmtN(r.links)
           + '<div class="mko-sub">' + fmtN(r.dof) + ' dofollow</div></td><td class="mko-num">' + esc(shortDay(r.first)) + '</td><td class="mko-num">'
           + (r.last ? '<span class="mko-neg">lost ' + esc(shortDay(r.last)) + "</span>" : '<span class="mko-pos">live</span>') + "</td></tr>").join("")
-        + "</tbody></table></div>")
+        + "</tbody></table></div></div>")
       + panel("What to do", "from the numbers above", '<ol class="mko-ctodo">' + todo.map(t => "<li>" + t + "</li>").join("") + "</ol>")
       + "</div>");
   }
