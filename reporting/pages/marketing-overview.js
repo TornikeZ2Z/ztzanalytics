@@ -2753,9 +2753,10 @@
       + '<div class="mko-g2e">'
       + panel("Citations by type", "clean sites from Domain Rating 20, by type, and how many no longer link to us",
         '<div class="chartbox mko-cchart"><canvas id="mkoCiteType" role="img" aria-label="Clean sites linking to us by type"></canvas></div>'
-        + '<p class="rs-hint">Solid: DR 40+ · light: DR 20–39 · outline: no longer linking. '
-        + (strongest && strongest.strong + strongest.mid ? esc(strongest.k) + " carry the most: " + fmtN(strongest.strong + strongest.mid)
-          + " live, " + fmtN(strongest.strong) + " of them DR 40+. " : "") + "Hover a bar for its strongest sites.</p>")
+        + '<p class="rs-hint">Each type has two bars: live sites (solid DR 40+, light DR 20–39) and, in outline, sites that no longer link. '
+        + (strongest && strongest.strong + strongest.mid ? "Most live outside blogs: " + esc(strongest.k) + ", "
+          + fmtN(strongest.strong + strongest.mid) + " sites, " + fmtN(strongest.strong) + " of them DR 40+. " : "")
+        + "Hover a bar for its strongest sites.</p>")
       + panel("Authority mix of referring domains", "every site linking to us, by Domain Rating band; red is Ahrefs' spam flag",
         '<div class="chartbox mko-cchart"><canvas id="mkoCiteMix" role="img" aria-label="Sites linking to us by Domain Rating band"></canvas></div>'
         + '<p class="rs-hint">' + (lowN ? pct(ratio(low.spam, lowN)) + " of the " + fmtN(lowN) + " sites under DR 20 carry the spam flag: "
@@ -2800,23 +2801,44 @@
       { label: "Lost citations", value: fmtN(st.lostClean.length), sub: "clean, DR 20+, no longer linking" },
     ]);
     const bd = citeBreakdowns(st), C = palette(), GREY = "#94A3B8", SPAM_RED = "#E24B4A";
+    // each bar's total at its tip: "Blogs and other" sets the scale, so the named types are short bars
+    // that need their number (2026-10-26, first look at the live charts)
+    const totals = { id: "mkoCiteTotals", afterDatasetsDraw(ch) {
+      const horiz = ch.options.indexAxis === "y", metas = ch.getSortedVisibleDatasetMetas(), top = {};
+      metas.forEach(m => { top[ch.data.datasets[m.index].stack || ""] = m; });
+      const ctx = ch.ctx;
+      ctx.save();
+      ctx.font = "600 11px " + (Chart.defaults.font.family || "sans-serif");
+      ctx.fillStyle = Chart.defaults.color;
+      ctx.textAlign = horiz ? "left" : "center";
+      ctx.textBaseline = horiz ? "middle" : "bottom";
+      Object.entries(top).forEach(([stack, m]) => m.data.forEach((el, i) => {
+        const n = metas.filter(x => (ch.data.datasets[x.index].stack || "") === stack)
+          .reduce((s, x) => s + (+ch.data.datasets[x.index].data[i] || 0), 0);
+        if (n) ctx.fillText(fmtN(n), horiz ? el.x + 4 : el.x, horiz ? el.y : el.y - 3);
+      }));
+      ctx.restore();
+    } };
     const tcan = box.querySelector("#mkoCiteType");
     if (tcan) {
-      const col = bd.byType.map(r => CITE_COLOR[r.k]), bar = { borderRadius: 3, maxBarThickness: 26 };
+      // live (solid DR 40+ and light DR 20-39 stacked) and no longer linking as a second bar beside it,
+      // so a type's lost sites never stretch its live bar
+      const col = bd.byType.map(r => CITE_COLOR[r.k]), live = { stack: "live", borderRadius: 3, maxBarThickness: 16 };
       const keyItem = (text, i, fill, stroke) => ({ text, datasetIndex: i, fillStyle: fill, strokeStyle: stroke || fill,
         lineWidth: stroke ? 1.5 : 0, hidden: false });
       new Chart(tcan, { type: "bar",
         data: { labels: bd.byType.map(r => r.k), datasets: [
-          Object.assign({ label: "DR 40+", data: bd.byType.map(r => r.strong), backgroundColor: col }, bar),
-          Object.assign({ label: "DR 20–39", data: bd.byType.map(r => r.mid), backgroundColor: col.map(c => c + "73") }, bar),
+          Object.assign({ label: "DR 40+", data: bd.byType.map(r => r.strong), backgroundColor: col }, live),
+          Object.assign({ label: "DR 20–39", data: bd.byType.map(r => r.mid), backgroundColor: col.map(c => c + "73") }, live),
           Object.assign({ label: "No longer linking", data: bd.byType.map(r => r.lost), backgroundColor: "transparent",
-                          borderColor: col, borderWidth: 1.5 }, bar)] },
+                          borderColor: col, borderWidth: 1.5 }, live, { stack: "lost" })] },
+        plugins: [totals],
         options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
           plugins: { legend: { position: "bottom", labels: { generateLabels: () => [keyItem("DR 40+", 0, GREY),
                        keyItem("DR 20–39", 1, GREY + "73"), keyItem("No longer linking", 2, "transparent", GREY)] } },
             tooltip: { callbacks: { footer: xs => { const r = bd.byType[xs[0].dataIndex];
               return r.top.length ? "Strongest: " + r.top.join(", ") : ""; } } } },
-          scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+          scales: { x: { stacked: true, beginAtZero: true, grace: "10%", ticks: { precision: 0 } },
                     y: { stacked: true, grid: { display: false }, ticks: { color: c => CITE_COLOR[CITE_ORDER[c.index]] } } } } });
     }
     const mcan = box.querySelector("#mkoCiteMix");
@@ -2826,10 +2848,11 @@
         data: { labels: bd.mix.map(r => r.k), datasets: [
           Object.assign({ label: "Clean", data: bd.mix.map(r => r.clean), backgroundColor: C.main }, bar),
           Object.assign({ label: "Flagged spam", data: bd.mix.map(r => r.spam), backgroundColor: SPAM_RED }, bar)] },
+        plugins: [totals],
         options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
           plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { footer: xs => { const r = bd.mix[xs[0].dataIndex], n = r.clean + r.spam;
             return fmtN(n) + " sites · " + pct(ratio(n, st.live.length)) + " of all"; } } } },
-          scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
+          scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grace: "8%", ticks: { precision: 0 } } } } });
     }
     const hist = P.ahm.filter(r => r.rdh != null).slice(-14);
     const el = box.querySelector("#mkoC-cite");
