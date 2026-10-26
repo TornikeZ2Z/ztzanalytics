@@ -370,6 +370,7 @@
       // the citation lists scroll inside their panel, header pinned (2026-10-26, the marketing head: "too long")
       + ".mko .mko-scroll .rs-tablewrap{max-height:340px;overscroll-behavior:contain}"
       + ".mko .mko-scroll thead th{position:sticky;top:0;z-index:2;background:var(--panel)}"
+      + ".mko .mko-cchart{height:280px;position:relative}"
       + ".mko .mko-q{font:inherit;font-size:12.5px;width:100%;max-width:320px;margin:0 0 8px;padding:5px 9px;"
       + "border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink)}"
       + ".mko .mko-lnk{font:inherit;font-weight:600;color:var(--brand);background:none;border:0;padding:0;"
@@ -2646,6 +2647,25 @@
              newIn: live.filter(r => r.first && r.first >= a && r.first <= b),
              newSpam: live.filter(r => r.spam && r.first && r.first >= a && r.first <= b) };
   }
+  /* the two charts side by side under the map, as on the marketing head's own dashboard (2026-10-26:
+     "it was easier to read there -- bring it over exactly"): clean sites from DR 20 by type, live
+     (solid DR 40+, light DR 20-39) and no longer linking; and every live site by Domain Rating band,
+     the spam flag stacked in red -- the lowest band is almost all spam. */
+  const CITE_BANDS = [[0, 20, "DR 0–19"], [20, 40, "DR 20–39"], [40, 60, "DR 40–59"], [60, 80, "DR 60–79"], [80, 101, "DR 80+"]];
+  function citeBreakdowns(st) {
+    const dr = r => r.dr || 0;
+    const byType = CITE_ORDER.map(t => {
+      const xs = st.clean.filter(r => r.type === t && dr(r) >= 20);
+      return { k: t, strong: xs.filter(r => dr(r) >= 40).length, mid: xs.filter(r => dr(r) < 40).length,
+               lost: st.lostClean.filter(r => r.type === t).length,
+               top: xs.slice().sort((a, b) => dr(b) - dr(a)).slice(0, 3).map(r => r.dom) };
+    });
+    const mix = CITE_BANDS.map(([lo, hi, k]) => {
+      const xs = st.live.filter(r => dr(r) >= lo && dr(r) < hi);
+      return { k, clean: xs.filter(r => !r.spam).length, spam: xs.filter(r => r.spam).length };
+    });
+    return { byType, mix };
+  }
   // us at the centre; each clean site from DR 20 in its type's sector, closer = stronger, hollow = lost
   function citeMapSvg(st) {
     const W = 620, H = 430, cx = W / 2, cy = H / 2 + 4, rMin = 30, rMax = 170;
@@ -2691,16 +2711,8 @@
       + "Ahrefs pull (Mondays).</div></div>");
     const st = citeStats(w.a, w.bEff), panel = (t, s, b) => '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + t + '</span><span class="mko-sub">' + s + "</span></div>" + b + "</div>";
-    const byType = CITE_ORDER.map(t => {
-      const xs = st.clean.filter(r => r.type === t && (r.dr || 0) >= 20);
-      return { k: t, n: xs.length, strong: xs.filter(r => r.dr >= 40).length,
-               lost: st.lostClean.filter(r => r.type === t).length,
-               top: xs.slice().sort((a, b) => b.dr - a.dr).slice(0, 3).map(r => r.dom) };
-    });
-    const nT = sum(byType, "n");
-    const bands = [["Flagged spam", st.spam], ["DR 80+", st.clean.filter(r => r.dr >= 80)],
-                   ["DR 60–79", st.clean.filter(r => r.dr >= 60 && r.dr < 80)], ["DR 40–59", st.clean.filter(r => r.dr >= 40 && r.dr < 60)],
-                   ["DR 20–39", st.mid], ["DR 0–19", st.clean.filter(r => (r.dr || 0) < 20)]].map(([k, xs]) => ({ k, n: xs.length }));
+    const bd = citeBreakdowns(st), low = bd.mix[0], lowN = low.clean + low.spam;
+    const strongest = bd.byType.filter(r => r.k !== CITE_OTHER).sort((a, b) => b.strong + b.mid - a.strong - a.mid)[0];
     const anchors = P.anchor.filter(a => SPAM_ANCHOR.test(a.text) || a.text.length > 120).sort((a, b) => b.rd - a.rd);
     const newest = st.live.slice().sort((a, b) => (a.first < b.first ? 1 : -1)).slice(0, 50);
     const inv = st.clean.filter(r => r.dr >= 20).concat(st.lostClean).sort((a, b) => b.dr - a.dr);
@@ -2737,17 +2749,18 @@
       + " at DR 40+ link to us" + (press.length ? " (" + esc(press.slice(0, 4).map(r => r.dom).join(", ")) + ")" : "")
       + ": local press and “best movers” roundups are the links AI answers cite.");
     return wrap('<div id="mkoCite"><div class="rs-kpis" id="mkoK-cite"></div>'
-      + '<div class="mko-g2e">'
       + panel("Citation map", "clean sites from Domain Rating 20, by type", citeMapSvg(st))
-      + panel("Citations by type", "clean sites from DR 20, live and lost", ptable([
-          { h: "Type", name: true, cell: r => shareName('<b style="color:' + CITE_COLOR[r.k] + '">' + esc(r.k) + "</b>", r.n, nT)
-              + (r.top.length ? '<div class="mko-sub">' + esc(r.top.join(" · ")) + "</div>" : "") },
-          { h: "Live", num: true, cell: r => fmtN(r.n) },
-          { h: "DR 40+", num: true, cell: r => fmtN(r.strong) },
-          { h: "Lost", num: true, tip: "no longer linking, DR 20+", cell: r => fmtN(r.lost) }], byType, null, true)
-        + '<h3 class="mko-h3">Domain Rating mix</h3>'
-        + ptable([{ h: "Band", name: true, cell: r => shareName(esc(r.k), r.n, st.live.length) },
-                  { h: "Sites", num: true, cell: r => withShare(fmtN(r.n), r.n, st.live.length) }], bands, null, true)) + "</div>"
+      + '<div class="mko-g2e">'
+      + panel("Citations by type", "clean sites from Domain Rating 20, by type, and how many no longer link to us",
+        '<div class="chartbox mko-cchart"><canvas id="mkoCiteType" role="img" aria-label="Clean sites linking to us by type"></canvas></div>'
+        + '<p class="rs-hint">Solid: DR 40+ · light: DR 20–39 · outline: no longer linking. '
+        + (strongest && strongest.strong + strongest.mid ? esc(strongest.k) + " carry the most: " + fmtN(strongest.strong + strongest.mid)
+          + " live, " + fmtN(strongest.strong) + " of them DR 40+. " : "") + "Hover a bar for its strongest sites.</p>")
+      + panel("Authority mix of referring domains", "every site linking to us, by Domain Rating band; red is Ahrefs' spam flag",
+        '<div class="chartbox mko-cchart"><canvas id="mkoCiteMix" role="img" aria-label="Sites linking to us by Domain Rating band"></canvas></div>'
+        + '<p class="rs-hint">' + (lowN ? pct(ratio(low.spam, lowN)) + " of the " + fmtN(lowN) + " sites under DR 20 carry the spam flag: "
+          + "that band is the paid-link network, not citations. " : "") + fmtN(st.spam.length) + " of " + fmtN(st.live.length)
+        + " flagged in all.</p>") + "</div>"
       + '<div id="mkoC-cite"></div>'
       + '<div class="mko-g2e">'
       + panel("Anchors that sell links", "anchor text on the most sites, flagged by its words", anchors.length ? '<div class="mko-scroll">' + ptable([
@@ -2786,6 +2799,38 @@
       { label: "Clean DR 20–39", value: fmtN(st.mid.length), sub: fmtN(st.clean.length) + " clean in all" },
       { label: "Lost citations", value: fmtN(st.lostClean.length), sub: "clean, DR 20+, no longer linking" },
     ]);
+    const bd = citeBreakdowns(st), C = palette(), GREY = "#94A3B8", SPAM_RED = "#E24B4A";
+    const tcan = box.querySelector("#mkoCiteType");
+    if (tcan) {
+      const col = bd.byType.map(r => CITE_COLOR[r.k]), bar = { borderRadius: 3, maxBarThickness: 26 };
+      const keyItem = (text, i, fill, stroke) => ({ text, datasetIndex: i, fillStyle: fill, strokeStyle: stroke || fill,
+        lineWidth: stroke ? 1.5 : 0, hidden: false });
+      new Chart(tcan, { type: "bar",
+        data: { labels: bd.byType.map(r => r.k), datasets: [
+          Object.assign({ label: "DR 40+", data: bd.byType.map(r => r.strong), backgroundColor: col }, bar),
+          Object.assign({ label: "DR 20–39", data: bd.byType.map(r => r.mid), backgroundColor: col.map(c => c + "73") }, bar),
+          Object.assign({ label: "No longer linking", data: bd.byType.map(r => r.lost), backgroundColor: "transparent",
+                          borderColor: col, borderWidth: 1.5 }, bar)] },
+        options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          plugins: { legend: { position: "bottom", labels: { generateLabels: () => [keyItem("DR 40+", 0, GREY),
+                       keyItem("DR 20–39", 1, GREY + "73"), keyItem("No longer linking", 2, "transparent", GREY)] } },
+            tooltip: { callbacks: { footer: xs => { const r = bd.byType[xs[0].dataIndex];
+              return r.top.length ? "Strongest: " + r.top.join(", ") : ""; } } } },
+          scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+                    y: { stacked: true, grid: { display: false }, ticks: { color: c => CITE_COLOR[CITE_ORDER[c.index]] } } } } });
+    }
+    const mcan = box.querySelector("#mkoCiteMix");
+    if (mcan) {
+      const bar = { borderRadius: 3, maxBarThickness: 56 };
+      new Chart(mcan, { type: "bar",
+        data: { labels: bd.mix.map(r => r.k), datasets: [
+          Object.assign({ label: "Clean", data: bd.mix.map(r => r.clean), backgroundColor: C.main }, bar),
+          Object.assign({ label: "Flagged spam", data: bd.mix.map(r => r.spam), backgroundColor: SPAM_RED }, bar)] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+          plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { footer: xs => { const r = bd.mix[xs[0].dataIndex], n = r.clean + r.spam;
+            return fmtN(n) + " sites · " + pct(ratio(n, st.live.length)) + " of all"; } } } },
+          scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
+    }
     const hist = P.ahm.filter(r => r.rdh != null).slice(-14);
     const el = box.querySelector("#mkoC-cite");
     if (el && hist.length) {
