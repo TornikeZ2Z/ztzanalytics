@@ -198,6 +198,10 @@
     mkt_anchor: { table: "ext_ahrefs_anchor", cols: ["Anchor", "Ref Domains", "Links", "Dofollow Links", "First Seen",
                                                      "Last Seen"] },
     mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
+    // 2026-10-26 AI visibility: Ahrefs Brand Radar answers to our questions (src/brand_radar.py), monthly
+    mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
+    mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
+    mkt_brcit: { table: "ext_brandradar_citation", cols: ["Date", "Engine", "Prompt Key", "Domain", "Is Ours"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -245,7 +249,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [],
+              gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -371,6 +375,11 @@
       + ".mko .mko-scroll .rs-tablewrap{max-height:340px;overscroll-behavior:contain}"
       + ".mko .mko-scroll thead th{position:sticky;top:0;z-index:2;background:var(--panel)}"
       + ".mko .mko-cchart{height:280px;position:relative}"
+      // AI visibility heat tables: low red -> high green, the way the marketing head's report reads them
+      + ".mko .mko-heat td.h0{background:rgba(185,28,28,.14)}.mko .mko-heat td.h1{background:rgba(185,28,28,.07)}"
+      + ".mko .mko-heat td.h2{background:rgba(148,163,184,.16)}.mko .mko-heat td.h3{background:rgba(101,163,13,.18)}"
+      + ".mko .mko-heat td.h4{background:rgba(63,125,32,.32)}.mko .mko-heat td.na{color:var(--faint)}"
+      + ".mko .mko-heat tr.mko-us td{font-weight:700}"
       + ".mko .mko-q{font:inherit;font-size:12.5px;width:100%;max-width:320px;margin:0 0 8px;padding:5px 9px;"
       + "border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink)}"
       + ".mko .mko-lnk{font:inherit;font-weight:600;color:var(--brand);background:none;border:0;padding:0;"
@@ -765,6 +774,16 @@
       links: num(r.Links), first: d10(r["First Seen"]) || null }));
     indexPlat("ctrace", t.ctrace, r => ({ d: d10(r.Date), cid: String(r["Campaign Id"]), via: r.Via || "",
       leads: num(r.Leads), booked: num(r.Booked) }));
+  }
+  // 2026-10-26: AI visibility, the Brand Radar answers, the movers they name and the sites they cite
+  function indexBrandRadar(t) {
+    const yes = v => num(v) === 1;
+    P.brA = (t.brans || []).map(r => ({ d: d10(r.Date), eng: r.Engine, pk: r["Prompt Key"], q: String(r.Question || ""),
+      tags: r.Tags || "", us: yes(r["Us Mentioned"]) })).filter(r => r.d && r.pk);
+    P.brM = (t.brmen || []).map(r => ({ d: d10(r.Date), eng: r.Engine, pk: r["Prompt Key"], brand: r.Brand,
+      us: yes(r["Is Us"]), sent: r.Sentiment || null })).filter(r => r.d && r.pk && r.brand);
+    P.brC = (t.brcit || []).map(r => ({ d: d10(r.Date), eng: r.Engine, pk: r["Prompt Key"],
+      dom: String(r.Domain || "").toLowerCase(), ours: yes(r["Is Ours"]) })).filter(r => r.d && r.pk);
   }
   // Reddit reports only days that ran, so a paused account's last row is its last delivery: its data
   // runs through the last PULL (the connectors row's Newest Data, from ext_reddit_ads_pull)
@@ -2474,7 +2493,7 @@
           '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
           + '<p class="rs-hint">Ahrefs\' own estimates from its crawler and keyword panel, not our measured '
           + "traffic (that is Search Console and Analytics).</p>"),
-      ai: () => panel("AI visibility", "how often AI answers name us, and who they name instead", aiVisHtml()),
+      ai: () => aiVisHtml(),
       onpage: () => panel("On-page · Ahrefs Site Audit", P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet", onPageHtml()),
       local: () => panel("Local rankings · BrightLocal", "weekly rank reports, Mondays", blHtml()
         + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so its citations are not '
@@ -2506,6 +2525,7 @@
       });
       rep.wire(host);           // the month chart and the new links, wherever their boxes are on the page
       citeWire(host, w);
+      aiWire(host);
       if (!gate && host.querySelector("#mkoC-gsc")) {
         const keys = bucketsOf(gw.a, gw.b, gw.g);
         barCard(host.querySelector("#mkoC-gsc"), "gsc-clk", "Search clicks by " + GRAIN_WORD[gw.g], keys, gw.g,
@@ -2889,20 +2909,188 @@
       document.body.appendChild(a); a.click(); a.remove();
     };
   }
+  /* === AI VISIBILITY (2026-10-26, his pick: Ahrefs Brand Radar on the plan we already pay for) ===
+     The marketing head's Searchable report is the idea: how visible we are in AI answers, share of
+     voice against the competitors, and visibility and sentiment per AI engine. Ours comes from 50
+     questions asked monthly of ChatGPT, Perplexity and Google AI Overviews (src/brand_radar.py):
+     - VISIBILITY: the share of an engine's answers that name the brand;
+     - SHARE OF VOICE: a brand's share of all the times the answers named a tracked mover;
+     - SENTIMENT: the share of a brand's mentions Ahrefs reads as positive ("—" where it is not named).
+     Searchable's 0-100 score and its percentile against 10,000 brands are its own benchmark, so
+     nothing here imitates them. Beyond her report: the questions where competitors are named and we
+     are not, and the sites the answers cite -- the places to get listed. Each engine is read at its
+     latest check; older checks make the month-by-month line. */
+  const AI_ENGINES = [["chatgpt", "ChatGPT"], ["perplexity", "Perplexity"], ["google_ai_overviews", "AI Overviews"]];
+  const AI_US = "Zip to Zip Moving";
+  function aiModel() {
+    if (!P.brA.length) return null;
+    const last = {};
+    P.brA.forEach(r => { if (!last[r.eng] || r.d > last[r.eng]) last[r.eng] = r.d; });
+    const cur = r => last[r.eng] === r.d;
+    const A = P.brA.filter(cur), M = P.brM.filter(cur), C = P.brC.filter(cur);
+    const engines = AI_ENGINES.filter(([k]) => last[k]);
+    const n = {}, named = {}, rated = {}, pos = {};
+    const bump = (o, b, e) => { (o[b] = o[b] || {})[e] = (o[b][e] || 0) + 1; };
+    const get = (o, b, e) => (o[b] && o[b][e]) || 0;
+    A.forEach(a => { n[a.eng] = (n[a.eng] || 0) + 1; });
+    M.forEach(m => {
+      bump(named, m.brand, m.eng);
+      if (m.sent) { bump(rated, m.brand, m.eng); if (m.sent === "positive") bump(pos, m.brand, m.eng); }
+    });
+    const brands = Object.keys(named).concat(named[AI_US] ? [] : [AI_US]);
+    const men = b => engines.reduce((s, [e]) => s + get(named, b, e), 0);
+    const all = brands.reduce((s, b) => s + men(b), 0);
+    const rows = brands.map(b => ({ b, us: b === AI_US, men: men(b), sov: ratio(men(b), all) || 0,
+      vis: Object.fromEntries(engines.map(([e]) => [e, n[e] ? get(named, b, e) / n[e] : null])),
+      sent: Object.fromEntries(engines.map(([e]) => [e, get(rated, b, e) ? get(pos, b, e) / get(rated, b, e) : null])) }))
+      .sort((x, y) => y.men - x.men || (x.us ? -1 : y.us ? 1 : x.b < y.b ? -1 : 1));
+    // the questions where a competitor is named and we are not, engine by engine
+    const who = {};
+    M.forEach(m => { if (!m.us) (who[m.eng + "|" + m.pk] = who[m.eng + "|" + m.pk] || []).push(m.brand); });
+    const gapBy = {};
+    A.forEach(a => {
+      const w = who[a.eng + "|" + a.pk] || [];
+      if (a.us || !w.length) return;
+      const g = (gapBy[a.pk] = gapBy[a.pk] || { q: a.q, eng: [], who: {} });
+      g.eng.push(a.eng);
+      w.forEach(x => { g.who[x] = (g.who[x] || 0) + 1; });
+    });
+    const gaps = Object.values(gapBy).map(g => ({ q: g.q, eng: g.eng,
+      who: Object.keys(g.who).sort((x, y) => g.who[y] - g.who[x] || (x < y ? -1 : 1)) }))
+      .sort((x, y) => y.eng.length - x.eng.length || y.who.length - x.who.length || (x.q < y.q ? -1 : 1));
+    // the sites the answers cite: in how many answers, and in how many that do not name us
+    const usAns = new Set(A.filter(a => a.us).map(a => a.eng + "|" + a.pk));
+    const dom = {};
+    C.forEach(c => {
+      if (!c.dom) return;
+      const d = (dom[c.dom] = dom[c.dom] || { dom: c.dom, ours: c.ours, ans: new Set(), noUs: new Set() });
+      const k = c.eng + "|" + c.pk;
+      d.ans.add(k);
+      if (!usAns.has(k)) d.noUs.add(k);
+    });
+    const sites = Object.values(dom).map(d => ({ dom: d.dom, ours: d.ours, n: d.ans.size, noUs: d.noUs.size }))
+      .sort((x, y) => y.n - x.n || (x.dom < y.dom ? -1 : 1));
+    const byM = {};
+    P.brA.forEach(a => { const o = (byM[a.d.slice(0, 7)] = byM[a.d.slice(0, 7)] || { n: 0, us: 0 }); o.n++; if (a.us) o.us++; });
+    return { engines, answers: A.length, usAns: usAns.size, questions: new Set(A.map(a => a.pk)).size,
+             usQ: new Set(A.filter(a => a.us).map(a => a.pk)).size, rows, us: rows.find(r => r.us), gaps, sites,
+             oursCited: sites.filter(s => s.ours).reduce((s, x) => s + x.n, 0),
+             dates: [...new Set(Object.values(last))].sort(),
+             trend: Object.keys(byM).sort().map(m => ({ m, rate: byM[m].us / byM[m].n, n: byM[m].n })) };
+  }
+  const pct0 = v => v == null || isNaN(v) ? "—" : Math.round(100 * v) + "%";
   function aiVisHtml() {
-    const ai = P.issues.filter(r => /ai discoverab/i.test(r.cat));
-    return '<div class="mko-nm"><p><b>Coming from Ahrefs Brand Radar</b> (your pick, 23 Oct): about 150 prompts a week on '
-      + "ChatGPT, Perplexity and Google AI Overviews, read back as a visibility score, share of voice against the "
-      + "competitors, visibility by engine, sentiment, and the sites the answers cite.</p>"
-      + "<p>Waiting on two things: the Brand Radar custom-prompt package (Basic, $50 a month) on the marketing@ Ahrefs "
-      + "account, and Sophie's edit of the drafted prompts and competitor list. Our Ahrefs key already reaches "
-      + "custom-prompt reports (it answers “needs a report”, not “missing add-on”).</p>"
-      + "<p>Last outside reading, Searchable on 26 May 2026 over 150 answers: visibility 23.3 (bottom 31% of brands), "
-      + "share of voice 7.1% (first of the movers named); mentioned in 18% of ChatGPT, 28% of Perplexity and 24% of "
-      + "AI Overviews answers.</p>"
-      + (ai.length ? "<p>Meanwhile the site audit flags " + ai.length + " AI-discoverability issue"
-        + (ai.length > 1 ? "s" : "") + ": " + esc(ai.map(r => r.name + " (" + r.pages + " pages)").join("; ")) + ".</p>" : "")
-      + "</div>";
+    const panel = (t, s, b) => '<div class="panel"><div class="panel-head"><span class="panel-title">' + t
+      + '</span><span class="mko-sub">' + s + "</span></div>" + b + "</div>";
+    const issues = P.issues.filter(r => /ai discoverab/i.test(r.cat));
+    const audit = issues.length ? '<p class="rs-hint">The site audit flags ' + issues.length + " AI-discoverability issue"
+      + (issues.length > 1 ? "s" : "") + ": " + esc(issues.map(r => r.name + " (" + r.pages + " pages)").join("; ")) + ".</p>" : "";
+    const err = ["brans", "brmen", "brcit"].map(k => P.err[k]).find(Boolean);
+    if (err) {
+      return panel("AI visibility", "Ahrefs Brand Radar", '<div class="mko-empty">AI visibility could not load — ' + esc(err)
+        + (/404|unknown|not granted|403/i.test(err) ? " (it arrives with the next bridge deploy or pipeline run)" : "") + "</div>");
+    }
+    const mo = aiModel();
+    if (!mo) {
+      return panel("AI visibility", "Ahrefs Brand Radar · 50 questions a month", '<div class="mko-nm">'
+        + "<p><b>The first AI answers have not arrived yet.</b> Ahrefs Brand Radar will ask ChatGPT, Perplexity and "
+        + "Google AI Overviews 50 questions a month, written the way customers ask about movers in our markets: the 150 "
+        + "checks our Ahrefs plan includes. Once the marketing head approves the questions, the first answers land within a day.</p>"
+        + "<p>This tab then shows how often AI answers name us, our share of voice against 13 competitors, visibility and "
+        + "sentiment by AI engine, the questions where competitors are named and we are not, and the sites the answers cite.</p>"
+        + "<p>Last outside reading, Searchable on 26 May 2026 over 150 answers: visibility 23.3 (bottom 31% of brands), "
+        + "share of voice 7.1% (first of the movers named); named in 18% of ChatGPT, 28% of Perplexity and 24% of "
+        + "AI Overviews answers.</p></div>" + audit);
+    }
+    const E = mo.engines, U = mo.us;
+    const card = (l, v, s) => '<div class="kpi"><div class="l">' + esc(l) + '</div><div class="v">' + v
+      + '</div><div class="s">' + esc(s) + "</div></div>";
+    const cards = html => '<div class="rs-kpis" style="--kpi-cols:' + E.length + '">' + html + "</div>";
+    const heat = key => {
+      const max = Math.max(0, ...mo.rows.map(r => Math.max(0, ...E.map(([e]) => r[key][e] || 0))));
+      return '<div class="rs-tablewrap"><table class="rs-table mko-pt mko-tight mko-heat"><thead><tr><th>Brand</th>'
+        + E.map(([, l]) => '<th class="mko-num">' + esc(l) + "</th>").join("") + "</tr></thead><tbody>"
+        + mo.rows.map(r => "<tr" + (r.us ? ' class="mko-us"' : "") + '><td class="mko-name">' + esc(r.b) + "</td>"
+          + E.map(([e]) => { const v = r[key][e];
+            return '<td class="mko-num ' + (v == null ? "na" : "h" + Math.min(4, Math.floor((max ? v / max : 0) * 5))) + '">'
+              + pct0(v) + "</td>"; }).join("") + "</tr>").join("") + "</tbody></table></div>";
+    };
+    const lead = E.map(([e, l]) => {
+      const nx = mo.rows.filter(r => !r.us).sort((a, b) => (b.vis[e] || 0) - (a.vis[e] || 0))[0];
+      const d = (U.vis[e] || 0) - (nx ? nx.vis[e] || 0 : 0);
+      return card(l, (d >= 0 ? "+" : "−") + Math.round(Math.abs(d) * 100) + " pts",
+        nx && nx.vis[e] ? (d >= 0 ? "ahead of " : "behind ") + nx.b + ", " + pct0(nx.vis[e]) : "no other mover named");
+    }).join("");
+    const rank = E.map(([e, l]) => {
+      const rk = mo.rows.filter(r => r.sent[e] != null).sort((a, b) => b.sent[e] - a.sent[e]);
+      const i = rk.indexOf(U);
+      return card(l, i < 0 ? "not named" : "#" + (i + 1) + " of " + rk.length,
+        i === 0 ? (rk[1] ? "we lead; next: " + rk[1].b + ", " + pct0(rk[1].sent[e]) : "the only mover rated")
+          : rk.length ? "top: " + rk[0].b + ", " + pct0(rk[0].sent[e]) : "no sentiment read");
+    }).join("");
+    const chips = es => es.map(e => '<span class="rs-pill mute">' + esc((AI_ENGINES.find(x => x[0] === e) || [e, e])[1]) + "</span>").join(" ");
+    const how = '<p class="rs-hint">Named = the share of an engine\'s answers that name the mover. Share of voice = its share of '
+      + "all the times the answers named a tracked mover. Sentiment = the share of its mentions Ahrefs reads as positive; "
+      + "— means that engine did not name it. Each engine is read at its latest monthly check.</p>";
+    return '<div id="mkoAi"><p class="rs-hint">' + fmtN(mo.questions) + " questions asked of " + esc(E.map(e => e[1]).join(", "))
+      + " · checked " + esc(mo.dates.map(day).join(", ")) + " · Ahrefs Brand Radar, monthly</p>"
+      + '<div class="rs-kpis" id="mkoK-ai"></div>'
+      + panel("Share of voice", "when AI answers name movers, how often each one is named",
+        '<div class="chartbox mko-cchart"><canvas id="mkoAiSov" role="img" aria-label="Share of voice in AI answers"></canvas></div>'
+        + '<p class="rs-hint">' + pct(U.sov) + " of the mentions are ours; " + pct(1 - U.sov) + " go to the competitors.</p>")
+      + '<div class="mko-g2e">'
+      + panel("Visibility by AI engine", "the share of each engine's answers that name the mover", cards(lead) + heat("vis"))
+      + panel("Sentiment by AI engine", "the share of each mover's mentions that read positive", cards(rank) + heat("sent"))
+      + "</div>"
+      + '<div class="mko-g2e">'
+      + panel("Where competitors are named and we are not", fmtN(mo.gaps.length) + " of " + fmtN(mo.questions) + " questions",
+        mo.gaps.length ? '<div class="mko-scroll">' + ptable([
+          { h: "Question", name: true, cell: g => esc(g.q) + '<div class="mko-sub">' + esc(g.who.slice(0, 3).join(" · ")) + "</div>" },
+          { h: "Engines", num: true, cell: g => chips(g.eng) }], mo.gaps, null, true) + "</div>"
+          : '<div class="mko-empty">Every answer that names a competitor names us too.</div>')
+      + panel("Sites the answers cite", "the places to get listed: cited in answers that do not name us",
+        mo.sites.length ? '<div class="mko-scroll">' + ptable([
+          { h: "Site", name: true, cell: s => esc(s.dom) + (s.ours ? ' <span class="rs-pill ok">ours</span>' : "") },
+          { h: "Answers", num: true, tip: "answers that link to it", cell: s => fmtN(s.n) },
+          { h: "Without us", num: true, tip: "of those, answers that do not name us", cell: s => fmtN(s.noUs) }], mo.sites, null, true) + "</div>"
+          : '<div class="mko-empty">These answers cite no sites.</div>')
+      + "</div>"
+      + (mo.trend.length > 1 ? panel("Named in AI answers, month by month", "all engines together", ptable([
+          { h: "Month", cell: t => esc(monthWord(t.m)) },
+          { h: "Named in", num: true, cell: t => pct0(t.rate) },
+          { h: "Answers", num: true, cell: t => fmtN(t.n) }], mo.trend.slice().reverse(), null, true)) : "")
+      + how + audit + "</div>";
+  }
+  function aiWire(host) {
+    const box = host.querySelector("#mkoAi"), mo = box && aiModel();
+    if (!mo) return;
+    const U = mo.us, named = mo.rows.filter(r => r.men > 0), rk = named.indexOf(U) + 1;
+    RSC.kpis(box.querySelector("#mkoK-ai"), [
+      { label: "Named in AI answers", value: pct0(ratio(mo.usAns, mo.answers)),
+        sub: "missing from " + pct0(1 - (ratio(mo.usAns, mo.answers) || 0)) + " of " + fmtN(mo.answers) + " answers" },
+      { label: "Share of voice", value: pct(U.sov), sub: rk ? "#" + rk + " of " + named.length + " movers named" : "not named yet" },
+      { label: "Questions we're named in", value: fmtN(mo.usQ), sub: "of " + fmtN(mo.questions) + ", by at least one engine" },
+      { label: "Answers citing our site", value: fmtN(mo.oursCited), sub: fmtN(mo.sites.length) + " sites cited in all" },
+    ]);
+    const can = box.querySelector("#mkoAiSov");
+    if (!can) return;
+    const C = palette(), list = named.slice(0, 10);
+    const tips = { id: "mkoAiTips", afterDatasetsDraw(ch) {
+      const ctx = ch.ctx, meta = ch.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = "600 11px " + (Chart.defaults.font.family || "sans-serif");
+      ctx.fillStyle = Chart.defaults.color; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      meta.data.forEach((el, i) => ctx.fillText(pct(list[i].sov), el.x, el.y - 3));
+      ctx.restore();
+    } };
+    new Chart(can, { type: "bar",
+      data: { labels: list.map(r => r.b), datasets: [{ label: "Share of voice", data: list.map(r => +(100 * r.sov).toFixed(1)),
+        backgroundColor: list.map(r => r.us ? C.alt : "#94A3B8"), borderRadius: 3, maxBarThickness: 48 }] },
+      plugins: [tips],
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: x => pct(list[x.dataIndex].sov) + " of mentions · named " + fmtN(list[x.dataIndex].men) + " times" } } },
+        scales: { x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 30 } },
+                  y: { beginAtZero: true, grace: "10%", ticks: { callback: v => v + "%" } } } } });
   }
 
   /* === REVIEWS === */
@@ -3451,9 +3639,11 @@
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
         plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
         plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"),
+        plat("mkt_brans", "brans"), plat("mkt_brmen", "brmen"), plat("mkt_brcit", "brcit"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace]) => {
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
+                brans, brmen, brcit]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -3463,6 +3653,7 @@
         indexMarks(marks);
         indexReddit(reddit);
         indexBatch3({ refdom, anchor, ctrace });
+        indexBrandRadar({ brans, brmen, brcit });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
