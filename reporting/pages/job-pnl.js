@@ -49,7 +49,7 @@
     .jpl-hits{max-width:1040px}
     .jpl-search .rs-inp{flex:1 1 320px;min-width:0}
     .jpl-hits{margin-top:10px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-    .jpl-hit{display:grid;grid-template-columns:92px 120px minmax(0,1fr) minmax(0,160px) 96px 96px;gap:10px;
+    .jpl-hit{display:grid;grid-template-columns:92px 120px minmax(0,1fr) minmax(0,160px) 96px 96px 96px;gap:10px;
       align-items:center;padding:8px 12px;background:var(--panel);border:0;border-top:1px solid var(--line);
       text-align:left;font:inherit;color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
     .jpl-hit:first-child{border-top:0}
@@ -57,7 +57,7 @@
     .jpl-hit .r{text-align:right}
     .jpl-hit small{color:var(--muted)}
     .jpl-hit.jpl-head{cursor:default;font-size:12px;color:var(--muted);background:var(--panel-2)}
-    @media (max-width:760px){.jpl-hit{grid-template-columns:84px minmax(0,1fr) 90px}
+    @media (max-width:760px){.jpl-hit{grid-template-columns:84px minmax(0,1fr) 84px 64px}
       .jpl-hit .jpl-c2,.jpl-hit .jpl-c4,.jpl-hit .jpl-c5{display:none}}
     .jpl-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .jpl-wrap{max-width:1040px}
@@ -128,6 +128,8 @@
         const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("en-US",
           { month: "short", day: "numeric", year: "numeric" }); };
       const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "—";
+      const margin = r => { const b = num(r["Total Bill"]); if (!(b > 0)) return "—";
+        const m = Math.round(100 * num(r["Full Profit"]) / b); return (m < 0 ? "−" : "") + Math.abs(m) + "%"; };
 
       injectStyle();
       host.innerHTML = '<div class="panel"><div class="rs-loading">Reading every job’s costs…</div></div>';
@@ -188,14 +190,16 @@
           if (!list.length) return '<div class="jpl-empty">No job matches “' + esc(query) + '”.</div>';
           return '<div class="jpl-hits" role="list"><div class="jpl-hit jpl-head"><span>' + esc(label) + '</span>' +
             '<span class="jpl-c2">Job code</span><span>Customer</span><span class="jpl-c4">Foreman</span>' +
-            '<span class="r jpl-c5">Billed</span><span class="r">Full profit</span></div>' +
+            '<span class="r jpl-c5">Billed</span><span class="r">Full profit</span><span class="r">Profit margin</span></div>' +
             list.map(r => '<button type="button" class="jpl-hit" role="listitem" data-key="' + esc(r["Job Key"]) + '">' +
               "<span>" + esc(day(r._d)) + "</span>" +
               '<span class="jpl-c2">' + esc(r["Job Code"] || "#" + r["Closing #"]) + "</span>" +
               "<span>" + esc(r["Customer"] || "—") + (r["Company"] && r["Company"] !== "Zip to Zip" ? " <small>· " + esc(r["Company"]) + "</small>" : "") + "</span>" +
               '<span class="jpl-c4"><small>' + esc(r["Foreman"] || "—") + "</small></span>" +
               '<span class="r jpl-c5">' + money(r["Total Bill"]) + "</span>" +
-              '<span class="r ' + (num(r["Full Profit"]) < 0 ? "jpl-neg" : "") + '">' + money(r["Full Profit"]) + "</span></button>").join("") +
+              '<span class="r ' + (num(r["Full Profit"]) < 0 ? "jpl-neg" : "") + '">' + money(r["Full Profit"]) + "</span>" +
+              // his ask 2026-10-27: the profit margin beside it -- full profit over what was billed
+              '<span class="r ' + (num(r["Full Profit"]) < 0 ? "jpl-neg" : "") + '">' + margin(r) + "</span></button>").join("") +
             "</div>";
         }
 
