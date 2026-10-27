@@ -609,7 +609,9 @@
             " = " + money(spend / Math.max(jobs, 1)) + " a job" + late;
         }
         const BASIS = { "GPS": "GPS", "Contract": "contract miles", "Zip codes": "zip codes", "Average": "the move type’s average" };
-        const miles = r => Math.round(num(r["Miles"])) + " mi (" + (BASIS[r["Miles Basis"]] || "the move type’s average") + ")";
+        // a long-distance closing names its own leg (src/job_pnl.py, mart_ld_route)
+        const miles = r => Math.round(num(r["Miles"])) + " mi (" + (BASIS[r["Miles Basis"]] ||
+          (/^long-distance/.test(r["Miles Basis"] || "") ? r["Miles Basis"] : "the move type’s average")) + ")";
         function truckNote(r) {
           const rate = num(r["Truck Day Rate"]), share = num(r["Truck Day Jobs"]);
           const who = r["Truck Ownership"] === "Owned" ? "truck " + r["Truck"]
