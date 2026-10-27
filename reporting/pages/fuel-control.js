@@ -77,7 +77,7 @@ registerPage({
     // making the reader learn a vocabulary.
     const WHY = {
       unknown_foreman: "the card names somebody who is not on the crew list",
-      no_job_that_day: "he ran no job that day (before noon: the day before either)",
+      no_job_that_day: "no job of his that day, none he crewed, none for his card's truck, none the next day",
       ambiguous_no_time: "several jobs that day and no way to tell which came first",
       known_non_crew: "a known card holder who is not on the crew list",
     };
@@ -481,9 +481,17 @@ registerPage({
         w.jobs.push(j);
         w.est += num(j["Fuel Est"]); w.card += num(j["Card Fuel"]); w.sheet += num(j["Fuel on Sheet"]); w.miles += num(j.Miles);
       });
+      const jobByUk = new Map(jobs.map(j => [j["Unique Key"], j]));
       sw.forEach(r => {
-        if (!r.Foreman) return;
         const local = r["Match Status"] === "assigned";
+        // a swipe placed on ANOTHER man's job (he crewed it, or it was his card's truck): its money is
+        // in that man's week through the job, so its fill is listed there too
+        const oj = local && jobByUk.get(r["Unique Key"]);
+        if (oj && oj.Foreman && (!r.Foreman || keyOf(oj.Foreman) !== keyOf(r.Foreman))) {
+          const owk = weekOf(day10(oj.Date));
+          if (inWin(owk) && jobOk(oj)) W(keyOf(oj.Foreman), oj.Foreman, owk).swipes.push(r);
+        }
+        if (!r.Foreman) return;
         const wk = weekOf(day10((local && r["Work Day"]) || r.Date));
         if (!inWin(wk) || !swOk(r)) return;
         const w = W(keyOf(r.Foreman), r.Foreman, wk);
@@ -544,7 +552,8 @@ registerPage({
       }).join("");
       return '<p class="rs-hint"><b>The route’s fuel against what was paid, a foreman’s week at a time.</b> Estimated is each job’s '
         + "route miles ÷ 7 mpg × the WEX diesel price, the Job P&amp;L’s fuel. Paid is the job’s share of the WEX card — a fill from noon "
-        + "goes on that day’s jobs, a fill before noon on the day before’s, a day of several jobs is split by their miles — plus the fuel "
+        + "goes on that day’s jobs, a fill before noon on the day before’s, a day of several jobs is split by their miles; with no job "
+        + "of his own, the job he crewed, his card’s truck’s job or his next day’s — plus the fuel "
         + "written on its closing sheet, plus fills on a long-distance trip. <b>A week is flagged</b> when paid is at least 30% and at least $10 "
         + "over the estimate. Full weeks the card export covers: " + esc(dayLab(EM.w0)) + " – " + esc(dayLab(addDays(EM.w1, 6)))
         + (S.month ? "; the month picks the weeks that start in it" : "") + ".</p>"
@@ -576,15 +585,16 @@ registerPage({
         : PLACED[r["Match Status"]] ? (r["Job Customer"] || r["Job Request"] || "a job") + (num(r["Jobs That Day"]) > 1 ? " +" + (num(r["Jobs That Day"]) - 1) + " more, by miles" : "")
           + (r["Work Day"] && day10(r["Work Day"]) !== day10(r.Date) ? " (the day before)" : "")
         : '<span class="fu-neg">' + esc(+r.Resolved === 1 ? "explained" : STATUS_LABEL[r["Match Status"]] || r["Match Status"]) + "</span>";
-      const ft = !sws.length ? '<p class="fu-note">No swipe on his card this week.</p>'
-        : '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">When</th><th class="l">Truck</th><th class="l">Station</th>'
+      const ft = !sws.length ? '<p class="fu-note">No swipe this week, his or on his jobs.</p>'
+        : '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">When</th><th class="l">Swiped by</th><th class="l">Truck</th><th class="l">Station</th>'
         + '<th class="l">Product</th><th>Gallons</th><th>Paid</th><th class="l">Counts for</th></tr></thead><tbody>'
         + sws.map(r => '<tr><td class="l">' + esc(dayLab(day10(r.Date))) + (r.Time ? " " + esc(String(r.Time).slice(0, 5)) : "") + '</td><td class="l">'
+          + esc(r.Foreman || r["Driver Raw"] || "—") + '</td><td class="l">'
           + esc(r.Truck || r["Vehicle Raw"] || "—") + '</td><td class="l">' + esc([r["Merchant Name"] || r.Merchant, r["Merchant City"], r["Merchant State"]].filter(Boolean).join(", ") || "—")
           + '</td><td class="l">' + esc(r["Fuel Kind"] || r.Product || "—") + "</td><td>" + (r.Gallons ? fmt1(r.Gallons) : "—") + "</td><td>" + money(r["Net Cost"])
           + '</td><td class="l">' + (PLACED[r["Match Status"]] ? esc(placedOn(r)) : placedOn(r)) + "</td></tr>").join("")
         + "</tbody></table></div>";
-      return "<h4>Jobs</h4>" + jt + "<h4>Fills on his card</h4>" + ft;
+      return "<h4>Jobs</h4>" + jt + "<h4>Fills: his own, and anyone’s placed on his jobs</h4>" + ft;
     }
 
     // ---- the queue: the reason this page exists ---------------------------------------
@@ -592,7 +602,9 @@ registerPage({
       let h = '<p class="rs-hint"><b>A swipe belongs to a job.</b> A foreman has the truck '
         + "because he is running a job that day. A fill from noon on goes on that day's jobs, a "
         + "fill before noon on the day before's (he fills up after work, so the morning starts "
-        + "full), and a day of several jobs is split by their miles. Everything below is a swipe "
+        + "full), and a day of several jobs is split by their miles. With no job of his own it goes on "
+        + "the job he drove or helped on, then the job his card's truck ran, then his next day's job "
+        + "(a prefuel). Everything below is a swipe "
         + "that could not be placed that way, or that could "
         + "be placed but looks odd — the reason is on each card. <b>Nothing here costs a job "
         + "anything</b> until somebody writes down what happened; that explanation is what "

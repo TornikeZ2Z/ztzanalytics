@@ -791,7 +791,7 @@
                 "The route’s fuel was estimated at <b>" + money(x.est) + "</b>. " +
                 (x.real > 0.5
                   ? "Paid: <b>" + money(x.card) + "</b> on the WEX card" +
-                    (x.jobs.length > 1 && x.share != null ? " (" + Math.round(100 * x.share) + "% of the " + money(x.wex) + " his card paid for the day, split by miles)" : "") +
+                    (x.jobs.length > 1 && x.share != null ? " (" + Math.round(100 * x.share) + "% of the " + money(x.wex) + " the card paid for his day, split by miles)" : "") +
                     (x.sheet > 0.5 ? " + <b>" + money(x.sheet) + "</b> written on the closing sheet" : "") + " = <b>" + money(x.real) + "</b>."
                   : "No fuel was paid for this job: nothing on " + esc(x.who || "the foreman") + "’s card from noon that day to noon the next, and none on the closing sheet.");
               const jobsT = x.jobs.length <= 1 ? "" : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>' + esc(x.who) + "’s jobs that day</th><th>Customer</th>" +
@@ -812,6 +812,7 @@
             }).join("") +
             '<p class="jpl-sub">The same rule as Fuel Control: a fill counts for the day it topped up after, from noon that day to noon the next, so a morning fill ' +
             "belongs to the day before (unless he ran nothing the day before, or the pump’s truck is this day’s). A day of several jobs is split by their miles. " +
+            "A swipe by someone with no job of his own reaches the job he drove or helped on, then his card’s truck’s job, then his next day’s. " +
             "His card or the job’s truck the day before and after is listed to judge the rule. Nothing here changes the profit, which uses the route’s estimate.</p>" +
             (days[0] && days[0]._d >= fuelFrom ? '<p class="jpl-sub">' + fuelLink(days[0]) + "</p>" : "") + "</div>";
 
