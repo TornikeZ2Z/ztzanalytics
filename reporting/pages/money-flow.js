@@ -15,8 +15,9 @@
      * Foreman balances — his balance (fines, advances, short and extra hand-ins, repayments)
                       next to what his open jobs owe.
    Panels: Settle (a to-the-base job: Cash or a method on for money in; short goes on his balance,
-   extra comes off it), Pay out (a to-the-foreman job: balance it against his other jobs first,
-   pay the rest by a method or leave it on his balance), the job's story across all its calendar
+   extra comes off it), Pay out (a to-the-foreman job: balance it against his other jobs first --
+   the rest of a job used for it is handed in or left on his balance -- then pay what's still
+   owed by a method or leave it on his balance), the job's story across all its calendar
    days, the foreman's balance, and the payment methods list.
    A job that already has a portal confirmation refuses another one: the only way is "Add a
    correction" (the server enforces it too — 409).
@@ -432,11 +433,14 @@ registerPage({
     }
     /* PAY OUT a to-the-foreman job (his decisions, 2026-10-07): first balance it against his open
        jobs where he holds money for the base (he ticks which, in list order). A ticked job worth
-       MORE than what is left still settles; its leftover goes on his balance (Moved to Foreman
-       Debt on THAT job). Whatever the ticked jobs don't cover is paid by a method (Cash default)
+       MORE than what is left still settles, and its leftover is either HANDED IN AS CASH (the
+       default since 2026-10-27: Oto handed in the rest of Dawn Louro's job, and the screen could
+       only put it on his balance) -- one entry for the whole job, its cash_amount = the leftover
+       -- or, with restWay = WAY_BAL, left on his balance (Moved to Foreman Debt on THAT job).
+       Whatever the ticked jobs don't cover is paid by a method (Cash default)
        or left on his balance (Extra Applied to Foreman Balance on the negative job = credit).
        Returns the linked batch, in order: the negative job first (its id becomes the link). */
-    function payoutPlan(neg, cands, ticked, way, note) {
+    function payoutPlan(neg, cands, ticked, way, note, restWay) {
       var owed = r2(settle(neg).amount), left = owed, used = 0, leftover = 0;
       var seen = {}, nc = codeOf(neg.jobCode);
       if (nc) seen[nc] = 1;               // never offset against a leg of the same job
@@ -452,6 +456,7 @@ registerPage({
         return { job: c, amount: a, on: on, take: take, kind: kind, rest: kind === "part" ? r2(a - take) : 0 };
       });
       var rest = left > 0.005 ? left : 0, toBal = rest > 0 && way === WAY_BAL;
+      var leftCash = leftover > 0.005 && restWay !== WAY_BAL;
       var nf = jobFields(neg), base0 = String(note || "").trim(), items = [];
       var taken = function (amt, method, extra) {
         return assign(assign({ entry_type: TAKEN, amount: r2(amt), method: method, note: base0 || "paid out" }, nf), extra || {});
@@ -464,13 +469,17 @@ registerPage({
         { short: "", extra: "left on his balance" + (base0 ? " — " + base0 : "") }));
       rows.forEach(function (x) {
         if (!(x.take > 0.005)) return;
-        items.push(assign({ entry_type: BROUGHT, amount: x.take, method: "Offset",
-          note: "balanced against " + (neg.customer || "a pay-out") + (neg.jobCode ? " · " + neg.jobCode : "") }, jobFields(x.job)));
-        items = items.concat(debtItems(x.job, x.kind === "part" ? x.rest : 0,
+        var against = "balanced against " + (neg.customer || "a pay-out") + (neg.jobCode ? " · " + neg.jobCode : "");
+        if (x.kind === "part" && leftCash)
+          items.push(assign({ entry_type: BROUGHT, amount: x.amount, method: "Cash", cash_amount: x.rest,
+            note: against + " · the rest handed in" }, jobFields(x.job)));
+        else
+          items.push(assign({ entry_type: BROUGHT, amount: x.take, method: "Offset", note: against }, jobFields(x.job)));
+        items = items.concat(debtItems(x.job, x.kind === "part" && !leftCash ? x.rest : 0,
           { short: "leftover of a job used in a pay-out", extra: "" }));
       });
-      return { owed: owed, used: used, rest: rest, leftover: leftover, rows: rows, items: items,
-               toBal: toBal, balDelta: r2(leftover - (toBal ? rest : 0)) };
+      return { owed: owed, used: used, rest: rest, leftover: leftover, leftCash: leftCash, rows: rows, items: items,
+               toBal: toBal, balDelta: r2((leftCash ? 0 : leftover) - (toBal ? rest : 0)) };
     }
     // BULK = cash, in full, one foreman at a time
     function bulkItems(jobs) {
@@ -1138,7 +1147,7 @@ registerPage({
       return '<div class="mf-jrow">' + ck
         + '<span class="mf-mut mf-nowrap" title="' + esc(fmtD(r.date)) + '">' + fmtRowDate(r.date) + "</span>"
         + '<span class="mf-code" title="' + esc(r.jobCode || "") + '">' + esc(r.jobCode || "—") + "</span>"
-        + '<button type="button" class="mf-cust" data-mfa="story" data-v="' + esc(r.ev) + '" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</button>"
+        + custCellHtml(r, need)
         + '<span class="mf-mut mf-ell">' + esc(r.jobType || "—") + "</span>"
         // a job to fix shows the gap between the contract and the correction, not its $0 balance
         + '<span class="mf-r mf-b">' + (need === "fix" ? money(Math.abs(r.fix - r.recorded))
@@ -1147,6 +1156,15 @@ registerPage({
         + '<span class="mf-mut mf-nowrap">' + ageText(daysWaiting(r.date)) + "</span>"
         + rowLinksHtml(r)
         + act + "</div>";
+    }
+    /* A JOB THAT DOESN'T ADD UP SAYS WHY ON ITS ROW (his ask, 2026-10-27). Keisha Belcher read
+       "$100 · Doesn't add up": $3,006 had been confirmed, then the job's net cash became $2,906.
+       Both figures were only in the Review panel; now they sit beside the customer. */
+    function custCellHtml(r, need) {
+      var b = '<button type="button" class="mf-cust" data-mfa="story" data-v="' + esc(r.ev) + '" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</button>";
+      if (need !== "nib" || r.flow == null || r.expected == null) return b;
+      var t = (r.flow < 0 ? "Paid out " : "Confirmed ") + money2(Math.abs(r.flow)) + " · net cash now " + money2(r.expected);
+      return '<span class="mf-custw">' + b + '<span class="mf-nibnote" title="' + esc(t) + '">' + esc(t) + "</span></span>";
     }
     // the 64px date column: "Oct 8" this year, "Nov 3 ’25" before (the long form wrapped onto two lines)
     function fmtRowDate(v) {
@@ -2058,18 +2076,21 @@ registerPage({
       var st = P.st;
       if (!st.ticked) st.ticked = {};
       if (st.way == null) st.way = "Cash";
+      if (st.restWay == null) st.restWay = "cash";      // the rest of a part-used job: handed in
       if (st.note == null) st.note = "";
       var w = methodsWritable();
       var cands = offsetCands(r);
       var outs = methodsFor(allMethods(), "out");
       if (st.way !== WAY_BAL && !outs.some(function (m) { return normMethod(m.name) === normMethod(st.way); })) st.way = "Cash";
       if (!w) { st.way = "Cash"; st.ticked = {}; }
-      var plan = payoutPlan(r, cands, st.ticked, st.way, st.note);
+      var plan = payoutPlan(r, cands, st.ticked, st.way, st.note, st.restWay);
       var fm = firstName(r.forman), balNow = debtOf(r.forman), after = r2(balNow + plan.balDelta);
+      var part = plan.rows.filter(function (x) { return x.kind === "part"; })[0];
       var list = cands.length
         ? cands.map(function (c, i) {
             var x = plan.rows[i], note = "To the base", cls = "mf-mut";
             if (x.kind === "full") { note = "Settled by this"; cls = "mf-incl"; }
+            else if (x.kind === "part" && plan.leftCash) { note = money2(x.take) + " used · " + money2(x.rest) + " handed in"; cls = "mf-incl"; }
             else if (x.kind === "part") { note = money2(x.take) + " used · " + money2(x.rest) + " goes on his balance"; cls = "mf-old"; }
             else if (x.kind === "unneeded") note = "Not needed";
             return '<label class="mf-mcard' + (x.on ? " mf-on" : "") + (w ? "" : " mf-off") + '"><input type="checkbox" data-mfp="tick" data-v="' + esc(c.ev) + '"' + (x.on ? " checked" : "") + (w ? "" : " disabled") + ">"
@@ -2083,7 +2104,17 @@ registerPage({
       else if (isCashMethod(st.way)) info = "Comes out of today’s cash at the base; Day Closing shows it.";
       else info = "Paid by " + esc(wayName) + ". The cash at the base doesn’t change.";
       if (Math.abs(after - balNow) > 0.005) info += " His balance: " + esc(owesText(balNow)) + " → " + esc(owesText(after)) + ".";
-      var rest = plan.rest > 0
+      var balTxt = Math.abs(after - balNow) > 0.005 ? " His balance: " + esc(owesText(balNow)) + " → " + esc(owesText(after)) + "." : "";
+      var rest = part
+        // the rest of the job used for it -- he handed it in, or it stays on his balance
+        ? '<div class="mf-fs"><span class="mf-lg">2 · The rest of ' + esc(part.job.customer || "the job") + "’s job: " + money2(part.rest) + "</span>"
+          + '<div class="mf-ways" role="radiogroup" aria-label="The rest of the job">'
+          + '<button type="button" class="mf-way" role="radio" aria-checked="' + plan.leftCash + '" data-mfp="restway" data-v="cash">He handed it in (cash)</button>'
+          + '<button type="button" class="mf-way" role="radio" aria-checked="' + !plan.leftCash + '" data-mfp="restway" data-v="' + WAY_BAL + '">Leave it on his balance</button></div>'
+          + '<div class="mf-info">' + ICON.info + "<span>"
+          + (plan.leftCash ? "Nothing is paid out. " + money2(part.rest) + " comes into today’s cash at the base; Day Closing shows it."
+              : "Nothing is paid out and no money moves now.") + balTxt + "</span></div></div>"
+        : plan.rest > 0
         ? '<div class="mf-fs"><span class="mf-lg">2 · Pay the rest: ' + money2(plan.rest) + "</span>"
           + '<div class="mf-ways" role="radiogroup" aria-label="Pay the rest by">'
           + outs.map(function (m) {
@@ -2100,7 +2131,8 @@ registerPage({
       if (plan.used > 0.005 && plan.rest > 0) summary = money2(plan.used) + " balanced against his jobs · " + money2(plan.rest) + wl;
       else if (plan.used > 0.005) summary = "All " + money2(plan.owed) + " balanced against his jobs";
       else summary = money2(plan.owed) + wl;
-      if (plan.leftover > 0.005) summary += " · " + money2(plan.leftover) + " leftover goes on his balance";
+      if (plan.leftover > 0.005)
+        summary += " · " + money2(plan.leftover) + (plan.leftCash ? " handed in as cash" : " leftover goes on his balance");
       var body = jobCardHtml(r, { out: true, st: st })
         + '<fieldset class="mf-fs"><legend class="mf-lg">1 · Balance it against his other jobs</legend>'
         + (cands.length ? '<span class="mf-mut">' + (w ? "Jobs where " + esc(fm) + " still holds money for the base. Tick the ones to use."
@@ -2129,11 +2161,12 @@ registerPage({
             renderPanel(true);
           },
           way: function (a) { st.way = a.getAttribute("data-v"); renderPanel(true); },
+          restway: function (a) { st.restWay = a.getAttribute("data-v"); renderPanel(true); },
           story: toggleStory,
           fm: function () { openFm(r.forman, true); },
           tocorr: function () { st.mode = "settled"; st.correcting = true; renderPanel(); },
           save: function () {
-            var p2 = payoutPlan(r, offsetCands(r), st.ticked, st.way, st.note);
+            var p2 = payoutPlan(r, offsetCands(r), st.ticked, st.way, st.note, st.restWay);
             // a plain one-entry pay-out needs no link (and works before the database step has run)
             panelSave(p2.items, p2.items.length > 1);
           },
@@ -2934,7 +2967,7 @@ registerPage({
           + steps([
             "Press " + k("Pay out", "out") + " on the job.",
             "<b>1 · Balance it against his other jobs.</b> The list shows his jobs where he still holds money for the base. Tick the ones to use. They are used from the top down.",
-            "Each ticked job tells you " + q("Settled by this") + ", " + q("$… used · $… goes on his balance") + " or " + q("Not needed") + ". A ticked job worth more than what is left still settles: its leftover goes on his balance.",
+            "Each ticked job tells you " + q("Settled by this") + ", " + q("$… used · $… handed in") + " or " + q("Not needed") + ". A ticked job worth more than what is left still settles: say whether he " + q("handed in") + " the rest in cash (the usual case, it counts in today’s cash) or to " + q("leave it on his balance") + ".",
             "<b>2 · Pay the rest.</b> Pick <b>Cash</b> (already picked), another method that is on for paying out, such as <b>Card</b> or <b>Zelle</b>, or <b>Leave it on his balance</b>.",
             "Check the line at the bottom of the panel, then press " + k("Confirm", "pri") + ".",
           ])
@@ -3354,6 +3387,9 @@ function mfCss() {
     .mf-code{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:13px;color:var(--mf-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mf-cust{justify-self:start;max-width:100%;color:var(--mf-ink);font-weight:500;text-decoration:underline;text-decoration-color:var(--mf-line2);text-underline-offset:3px;background:none;border:0;padding:0;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mf-cust:hover{text-decoration-color:var(--mf-acc)}
+    .mf-custw{display:flex;align-items:baseline;gap:12px;min-width:0}
+    .mf-custw .mf-cust{flex:0 0 auto;max-width:60%}
+    .mf-nibnote{min-width:0;color:var(--mf-ink2);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .mf-custt{font-weight:500;text-decoration:underline;text-decoration-color:var(--mf-line2);text-underline-offset:3px}
     .mf-pill{justify-self:start;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
     .mf-pill.mf-p-in{background:var(--mf-in-bg);color:var(--mf-in-ink)}
