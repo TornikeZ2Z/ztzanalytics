@@ -487,6 +487,63 @@ registerPage({
         return assign({ entry_type: BROUGHT, amount: r2(settle(r).amount), method: "Cash", note: "bulk confirmed" }, jobFields(r));
       });
     }
+    /* BULK NETTING (his ask, 2026-10-27: "the negative balances, where we pay the amount to
+       foreman, may be repaid from positive jobs, and while i dont have selection thing i can not
+       perform this bulky confirmation"). The ticked jobs of ONE foreman, both ways, settle in ONE
+       linked batch. Jobs to the base are used against the oldest pay-out first, oldest job first;
+       a job never splits -- each keeps one flow entry for its full amount, and cash_amount says how
+       much of it was cash (the pay-out popup's rule, payoutPlan above).
+       More to the base than paid out: the rest is HANDED IN, cash, on the newest jobs.
+       More paid out: the rest goes by `way` (Cash, another method, or WAY_BAL = left on his
+       balance as a credit on that pay-out, the popup's Extra Applied to Foreman Balance).
+       Pay-outs go first in the batch (the first row is the link). Nothing is written here. */
+    function netPlan(jobs, way, note) {
+      var older = function (a, b) { return a.job.date < b.job.date ? -1 : a.job.date > b.job.date ? 1 : 0; };
+      var rowOf = function (r) { return { job: r, amount: r2(settle(r).amount), used: 0, against: [] }; };
+      var ins = jobs.filter(function (r) { return settle(r).type === BROUGHT; }).map(rowOf).sort(older);
+      var outs = jobs.filter(function (r) { return settle(r).type === TAKEN; }).map(rowOf).sort(older);
+      var tin = 0, tout = 0;
+      ins.forEach(function (x) { tin = r2(tin + x.amount); });
+      outs.forEach(function (x) { tout = r2(tout + x.amount); });
+      for (var i = 0, j = 0; i < ins.length && j < outs.length;) {
+        var a = ins[i], b = outs[j], t = r2(Math.min(a.amount - a.used, b.amount - b.used));
+        if (t > 0.005) {
+          a.used = r2(a.used + t); b.used = r2(b.used + t);
+          a.against.push(b.job); b.against.push(a.job);
+        }
+        if (a.amount - a.used <= 0.005) i++;
+        if (b.amount - b.used <= 0.005) j++;
+      }
+      var net = r2(tin - tout), toBal = net < -0.005 && way === WAY_BAL, base0 = String(note || "").trim();
+      var names = function (l) {
+        return l.map(function (r) { return (r.customer || "a job") + (r.jobCode ? " · " + r.jobCode : ""); }).join(", ");
+      };
+      var noteOf = function (x, dflt) {
+        var s = x.against.length ? "balanced against " + names(x.against) : dflt;
+        return base0 ? base0 + " — " + s : s;
+      };
+      var items = [];
+      outs.forEach(function (x) {
+        var rest = r2(x.amount - x.used), it = { entry_type: TAKEN, note: noteOf(x, "paid out") };
+        if (rest <= 0.005) assign(it, { amount: x.amount, method: "Offset" });
+        else if (toBal) assign(it, { amount: x.used, method: "Offset" });
+        else if (isCashMethod(way)) assign(it, { amount: x.amount, method: "Cash", cash_amount: rest });
+        else assign(it, { amount: x.amount, method: normMethod(way), cash_amount: 0 });
+        items.push(assign(it, jobFields(x.job)));
+        items = items.concat(debtItems(x.job, toBal && rest > 0.005 ? -rest : 0,
+          { short: "", extra: "left on his balance" + (base0 ? " — " + base0 : "") }));
+      });
+      ins.forEach(function (x) {
+        var rest = r2(x.amount - x.used), it = { entry_type: BROUGHT, amount: x.amount };
+        if (rest <= 0.005) assign(it, { method: "Offset", note: noteOf(x, "") });
+        else if (x.used > 0.005) assign(it, { method: "Cash", cash_amount: rest, note: noteOf(x, "") + " · the rest handed in" });
+        else assign(it, { method: "Cash", note: base0 || "bulk confirmed" });
+        items.push(assign(it, jobFields(x.job)));
+        items = items.concat(debtItems(x.job, 0, { short: "", extra: "" }));
+      });
+      return { ins: ins, outs: outs, tin: tin, tout: tout, net: net, toBal: toBal, items: items,
+               balDelta: toBal ? net : 0 };
+    }
     /* ticking a job of ANOTHER foreman replaces the selection with that job; ticking a second
        leg of the SAME job code replaces the first leg (a batch takes one flow entry per job --
        the server answers 400 "this job is in the batch twice"). sel = { ev: job code || true } */
@@ -918,6 +975,11 @@ registerPage({
       var p = settle(r);
       return r.status === "Money Not Received" && !!p && p.type === BROUGHT && p.amount > MF_TOL && !portalFlow(r);
     }
+    // ...and the pay-outs ticked WITH them: balanced against those jobs in one go (netPlan)
+    function nettable(r) {
+      var p = settle(r);
+      return r.status === "Money Not Received" && !!p && p.amount > MF_TOL && !portalFlow(r);
+    }
     function jobModeOf(r) {
       if (portalFlow(r) || r.status === "Money Received") return "settled";
       if (r.expected == null) return "manual";
@@ -1032,7 +1094,7 @@ registerPage({
 
       // THE QUEUE
       var HEAD = {
-        waiting: ["Waiting to settle", "Tick several jobs to confirm the cash a foreman brings in one go. Short or extra hand-ins and pay-outs are settled one job at a time."],
+        waiting: ["Waiting to settle", "Tick several jobs to confirm the cash a foreman brings in one go. Tick his pay-outs too and they are balanced against those jobs. Short or extra hand-ins are settled one job at a time."],
         settled: ["Settled lately", "Every confirmation, by foreman: whoever settled last comes first. Open a job to see its whole story."],
         balances: ["Foreman balances", "What each foreman owes outside his jobs (fines, advances, short and extra hand-ins, repayments), next to what his open jobs owe."],
       };
@@ -1109,7 +1171,7 @@ registerPage({
       var full = !!S.fmAll[f] || !!q || !!S.need;
       var vis = full ? jobs : jobs.slice(0, JOBS_TOP), hid = full ? [] : jobs.slice(JOBS_TOP);
       var elig = vis.filter(bulkable);
-      elig.forEach(function (r) { _visible[r.ev] = true; });
+      vis.filter(nettable).forEach(function (r) { _visible[r.ev] = true; });
       var allOn = elig.length > 0 && elig.every(function (r) { return S.sel[r.ev]; });
       var sub = '<div class="mf-gsub"><div class="mf-gline">'
         + "<span>Balance <b>" + (S.fines ? esc(owesText(bal)) : S.finesErr ? "—" : "…") + "</b> · fines, advances, short and extra hand-ins, repayments</span>"
@@ -1127,7 +1189,7 @@ registerPage({
       return row + sub + "</div>";
     }
     function jobRowHtml(r) {
-      var d = dirOf(r), need = needOf(r), pf = portalFlow(r), can = bulkable(r);
+      var d = dirOf(r), need = needOf(r), pf = portalFlow(r), can = nettable(r);
       var ck = can ? '<label class="mf-ck"><input type="checkbox" data-mfsel="' + esc(r.ev) + '"' + (S.sel[r.ev] ? " checked" : "")
         + ' aria-label="Select ' + esc(r.customer || r.jobCode || "job") + '"></label>' : "<span></span>";
       var pill;
@@ -1164,6 +1226,9 @@ registerPage({
       var b = '<button type="button" class="mf-cust" data-mfa="story" data-v="' + esc(r.ev) + '" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</button>";
       if (need !== "nib" || r.flow == null || r.expected == null) return b;
       var t = (r.flow < 0 ? "Paid out " : "Confirmed ") + money2(Math.abs(r.flow)) + " · net cash now " + money2(r.expected);
+      // an old per-job advance or deduction is the gap on its own (Haley Morgan: a $127 deduction)
+      if (Math.abs(r.adv || 0) > 0.005) t += " · advance " + money2(r.adv);
+      if (Math.abs(r.ded || 0) > 0.005) t += " · deduction " + money2(Math.abs(r.ded));
       return '<span class="mf-custw">' + b + '<span class="mf-nibnote" title="' + esc(t) + '">' + esc(t) + "</span></span>";
     }
     // the 64px date column: "Oct 8" this year, "Nov 3 ’25" before (the long form wrapped onto two lines)
@@ -1332,15 +1397,38 @@ registerPage({
       var jobs = evs.map(rowByEv).filter(Boolean), total = 0;
       jobs.forEach(function (r) { total += settle(r).amount; });
       var fm = S.selFm || (jobs[0] && jobs[0].forman) || "";
+      if (jobs.some(isPayout)) {
+        // a pay-out among them: the bar shows the net, and Confirm opens the netting panel
+        var np = netPlan(jobs, "Cash", "");
+        bar.innerHTML = '<div class="mf-bulkt"><span class="mf-b">' + jobs.length + " jobs from " + esc(fm) + " · " + money2(np.tin) + " in · " + money2(np.tout) + " out</span>"
+          + "<span>" + esc(netLine(np.net, fm)) + ". Pay-outs are balanced against the jobs to the base, oldest first.</span></div>"
+          + '<div class="mf-bulka"><button type="button" class="mf-bulkclr" data-mfa="bulkclear">Clear</button>'
+          + '<button type="button" class="mf-bulkgo" data-mfa="bulkgo">Review and confirm…</button></div>';
+        bar.hidden = false;
+        return;
+      }
       bar.innerHTML = '<div class="mf-bulkt"><span class="mf-b">' + jobs.length + " job" + (jobs.length === 1 ? "" : "s") + " from " + esc(fm) + " · " + money2(total) + "</span>"
         + "<span>Several jobs at once = cash, in full. Short or extra on one of them? Settle that job on its own.</span></div>"
         + '<div class="mf-bulka"><button type="button" class="mf-bulkclr" data-mfa="bulkclear">Clear</button>'
         + '<button type="button" class="mf-bulkgo" data-mfa="bulkgo"' + (S._saving ? " disabled" : "") + ">" + (S._saving ? "Saving… " : "") + "Confirm " + money2(total) + " cash from " + esc(firstName(fm)) + "</button></div>";
       bar.hidden = false;
     }
+    function netLine(net, fm) {
+      var f = firstName(fm);
+      return net > 0.005 ? f + " hands in " + money2(net) : net < -0.005 ? "The base pays " + f + " " + money2(-net) : "They cancel out — no money moves";
+    }
     async function bulkGo(btn) {
       if (S._saving) return;
-      var jobs = onePerJob(Object.keys(S.sel).map(rowByEv).filter(function (r) { return r && bulkable(r) && _visible[r.ev]; }));
+      var sel = Object.keys(S.sel).map(rowByEv).filter(function (r) { return r && _visible[r.ev]; });
+      if (sel.some(isPayout)) {
+        var nj = onePerJob(sel.filter(nettable));
+        var nf = {}; nj.forEach(function (r) { nf[r.forman] = 1; });
+        if (Object.keys(nf).length !== 1) { await RSC.notice({ title: "One foreman at a time", body: "Tick the jobs of one foreman, then confirm." }); return; }
+        openPanel({ kind: "net", evs: nj.map(function (r) { return r.ev; }) });
+        if (!S.fines && !S.finesErr) loadFines().then(function () { if (P && P.spec.kind === "net") renderPanel(true); });
+        return;
+      }
+      var jobs = onePerJob(sel.filter(bulkable));
       if (!jobs.length) return;
       var fms = {}; jobs.forEach(function (r) { fms[r.forman] = 1; });
       if (Object.keys(fms).length !== 1) { await RSC.notice({ title: "One foreman at a time", body: "Tick the jobs of one foreman, then confirm." }); return; }
@@ -1426,7 +1514,7 @@ registerPage({
       var d = $("mfDrawer"); if (!d || !P) return;
       var db = $("mfDBody"), top = keepScroll && db ? db.scrollTop : 0;
       var k = P.spec.kind;
-      var out = k === "job" ? jobPanel() : k === "fm" ? fmPanel() : methodsPanel();
+      var out = k === "job" ? jobPanel() : k === "fm" ? fmPanel() : k === "net" ? netPanel() : methodsPanel();
       d.className = "mf-drawer mf-show" + (k === "fm" ? " mf-w-fm" : k === "methods" ? " mf-w-meth" : "");
       d.innerHTML = '<div class="mf-dh">' + (PSTACK.length ? '<button type="button" class="mf-x" data-mfp="back" aria-label="Back">' + ICON.back + "</button>" : "")
         + '<div class="mf-dtitle">' + (out.head || '<h2 id="mfDTitle">' + out.title + "</h2>") + "</div>"
@@ -2171,6 +2259,81 @@ registerPage({
             panelSave(p2.items, p2.items.length > 1);
           },
         }, jobExtrasH(r, st)),
+      };
+    }
+
+    /* ---- BULK NETTING panel (2026-10-27): the ticked jobs of one foreman, both ways, in one
+       linked batch. Every job is listed with what happens to it; when the base still owes him,
+       the rest is paid like a pay-out's (Cash, another method, or left on his balance). ---- */
+    function netPanel() {
+      var st = P.st;
+      if (st.way == null) st.way = "Cash";
+      if (st.note == null) st.note = "";
+      var jobs = P.spec.evs.map(rowByEv).filter(function (r) { return r && nettable(r); });
+      if (!jobs.length) return { title: "Balance his jobs", body: '<p class="mf-mut">These jobs were settled meanwhile — nothing is left to confirm.</p>' };
+      var w = methodsWritable(), outs = methodsFor(allMethods(), "out");
+      if (st.way !== WAY_BAL && !outs.some(function (m) { return normMethod(m.name) === normMethod(st.way); })) st.way = "Cash";
+      var plan = netPlan(jobs, st.way, st.note);
+      var fmName = jobs[0].forman, fm = firstName(fmName), balNow = debtOf(fmName), after = r2(balNow + plan.balDelta);
+      var who = function (l) { return l.map(function (r) { return r.customer || r.jobCode || "a job"; }).join(", "); };
+      var card = function (x, out) {
+        var r = x.job, rest = r2(x.amount - x.used), what, cls = "mf-incl";
+        if (out) {
+          if (rest <= 0.005) what = "Covered by " + who(x.against);
+          else if (x.used > 0.005) { what = money2(x.used) + " covered · " + money2(rest) + (plan.toBal ? " on his balance" : " paid"); cls = plan.toBal ? "mf-old" : "mf-incl"; }
+          else { what = plan.toBal ? "Left on his balance" : "Paid"; cls = plan.toBal ? "mf-old" : "mf-mut"; }
+        } else if (rest <= 0.005) what = "Used against " + who(x.against);
+        else if (x.used > 0.005) what = money2(x.used) + " used · " + money2(rest) + " handed in";
+        else { what = "Handed in (cash)"; cls = "mf-mut"; }
+        return '<div class="mf-mcard mf-ncard"><span class="mf-pill ' + (out ? "mf-p-out" : "mf-p-in") + '" title="' + (out ? "To the foreman" : "To the base") + '">' + (out ? ICON.toFm : ICON.toBase) + "</span>"
+          + '<span class="mf-mcol mf-grow1"><span class="mf-b">' + esc(r.customer || "—") + '</span><span class="mf-mut mf-sm2">' + fmtShort(r.date) + " · " + esc(r.jobCode || "—") + "</span></span>"
+          + '<span class="mf-mcol mf-end"><span class="mf-b">' + money2(x.amount) + '</span><span class="mf-sm2 ' + cls + '">' + esc(what) + "</span></span></div>";
+      };
+      var balTxt = Math.abs(after - balNow) > 0.005 ? " His balance: " + owesText(balNow) + " → " + owesText(after) + "." : "";
+      var rest;
+      if (plan.net > 0.005)
+        rest = '<div class="mf-eff mf-eff-ok"><span class="mf-b">' + esc(fm) + " hands in " + money2(plan.net) + " cash</span><span>Nothing is paid out. "
+          + money2(plan.net) + " comes into today’s cash at the base; Day Closing shows it." + esc(balTxt) + "</span></div>";
+      else if (plan.net < -0.005) {
+        var wayName = normMethod(st.way), info = st.way === WAY_BAL ? "No money moves now."
+          : isCashMethod(st.way) ? "Comes out of today’s cash at the base; Day Closing shows it." : "Paid by " + wayName + ". The cash at the base doesn’t change.";
+        rest = '<div class="mf-fs"><span class="mf-lg">2 · Pay him the rest: ' + money2(-plan.net) + "</span>"
+          + '<div class="mf-ways" role="radiogroup" aria-label="Pay the rest by">'
+          + outs.map(function (m) {
+              return '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.way !== WAY_BAL && normMethod(m.name) === normMethod(st.way)) + '" data-mfp="way" data-v="' + esc(m.name) + '">' + esc(m.name) + "</button>";
+            }).join("")
+          + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.way === WAY_BAL) + '" data-mfp="way" data-v="' + WAY_BAL + '">Leave it on his balance</button></div>'
+          + '<div class="mf-info">' + ICON.info + "<span>" + esc(info + balTxt) + "</span></div></div>";
+      } else
+        rest = '<div class="mf-eff mf-eff-ok"><span class="mf-b">They cancel out</span><span>Nothing is paid out or handed in — no money moves.' + esc(balTxt) + "</span></div>";
+      var summary = money2(Math.min(plan.tin, plan.tout)) + " balanced · " + (plan.net > 0.005 ? money2(plan.net) + " handed in as cash"
+        : plan.net < -0.005 ? money2(-plan.net) + (st.way === WAY_BAL ? " left on his balance" : isCashMethod(st.way) ? " paid in cash" : " paid by " + normMethod(st.way))
+        : "nothing moves");
+      var body = '<div class="mf-jc"><div class="mf-jcwho"><span class="mf-av mf-av-sm mf-av-deep">' + esc(initials(fmName)) + "</span>"
+          + "<span><b>" + esc(fmName) + "</b> · " + money2(plan.tin) + " to the base · " + money2(plan.tout) + " to him</span></div>"
+          + '<div class="mf-jcbal"><span class="mf-mut">His balance right now</span><span class="mf-b">' + (S.fines ? esc(owesText(balNow)) : "…") + "</span></div></div>"
+        + '<fieldset class="mf-fs"><legend class="mf-lg">1 · His jobs</legend>'
+        + '<span class="mf-mut">Jobs to the base are used against the oldest pay-out first. Each job is settled in full.</span>'
+        + plan.outs.map(function (x) { return card(x, true); }).join("") + plan.ins.map(function (x) { return card(x, false); }).join("")
+        + "</fieldset>"
+        + rest
+        + '<div class="mf-fld"><label for="mfNote" class="mf-lg2">Note <span class="mf-mut">(optional)</span></label>'
+        + '<textarea id="mfNote" class="mf-ta" rows="2" maxlength="300" placeholder="e.g. Settled with ' + esc(fm) + ' at the base">' + esc(st.note) + "</textarea></div>"
+        + (w ? "" : '<div class="mf-errbox"><span>' + esc(offlineNote() || "Money Flow update pending — balancing jobs against each other works once the database step has run.") + "</span></div>");
+      var foot = '<span class="mf-mut">' + esc(summary) + '</span><div id="mfDErr"></div><div class="mf-dfrow"><button type="button" class="mf-btn" data-mfp="close">Cancel</button>'
+        + '<button type="button" class="mf-btn mf-pri" data-mfp="save"' + (w ? "" : " disabled") + ">Confirm " + jobs.length + " jobs</button></div>";
+      return {
+        title: "Balance " + esc(fm) + "’s jobs", body: body, foot: foot,
+        onInput: function (e) { if (e.target.id === "mfNote") st.note = e.target.value; },
+        h: {
+          way: function (a) { st.way = a.getAttribute("data-v"); renderPanel(true); },
+          save: function () {
+            var again = P.spec.evs.map(rowByEv).filter(function (r) { return r && nettable(r); });
+            panelSave(netPlan(again, st.way, st.note).items, true).then(function (ok) {
+              if (ok) { S.sel = {}; S.selFm = null; paint(); }
+            });
+          },
+        },
       };
     }
 
@@ -2958,7 +3121,8 @@ registerPage({
             "This is for <b>cash, in full</b> only. Every ticked job is confirmed for its whole amount.",
             "<b>One foreman at a time.</b> Ticking another foreman’s job starts a new selection.",
             "If one job is short or extra, leave it unticked and settle it on its own with " + k("Settle", "acc") + ".",
-            "Only jobs where he owes the base and nothing is confirmed yet have a box.",
+            "Only jobs where nothing is confirmed yet have a box.",
+            "<b>Pay-outs too.</b> Tick jobs where the base owes him (" + outPill + ") together with jobs where he owes the base. The bar shows what is left: " + q("Irakli hands in $…") + " or " + q("The base pays Irakli $…") + ". Press " + k("Review and confirm…", "pri") + ": the panel lists every job and what happens to it. Jobs to the base are used against the oldest pay-out first, and every job is settled in full. If the base still owes him, pick how the rest is paid (cash, another method, or left on his balance), then press <b>Confirm</b>.",
             k("Clear") + " removes all the ticks.",
           ]) },
 
@@ -3178,7 +3342,8 @@ registerPage({
         S.sel = nx.sel; S.selFm = nx.selFm; paint();
       } else if (t.hasAttribute && t.hasAttribute("data-mfselall")) {
         var f = t.getAttribute("data-mfselall");
-        var mine = Object.keys(_visible).map(rowByEv).filter(function (x) { return x && x.forman === f; });
+        // his jobs to the base only, as the box says; pay-outs are ticked one by one
+        var mine = Object.keys(_visible).map(rowByEv).filter(function (x) { return x && x.forman === f && bulkable(x); });
         if (t.checked) {
           if (S.selFm !== f) { S.sel = {}; S.selFm = null; }
           onePerJob(mine).forEach(function (x) { var nx2 = pickSel(S.sel, S.selFm, x, true); S.sel = nx2.sel; S.selFm = nx2.selFm; });
@@ -3467,6 +3632,7 @@ function mfCss() {
     .mf-mcard.mf-on{border:2px solid var(--mf-acc);padding:8px 14px;background:var(--mf-tint)}
     .mf-mcard input{width:18px;height:18px;margin:0;accent-color:var(--mf-acc);flex:none}
     .mf-mcard.mf-off{opacity:.55;cursor:default}
+    .mf-mcard.mf-ncard{cursor:default}
     .mf-way[disabled]{opacity:.5;cursor:default}
     .mf-mcol{display:flex;flex-direction:column;min-width:0}
     .mf-grow1{flex:1} .mf-end{align-items:flex-end;text-align:right}
