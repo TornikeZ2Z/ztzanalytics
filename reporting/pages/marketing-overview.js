@@ -207,6 +207,19 @@
                                                    "Est Units"] },
     mkt_ahquota: { table: "ext_ahrefs_quota", cols: ["Checked At", "When", "Units Limit", "Units Used", "Key Used",
                                                      "Reset Date"] },
+    // 2026-10-27 Semrush through its own connector (src/semrush_mcp.py), beside Ahrefs in the same tiles
+    mkt_smov: { table: "ext_semrush_overview", cols: ["Target", "Date", "Authority Score", "Backlinks", "Ref Domains"] },
+    mkt_smas: { table: "ext_semrush_ascore", cols: ["Target", "Date", "Authority Score", "Ref Domains"] },
+    mkt_smorg: { table: "ext_semrush_organic", cols: ["Target", "Date", "Semrush Rank", "Org Keywords", "Org Traffic",
+                                                     "Org Traffic Cost"] },
+    mkt_smkw: { table: "ext_semrush_keyword", cols: ["Date", "Keyword", "Position", "Previous Position", "Volume", "URL",
+                                                    "Traffic Pct"] },
+    mkt_smaud: { table: "ext_semrush_audit", cols: ["Target", "Date", "Errors", "Warnings", "Notices", "Errors Change",
+                                                   "Pages Crawled", "Pages With Issues", "Last Crawl"] },
+    mkt_smhist: { table: "ext_semrush_history", cols: ["Month", "Backlinks", "Ref Domains", "Authority Score",
+                                                      "Org Keywords", "Org Traffic"] },
+    mkt_smuse: { table: "ext_semrush_usage", cols: ["Run At", "Step", "Ran", "Reason", "Cadence Days", "Calls", "Units",
+                                                   "Est Units"] },
   };
   Object.keys(PLAT).forEach(k => {
     if (!RS.DATASETS[k]) RS.DATASETS[k] = Object.assign({ dateCols: {}, defaultDate: null }, PLAT[k]);
@@ -256,6 +269,7 @@
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
               gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
+              smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
   const ADS_TYPE = { PERFORMANCE_MAX: "Performance Max", SEARCH: "Search", DEMAND_GEN: "Demand Gen",
                      DISPLAY: "Display", VIDEO: "Video", SHOPPING: "Shopping" };
@@ -374,6 +388,15 @@
       + ".mko table.mko-camp td.mko-bk,.mko table.mko-camp th.mko-bk{background:rgba(132,204,22,.10)}"
       + ".mko table.mko-camp td:first-child,.mko table.mko-camp th:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}"
       + ".mko .mko-amb{color:#D97706;font-weight:600}"
+      // one tile, both tools (2026-10-27, his pick): Ahrefs first, Semrush beside it
+      + ".mko .mko-two{display:inline-flex;flex-direction:column;line-height:1.05;margin-right:18px;vertical-align:top}"
+      + ".mko .mko-two i{font-style:normal;font-size:11px;font-weight:600;color:var(--muted);margin-top:4px}"
+      + ".mko .mko-bands{display:flex;height:26px;border-radius:6px;overflow:hidden;font-size:11.5px;font-weight:600;margin:6px 0 8px}"
+      + ".mko .mko-bands span{display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden;min-width:0}"
+      + ".mko .mko-bands .b0{background:rgba(185,28,28,.16);color:var(--neg)}"
+      + ".mko .mko-bands .b1{background:rgba(148,163,184,.22);color:var(--muted)}"
+      + ".mko .mko-bands .b2{background:rgba(101,163,13,.18);color:var(--ink)}"
+      + ".mko .mko-bands .b3{background:rgba(63,125,32,.36);color:var(--ink)}"
       + ".mko .mko-cmap{width:100%;max-width:620px;display:block;margin:0 auto;color:var(--ink)}"
       + ".mko .mko-cmap text{font-size:10px;fill:var(--muted)}"
       + ".mko .mko-ctodo{margin:0;padding-left:18px}.mko .mko-ctodo li{margin:0 0 8px;line-height:1.5}"
@@ -800,6 +823,37 @@
     P.ahQ = (t.ahquota || []).map(r => ({ at: at(r["Checked At"]), limit: num(r["Units Limit"]), used: num(r["Units Used"]),
       key: r["Key Used"] == null ? null : num(r["Key Used"]), reset: d10(r["Reset Date"]) }))
       .filter(r => r.at && r.limit).sort((a, b) => (a.at < b.at ? -1 : 1));
+  }
+  // 2026-10-27: Semrush through its own connector (src/semrush_mcp.py), shown beside Ahrefs
+  const SM_US = "ziptozipmoving.com";
+  function indexSemrush(t) {
+    const nn = v => v == null || v === "" ? null : num(v);
+    const site = v => String(v || "").toLowerCase();
+    const at = v => String(v || "").replace("T", " ").slice(0, 19);
+    const byD = (a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
+    P.smOv = (t.smov || []).map(r => ({ t: site(r.Target), d: d10(r.Date), as: nn(r["Authority Score"]),
+      bl: nn(r.Backlinks), rd: nn(r["Ref Domains"]) })).filter(r => r.t && r.d).sort(byD);
+    P.smOrg = (t.smorg || []).map(r => ({ t: site(r.Target), d: d10(r.Date), rank: nn(r["Semrush Rank"]),
+      kw: nn(r["Org Keywords"]), traffic: nn(r["Org Traffic"]), cost: nn(r["Org Traffic Cost"]) }))
+      .filter(r => r.t && r.d).sort(byD);
+    P.smAs = (t.smas || []).filter(r => site(r.Target) === SM_US)
+      .map(r => ({ d: d10(r.Date), as: num(r["Authority Score"]), n: num(r["Ref Domains"]) })).filter(r => r.d);
+    const kw = (t.smkw || []).map(r => ({ d: d10(r.Date), kw: r.Keyword || "", pos: nn(r.Position),
+      prev: nn(r["Previous Position"]), vol: nn(r.Volume), url: r.URL || "", share: nn(r["Traffic Pct"]) }))
+      .filter(r => r.d && r.kw);
+    P.smKwDay = kw.reduce((m, r) => (r.d > m ? r.d : m), "") || null;
+    P.smKw = kw.filter(r => r.d === P.smKwDay).sort((a, b) => (b.share || 0) - (a.share || 0));
+    P.smAud = (t.smaud || []).map(r => ({ t: site(r.Target), d: d10(r.Date), err: nn(r.Errors), warn: nn(r.Warnings),
+      note: nn(r.Notices), errCh: nn(r["Errors Change"]), crawled: nn(r["Pages Crawled"]),
+      issues: nn(r["Pages With Issues"]), crawl: d10(r["Last Crawl"]) || null })).filter(r => r.t && r.d).sort(byD);
+    P.smHist = (t.smhist || []).map(r => ({ m: String(r.Month || "").slice(0, 7), bl: nn(r.Backlinks),
+      rd: nn(r["Ref Domains"]), as: nn(r["Authority Score"]), kw: nn(r["Org Keywords"]), traffic: nn(r["Org Traffic"]) }))
+      .filter(r => r.m).sort((a, b) => (a.m < b.m ? -1 : 1));
+    P.smU = (t.smuse || []).map(r => ({ at: at(r["Run At"]), step: r.Step, ran: num(r.Ran) === 1, why: r.Reason || "",
+      days: r["Cadence Days"] == null ? null : num(r["Cadence Days"]), calls: num(r.Calls), units: num(r.Units),
+      est: num(r["Est Units"]) })).filter(r => r.at && r.step).sort((a, b) => (a.at < b.at ? -1 : 1));
+    const last = (rows, s) => rows.filter(r => r.t === s).pop() || null;
+    P.sm = { ov: last(P.smOv, SM_US), org: last(P.smOrg, SM_US), aud: last(P.smAud, SM_US) };
   }
   // Reddit reports only days that ran, so a paused account's last row is its last delivery: its data
   // runs through the last PULL (the connectors row's Newest Data, from ext_reddit_ads_pull)
@@ -1863,7 +1917,7 @@
                         ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"], ["reddit", "Reddit Ads", "Reddit"]];
   // the ad platforms with no connector yet, and the family their leads are filed under
   const OFF_ADS = { nextdoor: "Nextdoor", linkedin: "LinkedIn", tiktok: "TikTok" };
-  const OFF_KEYS = { tiktok: "parked", semrush: "not upgrading" };
+  const OFF_KEYS = { tiktok: "parked" };
   function scoreRows(w) {
     const out = [];
     AD_PLATFORMS.forEach(([k, name, fam]) => {
@@ -2492,8 +2546,10 @@
     const topics = {
       ov: () => (gate ? "" : rep.parts.ov)
         + panel("Search clicks", "Google search" + (gw && gw.last ? " · data through " + esc(day(gw.last)) : ""),
-          gate || '<div id="mkoC-gsc"></div>'),
-      kw: () => gate || rep.parts.kw + '<div class="mko-g2e">'
+          gate || '<div id="mkoC-gsc"></div>')
+        + panel("Us and the competitors · Semrush", (smLast(P.smOrg) ? esc(day(smLast(P.smOrg))) + " · " : "") + "weekly, US",
+          smSitesHtml()),
+      kw: () => (gate || rep.parts.kw + '<div class="mko-g2e">'
         + panel("Top queries", esc(monthSpan(ms)) + " (the query list is monthly)"
           + (allClk ? " · searches for our name bring " + pct(brandClk / allClk) + " of the clicks" : ""), ptable([
           { h: "Query", name: true, cell: q => esc(q.q) + " " + pill(q.type === "Brand" ? "brand" : q.type, q.type === "Brand" ? "mute" : "ok") },
@@ -2501,20 +2557,25 @@
           { h: "Impr.", num: true, tip: "impressions", cell: q => fmtN(q.imp) },
           { h: "Position", num: true, tip: "average, weighted by impressions", cell: q => q.pos == null ? "—" : q.pos.toFixed(1) },
         ], qs.slice(0, 10), null, true))
-        + panel("Keywords by service", esc(monthSpan(ms)) + " · Search Console, monthly", svcHtml(qs)) + "</div>",
+        + panel("Keywords by service", esc(monthSpan(ms)) + " · Search Console, monthly", svcHtml(qs)) + "</div>")
+        + panel("Top keywords · Semrush", (P.smKwDay ? esc(day(P.smKwDay)) + " · " : "") + "by traffic, weekly"
+          + (P.sm.org && P.sm.org.kw ? " · of " + fmtN(P.sm.org.kw) + " keywords Semrush ranks us for" : ""), smKwHtml()),
       blog: () => gate || rep.parts.blog,
-      links: () => rep.parts.links + citeHtml(w)
-        + panel("Off-page · Ahrefs", snap ? "snapshot " + esc(day(snap.d)) : "no snapshot yet",
-          P.err.ahd ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap ? "" :
+      links: () => rep.parts.links
+        + panel("Authority Score bands · Semrush", (smAsDays() ? esc(day(smAsDays().cur)) + " · " : "") + "daily", smBandsHtml())
+        + citeHtml(w)
+        + panel("Off-page · Ahrefs and Semrush", [snap ? "Ahrefs " + esc(day(snap.d)) : "", P.sm.ov ? "Semrush " + esc(day(P.sm.ov.d)) : ""]
+            .filter(Boolean).join(" · ") || "no snapshot yet",
+          P.err.ahd && !P.sm.ov ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap && !P.sm.ov ? "" :
           '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
-          + '<p class="rs-hint">Ahrefs\' own estimates from its crawler and keyword panel, not our measured '
-          + "traffic (that is Search Console and Analytics).</p>"),
+          + '<p class="rs-hint">Each tool\'s own estimates from its crawler and keyword panel, side by side and never added up; '
+          + "not our measured traffic (that is Search Console and Analytics).</p>"),
       ai: () => aiVisHtml(),
-      onpage: () => panel("On-page · Ahrefs Site Audit", P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet", onPageHtml()),
+      onpage: () => panel("On-page · Ahrefs Site Audit", P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet", onPageHtml())
+        + panel("On-page · Semrush Site Audit", P.sm.aud && P.sm.aud.crawl ? "crawl " + esc(day(P.sm.aud.crawl)) : "weekly", smAuditHtml()),
       local: () => panel("Local rankings · BrightLocal", "weekly rank reports, Mondays", blHtml()
         + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so its citations are not '
-        + "pulled; the Backlinks and citations topic maps every site linking to us from Ahrefs. Semrush: not "
-        + "upgrading (your call, 16 Oct).</p>"),
+        + "pulled; the Backlinks and citations topic maps every site linking to us from Ahrefs.</p>"),
     };
     const html = '<div class="rs-kpis" id="mkoK-seo"></div>' + nav + topics[topic]();
     return { html, wire(host) {
@@ -2528,7 +2589,8 @@
           sub: (on && prev.pos ? (S.cmp === "prev" ? "previous" : "last year") + ": " + prev.pos.toFixed(1) + " · " : "") + "lower is better" },
         kp("Brand share", rep.brand.share, rep.brandPrev ? rep.brandPrev.share : undefined, pct, null,
            fmtN(rep.brand.kw) + " keywords with clicks · " + rep.spanCur, gw),
-        { label: "Domain rating", value: snap && snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "Ahrefs, out of 100" },
+        { label: "Authority", value: two(snap && snap.dr != null ? snap.dr : null, P.sm.ov ? P.sm.ov.as : null, v => String(Math.round(v))),
+          sub: "Domain Rating · Authority Score, out of 100" },
         { label: "New linking sites", value: fmtN(rep.lk.sites) + (rep.lkPrev ? delta(rep.lk.sites, rep.lkPrev.sites, null) : ""),
           sub: fmtN(rep.lk.clean.length) + " clean · " + fmtN(rep.lk.spam) + " flagged spam · Ahrefs" },
       ]);
@@ -2541,19 +2603,24 @@
       });
       rep.wire(host);           // the month chart and the new links, wherever their boxes are on the page
       citeWire(host, w);
+      smBandsWire(host);
       aiWire(host);
       if (!gate && host.querySelector("#mkoC-gsc")) {
         const keys = bucketsOf(gw.a, gw.b, gw.g);
         barCard(host.querySelector("#mkoC-gsc"), "gsc-clk", "Search clicks by " + GRAIN_WORD[gw.g], keys, gw.g,
                 seriesOf(gRows, keys, gw.g, r => r.clk), fmtN, "main");
       }
-      if (snap && host.querySelector("#mkoK-ah")) {
+      if ((snap || P.sm.ov) && host.querySelector("#mkoK-ah")) {
+        const A = snap || {}, so = P.sm.ov || {}, sg = P.sm.org || {};
         RSC.kpis(host.querySelector("#mkoK-ah"), [
-          { label: "Domain rating", value: snap.dr != null ? String(Math.round(snap.dr)) : "—", sub: "out of 100" },
-          { label: "Referring domains", value: fmtN(snap.rd), sub: "live" },
-          { label: "Backlinks", value: fmtN(snap.bl), sub: "live" },
-          { label: "Organic traffic", value: fmtN(snap.traffic), sub: "estimate a month" },
+          { label: "Authority", value: two(A.dr, so.as, v => String(Math.round(v))), sub: "Domain Rating · Authority Score" },
+          { label: "Referring domains", value: two(A.rd, so.rd, fmtN), sub: "live" },
+          { label: "Backlinks", value: two(A.bl, so.bl, compact), sub: "live" },
+          { label: "Organic keywords", value: two(A.kw, sg.kw, fmtN), sub: "US" },
+          { label: "Organic traffic", value: two(A.traffic, sg.traffic, fmtN), sub: "estimate a month" },
         ]);
+        const smM = {};
+        P.smHist.forEach(r => { smM[r.m] = r; });
         const hist = P.ahm.slice(-12);
         if (hist.length) {
           RSC.chartCard(host.querySelector("#mkoC-ah"), {
@@ -2561,15 +2628,20 @@
             buildChart(canvas) {
               const C = palette();
               return new Chart(canvas, { type: "line",
-                data: { labels: hist.map(r => monthWord(r.m)), datasets: [{ label: "Organic traffic", data: hist.map(r => r.traffic),
-                  borderColor: C.main, backgroundColor: C.main, borderWidth: 2, pointRadius: 2, cubicInterpolationMode: "monotone" }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                data: { labels: hist.map(r => monthWord(r.m)), datasets: [{ label: "Ahrefs", data: hist.map(r => r.traffic),
+                  borderColor: C.main, backgroundColor: C.main, borderWidth: 2, pointRadius: 2, cubicInterpolationMode: "monotone" },
+                  { label: "Semrush", data: hist.map(r => (smM[r.m] ? smM[r.m].traffic : null)), spanGaps: true,
+                    borderColor: C.alt, backgroundColor: C.alt, borderWidth: 2, pointRadius: 2, cubicInterpolationMode: "monotone" }] },
+                options: { responsive: true, maintainAspectRatio: false,
+                  plugins: { legend: { display: P.smHist.length > 0, position: "top", labels: { boxWidth: 12 } } },
                   scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true } } } } });
             },
             buildTable() {
               return ptable([{ h: "Month", cell: r => esc(monthWord(r.m)) },
                 { h: "Organic traffic", num: true, cell: r => fmtN(r.traffic) },
+                { h: "Semrush traffic", num: true, cell: r => fmtN(smM[r.m] ? smM[r.m].traffic : null) },
                 { h: "Domain rating", num: true, cell: r => r.dr == null ? "—" : String(Math.round(r.dr)) },
+                { h: "Authority Score", num: true, tip: "Semrush", cell: r => smM[r.m] && smM[r.m].as != null ? String(smM[r.m].as) : "—" },
                 { h: "Referring domains", num: true, tip: "Ahrefs' monthly history count (a stricter definition than the live figure)",
                   cell: r => r.rdh == null ? "—" : fmtN(r.rdh) }], hist.slice().reverse());
             },
@@ -2611,6 +2683,103 @@
       + "the three under a service are its most clicked, with their average position.</p>";
   }
   const IMP_PILL = { Error: "bad", Warning: "warn", Notice: "mute" };
+  /* === SEMRUSH beside Ahrefs (2026-10-27, his pick: the same tiles) ===
+     src/semrush_mcp.py pulls the Authority numbers daily and the rest weekly through Semrush's own connector. */
+  function two(a, s, f) {
+    const one = (v, who) => '<span class="mko-two">' + (v == null ? "—" : f(v)) + "<i>" + who + "</i></span>";
+    return one(a, "Ahrefs") + one(s, "Semrush");
+  }
+  const smErr = () => P.err.smov || P.err.smas || P.err.smorg || P.err.smkw || P.err.smaud || P.err.smhist;
+  function smWait(what) {
+    const e = smErr();
+    return '<div class="mko-empty">' + (e ? "Semrush could not load — " + esc(e)
+      + (/404|unknown dataset|not granted|403/i.test(e) ? " (it arrives with the next bridge deploy)" : "")
+      : "The first Semrush " + what + " arrives with the next daily pull.") + "</div>";
+  }
+  // the marketing head's bands of the sites linking to us, by Semrush Authority Score
+  const SM_BANDS = [["b0", "AS 0–2", 0, 2, "where Semrush puts link farms"], ["b1", "AS 3–19", 3, 19, "weak"],
+                    ["b2", "AS 20–39", 20, 39, "solid"], ["b3", "AS 40+", 40, 100, "strong"]];
+  function smBands(rows) {
+    const tot = rows.reduce((s, r) => s + r.n, 0);
+    return SM_BANDS.map(([cls, label, lo, hi, what]) => {
+      const n = rows.filter(r => r.as >= lo && r.as <= hi).reduce((s, r) => s + r.n, 0);
+      return { cls, label, what, n, share: tot ? n / tot : null, tot };
+    });
+  }
+  // the newest profile, and the one nearest 30 days before it to compare against
+  function smAsDays() {
+    const days = [...new Set(P.smAs.map(r => r.d))].sort();
+    if (!days.length) return null;
+    const cur = days[days.length - 1], prev = days.filter(d => d <= addDays(cur, -30)).pop() || null;
+    return { cur, prev, rows: P.smAs.filter(r => r.d === cur), prevRows: prev ? P.smAs.filter(r => r.d === prev) : null };
+  }
+  function smBandsHtml() {
+    const x = smAsDays();
+    if (!x) return smWait("Authority Score profile");
+    const b = smBands(x.rows), tot = b[0].tot;
+    return '<div class="rs-kpis" id="mkoK-smb"></div>'
+      + '<div class="mko-bands" role="img" aria-label="Sites linking to us by Semrush Authority Score band">'
+      // the smallest bands get room for their label; the tiles above carry the exact counts
+      + b.filter(r => r.n).map(r => '<span class="' + r.cls + '" style="flex:' + Math.max(r.n, tot * 0.12).toFixed(0) + '" title="'
+        + esc(r.label) + ": " + fmtN(r.n) + " sites, " + pct(r.share) + '">'
+        + esc(r.label) + ": " + fmtN(r.n) + "</span>").join("") + "</div>"
+      + '<p class="rs-hint">Semrush\'s Authority Score of every site linking to us, in the bands the marketing team '
+      + "works with. The citation map below reads Ahrefs' Domain Rating and spam flag instead.</p>";
+  }
+  function smBandsWire(host) {
+    const x = smAsDays(), box = host.querySelector("#mkoK-smb");
+    if (!x || !box) return;
+    const b = smBands(x.rows), pb = x.prevRows ? smBands(x.prevRows) : null;
+    RSC.kpis(box, b.map((r, i) => ({ label: r.label, value: fmtN(r.n) + (pb ? delta(r.n, pb[i].n, i === 0) : ""),
+      sub: pct(r.share) + " of " + fmtN(r.tot) + " · " + r.what + (pb ? " · vs " + shortDay(x.prev) : "") })));
+  }
+  // us, Tuji and the Brand Radar competitors with a known website (src/semrush_mcp.SITES)
+  const SM_SITES = [["Zip to Zip Moving", "ziptozipmoving.com"], ["Tuji Moving", "tujimoving.com"],
+    ["Piece of Cake Moving", "pieceofcakemoving.com"], ["Two Men and a Truck", "twomenandatruck.com"],
+    ["Allied Van Lines", "allied.com"], ["North American Van Lines", "northamerican.com"], ["U-Pack", "upack.com"],
+    ["PODS", "pods.com"], ["U-Haul", "uhaul.com"], ["United Van Lines", "unitedvanlines.com"]];
+  function smSitesHtml() {
+    const lastOf = (rows, s) => rows.filter(r => r.t === s).pop() || null;
+    const rows = SM_SITES.map(([name, dom]) => ({ name, dom, us: dom === SM_US, ov: lastOf(P.smOv, dom), org: lastOf(P.smOrg, dom) }))
+      .filter(r => r.ov || r.org).sort((a, b) => ((b.ov && b.ov.as) || 0) - ((a.ov && a.ov.as) || 0));
+    if (!rows.some(r => !r.us)) return smWait("competitor comparison");
+    return ptable([
+      { h: "Site", name: true, cell: r => (r.us ? "<b>" + esc(r.name) + "</b>" : esc(r.name)) + '<div class="mko-sub">' + esc(r.dom) + "</div>" },
+      { h: "Authority", num: true, tip: "Semrush Authority Score, out of 100", cell: r => r.ov && r.ov.as != null ? String(r.ov.as) : "—" },
+      { h: "Ref. domains", num: true, tip: "sites linking to it", cell: r => fmtN(r.ov && r.ov.rd) },
+      { h: "Backlinks", num: true, cell: r => compact(r.ov && r.ov.bl) },
+      { h: "Keywords", num: true, tip: "organic keywords, US", cell: r => fmtN(r.org && r.org.kw) },
+      { h: "Traffic", num: true, tip: "Semrush's organic traffic estimate a month, US", cell: r => fmtN(r.org && r.org.traffic) },
+      { h: "Traffic value", num: true, tip: "what that traffic would cost as Google ads", cell: r => money(r.org && r.org.cost) },
+    ], rows, null, true);
+  }
+  function smKwHtml() {
+    if (!P.smKw.length) return smWait("keyword list");
+    const mv = r => r.pos == null || r.prev == null || r.prev === r.pos ? ""
+      : !r.prev ? ' <span class="mko-d eq">new</span>'
+      : ' <span class="mko-d ' + (r.prev > r.pos ? "up" : "dn") + '">' + (r.prev > r.pos ? "▲ " : "▼ ") + Math.abs(r.prev - r.pos) + "</span>";
+    return ptable([
+      { h: "Keyword", name: true, cell: r => esc(r.kw) + '<div class="mko-sub">' + esc(pagePath(r.url)) + "</div>" },
+      { h: "Position", num: true, tip: "Google, US; the arrow is the change since Semrush's previous check", cell: r => (r.pos == null ? "—" : String(r.pos)) + mv(r) },
+      { h: "Searches", num: true, tip: "a month, US", cell: r => fmtN(r.vol) },
+      { h: "Traffic share", num: true, tip: "of our Semrush organic traffic estimate", cell: r => r.share == null ? "—" : r.share.toFixed(1) + "%" },
+    ], P.smKw.slice(0, 15), null, true);
+  }
+  function smAuditHtml() {
+    const a = P.sm.aud;
+    if (!a) return smWait("Site Audit summary");
+    const tj = P.smAud.filter(r => r.t === "tujimoving.com").pop();
+    const ch = a.errCh ? ' <span class="mko-d ' + (a.errCh > 0 ? "dn" : "up") + '">' + (a.errCh > 0 ? "▲ " : "▼ ") + fmtN(Math.abs(a.errCh)) + "</span>" : "";
+    return '<div class="rs-kpis mko-k3"><div class="kpi"><div class="l">Errors</div><div class="v">' + fmtN(a.err) + ch
+      + '</div><div class="s">issues found on the crawl</div></div>'
+      + '<div class="kpi"><div class="l">Warnings</div><div class="v">' + fmtN(a.warn) + '</div><div class="s">'
+      + fmtN(a.note) + " notices</div></div>"
+      + '<div class="kpi"><div class="l">Pages with issues</div><div class="v">' + fmtN(a.issues) + '</div><div class="s">of '
+      + fmtN(a.crawled) + " crawled</div></div></div>"
+      + '<p class="rs-hint">Semrush counts issues, and one page can carry several; Ahrefs above counts pages.'
+      + (tj ? " Tuji Moving: " + fmtN(tj.err) + " errors and " + fmtN(tj.warn) + " warnings on " + fmtN(tj.crawled) + " pages." : "")
+      + "</p>";
+  }
   function onPageHtml() {
     if (P.err.audit) return '<div class="mko-empty">The site audit could not load — ' + esc(P.err.audit) + "</div>";
     const a = P.audit;
@@ -3565,6 +3734,72 @@
     });
   }
 
+  /* Semrush API units (2026-10-27): the account's pool, our calls only (Semrush does not say what is left) */
+  const SM_STEPS = [["authority", "Authority", "Authority Score, backlinks, sites linking by score", 1],
+                    ["competitors", "Competitors", "us, Tuji and 8 competitors: authority and organic", 7],
+                    ["organic", "Keywords", "our top 100 keywords by traffic", 7],
+                    ["audit", "Site Audit", "our project and Tuji's", 7],
+                    ["history", "History", "the monthly series, newest months", 7]];
+  const SM_POOL = 50000;   // src/semrush_mcp.POOL: the Guru plan's connector units a month, the whole account's
+  const smLast = rows => rows.reduce((m, r) => (r.d > m ? r.d : m), "") || null;
+  function smUsageModel() {
+    if (!P.smU.length) return null;
+    const now = new Date(), y = now.getUTCFullYear(), mo = now.getUTCMonth();
+    const start = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10);
+    const reset = new Date(Date.UTC(y, mo + 1, 1)).toISOString().slice(0, 10);
+    const ours = P.smU.filter(r => r.at >= start).reduce((s, r) => s + r.units, 0);
+    const lastRun = P.smU[P.smU.length - 1].at;
+    const empty = P.smU.some(r => r.at === lastRun && /pool empty/.test(r.why));
+    const steps = SM_STEPS.map(([k, name, what, normal]) => {
+      const mine = P.smU.filter(r => r.step === k);
+      return { k, name, what, normal, row: mine.length ? mine[mine.length - 1] : null, ran: mine.filter(r => r.ran).pop() || null };
+    });
+    const perDay = steps.reduce((s, x) => s + (x.row && x.row.days ? x.row.est / x.row.days : 0), 0);
+    const daysLeft = Math.max(0, (Date.parse(reset + "T00:00:00Z") - now) / 864e5);
+    return { start, reset, ours, perDay, projected: ours + perDay * daysLeft, empty, lastRun, steps };
+  }
+  function smUsageHtml() {
+    const head = sub => '<div class="panel"><div class="panel-head"><span class="panel-title">Semrush API units</span>'
+      + '<span class="mko-sub">' + sub + "</span></div>";
+    if (P.err.smuse) {
+      return head("what each Semrush pull costs") + '<div class="mko-empty">The usage log could not load — ' + esc(P.err.smuse)
+        + (/404|unknown dataset|not granted|403/i.test(P.err.smuse) ? " (it arrives with the next bridge deploy)" : "") + "</div></div>";
+    }
+    const m = smUsageModel();
+    if (!m) {
+      return head("what each Semrush pull costs") + '<div class="mko-empty">Measured from the next daily pull: the units each '
+        + "Semrush pull spends from the account's " + fmtN(SM_POOL) + " a month.</div></div>";
+    }
+    const how = d => d == null ? "paused" : d === 1 ? "daily" : d === 7 ? "weekly" : "every " + d + " days";
+    const at = s => s ? day(s.slice(0, 10)) + " " + s.slice(11, 16) : "—";
+    return head(fmtN(SM_POOL) + " units a month on the Guru plan, shared by the whole account · times UTC")
+      + '<div class="rs-kpis" id="mkoK-smu"></div>'
+      + ptable([
+        { h: "Pull", name: true, cell: s => esc(s.name) + '<div class="mko-sub">' + esc(s.what) + "</div>" },
+        { h: "How often now", cell: s => !s.row ? "—" : how(s.row.days)
+            + (s.row.days == null || s.row.days > s.normal ? ' <span class="rs-pill warn">' + (s.row.days == null ? "paused" : "stretched") + "</span>" : "")
+            + '<div class="mko-sub">normally ' + how(s.normal) + "</div>" },
+        { h: "Last pull", num: true, cell: s => esc(at(s.ran && s.ran.at)) },
+        { h: "Units then", num: true, cell: s => s.ran ? fmtN(s.ran.units) : "—" },
+        { h: "Typical", num: true, tip: "the median of its last runs, what the planner budgets", cell: s => s.row ? fmtN(s.row.est) : "—" },
+        { h: "Latest decision", cell: s => s.row ? esc(s.row.why) : "—" }], m.steps, null, true)
+      + '<p class="rs-hint">Through Semrush\'s own connector, with our key. The pool is the whole account\'s: the marketing '
+      + "team's Claude connector spends from it too, and Semrush does not say how much is left, so this counts our calls "
+      + "only. No units are held back for others (your call, 27 Oct). If Semrush says the pool is empty, the pulls stop and "
+      + "try again the next day.</p></div>";
+  }
+  function smUsageWire(host) {
+    const m = smUsageModel(), box = host.querySelector("#mkoK-smu");
+    if (!m || !box) return;
+    const at = s => day(s.slice(0, 10)) + " " + s.slice(11, 16);
+    RSC.kpis(box, [
+      { label: "Our units this month", value: fmtN(m.ours), sub: pct(ratio(m.ours, SM_POOL)) + " of the pool · since " + day(m.start) },
+      { label: "On pace for", value: fmtN(m.projected), sub: fmtN(m.perDay) + " a day planned · resets " + day(m.reset) },
+      { label: "Pool", value: m.empty ? "Empty" : "OK",
+        sub: (m.empty ? "Semrush refused the pull of " : "last pull ") + at(m.lastRun) },
+    ]);
+  }
+
   /* === SETTINGS === */
   function settingsTab() {
     const plat = D.conn.filter(r => r.Group === "Marketing platforms");
@@ -3574,8 +3809,9 @@
     const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]);
     const behind = ours.filter(r => r.Status === "Behind");
     const names = list => list.map(r => r.Platform.replace(/ \(.*\)$/, "")).join(", ");
-    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + ahUsageHtml() + sourcesHtml(), wire(host) {
+    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + ahUsageHtml() + smUsageHtml() + sourcesHtml(), wire(host) {
       ahUsageWire(host);
+      smUsageWire(host);
       RSC.kpis(host.querySelector("#mkoK-set"), [
         { label: "Live", value: String(live.length), sub: "platforms pulled by API" },
         { label: "Waiting on others", value: String(wait.length), sub: names(wait) || "none" },
@@ -3765,10 +4001,12 @@
         plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"),
         plat("mkt_brans", "brans"), plat("mkt_brmen", "brmen"), plat("mkt_brcit", "brcit"),
         plat("mkt_ahuse", "ahuse"), plat("mkt_ahquota", "ahquota"),
+        plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
+        plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
-                brans, brmen, brcit, ahuse, ahquota]) => {
+                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -3780,6 +4018,7 @@
         indexBatch3({ refdom, anchor, ctrace });
         indexBrandRadar({ brans, brmen, brcit });
         indexAhrefsUsage({ ahuse, ahquota });
+        indexSemrush({ smov, smas, smorg, smkw, smaud, smhist, smuse });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
         if (!alive()) return;
