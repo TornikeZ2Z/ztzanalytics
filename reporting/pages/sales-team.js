@@ -1684,7 +1684,7 @@
 
   function renderExplorer(host, ctx) {
     const state = { q: "", sp: (ctx.explorerPreset && ctx.explorerPreset.sp) || "", chip: "",
-      sort: "new", page: 0, src: "", stat: "", called: "", type: "", bucket: "" };
+      sort: "new", page: 0, src: "", stat: "", called: "", type: "", bucket: "", issue: "" };
     ctx.explorerPreset = null;
     const PAGE = 100;
     const uniq = col => {
@@ -1702,6 +1702,23 @@
     const today0 = new Date().toISOString().slice(0, 10);
     const dayDiff = d => Math.round((Date.parse(String(d).slice(0, 10)) - Date.parse(today0)) / 864e5);
     const ansSet = new Set((ctx.answers || []).map(a => String(a["Request #"] || "").trim()));
+    /* CONFIRMED, DONE OR STILL AHEAD (Ruso via Tornike, 2026-10-27: "we need to have Confirmed and Done or Confirmed
+       and in the future"). Done = a closing sheet was filed, or the move date has passed; upcoming = the rest. */
+    const confDone = r => +r["Closed"] || !!r["Closing Date"] || (r["Move Date"] && dayDiff(r["Move Date"]) < 0);
+    const STAT_SPLIT = { conf_done: r => isConf(r) && confDone(r), conf_next: r => isConf(r) && !confDone(r) };
+    /* WHAT WENT WRONG WITH A LEAD (same ask: "1 more filter ... like Underestimate, Slow Call and etc."). Each is the
+       page's own existing flag, so a count here matches the chip and the drawer. Under/overestimated split the
+       mart's quote gap (src/lead_journey.py: the final bill more than 25% from the average quote) by its sign. */
+    const gapPct = r => (r["Bill Vs Quote Pct"] == null || r["Bill Vs Quote Pct"] === "" ? null : +r["Bill Vs Quote Pct"]);
+    const ISSUES = [
+      ["under", "Underestimated · bill 25%+ over the quote", r => +r["Flag Big Quote Gap"] && gapPct(r) > 0],
+      ["over", "Overestimated · bill 25%+ under the quote", r => +r["Flag Big Quote Gap"] && gapPct(r) < 0],
+      ["slow", "Slow first call", r => +r["Flag Slow First Call"]],
+      ["never", "Never worked", r => isNeverContacted(r)],
+      ["notrc", "Confirmed, call not in RingCentral", r => isConf(r) && !isContacted(r)],
+      ["noclose", "Booked, no closing", r => +r["Flag Confirmed No Closing"]],
+      ["calbad", "Calendar mismatch", r => calMismatch(r)],
+    ];
     const CHIPS = [
       ["needcall", "Needs a call", r => inWindow(r) && !+r["Called"] && !isContacted(r) && !isConf(r) && !isDead(r)],
       ["recall", "Not Confirmed, moving ≤ 14 days", r => String(r["Status"] || "") === "Not Confirmed"
@@ -1719,7 +1736,7 @@
       <div class="lx-views" id="lxViews"></div>
       <div class="st-toolbar">
         <div class="st-search"><input type="text" id="stQ" placeholder="Search name, request #, phone or source…"></div>
-        <div id="lxRep"></div><div id="lxSrc"></div><div id="lxStat"></div>
+        <div id="lxRep"></div><div id="lxSrc"></div><div id="lxStat"></div><div id="lxIssue"></div>
         <div id="stCalled"></div>
         <div id="stType"></div>
         <div id="stSort"></div>
@@ -1734,7 +1751,9 @@
       let rows = ctx.rows;
       if (state.sp) rows = rows.filter(r => (r["Assigned"] || "").trim() === state.sp);
       if (state.src) rows = rows.filter(r => (r["Source"] || "").trim() === state.src);
-      if (state.stat) rows = rows.filter(r => (r["Status Category"] || "").trim() === state.stat);
+      if (STAT_SPLIT[state.stat]) rows = rows.filter(STAT_SPLIT[state.stat]);
+      else if (state.stat) rows = rows.filter(r => (r["Status Category"] || "").trim() === state.stat);
+      if (state.issue) { const iss = ISSUES.find(x => x[0] === state.issue); if (iss) rows = rows.filter(iss[2]); }
       if (state.called) rows = rows.filter(r => callState(r) === state.called);
       if (state.type === "ld") rows = rows.filter(r => +r["Is LD"]);
       if (state.type === "loc") rows = rows.filter(r => !+r["Is LD"]);
@@ -1770,7 +1789,12 @@
         const f = [];
         if (isNeverContacted(r)) f.push(`<span class="st-flag r">✕ contact</span>`);
         else if (+r["Flag Slow First Call"]) f.push(`<span class="st-flag a">slow</span>`);
-        if (+r["Flag Big Quote Gap"]) f.push(`<span class="st-flag p">gap</span>`);
+        if (+r["Flag Big Quote Gap"]) {
+          const g = gapPct(r);
+          f.push(g == null ? `<span class="st-flag p">gap</span>` : g > 0
+            ? `<span class="st-flag r" title="The final bill came in ${Math.round(g)}% over the average quote">under +${Math.round(g)}%</span>`
+            : `<span class="st-flag p" title="The final bill came in ${Math.round(-g)}% under the average quote">over −${Math.round(-g)}%</span>`);
+        }
         if (+r["Flag Confirmed No Closing"]) f.push(`<span class="st-flag r">no closing</span>`);
         // calendar vs Moveboard disagreement -- name WHICH field differs, not a generic "mismatch"
         if (+r["Cal Found"] && r["Cal Date Match"] != null && !+r["Cal Date Match"])
@@ -1852,9 +1876,21 @@
       label: "Source", allLabel: "All sources", values: sources.map(v => ({ v, l: v })), value: state.src,
       onChange: v => { state.src = v; state.page = 0; paint(); },
     });
+    // Confirmed comes three ways: all of them, the moves already done, the moves still ahead
+    const statVals = [];
+    stats.forEach(v => {
+      statVals.push({ v, l: v === "Confirmed" ? "Confirmed · all" : v });
+      if (v === "Confirmed") statVals.push({ v: "conf_done", l: "Confirmed · done" }, { v: "conf_next", l: "Confirmed · upcoming" });
+    });
     RSC.localSelect(host.querySelector("#lxStat"), {
-      label: "Status", allLabel: "Any status", values: stats.map(v => ({ v, l: v })), value: state.stat,
+      label: "Status", allLabel: "Any status", values: statVals, value: state.stat,
       onChange: v => { state.stat = v; state.page = 0; paint(); },
+    });
+    RSC.localSelect(host.querySelector("#lxIssue"), {
+      label: "Issue", allLabel: "Any",
+      values: ISSUES.map(([v, l, f]) => ({ v, l: l + " (" + RS.fmtN(ctx.rows.filter(f).length) + ")" })),
+      value: state.issue,
+      onChange: v => { state.issue = v; state.page = 0; paint(); },
     });
     // the KIT dropdowns, not naked <select>s — same value strings, state stays page-local
     RSC.localSelect(host.querySelector("#stCalled"), {
