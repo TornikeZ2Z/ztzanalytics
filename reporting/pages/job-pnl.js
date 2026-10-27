@@ -46,8 +46,8 @@
   if (window.RS && RS.DATASETS && !RS.DATASETS.job_fuel) {
     RS.DATASETS.job_fuel = {
       table: "fct_fuel",
-      cols: ["Line Key", "Date", "Datetime", "Foreman", "Truck", "Vehicle Raw", "Is Fuel", "Gallons", "Gross Cost",
-             "Merchant Name", "Merchant City", "Merchant State"],
+      cols: ["Line Key", "Date", "Datetime", "Work Day", "Foreman", "Truck", "Vehicle Raw", "Fuel Kind", "Gallons", "Net Cost",
+             "Unique Key", "Match Status", "Merchant Name", "Merchant City", "Merchant State"],
     };
   }
 })();
@@ -70,6 +70,8 @@
     .jpl-flag{margin:8px 0 4px;padding:8px 12px;border-radius:10px;background:var(--neg-bg);color:var(--neg);font-weight:700;font-size:13.5px}
     .jpl-fuel .rs-tablewrap{margin:8px 0 12px}
     .jpl-fuel tr.jpl-me td{font-weight:700}
+    .jpl-link{color:var(--brand);font-weight:650;text-decoration:none}
+    .jpl-link:hover{text-decoration:underline}
     @media (max-width:760px){.jpl-tiles .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .jpl-qfld .rs-inp{width:100%}
     .jpl-chead{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;margin-bottom:6px}
@@ -207,15 +209,23 @@
         /* REAL FUEL, BESIDE THE ESTIMATE (his ask 2026-10-27): "at the end of the day, foreman should fill the
            truck fully therefore the morning job has full fuel. i want to see whether the estimated cost of fuel is
            really cost of fuel ... add it in the list as FUEL REAL EXPENDITURE or something and do not substract".
-           Shown, never counted. A day's fuel = the WEX fills that topped the truck up after it -- from noon that
-           day to noon the next, so a morning fill belongs to the day before -- on the foreman's card or on the
-           job's own truck, plus the fuel written on that day's closing sheets; split over his jobs that day by
-           their miles. The day before and the day after are listed so the rule can be judged. */
-        const FUEL = (fuelRows || []).filter(f => num(f["Is Fuel"]) === 1).map(f => ({
+           Shown, never counted. ONE RULE WITH FUEL CONTROL (his pick 2026-10-27, "this new report and that page
+           should combine"): the loader puts every swipe on a work day -- noon to noon, a morning fill tops up after
+           the day before -- and on the foreman's jobs of that day, split by their miles (src/fuel_mart.py). The
+           job's share is its `Card Fuel`; paid = that + the fuel on its closing sheet. The swipes are read here
+           only to show the evidence: the ones that count, and his card or the job's truck the day before and after. */
+        const PLACED_FUEL = { assigned: 1, assigned_trip: 1 };
+        const nameKey = v => (String(v || "").toLowerCase().match(/[a-z]+/g) || []).sort().join(" ");
+        const FUEL = (fuelRows || []).map(f => ({
           key: f["Line Key"], d: String(f["Date"] || "").slice(0, 10), t: String(f["Datetime"] || ""), who: f["Foreman"] || "",
-          truck: String(f["Truck"] || "").replace(/^#/, ""), veh: f["Vehicle Raw"] || "", gal: num(f["Gallons"]), cost: num(f["Gross Cost"]),
+          wd: String(f["Work Day"] || f["Date"] || "").slice(0, 10), nk: nameKey(f["Foreman"]), uk: f["Unique Key"] || "",
+          placed: PLACED_FUEL[f["Match Status"]] === 1, trip: f["Match Status"] === "assigned_trip", kind: f["Fuel Kind"] || "",
+          truck: String(f["Truck"] || "").replace(/^#/, ""), veh: f["Vehicle Raw"] || "", gal: num(f["Gallons"]), cost: num(f["Net Cost"]),
           where: [f["Merchant Name"], f["Merchant City"], f["Merchant State"]].filter(Boolean).join(", ") }));
         const fuelFrom = FUEL.reduce((a, f) => f.d && f.d < a ? f.d : a, "9999");
+        // the swipes the loader placed, by the job carrying them (a day of several jobs: the biggest share)
+        const fuelByUk = new Map();
+        FUEL.forEach(f => { if (f.placed && f.uk) { if (!fuelByUk.has(f.uk)) fuelByUk.set(f.uk, []); fuelByUk.get(f.uk).push(f); } });
         const byForemanDay = new Map();
         byKey.forEach(list => list.forEach(r => {
           if (!r["Foreman"]) return;
@@ -224,21 +234,24 @@
           byForemanDay.get(k).push(r);
         }));
         const addDays = (d, n) => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
-        const hourOf = f => { const m = /(\d{1,2}):(\d{2})/.exec(f.t.slice(10)); return m ? +m[1] : 12; };
         function fuelDay(r) {
           if (!FUEL.length || !r._d || r._d < fuelFrom) return null;
-          const who = r["Foreman"] || "", truck = r["Truck Ownership"] === "Owned" ? String(r["Truck"] || "").replace(/^#/, "") : "";
+          const who = r["Foreman"] || "", nk = nameKey(who), truck = r["Truck Ownership"] === "Owned" ? String(r["Truck"] || "").replace(/^#/, "") : "";
           const d0 = r._d, prev = addDays(d0, -1), next = addDays(d0, 1);
-          const fills = FUEL.filter(f => f.d >= prev && f.d <= next && ((who && f.who === who) || (truck && f.truck === truck)))
-            .map(f => Object.assign({}, f, { counts: (f.d === d0 && hourOf(f) >= 12) || (f.d === next && hourOf(f) < 12) }))
-            .sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
           const jobs = byForemanDay.get(who + "|" + d0) || [r];
-          const totMiles = jobs.reduce((a, x) => a + num(x["Miles"]), 0);
-          const share = jobs.length <= 1 ? 1 : totMiles > 0 ? num(r["Miles"]) / totMiles : 1 / jobs.length;
-          const wex = fills.filter(f => f.counts).reduce((a, f) => a + f.cost, 0);
-          const sheet = jobs.reduce((a, x) => a + num(x["Fuel on Sheet"]), 0);
-          return { who, truck, d0, prev, next, fills, jobs, totMiles, share, wex, sheet, day: wex + sheet, real: (wex + sheet) * share, est: num(r["Fuel Est"]) };
+          const keys = new Set(jobs.map(x => x["Unique Key"]));
+          const counted = [].concat(...jobs.map(x => fuelByUk.get(x["Unique Key"]) || [])).filter(f => !f.trip);
+          const near = FUEL.filter(f => !(f.placed && keys.has(f.uk)) && f.d >= prev && f.d <= next && ((nk && f.nk === nk) || (truck && f.truck === truck)));
+          const fills = counted.map(f => Object.assign({}, f, { counts: true })).concat(near.map(f => Object.assign({}, f, { counts: false })))
+            .sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+          const wex = counted.reduce((a, f) => a + f.cost, 0), card = num(r["Card Fuel"]), sheet = num(r["Fuel on Sheet"]);
+          return { who, truck, d0, prev, next, fills, jobs, wex, card, sheet, share: wex > 0.5 ? card / wex : null, real: card + sheet, est: num(r["Fuel Est"]) };
         }
+        // the same foreman-week in Fuel Control, for the people who can open it (Logistics)
+        const weekOf = d => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toISOString().slice(0, 10); };
+        const fuelLink = r => (typeof canSee === "function" && !canSee("fuel-control")) ? "" :
+          '<a class="jpl-link" href="#page=fuel-control&tab=estimate&who=' + encodeURIComponent(r["Foreman"] || "") + "&wk=" + weekOf(r._d) + '">' +
+          "Open " + esc(r["Foreman"] || "the foreman") + "’s week in Fuel Control →</a>";
         // THE FUEL FLAG (his rule 2026-10-27): "if fuel expenditure is more by 30% then what was expected we should
         // flag it as some issue. but lets make minimum of 10$" -- paid at least 30% AND at least $10 over the
         // estimate. Nothing paid at all is not "over": it has its own state (cash fuel never written down?).
@@ -776,27 +789,31 @@
               if (!x) return '<p class="jpl-sub">' + (multi ? "Day " + (i + 1) + ": " : "") + "the WEX card data starts " + esc(day(fuelFrom)) + ".</p>";
               const head = (multi ? "<b>Day " + (i + 1) + ", " + esc(day(x.d0)) + ".</b> " : "") +
                 "The route’s fuel was estimated at <b>" + money(x.est) + "</b>. " +
-                (x.day > 0.5
-                  ? "Paid for the day: <b>" + money(x.wex) + "</b> in WEX fills that topped up after it" + (x.sheet > 0.5 ? " + <b>" + money(x.sheet) + "</b> written on the closing sheet" + (x.jobs.length > 1 ? "s" : "") : "") +
-                    " = " + money(x.day) + (x.jobs.length > 1 ? "; this job’s share, by miles, is " + Math.round(100 * x.share) + "% = <b>" + money(x.real) + "</b>" : "") + "."
-                  : "No fuel was paid for the day on " + esc(x.who || "the foreman") + "’s card" + (x.truck ? " or on truck " + esc(x.truck) : "") + ", and none is on the closing sheet" + (x.jobs.length > 1 ? "s" : "") + ".");
+                (x.real > 0.5
+                  ? "Paid: <b>" + money(x.card) + "</b> on the WEX card" +
+                    (x.jobs.length > 1 && x.share != null ? " (" + Math.round(100 * x.share) + "% of the " + money(x.wex) + " his card paid for the day, split by miles)" : "") +
+                    (x.sheet > 0.5 ? " + <b>" + money(x.sheet) + "</b> written on the closing sheet" : "") + " = <b>" + money(x.real) + "</b>."
+                  : "No fuel was paid for this job: nothing on " + esc(x.who || "the foreman") + "’s card from noon that day to noon the next, and none on the closing sheet.");
               const jobsT = x.jobs.length <= 1 ? "" : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>' + esc(x.who) + "’s jobs that day</th><th>Customer</th>" +
-                '<th class="num">Miles</th><th class="num">Share</th><th class="num">Fuel on the sheet</th></tr></thead><tbody>' +
+                '<th class="num">Miles</th><th class="num">WEX card</th><th class="num">Fuel on the sheet</th></tr></thead><tbody>' +
                 x.jobs.map(j => "<tr" + (j === r ? ' class="jpl-me"' : "") + "><td>" + esc(j["Job Code"] || "#" + j["Closing #"]) + "</td><td>" + esc(j["Customer"] || "—") + "</td>" +
-                  '<td class="num">' + Math.round(num(j["Miles"])) + '</td><td class="num">' +
-                  (x.totMiles > 0 ? Math.round(100 * num(j["Miles"]) / x.totMiles) : Math.round(100 / x.jobs.length)) + '%</td><td class="num">' + money(j["Fuel on Sheet"]) + "</td></tr>").join("") +
+                  '<td class="num">' + Math.round(num(j["Miles"])) + '</td><td class="num">' + money(j["Card Fuel"]) + '</td><td class="num">' + money(j["Fuel on Sheet"]) + "</td></tr>").join("") +
                 "</tbody></table></div>";
+              const forLabel = f => f.counts ? '<b class="jpl-pos">this day</b>' : !f.placed ? "not placed: in Fuel Control’s queue"
+                : f.trip ? "a long-distance trip" : f.wd < x.d0 ? "the day before" : f.wd > x.d0 ? "the next day" : esc(f.who || "another card") + "’s jobs";
               const fillsT = !x.fills.length
                 ? '<p class="jpl-sub">No WEX fill on ' + esc(x.who || "the foreman") + "’s card" + (x.truck ? " or on truck " + esc(x.truck) : "") + " from " + esc(day(x.prev)) + " to " + esc(day(x.next)) + ".</p>"
-                : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>WEX fill</th><th>Card</th><th>Truck</th><th>Station</th><th class="num">Gallons</th><th class="num">Paid</th><th>Counts for</th></tr></thead><tbody>' +
+                : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>WEX fill</th><th>Card</th><th>Truck</th><th>Station</th><th>Product</th><th class="num">Gallons</th><th class="num">Paid</th><th>Counts for</th></tr></thead><tbody>' +
                   x.fills.map(f => "<tr><td>" + esc(day(f.d)) + " " + esc(f.t.slice(11, 16)) + "</td><td>" + esc(f.who || "—") + "</td><td>" + esc(f.truck ? "#" + f.truck : f.veh || "—") + "</td>" +
-                    "<td>" + esc(f.where || "—") + '</td><td class="num">' + f.gal.toFixed(1) + '</td><td class="num">' + money(f.cost) + "</td>" +
-                    "<td>" + (f.counts ? '<b class="jpl-pos">this day</b>' : f.d === x.prev || hourOf(f) < 12 && f.d === x.d0 ? "the day before" : "the next day") + "</td></tr>").join("") +
+                    "<td>" + esc(f.where || "—") + "</td><td>" + esc(f.kind || "—") + '</td><td class="num">' + f.gal.toFixed(1) + '</td><td class="num">' + money(f.cost) + "</td>" +
+                    "<td>" + forLabel(f) + "</td></tr>").join("") +
                   "</tbody></table></div>";
               return '<p class="jpl-summary">' + head + "</p>" + jobsT + fillsT;
             }).join("") +
-            '<p class="jpl-sub">A fill counts for the day it topped up after: from noon that day to noon the next, so a morning fill belongs to the day before. ' +
-            "Fills are the foreman’s card or the job’s own truck; the day before and the day after are listed to judge the rule. Nothing here changes the profit, which uses the route’s estimate.</p></div>";
+            '<p class="jpl-sub">The same rule as Fuel Control: a fill counts for the day it topped up after, from noon that day to noon the next, so a morning fill ' +
+            "belongs to the day before (unless he ran nothing the day before, or the pump’s truck is this day’s). A day of several jobs is split by their miles. " +
+            "His card or the job’s truck the day before and after is listed to judge the rule. Nothing here changes the profit, which uses the route’s estimate.</p>" +
+            (days[0] && days[0]._d >= fuelFrom ? '<p class="jpl-sub">' + fuelLink(days[0]) + "</p>" : "") + "</div>";
 
           /* ---- tiles ---- */
           let avgLine = "", mCls = "";

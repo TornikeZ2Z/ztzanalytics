@@ -13,6 +13,14 @@
  *
  * NOTHING HERE IS AN ACCUSATION. A fill in Georgia on a long-distance run is normal. Gasoline
  * in a diesel truck is a keying mistake far more often than anything else. Flags are questions.
+ *
+ * ESTIMATE VS PAID (his ask 2026-10-27: "we have something similar in logistics named Fuel Control.
+ * this new report and that page should combine"). The Job P&L's fuel check lives here as the first
+ * tab: each job's route fuel (miles / 7 mpg x the WEX price) against what was paid -- its share of the
+ * card (noon to noon, a day of several jobs split by miles; src/fuel_mart.py) plus the fuel on its
+ * closing sheet -- a foreman's WEEK at a time, his pick, because a refill that covers two or three days
+ * should not flag one job. A week is flagged at 30% and $10 over (his rule). The figures come from
+ * mart_fuel_check, the fuel-only slice of the Financial Job P&L, so both pages show the same numbers.
  */
 (function () {
   if (window.RS && RS.DATASETS && !RS.DATASETS.fuel) {
@@ -24,11 +32,19 @@
              "Gross Cost", "Net Cost", "Merchant", "Merchant Name", "Merchant City",
              "Merchant State", "Vehicle Raw", "Truck", "Truck Fuel", "Unique Key",
              "Job Request", "Job Customer", "Job Company", "Job Truck", "Job Start",
-             "Job Moving Type", "Job State", "Jobs That Day", "Trip Share", "Trip Cost Share",
+             "Job Moving Type", "Job State", "Jobs That Day", "Work Day", "Trip Share", "Trip Cost Share",
              "Match Status", "Match Note",
              "Flags", "Notes", "Flag Count", "Needs Review", "Resolved", "Resolution",
              "Resolved By", "Resolved At"],
       dateCols: { Date: "Date" }, defaultDate: "Date",
+    };
+  }
+  // every job since the card export starts, its route fuel against what was paid (src/job_pnl.py)
+  if (window.RS && RS.DATASETS && !RS.DATASETS.fuel_check) {
+    RS.DATASETS.fuel_check = {
+      table: "mart_fuel_check",
+      cols: ["Unique Key", "Job Key", "Date", "Company", "Closing #", "Job Code", "Customer", "Foreman",
+             "Moving Type", "State", "Truck", "Miles", "Fuel Est", "Card Fuel", "Fuel on Sheet", "Fuel Paid"],
     };
   }
 })();
@@ -61,7 +77,7 @@ registerPage({
     // making the reader learn a vocabulary.
     const WHY = {
       unknown_foreman: "the card names somebody who is not on the crew list",
-      no_job_that_day: "he ran no job on this date",
+      no_job_that_day: "he ran no job that day (before noon: the day before either)",
       ambiguous_no_time: "several jobs that day and no way to tell which came first",
       known_non_crew: "a known card holder who is not on the crew list",
     };
@@ -75,9 +91,19 @@ registerPage({
     const PLACED = { assigned: 1, assigned_trip: 1 };
 
     const S = window.__FUEL || (window.__FUEL = {
-      rows: null, view: "queue", month: "", q: "", showResolved: false,
+      rows: null, view: "estimate", month: "", q: "", showResolved: false,
       busy: "", msg: "", msgErr: false, msgFor: null, open: null, draft: {},
     });
+    if (!S.est) S.est = { open: null, wk: null, name: "" };
+    // a link in (Job P&L's fuel check): #page=fuel-control&tab=estimate&who=<foreman>&wk=<Monday>
+    (function () {
+      const h = location.hash || "";
+      const g = k => { const m = new RegExp("[#&]" + k + "=([^&]*)").exec(h); return m ? decodeURIComponent(m[1]) : ""; };
+      const tab = g("tab"), who = g("who");
+      if (/^(estimate|queue|foremen|trucks|all)$/.test(tab)) S.view = tab;
+      if (who) Object.assign(S.est, { name: who, open: null, wk: g("wk") || null }), S.month = "", S.q = "";
+      if (tab || who) { try { history.replaceState(null, "", "#page=fuel-control"); } catch (e) { /* ignore */ } }
+    })();
     /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
        report with its own bar): Company, Local / Long distance, Job state and Fuel kind, each a
        multi (empty = all). In S for this session, never in RS.state.multi, never persisted.
@@ -184,6 +210,21 @@ registerPage({
       + ".fu-empty b{display:block;font-size:16px;color:var(--pos);margin-bottom:5px}"
       // a footnote UNDER a table: quieter than .rs-hint, and it hangs below, not above
       + ".fu-note{font-size:12.5px;color:var(--faint);line-height:1.55;margin:10px 0 0;max-width:var(--rs-prose)}"
+      // ---- estimate vs paid: a foreman opens into weeks, a week into its jobs and fills ----
+      + ".fu .fu-t td.l,.fu .fu-t th.l{text-align:left}"
+      + ".fu-est tr.fu-fm,.fu-est tr.fu-wk{cursor:pointer}"
+      + ".fu-est tr.fu-fm td:first-child::before,.fu-est tr.fu-wk td:first-child::before{content:'▸';display:inline-block;width:14px;color:var(--faint)}"
+      + ".fu-est tr.fu-fm.on td:first-child::before,.fu-est tr.fu-wk.on td:first-child::before{content:'▾'}"
+      + ".fu-est tr.fu-fm.on td{background:var(--panel-2)}"
+      + ".fu-est tr.fu-wk td{font-size:12.5px}"
+      + ".fu-est tr.fu-wk td:first-child{padding-left:30px}"
+      + ".fu-est tr.fu-wk td small{color:var(--faint);font-weight:500}"
+      + ".fu-est tr.fu-det>td{background:var(--panel-2);white-space:normal;text-align:left;padding:10px 14px 12px 30px}"
+      + ".fu-est tr.fu-det .rs-tablewrap{max-height:none;margin:6px 0 10px}"
+      + ".fu-est tr.fu-det .rs-table th,.fu-est tr.fu-det .rs-table td{padding-top:6px;padding-bottom:6px}"
+      + ".fu-est tr.fu-det h4{margin:2px 0 0;font-size:12px;font-weight:700;color:var(--muted)}"
+      + ".fu-est a{color:var(--brand);font-weight:650;text-decoration:none}"
+      + ".fu-est a:hover{text-decoration:underline}"
       // the divider over the swipes somebody has already explained, at the kit's label scale
       + ".fu-h2{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 9px}"
       + "@media(max-width:820px){.fu-head{grid-template-columns:1fr;gap:6px}.fu-amt{text-align:left}}"
@@ -239,8 +280,11 @@ registerPage({
       // the next pipeline run onward, so a page that trusted it alone would hand somebody
       // back the thirty exceptions they just cleared, the moment they refreshed. The live
       // table is the truth about what has been answered; the mart is the truth about the money.
-      return Promise.all([RS.load("fuel"), api("/api/_fuelrev").catch(() => ({ reviews: [] }))])
-        .then(([rows, rev]) => {
+      // the third is the Estimate tab's: without it (an older bridge) every other tab still works
+      const jobsLoad = RS.load("fuel_check").catch(e => { console.warn("fuel-control: no fuel check", e); return null; });
+      return Promise.all([RS.load("fuel"), api("/api/_fuelrev").catch(() => ({ reviews: [] })), jobsLoad])
+        .then(([rows, rev, jobs]) => {
+          S.jobs = jobs;
           const by = {};
           (rev.reviews || []).forEach(x => { by[x["Line Key"]] = x; });
           S.rows = (rows || []).map(r => {
@@ -293,7 +337,16 @@ registerPage({
       const gallons = rs.reduce((a, r) => a + num(r.Gallons), 0);
       const assigned = rs.filter(r => PLACED[r["Match Status"]]);
 
-      let h = '<div class="rs-kpis">'
+      const EM = S.view === "estimate" ? estimateModel() : null;
+      let h = EM ? '<div class="rs-kpis">'
+        + kpi(money0(EM.est), "Estimated for the jobs", "route miles ÷ 7 mpg × the WEX price")
+        + kpi(money0(EM.paid), "Paid", "WEX card + closing sheets")
+        + kpi(EM.est > 0 ? signedPct((EM.paid - EM.est) / EM.est) : "—", "Paid vs estimate", signed$(EM.paid - EM.est) + " · all foremen")
+        + kpi(fmtN(EM.flagged) + " of " + fmtN(EM.weeks), "Flagged weeks", "foreman-weeks 30% and $10 over", EM.flagged ? "alert" : "")
+        + kpi(fmtN(openQ.length), "Need an answer",
+              openQ.length ? money0(openSpend) + " unexplained · the Queue tab" : "all clear", openQ.length ? "alert" : "")
+        + "</div>"
+        : '<div class="rs-kpis">'
         + kpi(money0(spend), "Card spend", fmtN(rs.length) + " transaction" + (rs.length === 1 ? "" : "s"))
         + kpi(fmtN(gallons) + " gal", "Fuel bought",
               gallons ? "$" + (spend / gallons).toFixed(2) + " a gallon" : "—")
@@ -307,6 +360,7 @@ registerPage({
 
       h += '<div class="rs-bar">'
         + '<div class="rs-seg">'
+        + seg("estimate", "Estimate vs paid")
         + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
         + seg("foremen", "By foreman") + seg("trucks", "By truck") + seg("all", "All swipes")
         + "</div>"
@@ -335,7 +389,8 @@ registerPage({
       // the guard above tests the whole feed; this one tests what the month and the search
       // actually left. It renders BELOW the bar on purpose -- an early return would have
       // wiped the search box the user is typing into (it did, and threw doing it).
-      if (!rs.length) h += '<div class="fu-empty">No card swipes match this month, search or filters.</div>';
+      if (EM) h += estimateView(EM);
+      else if (!rs.length) h += '<div class="fu-empty">No card swipes match this month, search or filters.</div>';
       else if (S.view === "queue") h += queueView(openQ, resolved);
       else if (S.view === "foremen") h += foremanView(rs);
       else if (S.view === "trucks") h += truckView(rs);
@@ -343,6 +398,11 @@ registerPage({
 
       main.innerHTML = h;
       wire();
+      if (EM && S.est.scroll) {
+        S.est.scroll = false;
+        const on = main.querySelector("tr.fu-fm.on");
+        if (on) on.scrollIntoView({ block: "center" });
+      }
     }
 
     const kpi = (b, lab, sub, cls) => '<div class="kpi ' + (cls || "") + '"><div class="l">'
@@ -354,11 +414,186 @@ registerPage({
                  "September", "October", "November", "December"];
     const monLab = m => m ? MON[+m.slice(5, 7) - 1] + " " + m.slice(0, 4) : "";
 
+    // ---- estimate vs paid: the route's fuel against the card, a foreman's week at a time ----
+    const OVER_PCT = 0.30, OVER_MIN = 10;    // his rule 2026-10-27: 30% over, and at least $10
+    const signed$ = v => (v < 0 ? "−$" : "+$") + Math.round(Math.abs(v)).toLocaleString();
+    const signedPct = v => (v < 0 ? "−" : "+") + Math.abs(Math.round(100 * v)) + "%";
+    const nameKey = v => (String(v || "").toLowerCase().match(/[a-z]+/g) || []).sort().join(" ");
+    const day10 = v => String(v || "").slice(0, 10);
+    const addDays = (d, n) => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+    const weekOf = d => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toISOString().slice(0, 10); };
+    const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dayLab = d => MON3[+d.slice(5, 7) - 1] + " " + +d.slice(8, 10);
+    // the closing sheet's spelling of a man against the crew file's: order never matters (the
+    // mart's own key), and one slipped letter is the same man when it points at one person only
+    function lev1(a, b) {
+      if (a === b) return true;
+      if (Math.abs(a.length - b.length) > 1 || Math.min(a.length, b.length) < 6) return false;
+      let i = 0;
+      while (i < a.length && i < b.length && a[i] === b[i]) i++;
+      const ra = a.slice(i), rb = b.slice(i);
+      return ra.slice(1) === rb.slice(1) || ra.slice(1) === rb || ra === rb.slice(1);
+    }
+    const weekState = w => w.paid < 0.5 ? "none" : w.paid - w.est >= Math.max(OVER_PCT * w.est, OVER_MIN) ? "over" : "ok";
+
+    function estimateModel() {
+      const sw = S.rows || [], jobs = S.jobs || [];
+      const ds = sw.map(r => day10(r.Date)).filter(Boolean).sort();
+      if (!ds.length) return { foremen: [], est: 0, paid: 0, weeks: 0, flagged: 0, w0: "", w1: "", none: true };
+      // FULL WEEKS ONLY, Monday to Sunday: the first the card export covers whole to the last
+      const m0 = weekOf(ds[0]), m1 = weekOf(ds[ds.length - 1]);
+      const w0 = m0 < ds[0] ? addDays(m0, 7) : m0;
+      const w1 = addDays(m1, 6) <= ds[ds.length - 1] ? m1 : addDays(m1, -7);
+      const inWin = wk => wk >= w0 && wk <= w1 && (!S.month || wk.slice(0, 7) === S.month);
+      // the bar's job filters: a job by its own fields, a swipe on a job by its job's, an
+      // unplaced swipe stays (it has no job to filter by -- the page's rule, said under the bar)
+      const pf = {};
+      PF_JOBKEYS.forEach(k => { if (S.pf[k].length) pf[k] = new Set(S.pf[k]); });
+      const jv = (k, j) => { const v = k === "co" ? j.Company : k === "job" ? PF_JOB_OF[j["Moving Type"]] : j.State; return v == null || v === "" ? "—" : String(v); };
+      const jobOk = j => Object.keys(pf).every(k => pf[k].has(jv(k, j)));
+      const swOk = r => !onJob(r) || Object.keys(pf).every(k => pf[k].has(pfVal(k, r)));
+      // one man, one row: the crew file's spelling where his card has it
+      const disp = {};
+      sw.forEach(r => { if (r.Foreman) disp[nameKey(r.Foreman)] = r.Foreman; });
+      const memo = new Map();
+      const keyOf = nm => {
+        const k = nameKey(nm);
+        if (!memo.has(k)) {
+          const near = !k || disp[k] ? [] : Object.keys(disp).filter(x => lev1(k, x));
+          memo.set(k, near.length === 1 ? near[0] : k);
+        }
+        return memo.get(k);
+      };
+      const F = new Map();
+      const W = (k, nm, wk) => {
+        let f = F.get(k);
+        if (!f) F.set(k, f = { key: k, name: disp[k] || nm, weeks: new Map() });
+        let w = f.weeks.get(wk);
+        if (!w) f.weeks.set(wk, w = { wk, jobs: [], swipes: [], est: 0, card: 0, sheet: 0, trip: 0, miles: 0, open: 0, openUsd: 0 });
+        return w;
+      };
+      jobs.forEach(j => {
+        const d = day10(j.Date);
+        if (!j.Foreman || !d) return;
+        const wk = weekOf(d);
+        if (!inWin(wk) || !jobOk(j)) return;
+        const w = W(keyOf(j.Foreman), j.Foreman, wk);
+        w.jobs.push(j);
+        w.est += num(j["Fuel Est"]); w.card += num(j["Card Fuel"]); w.sheet += num(j["Fuel on Sheet"]); w.miles += num(j.Miles);
+      });
+      sw.forEach(r => {
+        if (!r.Foreman) return;
+        const local = r["Match Status"] === "assigned";
+        const wk = weekOf(day10((local && r["Work Day"]) || r.Date));
+        if (!inWin(wk) || !swOk(r)) return;
+        const w = W(keyOf(r.Foreman), r.Foreman, wk);
+        w.swipes.push(r);
+        // a long-distance trip's fills are on no closing: they count here, in the week they were bought
+        if (r["Match Status"] === "assigned_trip") w.trip += num(r["Net Cost"]);
+        if (!PLACED[r["Match Status"]] && +r.Resolved !== 1) { w.open++; w.openUsd += num(r["Net Cost"]); }
+      });
+      const q = (S.q || "").toLowerCase();
+      let foremen = [...F.values()].map(f => {
+        const weeks = [...f.weeks.values()].sort((a, b) => b.wk.localeCompare(a.wk));
+        weeks.forEach(w => { w.paid = w.card + w.sheet + w.trip; w.state = weekState(w); });
+        const t = k => weeks.reduce((a, w) => a + w[k], 0);
+        return { key: f.key, name: f.name, weeks, est: t("est"), paid: t("paid"), card: t("card"), sheet: t("sheet"), trip: t("trip"),
+                 open: t("open"), openUsd: t("openUsd"), jobs: weeks.reduce((a, w) => a + w.jobs.length, 0), flagged: weeks.filter(w => w.state === "over").length };
+      });
+      if (q) foremen = foremen.filter(f => f.name.toLowerCase().indexOf(q) >= 0
+        || f.weeks.some(w => w.jobs.some(j => [j.Customer, j["Job Code"], j.Truck].join(" ").toLowerCase().indexOf(q) >= 0)));
+      foremen.sort((a, b) => (b.paid - b.est) - (a.paid - a.est) || a.name.localeCompare(b.name));
+      if (S.est.name) {
+        // the link's man, once: open his row and the week asked for
+        S.est.open = keyOf(S.est.name);
+        S.est.name = "";
+        S.est.scroll = true;
+      }
+      const T = k => foremen.reduce((a, f) => a + f[k], 0);
+      return { foremen, w0, w1, est: T("est"), paid: T("paid"), card: T("card"), sheet: T("sheet"), trip: T("trip"),
+               weeks: foremen.reduce((a, f) => a + f.weeks.length, 0), flagged: T("flagged"), open: T("open"), openUsd: T("openUsd") };
+    }
+
+    function estimateView(EM) {
+      if (EM.none) return '<div class="fu-empty">No card swipes yet.</div>';
+      if (!S.jobs) return '<div class="fu-empty">The estimate per job has not loaded — the next refresh brings it.</div>';
+      const diffCell = (paid, est, over) => {
+        const t = signed$(paid - est) + (est > 0 ? " · " + signedPct((paid - est) / est) : "");
+        return over ? '<span class="rs-pill bad">' + t + "</span>" : t;
+      };
+      const paidBits = x => ["WEX " + money0(x.card), "sheet " + money0(x.sheet)].concat(x.trip > 0.5 ? ["trip " + money0(x.trip)] : []).join(" · ");
+      const canPnl = typeof canSee === "function" && canSee("job-pnl");
+      const rows = EM.foremen.map(f => {
+        const open = S.est.open === f.key;
+        let r = '<tr class="fu-fm' + (open ? " on" : "") + '" data-fk="' + esc(f.key) + '"><td class="strong">' + esc(f.name) + "</td><td>"
+          + fmtN(f.weeks.length) + "</td><td>" + fmtN(f.jobs) + "</td><td>" + money0(f.est) + "</td><td>" + money0(f.paid) + "</td><td>"
+          + diffCell(f.paid, f.est, false) + "</td><td" + (f.flagged ? ' class="fu-neg"' : "") + ">"
+          + (f.flagged ? fmtN(f.flagged) + " of " + fmtN(f.weeks.length) : "—") + "</td><td>"
+          + (f.open ? fmtN(f.open) + " · " + money0(f.openUsd) : "—") + "</td></tr>";
+        if (!open) return r;
+        f.weeks.forEach(w => {
+          const wo = S.est.wk === w.wk;
+          r += '<tr class="fu-wk' + (wo ? " on" : "") + '" data-wk="' + w.wk + '"><td>Week of ' + esc(dayLab(w.wk))
+            + " <small>· " + fmtN(w.jobs.length) + " job" + (w.jobs.length === 1 ? "" : "s") + " · " + fmtN(w.miles) + " mi</small></td>"
+            + "<td></td><td></td><td>" + money0(w.est) + "</td><td>" + money0(w.paid) + "</td><td>" + diffCell(w.paid, w.est, w.state === "over")
+            + '</td><td class="l"><small>' + esc(paidBits(w)) + "</small></td><td" + (w.open ? ' class="fu-neg"' : "") + ">"
+            + (w.open ? fmtN(w.open) + " · " + money0(w.openUsd) : "—") + "</td></tr>";
+          if (wo) r += '<tr class="fu-det"><td colspan="8">' + weekDetail(w, canPnl) + "</td></tr>";
+        });
+        return r;
+      }).join("");
+      return '<p class="rs-hint"><b>The route’s fuel against what was paid, a foreman’s week at a time.</b> Estimated is each job’s '
+        + "route miles ÷ 7 mpg × the WEX diesel price, the Job P&amp;L’s fuel. Paid is the job’s share of the WEX card — a fill from noon "
+        + "goes on that day’s jobs, a fill before noon on the day before’s, a day of several jobs is split by their miles — plus the fuel "
+        + "written on its closing sheet, plus fills on a long-distance trip. <b>A week is flagged</b> when paid is at least 30% and at least $10 "
+        + "over the estimate. Full weeks the card export covers: " + esc(dayLab(EM.w0)) + " – " + esc(dayLab(addDays(EM.w1, 6)))
+        + (S.month ? "; the month picks the weeks that start in it" : "") + ".</p>"
+        + (!EM.foremen.length ? '<div class="fu-empty">No jobs or swipes match this month, search or filters.</div>'
+          : '<div class="rs-tablewrap"><table class="rs-table fu-t fu-est"><thead><tr><th>Foreman</th><th>Weeks</th><th>Jobs</th>'
+          + "<th>Estimated</th><th>Paid</th><th>Paid vs est.</th><th>Flagged weeks</th><th>Not placed</th></tr></thead><tbody>" + rows
+          + '<tr class="tot"><td>All foremen</td><td>' + fmtN(EM.weeks) + "</td><td>" + fmtN(EM.foremen.reduce((a, f) => a + f.jobs, 0)) + "</td><td>"
+          + money0(EM.est) + "</td><td>" + money0(EM.paid) + "</td><td>" + diffCell(EM.paid, EM.est, false) + "</td><td>"
+          + (EM.flagged ? fmtN(EM.flagged) + " of " + fmtN(EM.weeks) : "—") + "</td><td>" + (EM.open ? fmtN(EM.open) + " · " + money0(EM.openUsd) : "—")
+          + "</td></tr></tbody></table></div>")
+        + '<p class="fu-note">Open a foreman to see his weeks, and a week to see its jobs and every fill. "Not placed" is the swipes that '
+        + "week in the Queue, which count in no week until somebody explains them. Nothing here changes a profit: the Job P&amp;L "
+        + "counts the route’s estimate.</p>";
+    }
+
+    function weekDetail(w, canPnl) {
+      const jobs = w.jobs.slice().sort((a, b) => day10(a.Date).localeCompare(day10(b.Date)) || String(a["Job Code"]).localeCompare(String(b["Job Code"])));
+      const jt = !jobs.length ? '<p class="fu-note">No closing for him this week — only the fills below.</p>'
+        : '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th>Date</th><th class="l">Job</th><th class="l">Customer</th>'
+        + '<th class="l">Truck</th><th>Miles</th><th>Estimated</th><th>WEX card</th><th>Sheet</th><th>Paid</th>' + (canPnl ? '<th class="l"></th>' : "")
+        + "</tr></thead><tbody>"
+        + jobs.map(j => "<tr><td>" + esc(dayLab(day10(j.Date))) + '</td><td class="l">' + esc(j["Job Code"] || "#" + (j["Closing #"] || "")) + '</td><td class="l">'
+          + esc(j.Customer || "—") + '</td><td class="l">' + esc(j.Truck || "—") + "</td><td>" + fmtN(j.Miles) + "</td><td>" + money0(j["Fuel Est"]) + "</td><td>"
+          + money0(j["Card Fuel"]) + "</td><td>" + money0(j["Fuel on Sheet"]) + "</td><td>" + money0(num(j["Card Fuel"]) + num(j["Fuel on Sheet"])) + "</td>"
+          + (canPnl ? '<td class="l"><a href="#page=job-pnl&job=' + encodeURIComponent(j["Job Key"] || "") + '">Job P&amp;L →</a></td>' : "") + "</tr>").join("")
+        + "</tbody></table></div>";
+      const sws = w.swipes.slice().sort((a, b) => String(a.Datetime || a.Date).localeCompare(String(b.Datetime || b.Date)));
+      const placedOn = r => r["Match Status"] === "assigned_trip" ? "long-distance trip"
+        : PLACED[r["Match Status"]] ? (r["Job Customer"] || r["Job Request"] || "a job") + (num(r["Jobs That Day"]) > 1 ? " +" + (num(r["Jobs That Day"]) - 1) + " more, by miles" : "")
+          + (r["Work Day"] && day10(r["Work Day"]) !== day10(r.Date) ? " (the day before)" : "")
+        : '<span class="fu-neg">' + esc(+r.Resolved === 1 ? "explained" : STATUS_LABEL[r["Match Status"]] || r["Match Status"]) + "</span>";
+      const ft = !sws.length ? '<p class="fu-note">No swipe on his card this week.</p>'
+        : '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">When</th><th class="l">Truck</th><th class="l">Station</th>'
+        + '<th class="l">Product</th><th>Gallons</th><th>Paid</th><th class="l">Counts for</th></tr></thead><tbody>'
+        + sws.map(r => '<tr><td class="l">' + esc(dayLab(day10(r.Date))) + (r.Time ? " " + esc(String(r.Time).slice(0, 5)) : "") + '</td><td class="l">'
+          + esc(r.Truck || r["Vehicle Raw"] || "—") + '</td><td class="l">' + esc([r["Merchant Name"] || r.Merchant, r["Merchant City"], r["Merchant State"]].filter(Boolean).join(", ") || "—")
+          + '</td><td class="l">' + esc(r["Fuel Kind"] || r.Product || "—") + "</td><td>" + (r.Gallons ? fmt1(r.Gallons) : "—") + "</td><td>" + money(r["Net Cost"])
+          + '</td><td class="l">' + (PLACED[r["Match Status"]] ? esc(placedOn(r)) : placedOn(r)) + "</td></tr>").join("")
+        + "</tbody></table></div>";
+      return "<h4>Jobs</h4>" + jt + "<h4>Fills on his card</h4>" + ft;
+    }
+
     // ---- the queue: the reason this page exists ---------------------------------------
     function queueView(openQ, resolved) {
       let h = '<p class="rs-hint"><b>A swipe belongs to a job.</b> A foreman has the truck '
-        + "because he is running a job that day, so the day's fuel goes on that day's first "
-        + "job. Everything below is a swipe that could not be placed that way, or that could "
+        + "because he is running a job that day. A fill from noon on goes on that day's jobs, a "
+        + "fill before noon on the day before's (he fills up after work, so the morning starts "
+        + "full), and a day of several jobs is split by their miles. Everything below is a swipe "
+        + "that could not be placed that way, or that could "
         + "be placed but looks odd — the reason is on each card. <b>Nothing here costs a job "
         + "anything</b> until somebody writes down what happened; that explanation is what "
         + "clears it, and it stays attached to the transaction afterwards.</p>";
@@ -595,6 +830,12 @@ registerPage({
         const nq = main.querySelector("#fuQ");
         if (nq) { nq.focus(); nq.setSelectionRange(at, at); }
       };
+      main.querySelectorAll("tr.fu-fm").forEach(tr => {
+        tr.onclick = () => { S.est.open = S.est.open === tr.dataset.fk ? null : tr.dataset.fk; S.est.wk = null; paint(); };
+      });
+      main.querySelectorAll("tr.fu-wk").forEach(tr => {
+        tr.onclick = () => { S.est.wk = S.est.wk === tr.dataset.wk ? null : tr.dataset.wk; paint(); };
+      });
       const sr = main.querySelector("#fuShowRes");
       if (sr) sr.onclick = () => { S.showResolved = !S.showResolved; paint(); };
       main.querySelectorAll(".fu-head").forEach(hd => {
