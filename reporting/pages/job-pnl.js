@@ -66,6 +66,8 @@
     .jpl-chart{position:relative;height:230px}
     .jpl-qfld{flex:1 1 300px}
     .jpl-ledger tr.jpl-info td{color:var(--muted);font-style:italic}
+    .jpl-dim{color:var(--muted)}
+    .jpl-flag{margin:8px 0 4px;padding:8px 12px;border-radius:10px;background:var(--neg-bg);color:var(--neg);font-weight:700;font-size:13.5px}
     .jpl-fuel .rs-tablewrap{margin:8px 0 12px}
     .jpl-fuel tr.jpl-me td{font-weight:700}
     @media (max-width:760px){.jpl-tiles .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -237,6 +239,17 @@
           const sheet = jobs.reduce((a, x) => a + num(x["Fuel on Sheet"]), 0);
           return { who, truck, d0, prev, next, fills, jobs, totMiles, share, wex, sheet, day: wex + sheet, real: (wex + sheet) * share, est: num(r["Fuel Est"]) };
         }
+        // THE FUEL FLAG (his rule 2026-10-27): "if fuel expenditure is more by 30% then what was expected we should
+        // flag it as some issue. but lets make minimum of 10$" -- paid at least 30% AND at least $10 over the
+        // estimate. Nothing paid at all is not "over": it has its own state (cash fuel never written down?).
+        const FUEL_OVER_PCT = 0.30, FUEL_OVER_MIN = 10;
+        function fuelOf(days) {
+          const fs = days.map(fuelDay);
+          if (!fs.some(Boolean)) return null;
+          const real = fs.reduce((a, x) => a + (x ? x.real : 0), 0), est = fs.reduce((a, x) => a + (x ? x.est : 0), 0), diff = real - est;
+          const state = real < 0.5 ? "none" : diff >= Math.max(FUEL_OVER_PCT * est, FUEL_OVER_MIN) ? "over" : "ok";
+          return { real, est, diff, pct: est > 0 ? diff / est : null, state };
+        }
 
         const hashJob = () => { const m = /[#&]job=([^&]+)/.exec(location.hash || ""); return m ? decodeURIComponent(m[1]) : ""; };
         const resolveJob = s => {
@@ -256,6 +269,8 @@
             sales: sales.join(", "), salesAll: sales, source: f["Source"] || "", days: days.length,
             bill: days.reduce((a, r) => a + num(r["Total Bill"]), 0), full: days.reduce((a, r) => a + num(r["Full Profit"]), 0) };
           j.m = j.bill > 0 ? j.full / j.bill : null;
+          j.fuel = fuelOf(days);
+          j.fdiff = j.fuel && j.fuel.state !== "none" ? j.fuel.diff : null;
           j.hay = [j.code, j.customer, j.foreman, j.sales].concat(days.map(r => "#" + r["Closing #"] + " " + r["Closing #"] + " " + (r["Job Code"] || "")))
             .join(" ").toLowerCase();
           JOBS.push(j);
@@ -264,10 +279,11 @@
         const yr = (lastDay || "2026").slice(0, 4);
         const PERIODS = [["month", "This month"], ["ytd", yr + " to date"], ["12m", "Last 12 months"], ["custom", "Custom"]];
         const COLS = [["d", "Date"], ["code", "Job"], ["customer", "Customer"], ["company", "Company"], ["type", "Move type"],
-          ["state", "State"], ["foreman", "Foreman"], ["sales", "Salesperson"], ["bill", "Billed", 1], ["full", "Full profit", 1], ["m", "Margin", 1]];
+          ["state", "State"], ["foreman", "Foreman"], ["sales", "Salesperson"], ["bill", "Billed", 1], ["full", "Full profit", 1], ["m", "Margin", 1], ["fdiff", "Fuel vs estimate", 1]];
+        const FUELS = [["", "All"], ["over", "Over the estimate"], ["ok", "Within the estimate"], ["none", "No fuel recorded"], ["nodata", "Before the WEX data"]];
         const BANDS = [["", "All"], ["loss", "Loss-making"], ["0", "0–20%"], ["20", "20–40%"], ["40", "40% and up"], ["nobill", "Nothing billed"]];
         const V = { period: "ytd", from: "", to: "", company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "",
-                    band: "", sort: "d", dir: -1, page: 0, size: 25 };
+                    band: "", fuel: "", sort: "d", dir: -1, page: 0, size: 25 };
         const ymd = dt => dt.toISOString().slice(0, 10);
         const shiftYear = (d, n) => String(+d.slice(0, 4) + n) + d.slice(4);
         function range() {
@@ -296,6 +312,7 @@
           if (V.sales && !j.salesAll.includes(V.sales)) return false;
           if (V.source && j.source !== V.source) return false;
           if (!inBand(j)) return false;
+          if (V.fuel && (j.fuel ? j.fuel.state : "nodata") !== V.fuel) return false;
           const q = V.q.trim().toLowerCase();
           return !q || q.split(/\s+/).every(t => j.hay.includes(t));
         }
@@ -323,6 +340,7 @@
               .map(f => '<div class="rs-fld"><span>' + f[1] + '</span><select class="rs-sel" data-f="' + f[0] + '"></select></div>').join("") +
             '<div class="rs-fld"><span>Margin</span><select class="rs-sel" data-f="band">' +
               BANDS.map(b => '<option value="' + b[0] + '">' + esc(b[1]) + "</option>").join("") + "</select></div>" +
+            '<div class="rs-fld"><span>Fuel check</span><select class="rs-sel" data-f="fuel" title="Over = paid at least 30% and at least $10 more than the route’s estimate"></select></div>' +
             '<button type="button" class="rs-tog" id="jplLoss"><i></i>Losses only</button>' +
             '<button type="button" class="rs-btn" id="jplReset">Reset</button></div>' +
           '<div class="panel jpl-list"><div id="jplTable"></div></div>' +
@@ -357,6 +375,10 @@
           fillSelect(host.querySelector('[data-f="sales"]'), "All", counted(pool, j => j.salesAll), V.sales);
           fillSelect(host.querySelector('[data-f="source"]'), "All", counted(pool, j => j.source), V.source);
           host.querySelector('[data-f="band"]').value = V.band;
+          const fc = { over: 0, ok: 0, none: 0, nodata: 0 };
+          pool.forEach(j => { fc[j.fuel ? j.fuel.state : "nodata"]++; });
+          host.querySelector('[data-f="fuel"]').innerHTML = FUELS.map(o => '<option value="' + o[0] + '"' + (o[0] === V.fuel ? " selected" : "") + ">" +
+            esc(o[1]) + (o[0] ? " (" + fc[o[0]].toLocaleString() + ")" : "") + "</option>").join("");
           $("jplLoss").classList.toggle("on", V.band === "loss");
         }
 
@@ -434,12 +456,29 @@
             return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * dir || (a.d < b.d ? 1 : a.d > b.d ? -1 : 0);
           });
         }
+        const signed$ = v => (v < 0 ? "−$" : "+$") + Math.round(Math.abs(v)).toLocaleString();
+        const signedPct = v => (v < 0 ? "−" : "+") + Math.abs(Math.round(100 * v)) + "%";
+        function fuelCell(f) {
+          if (!f) return '<span class="jpl-dim" title="The WEX card data starts ' + esc(day(fuelFrom)) + '">—</span>';
+          const tip = "Paid " + money(f.real) + " against an estimate of " + money(f.est);
+          if (f.state === "none") return '<span class="jpl-dim" title="No WEX fill and no fuel on the closing sheet; estimate ' + money(f.est) + '">none paid</span>';
+          const t = signed$(f.diff) + (f.pct != null ? " · " + signedPct(f.pct) : "");
+          return f.state === "over" ? '<span class="rs-pill bad" title="' + tip + '">' + t + "</span>" : '<span title="' + tip + '">' + t + "</span>";
+        }
         let current = [];
         function paintTable(list) {
           current = sorted(list);
           const n = current.length, pages = Math.max(1, Math.ceil(n / V.size));
           if (V.page >= pages) V.page = pages - 1;
           const from = V.page * V.size, slice = current.slice(from, from + V.size);
+          // the fuel total: paid against estimated over the jobs that have fuel paid, and how many were flagged
+          function fuelTotal(list) {
+            const fx = list.filter(j => j.fuel && j.fuel.state !== "none");
+            if (!fx.length) return "—";
+            const real = fx.reduce((a, j) => a + j.fuel.real, 0), est = fx.reduce((a, j) => a + j.fuel.est, 0), over = fx.filter(j => j.fuel.state === "over").length;
+            return '<span title="Paid ' + money(real) + " against " + money(est) + ' estimated, on ' + fx.length + ' jobs">' + signed$(real - est) +
+              (est > 0 ? " · " + signedPct((real - est) / est) : "") + "</span>" + (over ? '<br><small class="jpl-neg">' + over.toLocaleString() + " flagged</small>" : "");
+          }
           const bill = current.reduce((a, j) => a + j.bill, 0), full = current.reduce((a, j) => a + j.full, 0);
           const neg = v => v < 0 ? " jpl-neg" : "";
           if (!n) {
@@ -461,10 +500,10 @@
               "<td>" + esc(day(j.d)) + "</td><td>" + esc(j.code) + (j.days > 1 ? ' <span class="jpl-chip">' + j.days + " days</span>" : "") + "</td>" +
               '<td class="jpl-cust">' + esc(j.customer || "—") + "</td><td>" + esc(j.company) + "</td><td>" + esc(String(j.type).replace(/ Moving$/, "")) + "</td>" +
               "<td>" + esc(j.state) + "</td><td>" + esc(j.foreman || "—") + "</td><td>" + esc(j.sales || "—") + "</td>" +
-              '<td class="num">' + money(j.bill) + '</td><td class="num' + neg(j.full) + '">' + money(j.full) + '</td><td class="num' + neg(j.full) + '">' + pctTxt(j.m) + "</td></tr>").join("") +
+              '<td class="num">' + money(j.bill) + '</td><td class="num' + neg(j.full) + '">' + money(j.full) + '</td><td class="num' + neg(j.full) + '">' + pctTxt(j.m) + '</td><td class="num">' + fuelCell(j.fuel) + "</td></tr>").join("") +
             '</tbody><tfoot><tr><td colspan="8">Total · ' + n.toLocaleString() + " job" + (n === 1 ? "" : "s") + (pages > 1 ? " (all pages)" : "") + "</td>" +
               '<td class="num">' + money(bill) + '</td><td class="num' + neg(full) + '">' + money(full) + '</td><td class="num' + neg(full) + '">' +
-              (bill > 0 ? pctTxt(full / bill) : "—") + "</td></tr></tfoot></table></div>" +
+              (bill > 0 ? pctTxt(full / bill) : "—") + '</td><td class="num">' + fuelTotal(current) + "</td></tr></tfoot></table></div>" +
             '<div class="jpl-pager"><span>' + (from + 1).toLocaleString() + "–" + Math.min(from + V.size, n).toLocaleString() + " of " + n.toLocaleString() +
               ' · <select class="rs-sel" id="jplSize" aria-label="Jobs a page">' + [25, 50, 100].map(k => '<option value="' + k + '"' + (k === V.size ? " selected" : "") + ">" + k + " a page</option>").join("") + "</select></span>" +
               '<span class="jpl-pages"><button type="button" class="rs-btn" data-page="' + (V.page - 1) + '"' + (V.page === 0 ? " disabled" : "") + ' aria-label="Previous page">‹</button>' +
@@ -477,9 +516,13 @@
         function download(list) {
           const cell = v => { let t = v == null ? "" : String(v); if (typeof v === "string" && /^[=+\-@]/.test(t)) t = "'" + t;
             return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-          const head = ["Date", "Job", "Customer", "Company", "Move type", "State", "Foreman", "Salesperson", "Source", "Days", "Billed", "Full profit", "Profit margin %"];
+          const head = ["Date", "Job", "Customer", "Company", "Move type", "State", "Foreman", "Salesperson", "Source", "Days", "Billed", "Full profit", "Profit margin %",
+                        "Fuel estimate", "Fuel paid", "Fuel check"];
+          const FUELTXT = { over: "Over the estimate", ok: "Within", none: "No fuel recorded" };
           const lines = [head.join(",")].concat(list.map(j => [j.d, j.code, j.customer, j.company, j.type, j.state, j.foreman, j.sales, j.source, j.days,
-            Math.round(j.bill * 100) / 100, Math.round(j.full * 100) / 100, j.m == null ? "" : Math.round(1000 * j.m) / 10].map(cell).join(",")));
+            Math.round(j.bill * 100) / 100, Math.round(j.full * 100) / 100, j.m == null ? "" : Math.round(1000 * j.m) / 10,
+            j.fuel ? Math.round(j.fuel.est * 100) / 100 : "", j.fuel ? Math.round(j.fuel.real * 100) / 100 : "",
+            j.fuel ? FUELTXT[j.fuel.state] : "Before the WEX data"].map(cell).join(",")));
           const r = range(), a = document.createElement("a");
           a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
           a.download = "Job P&L " + r[0] + " to " + r[1] + " (" + list.length + " jobs).csv";
@@ -724,7 +767,10 @@
           if (wex > 0.5) notes.push("WEX fill-ups on " + (multi ? "these days" : "this day") + " came to " + money(wex) + ". They are not counted; the route’s fuel is.");
 
           /* ---- the fuel check: the estimate against what was paid, with the evidence ---- */
+          const jf = fuelOf(days);
           const fuelHtml = !fd.some(Boolean) ? "" : '<div class="panel jpl-wrap jpl-fuel"><div class="jpl-eyebrow">Fuel check · not counted in the profit</div>' +
+            (jf && jf.state === "over" ? '<p class="jpl-flag">Flagged: ' + money(jf.real) + " paid against an estimate of " + money(jf.est) +
+              ", " + signed$(jf.diff) + (jf.pct != null ? " (" + signedPct(jf.pct) + ")" : "") + ". The check flags a job paid at least 30% and at least $10 over its estimate.</p>" : "") +
             days.map((r, i) => {
               const x = fd[i];
               if (!x) return '<p class="jpl-sub">' + (multi ? "Day " + (i + 1) + ": " : "") + "the WEX card data starts " + esc(day(fuelFrom)) + ".</p>";
@@ -810,7 +856,7 @@
         $("jplCo").addEventListener("change", e => { V.company = e.target.value; V.page = 0; paintAll(); });
         $("jplBar").addEventListener("change", e => { const f = e.target.dataset.f; if (!f) return; V[f] = e.target.value; V.page = 0; paintAll(); });
         $("jplLoss").addEventListener("click", () => { V.band = V.band === "loss" ? "" : "loss"; V.page = 0; paintAll(); });
-        const reset = () => { Object.assign(V, { company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "", band: "", page: 0 }); $q.value = ""; paintAll(); };
+        const reset = () => { Object.assign(V, { company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "", band: "", fuel: "", page: 0 }); $q.value = ""; paintAll(); };
         $("jplReset").addEventListener("click", reset);
         $("jplTable").addEventListener("click", e => {
           const s0 = e.target.closest("[data-sort]"), pg = e.target.closest("[data-page]"), tr = e.target.closest("tr[data-key]");
