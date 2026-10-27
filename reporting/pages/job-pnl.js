@@ -42,6 +42,14 @@
              "Card Fee", "Ad Source", "Ad Month", "Ad Spend Month", "Ad Jobs Month", "Ad Cost", "Replaced on Sheet"],
     };
   }
+  // the WEX fleet-card swipes (src/fuel_mart.py), for the real fuel spent beside the estimate
+  if (window.RS && RS.DATASETS && !RS.DATASETS.job_fuel) {
+    RS.DATASETS.job_fuel = {
+      table: "fct_fuel",
+      cols: ["Line Key", "Date", "Datetime", "Foreman", "Truck", "Vehicle Raw", "Is Fuel", "Gallons", "Gross Cost",
+             "Merchant Name", "Merchant City", "Merchant State"],
+    };
+  }
 })();
 
 (() => {
@@ -57,6 +65,9 @@
     .jpl-top .rs-inp{min-width:0;width:150px}
     .jpl-chart{position:relative;height:230px}
     .jpl-qfld{flex:1 1 300px}
+    .jpl-ledger tr.jpl-info td{color:var(--muted);font-style:italic}
+    .jpl-fuel .rs-tablewrap{margin:8px 0 12px}
+    .jpl-fuel tr.jpl-me td{font-weight:700}
     @media (max-width:760px){.jpl-tiles .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .jpl-qfld .rs-inp{width:100%}
     .jpl-chead{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;margin-bottom:6px}
@@ -95,10 +106,14 @@
     .jpl-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
     .jpl-legend b{color:var(--ink);font-weight:700;margin-left:4px}
     .jpl-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-    .jpl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:16px}
-    .jpl-kpi{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+    /* the job's five boxes on ONE line (his ask 2026-10-27: "its perfect, just this next line is something i dont
+       like... fix it so its all on 1 line, or somehow make it more compact"); three, then two, on small screens */
+    .jpl-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:16px}
+    @media (max-width:760px){.jpl-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media (max-width:480px){.jpl-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .jpl-kpi{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
     .jpl-kpi .k{font-size:12px;color:var(--muted);font-weight:600}
-    .jpl-kpi .v{font-size:26px;font-weight:800;margin:3px 0 2px;font-variant-numeric:tabular-nums}
+    .jpl-kpi .v{font-size:24px;font-weight:800;margin:3px 0 2px;font-variant-numeric:tabular-nums}
     .jpl-kpi .s{font-size:12px;color:var(--muted);line-height:1.45}
     .jpl-kpi.jpl-hero{border:2px solid var(--pos)}
     .jpl-up{color:var(--pos)} .jpl-down{color:var(--neg)}
@@ -152,7 +167,9 @@
       injectStyle();
       host.innerHTML = '<div class="panel"><div class="rs-loading">Reading every job’s costs…</div></div>';
 
-      return RS.load("job_pnl").then(rows => {
+      // the swipes are extra: without them (an older bridge, no grant) the page still works
+      const fuelLoad = RS.load("job_fuel").catch(e => { console.warn("job-pnl: no WEX swipes", e); return null; });
+      return Promise.all([RS.load("job_pnl"), fuelLoad]).then(([rows, fuelRows]) => {
         if (!rows.length) {
           host.innerHTML = '<div class="panel">The job P&L table has not been built yet. It arrives with the next pipeline run.</div>';
           return;
@@ -184,6 +201,42 @@
           const a = AVG[t] = AVG[t] || { bill: 0, kept: 0, n: 0 };
           a.bill += num(r["Total Bill"]); a.kept += beforeFixed(r); a.n += 1;
         });
+
+        /* REAL FUEL, BESIDE THE ESTIMATE (his ask 2026-10-27): "at the end of the day, foreman should fill the
+           truck fully therefore the morning job has full fuel. i want to see whether the estimated cost of fuel is
+           really cost of fuel ... add it in the list as FUEL REAL EXPENDITURE or something and do not substract".
+           Shown, never counted. A day's fuel = the WEX fills that topped the truck up after it -- from noon that
+           day to noon the next, so a morning fill belongs to the day before -- on the foreman's card or on the
+           job's own truck, plus the fuel written on that day's closing sheets; split over his jobs that day by
+           their miles. The day before and the day after are listed so the rule can be judged. */
+        const FUEL = (fuelRows || []).filter(f => num(f["Is Fuel"]) === 1).map(f => ({
+          key: f["Line Key"], d: String(f["Date"] || "").slice(0, 10), t: String(f["Datetime"] || ""), who: f["Foreman"] || "",
+          truck: String(f["Truck"] || "").replace(/^#/, ""), veh: f["Vehicle Raw"] || "", gal: num(f["Gallons"]), cost: num(f["Gross Cost"]),
+          where: [f["Merchant Name"], f["Merchant City"], f["Merchant State"]].filter(Boolean).join(", ") }));
+        const fuelFrom = FUEL.reduce((a, f) => f.d && f.d < a ? f.d : a, "9999");
+        const byForemanDay = new Map();
+        byKey.forEach(list => list.forEach(r => {
+          if (!r["Foreman"]) return;
+          const k = r["Foreman"] + "|" + r._d;
+          if (!byForemanDay.has(k)) byForemanDay.set(k, []);
+          byForemanDay.get(k).push(r);
+        }));
+        const addDays = (d, n) => { const x = new Date(d + "T12:00:00"); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+        const hourOf = f => { const m = /(\d{1,2}):(\d{2})/.exec(f.t.slice(10)); return m ? +m[1] : 12; };
+        function fuelDay(r) {
+          if (!FUEL.length || !r._d || r._d < fuelFrom) return null;
+          const who = r["Foreman"] || "", truck = r["Truck Ownership"] === "Owned" ? String(r["Truck"] || "").replace(/^#/, "") : "";
+          const d0 = r._d, prev = addDays(d0, -1), next = addDays(d0, 1);
+          const fills = FUEL.filter(f => f.d >= prev && f.d <= next && ((who && f.who === who) || (truck && f.truck === truck)))
+            .map(f => Object.assign({}, f, { counts: (f.d === d0 && hourOf(f) >= 12) || (f.d === next && hourOf(f) < 12) }))
+            .sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+          const jobs = byForemanDay.get(who + "|" + d0) || [r];
+          const totMiles = jobs.reduce((a, x) => a + num(x["Miles"]), 0);
+          const share = jobs.length <= 1 ? 1 : totMiles > 0 ? num(r["Miles"]) / totMiles : 1 / jobs.length;
+          const wex = fills.filter(f => f.counts).reduce((a, f) => a + f.cost, 0);
+          const sheet = jobs.reduce((a, x) => a + num(x["Fuel on Sheet"]), 0);
+          return { who, truck, d0, prev, next, fills, jobs, totMiles, share, wex, sheet, day: wex + sheet, real: (wex + sheet) * share, est: num(r["Fuel Est"]) };
+        }
 
         const hashJob = () => { const m = /[#&]job=([^&]+)/.exec(location.hash || ""); return m ? decodeURIComponent(m[1]) : ""; };
         const resolveJob = s => {
@@ -579,6 +632,7 @@
 
           /* ---- the ledger ---- */
           const rowsHtml = [];
+          const fd = days.map(fuelDay);
           const tcell = (v, cls) => '<td class="' + (cls || "") + (Math.abs(v) < 0.5 && !cls ? " jpl-z" : "") + '">' +
             (Math.abs(v) < 0.5 ? "—" : money(v)) + "</td>";
           const pcell = v => '<td class="jpl-p">' + (Math.abs(v) < 0.5 ? "" : share(v)) + "</td>";
@@ -621,6 +675,14 @@
               const label = esc(ln[0]) + (ln[2] ? '<span class="jpl-tag' + (ln[2] === "estimated" ? " jpl-est" : "") + '">' + ln[2] + "</span>" : "") + (who ? " <small>" + esc(who) + "</small>" : "");
               pushRow("jpl-item", label, ln[1]);
             });
+            // what was really paid for fuel, beside the estimate -- never in a total
+            if (g.id === "truck" && fd.some(Boolean)) {
+              const fv0 = fd.map(x => x ? x.real : 0);
+              rowsHtml.push('<tr class="jpl-item jpl-info"><td>Fuel, real spending<span class="jpl-tag">not counted</span> ' +
+                "<small>WEX card + closing sheet, this job’s share by miles · see the fuel check below</small></td>" +
+                fd.map(x => "<td>" + (x ? money(x.real) : "—") + "</td>").join("") +
+                (multi ? "<td>" + money(fv0.reduce((a, b) => a + b, 0)) + "</td>" : "") + '<td class="jpl-p"></td></tr>');
+            }
           });
 
           const kv = rowVals(beforeFixed);
@@ -661,6 +723,35 @@
               .filter(Boolean).join(" and ") + ": whatever was paid that day, not what this route used, so the route’s fuel and tolls replace it.");
           if (wex > 0.5) notes.push("WEX fill-ups on " + (multi ? "these days" : "this day") + " came to " + money(wex) + ". They are not counted; the route’s fuel is.");
 
+          /* ---- the fuel check: the estimate against what was paid, with the evidence ---- */
+          const fuelHtml = !fd.some(Boolean) ? "" : '<div class="panel jpl-wrap jpl-fuel"><div class="jpl-eyebrow">Fuel check · not counted in the profit</div>' +
+            days.map((r, i) => {
+              const x = fd[i];
+              if (!x) return '<p class="jpl-sub">' + (multi ? "Day " + (i + 1) + ": " : "") + "the WEX card data starts " + esc(day(fuelFrom)) + ".</p>";
+              const head = (multi ? "<b>Day " + (i + 1) + ", " + esc(day(x.d0)) + ".</b> " : "") +
+                "The route’s fuel was estimated at <b>" + money(x.est) + "</b>. " +
+                (x.day > 0.5
+                  ? "Paid for the day: <b>" + money(x.wex) + "</b> in WEX fills that topped up after it" + (x.sheet > 0.5 ? " + <b>" + money(x.sheet) + "</b> written on the closing sheet" + (x.jobs.length > 1 ? "s" : "") : "") +
+                    " = " + money(x.day) + (x.jobs.length > 1 ? "; this job’s share, by miles, is " + Math.round(100 * x.share) + "% = <b>" + money(x.real) + "</b>" : "") + "."
+                  : "No fuel was paid for the day on " + esc(x.who || "the foreman") + "’s card" + (x.truck ? " or on truck " + esc(x.truck) : "") + ", and none is on the closing sheet" + (x.jobs.length > 1 ? "s" : "") + ".");
+              const jobsT = x.jobs.length <= 1 ? "" : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>' + esc(x.who) + "’s jobs that day</th><th>Customer</th>" +
+                '<th class="num">Miles</th><th class="num">Share</th><th class="num">Fuel on the sheet</th></tr></thead><tbody>' +
+                x.jobs.map(j => "<tr" + (j === r ? ' class="jpl-me"' : "") + "><td>" + esc(j["Job Code"] || "#" + j["Closing #"]) + "</td><td>" + esc(j["Customer"] || "—") + "</td>" +
+                  '<td class="num">' + Math.round(num(j["Miles"])) + '</td><td class="num">' +
+                  (x.totMiles > 0 ? Math.round(100 * num(j["Miles"]) / x.totMiles) : Math.round(100 / x.jobs.length)) + '%</td><td class="num">' + money(j["Fuel on Sheet"]) + "</td></tr>").join("") +
+                "</tbody></table></div>";
+              const fillsT = !x.fills.length
+                ? '<p class="jpl-sub">No WEX fill on ' + esc(x.who || "the foreman") + "’s card" + (x.truck ? " or on truck " + esc(x.truck) : "") + " from " + esc(day(x.prev)) + " to " + esc(day(x.next)) + ".</p>"
+                : '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>WEX fill</th><th>Card</th><th>Truck</th><th>Station</th><th class="num">Gallons</th><th class="num">Paid</th><th>Counts for</th></tr></thead><tbody>' +
+                  x.fills.map(f => "<tr><td>" + esc(day(f.d)) + " " + esc(f.t.slice(11, 16)) + "</td><td>" + esc(f.who || "—") + "</td><td>" + esc(f.truck ? "#" + f.truck : f.veh || "—") + "</td>" +
+                    "<td>" + esc(f.where || "—") + '</td><td class="num">' + f.gal.toFixed(1) + '</td><td class="num">' + money(f.cost) + "</td>" +
+                    "<td>" + (f.counts ? '<b class="jpl-pos">this day</b>' : f.d === x.prev || hourOf(f) < 12 && f.d === x.d0 ? "the day before" : "the next day") + "</td></tr>").join("") +
+                  "</tbody></table></div>";
+              return '<p class="jpl-summary">' + head + "</p>" + jobsT + fillsT;
+            }).join("") +
+            '<p class="jpl-sub">A fill counts for the day it topped up after: from noon that day to noon the next, so a morning fill belongs to the day before. ' +
+            "Fills are the foreman’s card or the job’s own truck; the day before and the day after are listed to judge the rule. Nothing here changes the profit, which uses the route’s estimate.</p></div>";
+
           /* ---- tiles ---- */
           let avgLine = "", mCls = "";
           if (avg != null && m != null) {
@@ -699,7 +790,7 @@
                 esc(r["Job Code"] || "#" + r["Closing #"]) + " · closing #" + esc(r["Closing #"]) + "</small></th>").join("") +
               (multi ? "<th>Total<small>all days</small></th>" : "") + "<th>% of bill</th>" +
             "</tr></thead><tbody>" + rowsHtml.join("") + "</tbody></table></div>" +
-            (notes.length ? '<ul class="jpl-notes">' + notes.map(n => "<li>" + n + "</li>").join("") + "</ul>" : "") + "</div>" +
+            (notes.length ? '<ul class="jpl-notes">' + notes.map(n => "<li>" + n + "</li>").join("") + "</ul>" : "") + "</div>" + fuelHtml +
             '<div class="panel jpl-wrap"><details class="jpl-src"><summary>Where the numbers come from</summary><ul>' +
               "<li><b>Billed</b> and every line without a tag come from the closing sheet, the money of record; its total cost is kept exactly. Lines tagged <i>contract</i> are crew pay the sheet counts in its total but has no column for (review bonus, bulky items, hoisting, storage, junk), itemised from the final digital contract.</li>" +
               "<li><b>Money in</b> is the final digital contract’s payment calculation, where the job has one (contracts start October 2025).</li>" +
