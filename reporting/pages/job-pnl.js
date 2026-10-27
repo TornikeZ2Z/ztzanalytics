@@ -10,6 +10,14 @@
  *
  * Everything is computed in the warehouse (src/job_pnl.py -> mart_job_pnl, one row per closing).
  * This page only finds a job, lays its days side by side and says where every line comes from.
+ *
+ * THE LIST (his ask 2026-10-27: "add some total statistics on top, make the table with filters and
+ * proper search, have paginated list for all jobs and add totals and simple 1 graph on top of the
+ * table for trend"). His picks on the drawn proposal: a job opens in a SIDE PANEL over the list;
+ * the chart is billed per month split into full profit and costs, the margin over each bar; compact
+ * columns; the page opens on the year to date. One row per job: a delivery day folds into its
+ * pickup. The tiles, the chart and the table all follow the company and every filter; the tiles
+ * and the table also follow the period, while the chart always shows the 13 months to its end.
  * The closing sheet stays the money of record: its Total Expense is reproduced exactly, and what
  * it holds beyond its own columns is itemised from the contract (review, bulky and other crew
  * extras) or shown as "Other on the closing sheet".
@@ -45,20 +53,32 @@
     st.textContent = `
     /* the shared kit (assets/rs.css) carries panels, KPI tiles, inputs and tables; only the
        ledger's own marks live here */
-    .jpl-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1040px}
-    .jpl-hits{max-width:1040px}
-    .jpl-search .rs-inp{flex:1 1 320px;min-width:0}
-    .jpl-hits{margin-top:10px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-    .jpl-hit{display:grid;grid-template-columns:92px 120px minmax(0,1fr) minmax(0,160px) 96px 96px 96px;gap:10px;
-      align-items:center;padding:8px 12px;background:var(--panel);border:0;border-top:1px solid var(--line);
-      text-align:left;font:inherit;color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
-    .jpl-hit:first-child{border-top:0}
-    .jpl-hit:hover,.jpl-hit:focus-visible{background:var(--panel-2);outline:none}
-    .jpl-hit .r{text-align:right}
-    .jpl-hit small{color:var(--muted)}
-    .jpl-hit.jpl-head{cursor:default;font-size:12px;color:var(--muted);background:var(--panel-2)}
-    @media (max-width:760px){.jpl-hit{grid-template-columns:84px minmax(0,1fr) 84px 64px}
-      .jpl-hit .jpl-c2,.jpl-hit .jpl-c4,.jpl-hit .jpl-c5{display:none}}
+    .jpl-top{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:0 0 12px}
+    .jpl-top .rs-inp{min-width:0;width:150px}
+    .jpl-chart{position:relative;height:230px}
+    .jpl-qfld{flex:1 1 300px}
+    @media (max-width:760px){.jpl-tiles .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .jpl-qfld .rs-inp{width:100%}
+    .jpl-chead{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+    .jpl-chead b{font-size:14px}
+    .jpl-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}
+    .jpl-list .rs-table th{white-space:nowrap}
+    .jpl-list .rs-table th button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;font-weight:inherit;text-transform:inherit;letter-spacing:inherit}
+    .jpl-list .rs-table th button:hover{color:var(--ink)}
+    .jpl-list .rs-table th.on button{color:var(--ink)}
+    .jpl-list .rs-table td{white-space:nowrap}
+    .jpl-list .rs-table td.jpl-cust{white-space:normal;min-width:150px}
+    .jpl-list .rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);background:var(--panel-2)}
+    .jpl-pager{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-top:12px;font-size:13px;color:var(--muted)}
+    .jpl-pages{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+    .jpl-pages .rs-btn{min-width:34px;padding:5px 9px}
+    .jpl-pages .rs-btn.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+    .jpl-scrim{position:fixed;inset:0;background:rgba(8,12,20,.38);z-index:300}
+    .jpl-drawer{position:fixed;top:0;right:0;bottom:0;width:min(1000px,100vw);z-index:301;background:var(--bg,var(--panel));
+      border-left:1px solid var(--line-2);overflow-y:auto;overscroll-behavior:contain;padding:14px 18px 40px}
+    .jpl-dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;position:sticky;top:-14px;
+      background:var(--bg,var(--panel));padding:8px 0;z-index:1}
+    @media (max-width:760px){.jpl-drawer{padding:10px 12px 40px}}
     .jpl-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
     .jpl-wrap{max-width:1040px}
     .jpl-title{font-size:24px;font-weight:800;margin:4px 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -128,8 +148,6 @@
         const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("en-US",
           { month: "short", day: "numeric", year: "numeric" }); };
       const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "—";
-      const margin = r => { const b = num(r["Total Bill"]); if (!(b > 0)) return "—";
-        const m = Math.round(100 * num(r["Full Profit"]) / b); return (m < 0 ? "−" : "") + Math.abs(m) + "%"; };
 
       injectStyle();
       host.innerHTML = '<div class="panel"><div class="rs-loading">Reading every job’s costs…</div></div>';
@@ -175,52 +193,266 @@
           return hit ? hit["Job Key"] : "";
         };
         let sel = resolveJob(hashJob());
-        let query = "";
+
+        /* ---- one row per job (a delivery day folds into its pickup) ---- */
+        const JOBS = [];
+        byKey.forEach((days, key) => {
+          const f = days[0], sales = [f["Sales Person"], f["Sales Person 2"], f["Sales Person 3"]].filter(Boolean);
+          const j = { key, d: f._d, code: f["Job Code"] || "#" + f["Closing #"], customer: f["Customer"] || "",
+            company: f["Company"] || "", type: f["Moving Type"] || "", state: f["State"] || "", foreman: f["Foreman"] || "",
+            sales: sales.join(", "), salesAll: sales, source: f["Source"] || "", days: days.length,
+            bill: days.reduce((a, r) => a + num(r["Total Bill"]), 0), full: days.reduce((a, r) => a + num(r["Full Profit"]), 0) };
+          j.m = j.bill > 0 ? j.full / j.bill : null;
+          j.hay = [j.code, j.customer, j.foreman, j.sales].concat(days.map(r => "#" + r["Closing #"] + " " + r["Closing #"] + " " + (r["Job Code"] || "")))
+            .join(" ").toLowerCase();
+          JOBS.push(j);
+        });
+        const firstDay = JOBS.reduce((a, j) => j.d && j.d < a ? j.d : a, lastDay || "9999");
+        const yr = (lastDay || "2026").slice(0, 4);
+        const PERIODS = [["month", "This month"], ["ytd", yr + " to date"], ["12m", "Last 12 months"], ["custom", "Custom"]];
+        const COLS = [["d", "Date"], ["code", "Job"], ["customer", "Customer"], ["company", "Company"], ["type", "Move type"],
+          ["state", "State"], ["foreman", "Foreman"], ["sales", "Salesperson"], ["bill", "Billed", 1], ["full", "Full profit", 1], ["m", "Margin", 1]];
+        const BANDS = [["", "All"], ["loss", "Loss-making"], ["0", "0–20%"], ["20", "20–40%"], ["40", "40% and up"], ["nobill", "Nothing billed"]];
+        const V = { period: "ytd", from: "", to: "", company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "",
+                    band: "", sort: "d", dir: -1, page: 0, size: 25 };
+        const ymd = dt => dt.toISOString().slice(0, 10);
+        const shiftYear = (d, n) => String(+d.slice(0, 4) + n) + d.slice(4);
+        function range() {
+          const end = lastDay || ymd(new Date());
+          if (V.period === "month") return [end.slice(0, 8) + "01", end];
+          if (V.period === "12m") { const a = new Date(shiftYear(end, -1) + "T00:00:00"); a.setDate(a.getDate() + 1); return [ymd(a), end]; }
+          if (V.period === "custom") return [V.from || firstDay, V.to || end];
+          return [yr + "-01-01", end];
+        }
+        const pctTxt = v => v == null ? "—" : (v < 0 ? "−" : "") + Math.abs(Math.round(100 * v)) + "%";
+        const shortMoney = v => { const a = Math.abs(v), sg = v < 0 ? "−$" : "$";
+          return a >= 1e6 ? sg + (a / 1e6).toFixed(2) + "M" : a >= 1e4 ? sg + Math.round(a / 1e3) + "k" : sg + Math.round(a).toLocaleString(); };
+        function inBand(j) {
+          if (!V.band) return true;
+          if (V.band === "loss") return j.full < 0;
+          if (V.band === "nobill") return !(j.bill > 0);
+          if (j.m == null) return false;
+          return V.band === "0" ? j.m >= 0 && j.m < 0.2 : V.band === "20" ? j.m >= 0.2 && j.m < 0.4 : j.m >= 0.4;
+        }
+        // everything but the period: the chart's months come from here too
+        function passes(j) {
+          if (V.company && j.company !== V.company) return false;
+          if (V.type && j.type !== V.type) return false;
+          if (V.state && j.state !== V.state) return false;
+          if (V.foreman && j.foreman !== V.foreman) return false;
+          if (V.sales && !j.salesAll.includes(V.sales)) return false;
+          if (V.source && j.source !== V.source) return false;
+          if (!inBand(j)) return false;
+          const q = V.q.trim().toLowerCase();
+          return !q || q.split(/\s+/).every(t => j.hay.includes(t));
+        }
+        const within = (j, r) => j.d >= r[0] && j.d <= r[1];
 
         host.innerHTML =
           '<div class="rs-page-head"><div class="jpl-eyebrow">Financial</div><h1>Job P&L</h1>' +
-          '<p class="jpl-sub">Pick a job to see what it billed, every cost on its closing sheet, the costs the ' +
-          'sheet leaves out (truck, card fuel, packing, refunds) and what was left. A delivery day opens with its pickup.</p></div>' +
-          '<div class="panel"><div class="jpl-search"><input id="jplQ" class="rs-inp" type="search" autocomplete="off" ' +
-          'placeholder="Job code, customer or closing #" aria-label="Find a job"></div><div id="jplHits"></div></div>' +
-          '<div id="jplJob"></div>';
-        const $q = host.querySelector("#jplQ"), $hits = host.querySelector("#jplHits"), $job = host.querySelector("#jplJob");
+          '<p class="jpl-sub">Every job with what it billed and what it left after every cost. Pick one to see its full ' +
+          'breakdown: every cost on its closing sheet, the costs the sheet leaves out (truck, card fuel, packing, refunds) ' +
+          'and what was left. A delivery day counts with its pickup.</p></div>' +
+          '<div class="jpl-top"><div class="rs-seg" id="jplPer" role="group" aria-label="Period">' +
+            PERIODS.map(p => '<button type="button" data-per="' + p[0] + '">' + esc(p[1]) + "</button>").join("") + "</div>" +
+            '<span id="jplCustom" hidden><input type="date" class="rs-inp" id="jplFrom" aria-label="From"> – ' +
+            '<input type="date" class="rs-inp" id="jplTo" aria-label="To"></span>' +
+            '<select class="rs-sel" id="jplCo" aria-label="Company"></select></div>' +
+          '<div id="jplKpis" class="jpl-tiles"></div>' +
+          '<div class="panel"><div class="jpl-chead"><b>Month by month</b><span class="jpl-key">' +
+            '<span><i class="jpl-sw" id="jplSwP"></i>Full profit</span><span><i class="jpl-sw" id="jplSwC"></i>Costs</span>' +
+            '<span>% = profit margin · click a month to see its jobs</span></span></div>' +
+            '<div class="jpl-chart"><canvas id="jplChart" role="img" aria-label="Billed per month, split into full profit and costs, with the profit margin above each month"></canvas></div></div>' +
+          '<div class="rs-bar" id="jplBar">' +
+            '<div class="rs-fld jpl-qfld"><span>Search</span><input id="jplQ" class="rs-inp" type="search" autocomplete="off" ' +
+              'placeholder="Job code, customer, closing #, foreman, salesperson" aria-label="Search jobs"></div>' +
+            [["type", "Move type"], ["state", "State"], ["foreman", "Foreman"], ["sales", "Salesperson"], ["source", "Source"]]
+              .map(f => '<div class="rs-fld"><span>' + f[1] + '</span><select class="rs-sel" data-f="' + f[0] + '"></select></div>').join("") +
+            '<div class="rs-fld"><span>Margin</span><select class="rs-sel" data-f="band">' +
+              BANDS.map(b => '<option value="' + b[0] + '">' + esc(b[1]) + "</option>").join("") + "</select></div>" +
+            '<button type="button" class="rs-tog" id="jplLoss"><i></i>Losses only</button>' +
+            '<button type="button" class="rs-btn" id="jplReset">Reset</button></div>' +
+          '<div class="panel jpl-list"><div id="jplTable"></div></div>' +
+          '<div class="jpl-scrim" id="jplScrim" hidden></div>' +
+          '<aside class="jpl-drawer" id="jplDrawer" role="dialog" aria-modal="true" aria-label="Job breakdown" hidden>' +
+            '<div class="jpl-dhead"><span class="jpl-eyebrow">Job breakdown</span>' +
+            '<button type="button" class="rs-btn" id="jplClose">Close</button></div><div id="jplJob"></div></aside>';
+        const $ = id => host.querySelector("#" + id);
+        const $q = $("jplQ"), $job = $("jplJob"), $drawer = $("jplDrawer"), $scrim = $("jplScrim");
+        const css = (name, dflt) => { const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || dflt; };
+        const C_PROFIT = css("--pos", "#1baf7a"), C_COST = css("--line-2", "#c3c2b7");
+        $("jplSwP").style.background = C_PROFIT; $("jplSwC").style.background = C_COST;
 
-        function hitsHtml(list, label) {
-          if (!list.length) return '<div class="jpl-empty">No job matches “' + esc(query) + '”.</div>';
-          return '<div class="jpl-hits" role="list"><div class="jpl-hit jpl-head"><span>' + esc(label) + '</span>' +
-            '<span class="jpl-c2">Job code</span><span>Customer</span><span class="jpl-c4">Foreman</span>' +
-            '<span class="r jpl-c5">Billed</span><span class="r">Full profit</span><span class="r">Profit margin</span></div>' +
-            list.map(r => '<button type="button" class="jpl-hit" role="listitem" data-key="' + esc(r["Job Key"]) + '">' +
-              "<span>" + esc(day(r._d)) + "</span>" +
-              '<span class="jpl-c2">' + esc(r["Job Code"] || "#" + r["Closing #"]) + "</span>" +
-              "<span>" + esc(r["Customer"] || "—") + (r["Company"] && r["Company"] !== "Zip to Zip" ? " <small>· " + esc(r["Company"]) + "</small>" : "") + "</span>" +
-              '<span class="jpl-c4"><small>' + esc(r["Foreman"] || "—") + "</small></span>" +
-              '<span class="r jpl-c5">' + money(r["Total Bill"]) + "</span>" +
-              '<span class="r ' + (num(r["Full Profit"]) < 0 ? "jpl-neg" : "") + '">' + money(r["Full Profit"]) + "</span>" +
-              // his ask 2026-10-27: the profit margin beside it -- full profit over what was billed
-              '<span class="r ' + (num(r["Full Profit"]) < 0 ? "jpl-neg" : "") + '">' + margin(r) + "</span></button>").join("") +
-            "</div>";
+        /* ---- controls ---- */
+        function fillSelect(el, label, values, cur) {
+          el.innerHTML = '<option value="">' + esc(label) + "</option>" +
+            values.map(v => '<option value="' + esc(v[0]) + '"' + (v[0] === cur ? " selected" : "") + ">" + esc(v[0]) + " (" + v[1] + ")</option>").join("");
+          if (cur && !values.some(v => v[0] === cur)) el.insertAdjacentHTML("beforeend", '<option value="' + esc(cur) + '" selected>' + esc(cur) + " (0)</option>");
+        }
+        const counted = (list, f) => { const c = new Map(); list.forEach(j => [].concat(f(j)).forEach(v => { if (v) c.set(v, (c.get(v) || 0) + 1); }));
+          return Array.from(c.entries()).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))); };
+        function paintControls() {
+          host.querySelectorAll("[data-per]").forEach(b => b.classList.toggle("on", b.dataset.per === V.period));
+          $("jplCustom").hidden = V.period !== "custom";
+          const r = range(); $("jplFrom").value = r[0]; $("jplTo").value = r[1];
+          const inR = JOBS.filter(j => within(j, r));
+          fillSelect($("jplCo"), "All companies", counted(inR, j => j.company), V.company);
+          const pool = inR.filter(j => !V.company || j.company === V.company);
+          fillSelect(host.querySelector('[data-f="type"]'), "All", counted(pool, j => j.type), V.type);
+          fillSelect(host.querySelector('[data-f="state"]'), "All", counted(pool, j => j.state), V.state);
+          fillSelect(host.querySelector('[data-f="foreman"]'), "All", counted(pool, j => j.foreman), V.foreman);
+          fillSelect(host.querySelector('[data-f="sales"]'), "All", counted(pool, j => j.salesAll), V.sales);
+          fillSelect(host.querySelector('[data-f="source"]'), "All", counted(pool, j => j.source), V.source);
+          host.querySelector('[data-f="band"]').value = V.band;
+          $("jplLoss").classList.toggle("on", V.band === "loss");
         }
 
-        function paintHits() {
-          const q = query.trim().toLowerCase();
-          if (!q) { $hits.innerHTML = sel ? "" : hitsHtml(latest.slice(0, 12), "Latest jobs"); return; }
-          const terms = q.split(/\s+/);
-          const out = [];
-          for (const r of latest) {
-            const hay = (String(r["Job Code"] || "") + " " + (r["Customer"] || "") + " #" + r["Closing #"] + " " +
-                         r["Closing #"] + " " + (r["Foreman"] || "")).toLowerCase();
-            if (terms.every(t => hay.includes(t))) { out.push(r); if (out.length >= 15) break; }
+        /* ---- the tiles ---- */
+        function paintKpis(list, r) {
+          const n = list.length, bill = list.reduce((a, j) => a + j.bill, 0), full = list.reduce((a, j) => a + j.full, 0);
+          const ms = list.filter(j => j.m != null).map(j => j.m).sort((a, b) => a - b);
+          const med = ms.length ? ms[Math.floor(ms.length / 2)] : null;
+          const loss = list.filter(j => j.full < 0).length;
+          // the same days a year earlier, with the same filters -- only when the data reaches back that far
+          const pr = [shiftYear(r[0], -1), shiftYear(r[1], -1)];
+          let cmp = "";
+          if (pr[0] >= firstDay) {
+            const before = JOBS.filter(j => within(j, pr) && passes(j)).length;
+            if (before) { const d = Math.round(100 * (n - before) / before); cmp = (d >= 0 ? "+" : "−") + Math.abs(d) + "% on the same days of " + pr[0].slice(0, 4); }
           }
-          $hits.innerHTML = hitsHtml(out, "Matches");
+          const tile = (l, v, sub, cls) => '<div class="kpi"><div class="l">' + l + '</div><div class="v' + (cls ? " " + cls : "") + '">' + v +
+            '</div><div class="s">' + sub + "</div></div>";
+          $("jplKpis").innerHTML = '<div class="rs-kpis" style="--kpi-cols:6">' +
+            tile("Jobs", n.toLocaleString(), cmp || esc(day(r[0])) + " – " + esc(day(r[1]))) +
+            tile("Billed", shortMoney(bill), n ? money(bill / n) + " a job" : "—") +
+            tile("Full profit", shortMoney(full), "after every cost", full < 0 ? "jpl-down" : "") +
+            tile("Profit margin", bill > 0 ? (100 * full / bill).toFixed(1).replace("-", "−") + "%" : "—", med == null ? "—" : "median job " + pctTxt(med)) +
+            tile("Profit a job", n ? money(full / n) : "—", "average") +
+            tile("Loss-making", loss.toLocaleString(), n ? pctTxt(loss / n) + " of jobs" : "—", loss ? "jpl-down" : "") + "</div>";
         }
 
-        function select(key) {
-          sel = key; query = ""; $q.value = "";
+        /* ---- the chart: the 13 months to the period's end, billed = profit + costs ---- */
+        let chart = null;
+        function paintChart(r) {
+          const end = r[1].slice(0, 7), months = [];
+          let y = +end.slice(0, 4), mo = +end.slice(5, 7);
+          for (let k = 0; k < 13; k++) { months.unshift(y + "-" + String(mo).padStart(2, "0")); if (--mo === 0) { mo = 12; y--; } }
+          const agg = new Map(months.map(m => [m, { bill: 0, full: 0 }]));
+          JOBS.forEach(j => { const a = agg.get(j.d.slice(0, 7)); if (a && passes(j)) { a.bill += j.bill; a.full += j.full; } });
+          const B = months.map(m => agg.get(m).bill), P = months.map(m => agg.get(m).full), Cc = B.map((b, k) => b - P[k]);
+          const lbl = months.map(m => (RS.monthName ? RS.monthName(+m.slice(5)) : m).slice(0, 3) + (m.endsWith("-01") || m === months[0] ? " " + m.slice(2, 4) : ""));
+          const ink = css("--muted", "#5b6b7c"), grid = css("--line", "#e2e8f0");
+          const marginLabels = { id: "jplMargins", afterDatasetsDraw(c) {
+            const x = c.ctx, top = c.getDatasetMeta(1);
+            x.save(); x.font = "11px " + getComputedStyle(document.body).fontFamily; x.fillStyle = ink; x.textAlign = "center";
+            // on a narrow screen the bars are too thin to carry a label each; the tooltip still has it
+            if (top.data.length && top.data[0].width < 22) { x.restore(); return; }
+            top.data.forEach((bar, k) => { if (B[k] > 0) x.fillText(pctTxt(P[k] / B[k]), bar.x, Math.min(bar.y, c.getDatasetMeta(0).data[k].y) - 5); });
+            x.restore(); } };
+          if (chart) { try { chart.destroy(); } catch (e) { /* gone with the canvas */ } chart = null; }
+          if (typeof Chart === "undefined") return;
+          try {
+            chart = new Chart($("jplChart"), {
+              type: "bar",
+              data: { labels: lbl, datasets: [
+                { label: "Full profit", data: P, backgroundColor: C_PROFIT, maxBarThickness: 26, borderRadius: 0 },
+                { label: "Costs", data: Cc, backgroundColor: C_COST, maxBarThickness: 26, borderRadius: { topLeft: 4, topRight: 4 } }] },
+              options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
+                onClick: (e, els) => { if (!els.length) return; const m = months[els[0].index];
+                  const last = new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate();
+                  V.period = "custom"; V.from = m + "-01"; V.to = m + "-" + String(last).padStart(2, "0"); V.page = 0; paintAll(); },
+                onHover: (e, els) => { e.native.target.style.cursor = els.length ? "pointer" : "default"; },
+                plugins: { legend: { display: false }, tooltip: { callbacks: {
+                  title: items => { const m = months[items[0].dataIndex]; return (RS.monthName ? RS.monthName(+m.slice(5)) : m) + " " + m.slice(0, 4); },
+                  label: t => t.dataset.label + ": " + money(t.raw),
+                  footer: items => { const k = items[0].dataIndex; return "Billed " + money(B[k]) + (B[k] > 0 ? " · margin " + pctTxt(P[k] / B[k]) : ""); } } } },
+                scales: { x: { stacked: true, grid: { display: false }, ticks: { color: ink, autoSkip: true, maxRotation: 0 } },
+                  y: { stacked: true, grid: { color: grid }, border: { display: false }, ticks: { color: ink, callback: v => shortMoney(v) } } } },
+              plugins: [marginLabels] });
+          } catch (e) { console.warn("job-pnl chart:", e); }
+        }
+
+        /* ---- the table ---- */
+        function sorted(list) {
+          const k = V.sort, dir = V.dir;
+          return list.slice().sort((a, b) => {
+            const x = a[k], y = b[k];
+            if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+            return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * dir || (a.d < b.d ? 1 : a.d > b.d ? -1 : 0);
+          });
+        }
+        let current = [];
+        function paintTable(list) {
+          current = sorted(list);
+          const n = current.length, pages = Math.max(1, Math.ceil(n / V.size));
+          if (V.page >= pages) V.page = pages - 1;
+          const from = V.page * V.size, slice = current.slice(from, from + V.size);
+          const bill = current.reduce((a, j) => a + j.bill, 0), full = current.reduce((a, j) => a + j.full, 0);
+          const neg = v => v < 0 ? " jpl-neg" : "";
+          if (!n) {
+            $("jplTable").innerHTML = '<div class="jpl-empty">No job matches these filters. <button type="button" class="rs-btn" data-reset>Reset the filters</button></div>';
+            return;
+          }
+          const pageBtns = [];
+          const add = p => pageBtns.push('<button type="button" class="rs-btn' + (p === V.page ? " on" : "") + '" data-page="' + p + '"' +
+            (p === V.page ? ' aria-current="page"' : "") + ">" + (p + 1) + "</button>");
+          let last = -1;
+          for (let p = 0; p < pages; p++) {
+            if (p === 0 || p === pages - 1 || Math.abs(p - V.page) <= 2) { if (last >= 0 && p - last > 1) pageBtns.push("<span>…</span>"); add(p); last = p; }
+          }
+          $("jplTable").innerHTML = '<div class="rs-tablewrap"><table class="rs-table"><thead><tr>' +
+            COLS.map(c => '<th class="' + (c[2] ? "num" : "") + (V.sort === c[0] ? " on" : "") + '"' +
+              (V.sort === c[0] ? ' aria-sort="' + (V.dir > 0 ? "ascending" : "descending") + '"' : "") + '><button type="button" data-sort="' + c[0] + '">' +
+              esc(c[1]) + (V.sort === c[0] ? (V.dir > 0 ? " ▲" : " ▼") : "") + "</button></th>").join("") + "</tr></thead><tbody>" +
+            slice.map(j => '<tr class="click" data-key="' + esc(j.key) + '" tabindex="0">' +
+              "<td>" + esc(day(j.d)) + "</td><td>" + esc(j.code) + (j.days > 1 ? ' <span class="jpl-chip">' + j.days + " days</span>" : "") + "</td>" +
+              '<td class="jpl-cust">' + esc(j.customer || "—") + "</td><td>" + esc(j.company) + "</td><td>" + esc(String(j.type).replace(/ Moving$/, "")) + "</td>" +
+              "<td>" + esc(j.state) + "</td><td>" + esc(j.foreman || "—") + "</td><td>" + esc(j.sales || "—") + "</td>" +
+              '<td class="num">' + money(j.bill) + '</td><td class="num' + neg(j.full) + '">' + money(j.full) + '</td><td class="num' + neg(j.full) + '">' + pctTxt(j.m) + "</td></tr>").join("") +
+            '</tbody><tfoot><tr><td colspan="8">Total · ' + n.toLocaleString() + " job" + (n === 1 ? "" : "s") + (pages > 1 ? " (all pages)" : "") + "</td>" +
+              '<td class="num">' + money(bill) + '</td><td class="num' + neg(full) + '">' + money(full) + '</td><td class="num' + neg(full) + '">' +
+              (bill > 0 ? pctTxt(full / bill) : "—") + "</td></tr></tfoot></table></div>" +
+            '<div class="jpl-pager"><span>' + (from + 1).toLocaleString() + "–" + Math.min(from + V.size, n).toLocaleString() + " of " + n.toLocaleString() +
+              ' · <select class="rs-sel" id="jplSize" aria-label="Jobs a page">' + [25, 50, 100].map(k => '<option value="' + k + '"' + (k === V.size ? " selected" : "") + ">" + k + " a page</option>").join("") + "</select></span>" +
+              '<span class="jpl-pages"><button type="button" class="rs-btn" data-page="' + (V.page - 1) + '"' + (V.page === 0 ? " disabled" : "") + ' aria-label="Previous page">‹</button>' +
+              pageBtns.join("") + '<button type="button" class="rs-btn" data-page="' + (V.page + 1) + '"' + (V.page >= pages - 1 ? " disabled" : "") + ' aria-label="Next page">›</button></span>' +
+              '<button type="button" class="rs-btn" id="jplCsv">Download for Excel</button></div>';
+          $("jplSize").onchange = e => { V.size = +e.target.value; V.page = 0; paintTable(list); };
+          $("jplCsv").onclick = () => download(current);
+        }
+        // every job the filters keep, not only this page; a text that starts like a formula is quoted
+        function download(list) {
+          const cell = v => { let t = v == null ? "" : String(v); if (typeof v === "string" && /^[=+\-@]/.test(t)) t = "'" + t;
+            return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+          const head = ["Date", "Job", "Customer", "Company", "Move type", "State", "Foreman", "Salesperson", "Source", "Days", "Billed", "Full profit", "Profit margin %"];
+          const lines = [head.join(",")].concat(list.map(j => [j.d, j.code, j.customer, j.company, j.type, j.state, j.foreman, j.sales, j.source, j.days,
+            Math.round(j.bill * 100) / 100, Math.round(j.full * 100) / 100, j.m == null ? "" : Math.round(1000 * j.m) / 10].map(cell).join(",")));
+          const r = range(), a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+          a.download = "Job P&L " + r[0] + " to " + r[1] + " (" + list.length + " jobs).csv";
+          document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        }
+
+        function paintAll(skipChart) {
+          paintControls();
+          const r = range(), list = JOBS.filter(j => within(j, r) && passes(j));
+          paintKpis(list, r);
+          if (!skipChart) paintChart(r);
+          paintTable(list);
+        }
+
+        /* ---- the side panel ---- */
+        function open(key) {
+          sel = key;
           try { history.replaceState(null, "", "#page=job-pnl&job=" + encodeURIComponent(key)); } catch (e) { /* ignore */ }
-          paintHits(); paintJob();
-          $job.scrollIntoView({ block: "start", behavior: "smooth" });
+          paintJob();
+          $drawer.hidden = false; $scrim.hidden = false; $drawer.scrollTop = 0;
+          $("jplClose").focus();
+        }
+        function close() {
+          if ($drawer.hidden) return;
+          sel = null; $drawer.hidden = true; $scrim.hidden = true; $job.innerHTML = "";
+          try { history.replaceState(null, "", "#page=job-pnl"); } catch (e) { /* ignore */ }
         }
 
         // what each cost paid for -- his pick: group by purpose, every line shown; the tag says
@@ -479,18 +711,39 @@
             "</ul></details></div>";
         }
 
-        $q.addEventListener("input", () => { query = $q.value; paintHits(); });
-        $hits.addEventListener("click", e => { const b = e.target.closest("[data-key]"); if (b) select(b.getAttribute("data-key")); });
+        let qTimer = null;
+        $q.addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => { V.q = $q.value; V.page = 0; paintAll(); }, 160); });
+        host.querySelectorAll("[data-per]").forEach(b => b.addEventListener("click", () => { V.period = b.dataset.per; V.page = 0; paintAll(); }));
+        $("jplFrom").addEventListener("change", e => { V.from = e.target.value; V.page = 0; paintAll(); });
+        $("jplTo").addEventListener("change", e => { V.to = e.target.value; V.page = 0; paintAll(); });
+        $("jplCo").addEventListener("change", e => { V.company = e.target.value; V.page = 0; paintAll(); });
+        $("jplBar").addEventListener("change", e => { const f = e.target.dataset.f; if (!f) return; V[f] = e.target.value; V.page = 0; paintAll(); });
+        $("jplLoss").addEventListener("click", () => { V.band = V.band === "loss" ? "" : "loss"; V.page = 0; paintAll(); });
+        const reset = () => { Object.assign(V, { company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "", band: "", page: 0 }); $q.value = ""; paintAll(); };
+        $("jplReset").addEventListener("click", reset);
+        $("jplTable").addEventListener("click", e => {
+          const s0 = e.target.closest("[data-sort]"), pg = e.target.closest("[data-page]"), tr = e.target.closest("tr[data-key]");
+          if (e.target.closest("[data-reset]")) { reset(); return; }
+          if (s0) { const k = s0.dataset.sort; if (V.sort === k) V.dir = -V.dir; else { V.sort = k; V.dir = k === "d" || k === "bill" || k === "full" || k === "m" ? -1 : 1; } V.page = 0; paintAll(true); return; }
+          if (pg && !pg.disabled) { V.page = +pg.dataset.page; paintAll(true); host.querySelector(".jpl-list").scrollIntoView({ block: "start", behavior: "smooth" }); return; }
+          if (tr) open(tr.dataset.key);
+        });
+        $("jplTable").addEventListener("keydown", e => { const tr = e.target.closest("tr[data-key]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(tr.dataset.key); } });
+        $("jplClose").addEventListener("click", close);
+        $scrim.addEventListener("click", close);
+        // Escape closes the panel; the listener lets go once the page is replaced
+        const onKey = e => { if (!$drawer.isConnected) { document.removeEventListener("keydown", onKey); return; } if (e.key === "Escape") close(); };
+        document.addEventListener("keydown", onKey);
         // a pasted link to another job while the page is open: the shell keeps the page (same
         // page=), so the page follows the job= itself; it lets go once its view is replaced
         const onHash = () => {
           if (!$job.isConnected) { window.removeEventListener("hashchange", onHash); return; }
           const key = resolveJob(hashJob());
-          if (key && key !== sel) { sel = key; query = ""; $q.value = ""; paintHits(); paintJob(); }
+          if (key && key !== sel) open(key); else if (!key) close();
         };
         window.addEventListener("hashchange", onHash);
-        paintHits();
-        paintJob();
+        paintAll();
+        if (sel) open(sel);
       });
     },
   });
