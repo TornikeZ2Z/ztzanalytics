@@ -21,6 +21,14 @@
  * closing sheet -- a foreman's WEEK at a time, his pick, because a refill that covers two or three days
  * should not flag one job. A week is flagged at 30% and $10 over (his rule). The figures come from
  * mart_fuel_check, the fuel-only slice of the Financial Job P&L, so both pages show the same numbers.
+ *
+ * JOB CONTROL (his ask 2026-10-27: "rename Fuel Control to Job Control and create separate views").
+ * This file draws TWO of the hub's views from one feed and one state: Fuel Control (estimate, queue,
+ * foremen, every swipe) and Truck Control -- registered below as `truck-control`, with no sidebar
+ * group of its own, so it is granted exactly with Fuel Control (index.html canSee). Truck Control is
+ * the card's truck against the job's: the vehicle id is FIXED on a WEX card, so "card says truck 11"
+ * means truck 11's card was used, and a mismatch is a question about the card, answered in the
+ * Fuel Control queue like every other one (his pick) -- this view lists them and links there.
  */
 (function () {
   if (window.RS && RS.DATASETS && !RS.DATASETS.fuel) {
@@ -55,7 +63,7 @@ registerPage({
   subtitle: "Every fleet-card swipe against the job it belongs to — and the ones that belong to nothing.",
   datasets: [],
 
-  render: function (host) {
+  render: function (host, mode) {
     // window.RSC is the real global (assets/rs-components.js:3). This read RS_COMPONENTS,
     // which has never existed, so `|| {}` handed every one of these pages an EMPTY object
     // and each helper quietly fell through to its local fallback. Nothing looked wrong
@@ -95,15 +103,27 @@ registerPage({
       busy: "", msg: "", msgErr: false, msgFor: null, open: null, draft: {},
     });
     if (!S.est) S.est = { open: null, wk: null, name: "" };
-    // a link in (Job P&L's fuel check): #page=fuel-control&tab=estimate&who=<foreman>&wk=<Monday>
+    // which of Job Control's views this is, and each view's own tabs; switching views and back
+    // returns to the tab you left (S.lastView), because the two share one state
+    const MODE = mode === "truck" ? "truck" : "fuel";
+    const VIEWS = { fuel: ["estimate", "queue", "foremen", "all"], truck: ["trucks", "cards"] };
+    if (!S.lastView) S.lastView = {};
+    // a link in (Job P&L's fuel check): #page=fuel-control&tab=estimate&who=<foreman>&wk=<Monday>;
+    // Truck Control's "answer it" link: #page=fuel-control&tab=queue&q=<Trans ID>
     (function () {
       const h = location.hash || "";
       const g = k => { const m = new RegExp("[#&]" + k + "=([^&]*)").exec(h); return m ? decodeURIComponent(m[1]) : ""; };
-      const tab = g("tab"), who = g("who");
-      if (/^(estimate|queue|foremen|trucks|all)$/.test(tab)) S.view = tab;
+      const tab = g("tab"), who = g("who"), q = g("q");
+      if (VIEWS[MODE].indexOf(tab) >= 0) S.view = tab;
       if (who) Object.assign(S.est, { name: who, open: null, wk: g("wk") || null }), S.month = "", S.q = "";
-      if (tab || who) { try { history.replaceState(null, "", "#page=fuel-control"); } catch (e) { /* ignore */ } }
+      if (q) S.q = q, S.month = "";
+      if (tab || who || q) {
+        try { history.replaceState(null, "", "#page=job-control:" + (MODE === "truck" ? "truck-control" : "fuel-control")); }
+        catch (e) { /* ignore */ }
+      }
     })();
+    if (VIEWS[MODE].indexOf(S.view) < 0) S.view = S.lastView[MODE] || VIEWS[MODE][0];
+    S.lastView[MODE] = S.view;
     /* THE PAGE'S OWN FILTERS (his ask 2026-10-15: the shell's right-hand Filters panel on every
        report with its own bar): Company, Local / Long distance, Job state and Fuel kind, each a
        multi (empty = all). In S for this session, never in RS.state.multi, never persisted.
@@ -212,6 +232,7 @@ registerPage({
       + ".fu-note{font-size:12.5px;color:var(--faint);line-height:1.55;margin:10px 0 0;max-width:var(--rs-prose)}"
       // ---- estimate vs paid: a foreman opens into weeks, a week into its jobs and fills ----
       + ".fu .fu-t td.l,.fu .fu-t th.l{text-align:left}"
+      + ".fu a.fu-go{color:var(--brand);font-weight:650;text-decoration:none;white-space:nowrap}"
       + ".fu-est tr.fu-fm,.fu-est tr.fu-wk{cursor:pointer}"
       + ".fu-est tr.fu-fm td:first-child::before,.fu-est tr.fu-wk td:first-child::before{content:'▸';display:inline-block;width:14px;color:var(--faint)}"
       + ".fu-est tr.fu-fm.on td:first-child::before,.fu-est tr.fu-wk.on td:first-child::before{content:'▾'}"
@@ -338,7 +359,16 @@ registerPage({
       const assigned = rs.filter(r => PLACED[r["Match Status"]]);
 
       const EM = S.view === "estimate" ? estimateModel() : null;
-      let h = EM ? '<div class="rs-kpis">'
+      const CM = MODE === "truck" ? cardModel(rs) : null;
+      let h = CM ? '<div class="rs-kpis">'
+        + kpi(fmtN(CM.ask.length), "Card ≠ job truck",
+              CM.ask.length ? money0(sum(CM.ask)) + " · answered in the Fuel Control queue" : "nothing to answer",
+              CM.ask.length ? "alert" : "")
+        + kpi(fmtN(CM.note.length), "Fleet card, rental job", "a note, not a question")
+        + kpi(fmtN(CM.rental.length), "Rental-card swipes", money0(sum(CM.rental)) + " · R1, R2…")
+        + kpi(fmtN(CM.trucks), "Cards used", fmtN(rs.length) + " swipe" + (rs.length === 1 ? "" : "s"))
+        + "</div>"
+        : EM ? '<div class="rs-kpis">'
         + kpi(money0(EM.est), "Estimated for the jobs", "route miles ÷ 7 mpg × the WEX price")
         + kpi(money0(EM.paid), "Paid", "WEX card + closing sheets")
         + kpi(EM.est > 0 ? signedPct((EM.paid - EM.est) / EM.est) : "—", "Paid vs estimate", signed$(EM.paid - EM.est) + " · all foremen")
@@ -360,9 +390,11 @@ registerPage({
 
       h += '<div class="rs-bar">'
         + '<div class="rs-seg">'
-        + seg("estimate", "Estimate vs paid")
-        + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
-        + seg("foremen", "By foreman") + seg("trucks", "By truck") + seg("all", "All swipes")
+        + (CM
+          ? seg("trucks", "By truck") + seg("cards", "Card vs job truck" + (CM.ask.length ? " " + CM.ask.length : ""))
+          : seg("estimate", "Estimate vs paid")
+            + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
+            + seg("foremen", "By foreman") + seg("all", "All swipes"))
         + "</div>"
         + '<div id="fuMonth"></div>'
         + '<input class="rs-inp" id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
@@ -394,6 +426,7 @@ registerPage({
       else if (S.view === "queue") h += queueView(openQ, resolved);
       else if (S.view === "foremen") h += foremanView(rs);
       else if (S.view === "trucks") h += truckView(rs);
+      else if (S.view === "cards") h += cardView(CM);
       else h += allView(rs);
 
       main.innerHTML = h;
@@ -784,6 +817,75 @@ registerPage({
         + "swipe itself.</p>";
     }
 
+    // ---- card vs job truck (Truck Control) ---------------------------------------------
+    // Read off the mart's own words, so the page and the queue can never disagree about which
+    // swipe is a question: a FLAG "card says truck X, the job says Y" is one to answer; a NOTE
+    // "truck X's card, on a rental job (Ent)" is a fleet card taken to a hired truck (his call
+    // 2026-10-27), shown for the pattern, never chased. A rental card on a rental job is neither.
+    const ASK_RE = /card says truck (.+?), the job says ([^;]+)/;
+    const NOTE_RE = /truck (.+?)'s card, on a rental job \(([^)]+)\)/;
+    const sum = list => list.reduce((a, r) => a + num(r["Net Cost"]), 0);
+    function cardModel(rs) {
+      const ask = [], note = [], cards = new Set();
+      rs.forEach(r => {
+        const a = ASK_RE.exec(r.Flags || ""), n = a ? null : NOTE_RE.exec(r.Notes || "");
+        if (a) ask.push(Object.assign({ _card: a[1], _job: a[2], _ask: 1 }, r));
+        else if (n) note.push(Object.assign({ _card: n[1], _job: n[2], _ask: 0 }, r));
+        if (r["Vehicle Raw"]) cards.add(String(r["Vehicle Raw"]).trim().toUpperCase());
+      });
+      const rental = rs.filter(r => /^R\d+$/i.test(String(r["Vehicle Raw"] || "").trim()));
+      return { ask, note, rental, trucks: cards.size, list: ask.concat(note) };
+    }
+    function cardView(CM) {
+      if (!CM.list.length) {
+        return '<div class="fu-empty"><b>Every card matched its job\'s truck.</b>No swipe in this window was made '
+          + "on one truck's card while the job ran another.</div>";
+      }
+      // one roll-up per key: the questions, their money, and the rental-day notes beside them
+      const roll = (keyOf, label) => {
+        const by = {};
+        CM.list.forEach(r => {
+          const k = keyOf(r) || "—";
+          const b = by[k] || (by[k] = { k, ask: 0, usd: 0, note: 0, other: new Set() });
+          if (r._ask) { b.ask++; b.usd += num(r["Net Cost"]); } else b.note++;
+          String(label === "Card's truck" ? r._job : r._card).split(", ").forEach(x => x && b.other.add(x));
+        });
+        const list = Object.values(by).sort((a, b) => b.ask - a.ask || b.note - a.note || a.k.localeCompare(b.k));
+        return '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">' + esc(label)
+          + "</th><th>To answer</th><th>Spend</th><th>On a rental job</th><th class=\"l\">"
+          + (label === "Card's truck" ? "Jobs' trucks" : "Cards used") + "</th></tr></thead><tbody>"
+          + list.map(x => '<tr><td class="strong l">' + esc(x.k) + "</td><td" + (x.ask ? ' class="fu-neg"' : "") + ">"
+              + (x.ask ? fmtN(x.ask) : "—") + "</td><td>" + (x.ask ? money0(x.usd) : "—") + "</td><td>"
+              + (x.note ? fmtN(x.note) : "—") + '</td><td class="l">' + esc([...x.other].sort().join(", ")) + "</td></tr>").join("")
+          + "</tbody></table></div>";
+      };
+      const rows = CM.list.slice().sort((a, b) => b._ask - a._ask
+        || String(b.Date || "").localeCompare(String(a.Date || "")));
+      return '<p class="rs-hint"><b>Which card fuelled which job.</b> A WEX card belongs to one truck — its vehicle '
+        + "id is on the card, not typed at the pump — so a card on a job that ran a different truck means the "
+        + "card travelled. Fleet cards on rental jobs (“Ent”, “Penske”) are expected and only noted. The rest "
+        + "are questions, answered with the others in the <b>Fuel Control queue</b>; each row below links to its "
+        + "swipe there.</p>"
+        + '<div class="fu-h2">By the card\'s truck</div>' + roll(r => r._card, "Card's truck")
+        + '<div class="fu-h2">By foreman</div>' + roll(r => r.Foreman || r["Driver Raw"], "Foreman")
+        + '<div class="fu-h2">Every swipe · ' + fmtN(rows.length) + "</div>"
+        + '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">Date</th><th class="l">Foreman</th>'
+        + '<th>Card\'s truck</th><th>Job\'s truck</th><th class="l">Placed on</th><th>Net</th><th class="l">What it is</th>'
+        + "</tr></thead><tbody>"
+        + rows.slice(0, 400).map(r => '<tr><td class="strong l">' + esc(String(r.Date || "").slice(0, 10)) + '</td><td class="l">'
+            + esc(r.Foreman || r["Driver Raw"] || "—") + "</td><td>" + esc(r._card) + "</td><td>" + esc(r._job)
+            + '</td><td class="l">' + esc(r["Job Customer"] || r["Job Request"] || "—") + "</td><td>" + money(r["Net Cost"])
+            + '</td><td class="l">'
+            + (!r._ask ? "rental job · a note"
+               : +r.Resolved === 1 ? "explained"
+               : '<a class="fu-go" href="#page=fuel-control&tab=queue&q=' + encodeURIComponent(r["Trans ID"] || "")
+                 + '">Answer in the queue →</a>')
+            + "</td></tr>").join("")
+        + "</tbody></table></div>"
+        + (rows.length > 400 ? '<p class="fu-note">Showing 400 of ' + fmtN(rows.length)
+          + " — narrow the month or search to see the rest.</p>" : "");
+    }
+
     // ---- all swipes --------------------------------------------------------------------
     function allView(rs) {
       const list = rs.slice().sort((a, b) => String(b.Date || "").localeCompare(String(a.Date || ""))
@@ -813,7 +915,7 @@ registerPage({
 
     function wire() {
       main.querySelectorAll(".rs-seg button").forEach(b => {
-        b.onclick = () => { S.view = b.dataset.v; S.msg = ""; paint(); };
+        b.onclick = () => { S.view = S.lastView[MODE] = b.dataset.v; S.msg = ""; paint(); };
       });
       // kit slicer instead of the native month <select> — same "" = every-month value
       const m = main.querySelector("#fuMonth");
@@ -952,5 +1054,19 @@ registerPage({
     }
 
     load();
+  },
+});
+
+// TRUCK CONTROL: Job Control's second view, drawn by the page above in its truck mode. No `group`
+// on purpose -- it is not a page of its own to grant, it is Fuel Control's data seen by truck, so
+// whoever holds Fuel Control holds it (index.html canSee) and no department lists it.
+registerPage({
+  id: "truck-control",
+  title: "Truck Control",
+  subtitle: "Which truck's card fuelled which job — and the cards that travelled to a different truck.",
+  datasets: [],
+
+  render: function (host) {
+    return PAGES.find(p => p.id === "fuel-control").render(host, "truck");
   },
 });

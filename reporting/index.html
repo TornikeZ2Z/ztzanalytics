@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="1b41ad7a06f5c698ca5efbca99b55d935d685010">
+<meta name="ztz-ref" content="f214ee54f5dc5d49416594c48d3ac06bb19a3ab1">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -303,7 +303,7 @@ const NAV_ORDER = {
   "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6,
   "sales-command": 0.5, "sales-roster": 0.55, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "estimate-accuracy": 0.95, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
-  "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "packing-sales": 4.5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
+  "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "job-control": 4, "packing-sales": 4.5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
@@ -395,8 +395,18 @@ const PLANNED = [];  // all 16 General Overview pages are built
    untouched — future merges are one entry here. */
 /* Virtual tab-group merges were retired in the 2026-07-09 themed-dashboard restructure —
    every constituent page is now hidden and redirected to a themed dashboard (see REDIRECTS).
-   The machinery below is kept intact but empty so pageFor/navigate/canSee stay well-defined. */
-const MERGED = [];
+   The machinery below was kept intact, and came back for Job Control.
+   JOB CONTROL (2026-10-27, Tornike: "rename Fuel Control to Job Control and create separate
+   views"; Packing Control and Late Arrivals moved in at his pick). Every view is still its own
+   page with its OWN grant -- nobody gains or loses a page: the hub shows only the views a user
+   holds (hubTabs), an old link opens the hub on that view only if the view itself is granted,
+   and Truck Control has no grant of its own (it is Fuel Control's data by truck; canSee).
+   `subnav: false` = one sidebar item, the views switch on the page (his mockup). */
+const MERGED = [
+  { id: "job-control", group: "logistics", title: "Job Control", icon: "clipboard", subnav: false,
+    tabs: [["fuel-control", "Fuel Control"], ["truck-control", "Truck Control"],
+           ["packing-control", "Packing Control"], ["foreman-late", "Late Arrivals"]] },
+];
 const MERGED_BY_TAB = {};
 MERGED.forEach(m => m.tabs.forEach(([tid]) => MERGED_BY_TAB[tid] = m));
 const mergedActiveTab = {};
@@ -505,10 +515,18 @@ function resolveRedirect(id) {
   return id;
 }
 
+/* The hub's views THIS user may open, and the one to show: the remembered tab if he holds it,
+   else his first. Every reader of the active tab goes through hubTab -- the tab bar, the hash,
+   the leaf the filter bar follows -- so a view he does not hold is never the one drawn. */
+const hubTabs = m => m.tabs.filter(([tid]) => canSee(tid));
+function hubTab(m) {
+  const vis = hubTabs(m), want = mergedActiveTab[m.id];
+  return vis.some(([tid]) => tid === want) ? want : (vis[0] || m.tabs[0])[0];
+}
 function mergedPage(m) {
   return { id: m.id, group: m.group, title: m.title, async render(host) {
-    const active = mergedActiveTab[m.id] || m.tabs[0][0];
-    host.innerHTML = `<div class="rs-tabs">` + m.tabs.map(([tid, label]) =>
+    const active = hubTab(m);
+    host.innerHTML = `<div class="rs-tabs">` + hubTabs(m).map(([tid, label]) =>
       `<button class="rs-tab ${tid === active ? "on" : ""}" data-t="${tid}">${RSC.esc(label)}</button>`).join("") +
       `</div><div id="mergedHost"></div>`;
     host.querySelectorAll(".rs-tab").forEach(b => b.onclick = () => {
@@ -520,12 +538,15 @@ function mergedPage(m) {
     if (page) await page.render(host.querySelector("#mergedHost"));
   } };
 }
+/* the hubs as pages -- kept OUT of PAGES, so firstAllowedId still walks the real pages in their
+   own order (a view's id reaches its hub through idOwner) and the landing page does not move */
+const HUB_PAGES = MERGED.map(mergedPage);
 /* Resolve any id — retired id (→ replacement), merged id, constituent id (old deep link),
    or plain page. */
 function pageFor(id) {
   if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
   id = resolveRedirect(id);                               // retired page / slice → final target
-  return PAGES.find(p => p.id === id);
+  return PAGES.find(p => p.id === id) || HUB_PAGES.find(p => p.id === id);
 }
 
 /* ---------------- access control (per-user report grants) ---------------- */
@@ -563,6 +584,8 @@ function canSee(id) {
   if (id === "hr-questionnaire" && reports.includes("hr-responses")) return true;
   // the Team Directory is the roster editor — the manage grant IS its grant
   if (id === "hr-directory" && reports.includes("hr-questionnaire")) return true;
+  // Truck Control is Fuel Control's data by truck (Job Control, 2026-10-27): no grant of its own
+  if (id === "truck-control") return canSee("fuel-control");
   // department grant: holding a department id opens ALL of its reports, incl. ones added later.
   // Implied departments count as held (2026-09-23: Marketing includes Marketing Automations).
   const held = heldDepts();
@@ -582,9 +605,11 @@ function canSee(id) {
     if (reports.includes(src) && resolveRedirect(src) === id) return true;
   }
   // a grant to a page that got merged into a hub (e.g. the old standalone Labor & Crew,
-  // now a Foremen & Crew tab) opens that hub — the merge must not revoke access
+  // now a Foremen & Crew tab) opens that hub — the merge must not revoke access. Through
+  // canSee, not the raw list: a DEPARTMENT grant opens Job Control's views too (2026-10-27).
+  // The hub then shows only the views granted (hubTabs) -- this opens the frame, not them.
   const m = MERGED.find(x => x.id === id);
-  if (m && m.tabs.some(([tid]) => reports.includes(tid))) return true;
+  if (m && m.tabs.some(([tid]) => canSee(tid))) return true;
   return false;
 }
 /* May this page show under THIS sidebar group? A page placed in two groups (Conversations,
@@ -923,6 +948,7 @@ const PAGE_DATASETS = {
   "packing-control": [],     // loads fct_packing_job itself; its month picker owns the window
   "crew-salaries": [],       // its own month range + role segment own the window
   "fuel-control": [],        // its own month picker owns the window
+  "truck-control": [],       // Fuel Control's feed by truck (Job Control); same month picker
   "foreman-assessment": [],  // its own month picker owns the window
   "hr-questionnaire": [],     // /api/_hrqadmin only
   "hr-directory": [],         // rides /api/_hrqadmin
@@ -953,7 +979,7 @@ const DATE_BASIS_TEXT = {
 function currentLeafId() {
   if (!CURRENT) return null;
   const m = MERGED.find(x => x.id === CURRENT.id);
-  return m ? (mergedActiveTab[m.id] || m.tabs[0][0]) : CURRENT.id;
+  return m ? hubTab(m) : CURRENT.id;
 }
 /* N13: per-slicer tooltips shown while the slicer is active (the "not used here"
    message below takes priority when it's greyed). rs-core may also ship RS.FIELDS[k].tip. */
@@ -1149,15 +1175,26 @@ function mountSideToggle() {
 
 function navigate(id, push) {
   let deniedTitle = null;
-  if (id && id.indexOf(":") > 0) id = id.split(":")[0];   // collapse any legacy "hub:tab" deep link
+  // "hub:tab" (a copied Job Control link) names the VIEW; any other "a:b" is a legacy deep link
+  // and collapses to its page
+  if (id && id.indexOf(":") > 0) {
+    const [h, t] = id.split(":");
+    id = MERGED_BY_TAB[t] && MERGED_BY_TAB[t].id === h ? t : h;
+  }
   window.__navRequested = id;                              // pages that host a retired one read it (Sales Trackers)
   id = resolveRedirect(id);                               // retired id / slice → final target
+  // A VIEW's own id -- an old #page=fuel-control link, Job P&L's fuel link, a bookmark -- opens
+  // its hub ON that view. Gated on the VIEW, not the hub: the hub admits anyone holding one of
+  // its views, so a packing-only user following a Fuel Control link is refused here instead of
+  // being handed the page (2026-10-27).
+  const hub = id && MERGED_BY_TAB[id];
+  if (hub && canSee(id)) { mergedActiveTab[hub.id] = id; id = hub.id; }
   // An id with no page behind it (a mistyped hash, or a removed page such as IT Requests,
   // 2026-09-23) goes to the first allowed page as well. Before, an admin fell through to
   // PAGES[0] instead.
-  if (!pageFor(id) || !canSee(idOwner(id))) {
+  if (!pageFor(id) || !canSee(hub ? id : idOwner(id))) {
     // only announce a denial for a REAL page — a mistyped hash falls back silently
-    if (id && pageFor(id)) deniedTitle = titleOf(idOwner(id));
+    if (id && pageFor(id)) deniedTitle = titleOf(hub ? id : idOwner(id));
     id = firstAllowedId();
   }
   if (!id) { requestAccessScreen(ME && ME.email); return; }
@@ -1167,13 +1204,15 @@ function navigate(id, push) {
   // necessarily the id the gate just approved — and the PAGES[0] fallback isn't checked at
   // all. Re-verify against the page we are about to RENDER, so no resolution path can put a
   // report on screen that canSee() refuses (2026-07-26).
-  if (!canSee(idOwner(page.id))) { requestAccessScreen(ME && ME.email); return; }
+  if (!canSee(MERGED_BY_TAB[page.id] ? page.id : idOwner(page.id))) { requestAccessScreen(ME && ME.email); return; }
   CURRENT = page;
+  const m = MERGED.find(x => x.id === page.id);
+  // a hub logs the VIEW drawn, so a page's visit history carries on after it moved into one
+  const leaf = m ? hubTab(m) : page.id;
   // The one funnel every page change goes through -- deep link, sidebar click, tile, hash
   // back-button -- so the activity odometer is started from here and nowhere else.
-  try { ZTZ.activity.page(page.id, titleOf(page.id)); } catch (e) {}
-  const m = MERGED.find(x => x.id === page.id);
-  const mAct = m ? page.id + ":" + (mergedActiveTab[page.id] || m.tabs[0][0]) : null;
+  try { ZTZ.activity.page(leaf, titleOf(leaf)); } catch (e) {}
+  const mAct = m ? page.id + ":" + leaf : null;
   // keep the ACTIVE TAB in the hash so copied links reopen the same view (C32)
   if (push !== false) location.hash = "page=" + (mAct || page.id);
   document.querySelectorAll(".rs-nav-item").forEach(n =>
@@ -1186,7 +1225,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Organic Search (2026-09-24) brings its own window + last-year compare bar
@@ -1378,6 +1417,7 @@ const SEARCH_ALIASES = {
   // Human Resources
   "hr-questionnaire": "team surveys hr human resources questionnaire survey company wide feedback poll questions results",
   "hr-directory": "team directory people staff back office crew org employees roster emails",
+  "job-control": "job control fuel control truck control packing control late arrivals wex fleet card swipes gas diesel rental card queue",
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
   "seasonal-report": "seasonal report season summer report may june july august peak season year over year netcash card goals foreman of the summer postcard yelp cpl",
@@ -1471,9 +1511,12 @@ function buildNav() {
       if (m) {
         if (!seenMerged.has(m.id) && canSeeIn(m.id, g.key)) {
           seenMerged.add(m.id);
+          // found by any view's name or alias it shows him ("packing" finds Job Control)
+          const vis = hubTabs(m);
           display.push({ id: m.id, title: NAV_TITLES[m.id] || m.title, iconKey: m.icon,
-            search: m.title + " " + m.tabs.map(t => t[1]).join(" ") + " " + (SEARCH_ALIASES[m.id] || ""),
-            children: m.tabs.map(([tid, label]) => ({ tid, label })) });
+            search: m.title + " " + vis.map(t => t[1] + " " + (SEARCH_ALIASES[t[0]] || "")).join(" ")
+              + " " + (SEARCH_ALIASES[m.id] || ""),
+            children: m.subnav === false ? [] : vis.map(([tid, label]) => ({ tid, label })) });
         }
       } else if (canSeeIn(p.id, g.key)) {
         display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id],
@@ -1514,7 +1557,7 @@ function buildNav() {
       // merged hubs list their tabs as indented sub-items (e.g. Angi under Lead Source Analysis)
       (p.children || []).forEach(ch => {
         const sub = RSC.el("div", "rs-nav-item rs-nav-sub" +
-          (CURRENT && CURRENT.id === p.id && (mergedActiveTab[p.id] || p.children[0].tid) === ch.tid ? " active" : ""),
+          (CURRENT && CURRENT.id === p.id && hubTab(MERGED.find(x => x.id === p.id)) === ch.tid ? " active" : ""),
           RSC.esc(ch.label));
         sub.dataset.id = p.id + ":" + ch.tid;
         sub.onclick = () => { mergedActiveTab[p.id] = ch.tid; navigate(p.id); };
@@ -1821,7 +1864,7 @@ if (!ZTZ.getToken()) {
     if (!raw || !CURRENT) { if (raw) navigate(raw, false); return; }
     const [hub, tab] = raw.split(":");
     const m = MERGED.find(x => x.id === CURRENT.id);
-    const curTab = m ? (mergedActiveTab[CURRENT.id] || m.tabs[0][0]) : null;
+    const curTab = m ? hubTab(m) : null;
     if (CURRENT.id !== hub || (tab && tab !== curTab)) navigate(raw, false);
   });
   /* CHANGING THE REPORTING ZONE REPAINTS WHAT IS ON SCREEN. Times are rendered into markup at
@@ -2363,7 +2406,7 @@ registerPage({
 <script src="pages/crew-salaries.js?v=11"></script>
 <script src="pages/hr-questionnaire.js?v=51"></script>
 <script src="pages/hr-directory.js?v=18"></script>
-<script src="pages/fuel-control.js?v=16"></script>
+<script src="pages/fuel-control.js?v=17"></script>
 <script src="pages/demand-analysis.js?v=17"></script>
 <script src="pages/straight-vs-local.js?v=8"></script>
 <script src="pages/storage-plan.js?v=8"></script>
