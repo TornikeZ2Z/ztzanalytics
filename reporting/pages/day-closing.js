@@ -45,17 +45,6 @@
       .dcl-btn.pri{background:${POS};border-color:${POS};color:#fff} .dcl-btn.pri:hover{filter:brightness(1.08)}
       .dcl-btn.sm{font-size:11.5px;padding:5px 10px}
       .dcl-link{font-size:12.5px;font-weight:800;color:${BLUE};text-decoration:none;cursor:pointer}
-      .dcl-back{position:fixed;inset:0;z-index:95;background:rgba(14,22,33,.5);display:flex;align-items:center;justify-content:center;padding:20px}
-      .dcl-modal{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:14px;width:min(460px,96vw);padding:18px 20px;box-shadow:0 24px 70px rgba(14,22,33,.35)}
-      .dcl-modal h3{margin:0 0 4px;font-size:18px;font-weight:800}
-      .dcl-modal p{margin:0 0 12px;font-size:13px;color:var(--muted)}
-      .dcl-sum{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:12px}
-      .dcl-sum td{padding:5px 0}.dcl-sum td.r{text-align:right;font-variant-numeric:tabular-nums}
-      .dcl-sum tr.tot td{border-top:1px solid var(--line);padding-top:9px;font-weight:800;font-size:15.5px}
-      .dcl-f{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-      .dcl-f label{font-size:11.5px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
-      .dcl-f input{display:block;width:100%;margin-top:5px;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--panel);color:var(--ink);box-sizing:border-box}
-      .dcl-act{display:flex;justify-content:flex-end;gap:8px}
       .dcl-err{background:rgba(176,42,55,.08);color:${NEG};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
       .dcl-ok{background:rgba(28,122,74,.10);color:${POS};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
       .dcl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
@@ -99,24 +88,10 @@
       .dcl-pill.dcl-nc{background:var(--panel-2);color:var(--muted);margin:0 8px 0 0}
       .dcl-tbl tr.dcl-ncrow td{white-space:normal}
       .dcl-nclist{margin-top:4px;line-height:1.6}
-      /* OFFICE CASH (2026-10-28): the expense / other income buttons, their dialog, the office
-         rows under a person and the Expenses & income list */
+      /* OFFICE CASH (2026-10-28): the expense / other income buttons, the office rows under a
+         person and the Expenses & income list */
       .dcl-ocbtns{display:inline-flex;gap:6px;margin-left:auto}
       .dcl-shead .dcl-ocbtns + .dcl-link{margin-left:12px !important}
-      .dcl-ocm{width:min(560px,96vw)}
-      .dcl-octog{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:3px;margin-bottom:12px}
-      .dcl-octog button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:800;padding:6px 14px;border-radius:7px;cursor:pointer}
-      .dcl-octog button.on{background:var(--panel);color:var(--ink);box-shadow:0 0 0 1px var(--line-2)}
-      .dcl-oclbl{font-size:11.5px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
-      .dcl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-      .dcl-chip{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 11px;cursor:pointer}
-      .dcl-chip.on{background:${BLUE};border-color:${BLUE};color:#fff}
-      .dcl-chip small{font-weight:600;opacity:.75;margin-left:4px}
-      .dcl-f select{display:block;width:100%;margin-top:5px;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--panel);color:var(--ink);box-sizing:border-box}
-      .dcl-f.one{grid-template-columns:1fr}
-      .dcl-ocafter{font-size:13px;color:var(--muted);margin:-4px 0 12px}
-      .dcl-ocafter b{color:var(--ink)}
-      .dcl-warn{background:rgba(138,90,0,.10);color:${AMB};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
       .dcl-tbl tr.oc td{font-size:13.5px} .dcl-tbl tr.oc td.nm{padding-left:58px;font-weight:700}
       .dcl-tbl tr.oc{cursor:pointer}
       .dcl-tbl tr.ocl td{font-size:12.5px;color:var(--muted)} .dcl-tbl tr.ocl td.first{padding-left:82px}
@@ -129,12 +104,112 @@
       .dcl-tbl.oclist{min-width:1100px}
       .dcl-tbl.oclist tr.wd td{text-decoration:line-through;color:var(--faint)}
       .dcl-tbl.oclist td.why{white-space:normal}
-      .dcl-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:0 0 14px}
-      .dcl-cats .box{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
-      .dcl-cats .row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;border-top:1px solid var(--line)}
-      .dcl-cats .row:first-of-type{border-top:0}
-      .dcl-cats .row span{flex:1}
-      .dcl-cats .row.off span{color:var(--faint);text-decoration:line-through}
+      .dcl-tbl.oclist tr.ocr{cursor:pointer} .dcl-tbl.oclist tr.ocr:hover td{background:var(--panel-2)}
+      .dcl-tbl.oclist tr.ocr:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+      .dcl-chev{color:var(--faint);font-size:18px;line-height:1}
+      /* THE SIDE PANEL (his ask 2026-10-28: "this right side panel - i need that not popups").
+         Money Flow's drawer (.mf-drawer): it slides in from the right with a header (title, Back,
+         close), a body that scrolls and a footer for the buttons. It records, corrects and
+         withdraws office cash and shows one line's details and the category list. It is
+         appended to <body>, outside #content, so no page transform can move it. Its own --dd-*
+         tokens follow the shell, and the light v2 values are Money Flow's. */
+      .dcl-scrim{position:fixed;inset:0;z-index:95;background:rgba(8,12,20,.5);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s}
+      .dcl-scrim.on{opacity:1;visibility:visible;pointer-events:auto}
+      .dcl-drawer{--dd-ink:var(--ink);--dd-muted:var(--muted);--dd-faint:var(--faint);--dd-line:var(--line);--dd-line2:var(--line-2);--dd-panel:var(--panel);--dd-panel2:var(--panel-2);
+        --dd-chip:var(--panel-2);--dd-head:var(--ink);--dd-deep:var(--brand);--dd-deep-ink:var(--brand-ink);--dd-acc:var(--brand);--dd-acc-ink:var(--brand);--dd-tint:var(--brand-glow);
+        --dd-tint-line:var(--line-2);--dd-out:var(--warn-bg);--dd-out-ink:var(--warn);--dd-out-line:var(--line-2);--dd-warn-bg:var(--warn-bg);--dd-warn-line:var(--line-2);--dd-warn-ink:var(--warn);
+        --dd-neg:var(--neg);--dd-neg-bg:var(--neg-bg);
+        position:fixed;top:0;right:0;height:100vh;height:100dvh;width:min(540px,100vw);z-index:96;box-sizing:border-box;background:var(--dd-panel);color:var(--dd-ink);font-size:14px;
+        border-left:1px solid var(--dd-line);box-shadow:-12px 0 40px rgba(15,23,42,.18);display:flex;flex-direction:column;transform:translateX(100%);visibility:hidden;
+        transition:transform .24s cubic-bezier(.32,.72,0,1),visibility .24s}
+      .dcl-drawer.on{transform:none;visibility:visible}
+      @media (prefers-reduced-motion:reduce){.dcl-drawer,.dcl-scrim{transition:none}}
+      .dcl-drawer button,.dcl-drawer input,.dcl-drawer textarea{font:inherit}
+      .dcl-dh{display:flex;align-items:center;gap:8px;padding:16px 16px 14px 24px;border-bottom:1px solid var(--dd-line)}
+      .dcl-dh .dcl-dx:first-child{margin-left:-12px}
+      .dcl-dt{flex:1;min-width:0}
+      .dcl-dt h2{margin:0;font-size:18px;font-weight:600;color:var(--dd-head)}
+      .dcl-dsub{font-size:13px;color:var(--dd-muted);margin-top:2px}
+      .dcl-dx{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:0;background:transparent;color:var(--dd-muted);cursor:pointer;flex:none}
+      .dcl-dx:hover{background:var(--dd-panel2);color:var(--dd-ink)}
+      .dcl-db{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:20px}
+      .dcl-db > *{flex-shrink:0}
+      .dcl-df{display:flex;flex-direction:column;gap:10px;padding:14px 24px 18px;border-top:1px solid var(--dd-line)}
+      .dcl-df > div:empty{display:none}
+      .dcl-dfrow{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+      .dcl-dfrow .grow{margin-right:auto}
+      .dcl-dbtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border:1px solid var(--dd-line2);border-radius:10px;background:var(--dd-panel);color:var(--dd-ink);font-weight:500;cursor:pointer;white-space:nowrap}
+      .dcl-dbtn:hover:not([disabled]){background:var(--dd-panel2)}
+      .dcl-dbtn[disabled]{opacity:.55;cursor:default}
+      .dcl-dbtn.pri{background:var(--dd-deep);border-color:var(--dd-deep);color:var(--dd-deep-ink);font-weight:600}
+      .dcl-dbtn.pri:hover:not([disabled]){background:var(--dd-deep);filter:brightness(1.15)}
+      .dcl-dbtn.ghost{border-color:transparent;background:transparent;color:var(--dd-muted)}
+      .dcl-dbtn.danger{border-color:var(--dd-neg);color:var(--dd-neg);font-weight:600}
+      .dcl-dbtn.danger:hover:not([disabled]){background:var(--dd-neg-bg)}
+      .dcl-dbtn.danger.fill{background:var(--dd-neg);color:#fff}
+      .dcl-dbtn.danger.fill:hover:not([disabled]){background:var(--dd-neg);filter:brightness(1.1)}
+      .dcl-dbtn.sm{height:34px;padding:0 12px;border-radius:8px;font-size:13px}
+      .dcl-dintro{margin:0;font-size:13.5px;line-height:1.5;color:var(--dd-muted)}
+      .dcl-fld{display:flex;flex-direction:column;gap:8px;min-width:0}
+      .dcl-flbl{font-weight:600;font-size:13.5px;color:var(--dd-ink)}
+      .dcl-flbl small{font-weight:400;font-size:12.5px;color:var(--dd-faint);margin-left:6px}
+      .dcl-fhint{font-size:12.5px;color:var(--dd-faint)}
+      .dcl-f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      @media (max-width:540px){.dcl-f2{grid-template-columns:1fr}}
+      .dcl-in,.dcl-ta{width:100%;box-sizing:border-box;border:1px solid var(--dd-line2);border-radius:10px;background:var(--dd-panel);color:var(--dd-ink);font-size:14px}
+      .dcl-in{height:44px;padding:0 12px}
+      .dcl-ta{padding:10px 12px;resize:vertical;min-height:66px;line-height:1.45}
+      .dcl-in:focus,.dcl-ta:focus{outline:0;border-color:var(--dd-acc);box-shadow:0 0 0 3px var(--dd-tint)}
+      .dcl-amt{display:flex;align-items:center;gap:6px;height:56px;padding:0 16px;border:1px solid var(--dd-line2);border-radius:12px;background:var(--dd-panel);box-sizing:border-box}
+      .dcl-amt:focus-within{border-color:var(--dd-acc);box-shadow:0 0 0 3px var(--dd-tint)}
+      .dcl-amt span{font-size:20px;color:var(--dd-muted)}
+      .dcl-amt input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--dd-ink);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+      .dcl-kcards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .dcl-kcard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border:1px solid var(--dd-line2);border-radius:12px;background:var(--dd-panel);color:var(--dd-ink);cursor:pointer;text-align:left}
+      .dcl-kcard b{font-size:15px;font-weight:600} .dcl-kcard span{font-size:12.5px;color:var(--dd-muted)}
+      .dcl-kcard:hover{background:var(--dd-panel2)}
+      .dcl-kcard.on{border:2px solid var(--dd-acc);padding:11px 13px;background:var(--dd-tint)}
+      .dcl-opts{display:flex;flex-wrap:wrap;gap:8px}
+      .dcl-opt{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border:1px solid var(--dd-line2);border-radius:999px;background:var(--dd-panel);color:var(--dd-ink);cursor:pointer;font-size:13.5px;font-weight:500}
+      .dcl-opt:hover{background:var(--dd-panel2)}
+      .dcl-opt.on,.dcl-opt.on:hover{background:var(--dd-deep);border-color:var(--dd-deep);color:var(--dd-deep-ink)}
+      .dcl-opt small{font-size:11.5px;opacity:.75}
+      .dcl-eff{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;font-size:13.5px;line-height:1.45}
+      .dcl-eff b.big{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+      .dcl-eff.in{background:var(--dd-tint);color:var(--dd-acc-ink)}
+      .dcl-eff.out{background:var(--dd-out);color:var(--dd-out-ink)}
+      .dcl-eff.info{background:var(--dd-chip);color:var(--dd-muted)}
+      .dcl-eff.warn{background:var(--dd-warn-bg);color:var(--dd-warn-ink);border:1px solid var(--dd-warn-line)}
+      .dcl-eff.err{background:var(--dd-neg-bg);color:var(--dd-neg)}
+      .dcl-lcard{display:flex;flex-direction:column;gap:8px;padding:16px 18px;border-radius:14px;background:var(--dd-tint);border:1px solid var(--dd-tint-line)}
+      .dcl-lcard.out{background:var(--dd-out);border-color:var(--dd-out-line)}
+      .dcl-lcard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+      .dcl-lcard .cat{font-weight:600;font-size:15px}
+      .dcl-lcard .cat small{font-weight:400;font-size:12.5px;color:var(--dd-muted);margin-left:6px}
+      .dcl-lcard .amt{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .dcl-lcard.in .amt{color:var(--dd-acc-ink)} .dcl-lcard.out .amt{color:var(--dd-out-ink)}
+      .dcl-lcard.wd .amt{text-decoration:line-through;opacity:.6}
+      .dcl-lcard .why{font-size:14px;line-height:1.45}
+      .dcl-lcard .meta{font-size:12.5px;color:var(--dd-muted)}
+      .dcl-facts{display:grid;grid-template-columns:150px 1fr;margin:0;border:1px solid var(--dd-line);border-radius:12px;overflow:hidden}
+      .dcl-facts dt,.dcl-facts dd{margin:0;padding:10px 14px;border-top:1px solid var(--dd-line);font-size:13.5px}
+      .dcl-facts dt{color:var(--dd-muted);background:var(--dd-panel2)}
+      .dcl-facts dt:first-of-type,.dcl-facts dt:first-of-type + dd{border-top:0}
+      .dcl-facts small{color:var(--dd-faint);font-size:12.5px;margin-left:6px}
+      .dcl-catsec{display:flex;flex-direction:column;border:1px solid var(--dd-line);border-radius:12px;overflow:hidden}
+      .dcl-catsec h3{margin:0;padding:10px 14px;font-size:13.5px;font-weight:600;background:var(--dd-panel2);border-bottom:1px solid var(--dd-line)}
+      .dcl-catrow{display:flex;align-items:center;gap:8px;min-height:46px;padding:0 10px 0 14px;border-top:1px solid var(--dd-line);font-size:13.5px}
+      .dcl-catsec h3 + .dcl-catrow{border-top:0}
+      .dcl-catrow .nm{flex:1;min-width:0}
+      .dcl-catrow.off .nm{color:var(--dd-faint);text-decoration:line-through}
+      .dcl-catadd{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 14px;border-top:1px solid var(--dd-line);background:var(--dd-panel2)}
+      .dcl-catadd .dcl-in{height:36px;flex:1;min-width:0}
+      .dcl-catadd label{font-size:12.5px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--dd-muted)}
+      body.rs-app.light.v2 .dcl-scrim{background:rgba(15,23,42,.38)}
+      body.rs-app.light.v2 .dcl-drawer{--dd-ink:#0F172A;--dd-muted:#475569;--dd-faint:#64748B;--dd-line:#E2E8F0;--dd-line2:#CBD5E1;--dd-panel:#FFFFFF;--dd-panel2:#F8FAFC;--dd-chip:#F1F5F9;
+        --dd-head:#14301F;--dd-deep:#14301F;--dd-deep-ink:#FFFFFF;--dd-acc:#3F7D20;--dd-acc-ink:#2F6316;--dd-tint:#F4FAE6;--dd-tint-line:#DCEFB0;--dd-out:#FFF7ED;--dd-out-ink:#9A3412;
+        --dd-out-line:#FED7AA;--dd-warn-bg:#FFFBEB;--dd-warn-line:#FDE68A;--dd-warn-ink:#92400E;--dd-neg:#B91C1C;--dd-neg-bg:#FEF2F2}
+      body.rs-app.light.v2 .dcl-tbl.oclist tr.ocr:hover td{background:#F8FAFC}
       /* ---- DESIGN V2 "Calm finance" (2026-10-06). Light theme only; dark keeps every rule
          above. Look only -- the strip, the table, the dialogs and the print sheet behave and
          count exactly as before. The strip is the artboard's "Today's drawer" panel. ---- */
@@ -153,13 +228,6 @@
       body.rs-app.light.v2 .dcl-btn.sm{font-size:12.5px;padding:5px 10px}
       body.rs-app.light.v2 .dcl-link{font-size:13.5px;font-weight:600;color:#2F6316}
       body.rs-app.light.v2 .dcl-link:hover{color:#14301F}
-      body.rs-app.light.v2 .dcl-back{background:rgba(15,23,42,.38)}
-      body.rs-app.light.v2 .dcl-modal{border-radius:12px;border-color:#E2E8F0;box-shadow:0 20px 50px rgba(15,23,42,.22)}
-      body.rs-app.light.v2 .dcl-modal h3{font-size:16px;font-weight:600}
-      body.rs-app.light.v2 .dcl-modal p{font-size:13.5px;color:#475569}
-      body.rs-app.light.v2 .dcl-sum tr.tot td{font-weight:700;border-top-color:#E2E8F0}
-      body.rs-app.light.v2 .dcl-f label{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:#475569}
-      body.rs-app.light.v2 .dcl-f input{border-radius:8px;border-color:#CBD5E1}
       body.rs-app.light.v2 .dcl-err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;font-size:13px}
       body.rs-app.light.v2 .dcl-ok{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;border-radius:8px;font-size:13px}
       body.rs-app.light.v2 .dcl-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
@@ -428,121 +496,274 @@
   }
   function isOffice(l) { return !!l && l.src === "office"; }
   function signedCash(kind, method, amount) { return method && method !== "Cash" ? 0 : (kind === "income" ? 1 : -1) * (+amount || 0); }
-  function closeModal(back) { if (back && back.parentNode) back.parentNode.removeChild(back); document.removeEventListener("keydown", back && back.__esc); }
-  function modal(html) {
+  // ---- THE SIDE PANEL (his ask 2026-10-28: "this right side panel - i need that not popups") ----
+  /* One panel on <body>, Money Flow's drawer in look and behaviour. A view is a function that
+     paints the panel through frame() and wires it; it is called again whenever it has to repaint,
+     so it keeps its own state in a closure. openPanel(view, true) keeps the current view for the
+     Back arrow (a line's details -> Edit). Esc, the scrim, ✕ or a page change closes it. */
+  var IC = {
+    x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    back: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'
+  };
+  var DR = null;
+  function drawer() {
     css();
-    var back = document.createElement("div");
-    back.className = "dcl-back";
-    back.innerHTML = html;
-    back.addEventListener("mousedown", function (e) { if (e.target === back) closeModal(back); });
-    back.__esc = function (e) { if (e.key === "Escape") closeModal(back); };
-    document.addEventListener("keydown", back.__esc);
-    document.body.appendChild(back);
-    return back;
+    if (DR && document.body.contains(DR.el)) return DR;
+    var scrim = document.createElement("div"), el = document.createElement("aside"), d;
+    scrim.className = "dcl-scrim"; el.className = "dcl-drawer";
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(scrim); document.body.appendChild(el);
+    d = DR = { el: el, scrim: scrim, stack: [], cur: null, ret: null };
+    scrim.addEventListener("mousedown", function () { if (DR === d) closePanel(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && DR === d && d.cur) { e.stopPropagation(); closePanel(); } });
+    window.addEventListener("hashchange", function () { if (DR === d) closePanel(); });
+    return d;
   }
-  /* The dialog. opt: {kind, mine (this person's drawer now, or null), line (a current /api/_oc
-     line to correct), onSaved}. */
-  async function openOffice(opt) {
+  function openPanel(view, push) {
+    var d = drawer();
+    if (!d.cur) d.ret = document.activeElement;
+    if (push && d.cur) d.stack.push(d.cur); else d.stack = [];
+    d.cur = view;
+    d.el.classList.add("on"); d.scrim.classList.add("on"); d.el.setAttribute("aria-hidden", "false");
+    view();
+  }
+  function closePanel() {
+    var d = DR; if (!d || !d.cur) return;
+    d.cur = null; d.stack = []; d.el.__view = null;
+    d.el.classList.remove("on"); d.scrim.classList.remove("on"); d.el.setAttribute("aria-hidden", "true");
+    if (d.ret && document.body.contains(d.ret)) { try { d.ret.focus({ preventScroll: true }); } catch (e) { /* best effort */ } }
+    d.ret = null;
+  }
+  function backPanel() {
+    var d = DR; if (!d) return;
+    if (!d.stack.length) { closePanel(); return; }
+    d.cur = d.stack.pop(); d.cur();
+  }
+  function isOpen(view) { return !!DR && DR.cur === view; }
+  // paint the panel: the title, a line under it, the body and the footer. A repaint of the same
+  // view keeps the body's scroll; [data-dclose] buttons close the panel.
+  function frame(title, sub, body, foot) {
+    var d = DR, old = d.el.querySelector(".dcl-db"), top = old && d.el.__view === d.cur ? old.scrollTop : 0;
+    d.el.setAttribute("aria-labelledby", "dclDT");
+    d.el.innerHTML = '<div class="dcl-dh">' + (d.stack.length ? '<button type="button" class="dcl-dx" data-dback aria-label="Back">' + IC.back + "</button>" : "")
+      + '<div class="dcl-dt"><h2 id="dclDT">' + esc(title) + "</h2>" + (sub ? '<div class="dcl-dsub">' + sub + "</div>" : "") + "</div>"
+      + '<button type="button" class="dcl-dx" data-dx aria-label="Close">' + IC.x + "</button></div>"
+      + '<div class="dcl-db">' + body + "</div>" + (foot ? '<div class="dcl-df">' + foot + "</div>" : "");
+    d.el.__view = d.cur;
+    if (top) d.el.querySelector(".dcl-db").scrollTop = top;
+    d.el.querySelector("[data-dx]").onclick = closePanel;
+    var b = d.el.querySelector("[data-dback]"); if (b) b.onclick = backPanel;
+    d.el.querySelectorAll("[data-dclose]").forEach(function (x) { x.onclick = closePanel; });
+    return d.el;
+  }
+  var CLOSE_FOOT = '<div class="dcl-dfrow"><button type="button" class="dcl-dbtn" data-dclose>Close</button></div>';
+  function box(cls, html) { return '<div class="dcl-eff ' + cls + '">' + html + "</div>"; }
+  // one line at a glance: category, amount, reason, and who / when / how under it
+  function lineCard(l) {
+    var inc = l.kind === "income";
+    var meta = [l.at ? fmtAt(l.at) : "", l.by ? short(l.by) : "", l.method || "Cash", l.party ? (inc ? "from " : "to ") + l.party : "",
+                l.job_code || "", l.source === "form" ? "old form" : ""].filter(Boolean).map(esc).join(" · ");
+    return '<div class="dcl-lcard ' + (inc ? "in" : "out") + (l.withdrawn ? " wd" : "") + '"><div class="top"><div class="cat">' + esc(l.category || "—")
+      + (l.is_cost === 0 || l.is_cost === false ? "<small>not a cost</small>" : "") + '</div><div class="amt">' + (inc ? "+" : "−") + money2(+l.amount || 0) + "</div></div>"
+      + (l.note ? '<div class="why">' + esc(l.note) + "</div>" : "") + (meta ? '<div class="meta">' + meta + "</div>" : "") + "</div>";
+  }
+
+  /* Record or correct. opt: {kind, mine (this person's drawer now, or null), line (a current
+     /api/_oc line to correct), onSaved}; push: opened from a line's details (Back returns). */
+  function openOffice(opt, push) {
     opt = opt || {};
     var fix = opt.line || null;
-    var st = { kind: fix ? fix.kind : (opt.kind === "income" ? "income" : "expense"), cat: fix ? fix.category : "", confirm: false };
-    var back = modal('<div class="dcl-modal dcl-ocm" role="dialog" aria-modal="true"><div class="dcl-load" style="padding:20px">Loading…</div></div>');
-    var meta;
-    try { meta = await ocMeta(); }
-    catch (e) { back.querySelector(".dcl-modal").innerHTML = '<div class="dcl-err">' + esc(e.message) + '</div><div class="dcl-act"><button class="dcl-btn" data-x>Close</button></div>'; back.querySelector("[data-x]").onclick = function () { closeModal(back); }; return; }
-    if (meta.ready === false) {
-      back.querySelector(".dcl-modal").innerHTML = '<h3>Not ready yet</h3><p>Expenses can be recorded once the next data refresh has created their table (within the hour).</p><div class="dcl-act"><button class="dcl-btn" data-x>Close</button></div>';
-      back.querySelector("[data-x]").onclick = function () { closeModal(back); }; return;
-    }
-    var m = back.querySelector(".dcl-modal");
-    function cats() { return (meta.categories || []).filter(function (c) { return c.kind === st.kind && (c.is_on || (fix && c.name === fix.category)); }); }
-    function draw() {
+    var st = { kind: fix ? fix.kind : (opt.kind === "income" ? "income" : "expense"), cat: fix ? fix.category : "", how: fix ? (fix.method || "Cash") : "Cash",
+               vals: { a: fix ? String(fix.amount) : "", p: fix ? fix.party || "" : "", j: fix ? fix.job_code || "" : "", n: fix ? fix.note || "" : "" },
+               confirm: false, meta: OCMETA.d && Date.now() - OCMETA.at < 300000 ? OCMETA.d : null, err: "", first: true };
+    function saveLabel() { return st.confirm ? "Record it anyway" : fix ? "Save the correction" : st.kind === "income" ? "Save other income" : "Save expense"; }
+    function view() {
       var inc = st.kind === "income";
-      if (!cats().some(function (c) { return c.name === st.cat; })) st.cat = "";
-      m.innerHTML = "<h3>" + (fix ? (inc ? "Correct other income" : "Correct an expense") : (inc ? "Record other income" : "Record an expense")) + "</h3>"
-        + "<p>" + (inc ? "Cash that came into the drawer and isn’t a job: a payroll check cashed back, money brought in, a carrier payment."
-                       : "Money the drawer paid that isn’t a job: salaries, the Tbilisi office, a towing bill, cleaning. Only cash changes the drawer.")
-        + (fix ? " The drawer moves by the difference, today." : "") + "</p>"
-        + (fix ? "" : '<div class="dcl-octog"><button data-k="expense" class="' + (inc ? "" : "on") + '">Expense</button><button data-k="income" class="' + (inc ? "on" : "") + '">Other income</button></div>')
-        + '<div class="dcl-f"><label>Amount<input id="ocAmt" inputmode="decimal" autocomplete="off" placeholder="0.00"></label>'
-        + "<label>How<select id=\"ocHow\">" + (meta.methods || ["Cash"]).map(function (x) { return '<option value="' + esc(x) + '">' + esc(x === "Cash" ? (inc ? "Cash (into my drawer)" : "Cash (from my drawer)") : x) + "</option>"; }).join("") + "</select></label></div>"
-        + '<div class="dcl-oclbl">Category</div><div class="dcl-chips">' + cats().map(function (c) {
-            return '<button type="button" class="dcl-chip' + (c.name === st.cat ? " on" : "") + '" data-cat="' + esc(c.name) + '">' + esc(c.name) + (c.is_cost ? "" : "<small>not a cost</small>") + "</button>";
-          }).join("") + "</div>"
-        + '<div class="dcl-f"><label>' + (inc ? "Received from" : "Paid to") + '<input id="ocParty" list="ocParties" autocomplete="off" maxlength="160"></label>'
-        + '<label>Job (optional)<input id="ocJob" autocomplete="off" placeholder="LM12-2877" maxlength="64"></label></div>'
-        + '<datalist id="ocParties">' + (meta.parties || []).map(function (p) { return '<option value="' + esc(p) + '">'; }).join("") + "</datalist>"
-        + '<div class="dcl-f one"><label>Reason<input id="ocNote" autocomplete="off" maxlength="500" placeholder="' + (inc ? "Zaza check, September" : "#27 towing charges") + '"></label></div>'
-        + '<div class="dcl-ocafter" id="ocAfter"></div><div id="ocMsg"></div>'
-        + '<div class="dcl-act"><button class="dcl-btn" id="ocCancel">Cancel</button><button class="dcl-btn pri" id="ocSave">' + (fix ? "Save the correction" : inc ? "Save other income" : "Save expense") + "</button></div>";
-      var q = function (s) { return m.querySelector(s); };
-      if (fix) {
-        q("#ocAmt").value = fix.amount; q("#ocHow").value = fix.method || "Cash";
-        q("#ocParty").value = fix.party || ""; q("#ocJob").value = fix.job_code || ""; q("#ocNote").value = fix.note || "";
-      } else if (st.vals) {
-        q("#ocAmt").value = st.vals.a; q("#ocHow").value = st.vals.h; q("#ocParty").value = st.vals.p; q("#ocJob").value = st.vals.j; q("#ocNote").value = st.vals.n;
-      }
-      function vals() { return { a: q("#ocAmt").value, h: q("#ocHow").value, p: q("#ocParty").value, j: q("#ocJob").value, n: q("#ocNote").value }; }
+      var title = fix ? (inc ? "Correct other income" : "Correct an expense") : (inc ? "Record other income" : "Record an expense");
+      if (!st.meta) { frame(title, "", st.err ? box("err", esc(st.err)) : '<div class="dcl-load">Loading…</div>', st.err ? CLOSE_FOOT : ""); return; }
+      if (st.meta.ready === false) { frame(title, "", '<p class="dcl-dintro">Expenses can be recorded once the next data refresh has created their table (within the hour).</p>', CLOSE_FOOT); return; }
+      var cats = (st.meta.categories || []).filter(function (c) { return c.kind === st.kind && (c.is_on || (fix && c.name === fix.category)); });
+      if (!cats.some(function (c) { return c.name === st.cat; })) st.cat = "";
+      var methods = (st.meta.methods || ["Cash"]).slice();
+      if (methods.indexOf(st.how) < 0) methods.push(st.how);
+      var kcard = function (k, t, s) { return '<button type="button" class="dcl-kcard' + (st.kind === k ? " on" : "") + '" role="radio" aria-checked="' + (st.kind === k) + '" data-k="' + k + '"><b>' + t + "</b><span>" + s + "</span></button>"; };
+      var opt1 = function (attr, v, label, on) { return '<button type="button" class="dcl-opt' + (on ? " on" : "") + '" role="radio" aria-checked="' + on + '" ' + attr + '="' + esc(v) + '">' + label + "</button>"; };
+      var body = '<p class="dcl-dintro">' + (inc ? "Cash that came into the drawer and isn’t a job: a payroll check cashed back, money brought in, a carrier payment."
+                                                : "Money the drawer paid that isn’t a job: salaries, the Tbilisi office, a towing bill, cleaning.")
+          + (fix ? " A correction moves the drawer by the difference, today." : "") + "</p>"
+        + (fix ? lineCard(fix) : '<div class="dcl-kcards" role="radiogroup" aria-label="What it is">' + kcard("expense", "Expense", "Money out of the drawer") + kcard("income", "Other income", "Money into the drawer") + "</div>")
+        + '<div class="dcl-fld"><label class="dcl-flbl" for="ocAmt">Amount</label><div class="dcl-amt"><span aria-hidden="true">$</span><input id="ocAmt" inputmode="decimal" autocomplete="off" placeholder="0.00"></div></div>'
+        + '<div class="dcl-fld"><div class="dcl-flbl" id="ocHowL">' + (inc ? "How it came in" : "How it was paid") + '</div><div class="dcl-opts" role="radiogroup" aria-labelledby="ocHowL">'
+          + methods.map(function (x) { return opt1("data-how", x, esc(x), x === st.how); }).join("")
+          + '</div><div class="dcl-fhint">Only cash moves the drawer. Card, Zelle and bank are listed with the day.</div></div>'
+        + '<div class="dcl-fld"><div class="dcl-flbl" id="ocCatL">Category</div><div class="dcl-opts" role="radiogroup" aria-labelledby="ocCatL">'
+          + cats.map(function (c) { return opt1("data-cat", c.name, esc(c.name) + (c.is_cost ? "" : "<small>not a cost</small>"), c.name === st.cat); }).join("") + "</div></div>"
+        + '<div class="dcl-f2"><div class="dcl-fld"><label class="dcl-flbl" for="ocParty">' + (inc ? "Received from" : "Paid to") + "<small>optional</small></label>"
+          + '<input class="dcl-in" id="ocParty" list="ocParties" autocomplete="off" maxlength="160"></div>'
+          + '<div class="dcl-fld"><label class="dcl-flbl" for="ocJob">Job<small>optional</small></label><input class="dcl-in" id="ocJob" autocomplete="off" placeholder="LM12-2877" maxlength="64"></div></div>'
+        + '<datalist id="ocParties">' + (st.meta.parties || []).map(function (p) { return '<option value="' + esc(p) + '">'; }).join("") + "</datalist>"
+        + '<div class="dcl-fld"><label class="dcl-flbl" for="ocNote">Reason</label><textarea class="dcl-ta" id="ocNote" rows="2" maxlength="500" placeholder="'
+          + (inc ? "Zaza check, September" : "#27 towing charges") + '"></textarea></div>'
+        + '<div id="ocAfter"></div>';
+      var foot = '<div id="ocMsg"></div><div class="dcl-dfrow"><button type="button" class="dcl-dbtn ghost" data-dclose>Cancel</button>'
+        + '<button type="button" class="dcl-dbtn pri" id="ocSave">' + saveLabel() + "</button></div>";
+      var el = frame(title, fix ? (fix.at ? "Recorded " + esc(fmtAt(fix.at)) + (fix.by ? " by " + esc(short(fix.by)) : "") : "") : (inc ? "Into the drawer" : "Out of the drawer") + " · the open day", body, foot);
+      var q = function (s) { return el.querySelector(s); };
+      q("#ocAmt").value = st.vals.a; q("#ocParty").value = st.vals.p; q("#ocJob").value = st.vals.j; q("#ocNote").value = st.vals.n;
       function after() {
-        var amt = parseFloat(String(q("#ocAmt").value).replace(/[$,\s]/g, "")), how = q("#ocHow").value, el = q("#ocAfter");
-        if (!(amt > 0)) { el.innerHTML = ""; return; }
-        if (how !== "Cash") { el.textContent = how + " — listed with the day, the drawer doesn’t change."; return; }
+        var amt = parseFloat(String(st.vals.a).replace(/[$,\s]/g, "")), out = q("#ocAfter");
+        var notCashMsg = "<b>" + esc(st.how) + "</b> — listed with the day; the drawer doesn’t change.";
+        if (!(amt > 0)) { out.innerHTML = box("info", "Type the amount to see what it does to the drawer."); return; }
+        // a correction moves the drawer by the difference -- also when cash becomes Zelle (the cash
+        // goes back) or Zelle becomes cash
         if (fix) {
-          var d = signedCash(st.kind, how, amt) - signedCash(fix.kind, fix.method, fix.amount);
-          el.innerHTML = Math.abs(d) < 0.005 ? "The drawer doesn’t change." : "Moves the drawer by <b>" + (d > 0 ? "+" : "") + money2(d) + "</b> today."; return;
+          var dd = signedCash(st.kind, st.how, amt) - signedCash(fix.kind, fix.method, fix.amount);
+          out.innerHTML = Math.abs(dd) < 0.005 ? box("info", st.how !== "Cash" ? notCashMsg : "The drawer doesn’t change.")
+            : box(dd > 0 ? "in" : "out", "<span>Moves the drawer today by</span><b class=\"big\">" + (dd > 0 ? "+" : "−") + money2(Math.abs(dd)) + "</b>");
+          return;
         }
-        if (opt.mine == null) { el.innerHTML = (st.kind === "income" ? "Adds <b>" : "Takes <b>") + money2(amt) + "</b> " + (st.kind === "income" ? "to" : "from") + " your drawer."; return; }
-        el.innerHTML = "Your drawer after this: <b>" + money2(opt.mine + signedCash(st.kind, how, amt)) + "</b>";
+        if (st.how !== "Cash") { out.innerHTML = box("info", notCashMsg); return; }
+        var s = signedCash(st.kind, st.how, amt);
+        out.innerHTML = opt.mine == null
+          ? box(s > 0 ? "in" : "out", "<span>" + (s > 0 ? "Adds to your drawer" : "Takes from your drawer") + '</span><b class="big">' + money2(Math.abs(s)) + "</b>")
+          : box(s > 0 ? "in" : "out", '<span>Your drawer after this</span><b class="big">' + money2(opt.mine + s) + "</b><span>" + money2(opt.mine) + " now " + (s > 0 ? "+ " : "− ") + money2(Math.abs(s)) + "</span>");
       }
-      ["#ocAmt", "#ocHow"].forEach(function (s) { q(s).addEventListener("input", after); q(s).addEventListener("change", after); });
-      after();
-      m.querySelectorAll("[data-k]").forEach(function (b) { b.onclick = function () { st.vals = vals(); st.kind = b.getAttribute("data-k"); st.cat = ""; st.confirm = false; draw(); }; });
-      m.querySelectorAll("[data-cat]").forEach(function (b) {
-        b.onclick = function () { st.cat = b.getAttribute("data-cat"); m.querySelectorAll("[data-cat]").forEach(function (x) { x.classList.toggle("on", x === b); }); };
+      [["#ocAmt", "a"], ["#ocParty", "p"], ["#ocJob", "j"], ["#ocNote", "n"]].forEach(function (x) {
+        q(x[0]).addEventListener("input", function () { st.vals[x[1]] = q(x[0]).value; if (x[1] === "a") after(); });
       });
-      q("#ocCancel").onclick = function () { closeModal(back); };
+      ["#ocAmt", "#ocParty", "#ocJob"].forEach(function (s) { q(s).addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); q("#ocSave").click(); } }); });
+      after();
+      el.querySelectorAll("[data-k]").forEach(function (b) {
+        b.onclick = function () { if (st.kind === b.getAttribute("data-k")) return; st.kind = b.getAttribute("data-k"); st.cat = ""; st.confirm = false; view(); };
+      });
+      var pick = function (attr, key, then) {
+        el.querySelectorAll("[" + attr + "]").forEach(function (b) {
+          b.onclick = function () {
+            st[key] = b.getAttribute(attr);
+            el.querySelectorAll("[" + attr + "]").forEach(function (x) { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); });
+            if (then) then();
+          };
+        });
+      };
+      pick("data-how", "how", after); pick("data-cat", "cat");
       q("#ocSave").onclick = async function () {
         var btn = q("#ocSave"), msg = q("#ocMsg");
-        var amt = String(q("#ocAmt").value).replace(/[$,\s]/g, "");
-        if (!(parseFloat(amt) > 0)) { msg.innerHTML = '<div class="dcl-err">Type the amount.</div>'; q("#ocAmt").focus(); return; }
-        if (!st.cat) { msg.innerHTML = '<div class="dcl-err">Pick a category.</div>'; return; }
-        if (!q("#ocNote").value.trim()) { msg.innerHTML = '<div class="dcl-err">Write the reason.</div>'; q("#ocNote").focus(); return; }
-        var body = { action: fix ? "fix" : "add", id: fix ? fix.id : undefined, kind: st.kind, amount: amt, method: q("#ocHow").value,
-                     category: st.cat, party: q("#ocParty").value, job_code: q("#ocJob").value, note: q("#ocNote").value, confirm: st.confirm };
-        btn.disabled = true; msg.innerHTML = "";
+        var amt = String(st.vals.a).replace(/[$,\s]/g, "");
+        if (!(parseFloat(amt) > 0)) { msg.innerHTML = box("err", "Type the amount."); q("#ocAmt").focus(); return; }
+        if (!st.cat) { msg.innerHTML = box("err", "Pick a category."); return; }
+        if (!String(st.vals.n).trim()) { msg.innerHTML = box("err", "Write the reason."); q("#ocNote").focus(); return; }
+        var body = { action: fix ? "fix" : "add", id: fix ? fix.id : undefined, kind: st.kind, amount: amt, method: st.how,
+                     category: st.cat, party: st.vals.p, job_code: st.vals.j, note: st.vals.n, confirm: st.confirm };
+        btn.disabled = true; btn.textContent = "Saving…"; msg.innerHTML = "";
         try {
           await oc("", body);
-          closeModal(back); ocChanged();
+          closePanel(); ocChanged();
           if (opt.onSaved) opt.onSaved();
         } catch (e) {
+          if (!isOpen(view)) return;
           btn.disabled = false;
-          if (e.status === 409 && e.body && e.body.confirm) {
-            st.confirm = true;
-            msg.innerHTML = '<div class="dcl-warn">' + esc(e.message) + "</div>";
-            btn.textContent = "Record it anyway";
-          } else msg.innerHTML = '<div class="dcl-err">' + esc(e.message) + "</div>";
+          if (e.status === 409 && e.body && e.body.confirm) { st.confirm = true; msg.innerHTML = box("warn", esc(e.message)); }
+          else msg.innerHTML = box("err", esc(e.message));
+          btn.textContent = saveLabel();
         }
       };
-      setTimeout(function () { var a = q("#ocAmt"); if (a && !fix) a.focus(); }, 30);
+      if (st.first) { st.first = false; setTimeout(function () { var a = q("#ocAmt"); if (a && isOpen(view)) a.focus(); }, 60); }
     }
-    draw();
+    openPanel(view, push);
+    if (!st.meta) ocMeta().then(function (m) { st.meta = m; }, function (e) { st.err = e.message; }).then(function () { if (isOpen(view)) view(); });
   }
-  function withdrawOffice(line, onSaved) {
-    var back = modal('<div class="dcl-modal" role="dialog" aria-modal="true"><h3>Withdraw this ' + (line.kind === "income" ? "income" : "expense") + "?</h3>"
-      + "<p>" + esc(line.category) + " · " + money2(line.amount) + " · " + esc(line.note || "") + ". "
-      + (line.method && line.method !== "Cash" ? "It was not cash, so the drawer doesn’t change."
-         : line.kind === "income" ? "The " + money2(line.amount) + " comes out of the drawer today." : "The " + money2(line.amount) + " goes back into the drawer today.") + "</p>"
-      + '<div class="dcl-f one"><label>Why<input id="ocWhy" autocomplete="off" maxlength="300" placeholder="recorded twice"></label></div><div id="ocMsg"></div>'
-      + '<div class="dcl-act"><button class="dcl-btn" id="ocCancel">Cancel</button><button class="dcl-btn pri" id="ocGo">Withdraw</button></div></div>');
-    var q = function (s) { return back.querySelector(s); };
-    q("#ocCancel").onclick = function () { closeModal(back); };
-    setTimeout(function () { q("#ocWhy").focus(); }, 30);
-    q("#ocGo").onclick = async function () {
-      if (!q("#ocWhy").value.trim()) { q("#ocMsg").innerHTML = '<div class="dcl-err">Say why.</div>'; return; }
-      q("#ocGo").disabled = true;
-      try { await oc("", { action: "withdraw", id: line.id, note: q("#ocWhy").value }); closeModal(back); ocChanged(); if (onSaved) onSaved(); }
-      catch (e) { q("#ocGo").disabled = false; q("#ocMsg").innerHTML = '<div class="dcl-err">' + esc(e.message) + "</div>"; }
-    };
+
+  function withdrawOffice(line, onSaved, push) {
+    var inc = line.kind === "income", nc = line.method && line.method !== "Cash", why = "";
+    function view() {
+      var body = lineCard(line)
+        + '<div class="dcl-fld"><label class="dcl-flbl" for="ocWhy">Why it’s withdrawn</label><textarea class="dcl-ta" id="ocWhy" rows="2" maxlength="300" placeholder="recorded twice"></textarea></div>'
+        + (nc ? box("info", "It was not cash, so the drawer doesn’t change.")
+           : box(inc ? "out" : "in", "<span>" + (inc ? "Comes out of the drawer today" : "Goes back into the drawer today") + '</span><b class="big">' + (inc ? "−" : "+") + money2(+line.amount || 0) + "</b>"));
+      var foot = '<div id="ocMsg"></div><div class="dcl-dfrow"><button type="button" class="dcl-dbtn ghost" data-dclose>Cancel</button>'
+        + '<button type="button" class="dcl-dbtn danger fill" id="ocGo">Withdraw</button></div>';
+      var el = frame("Withdraw this " + (inc ? "income" : "expense"), "It stays in the list, crossed out", body, foot);
+      var w = el.querySelector("#ocWhy"); w.value = why;
+      w.addEventListener("input", function () { why = w.value; });
+      setTimeout(function () { if (isOpen(view)) w.focus(); }, 60);
+      el.querySelector("#ocGo").onclick = async function () {
+        var btn = this, msg = el.querySelector("#ocMsg");
+        if (!why.trim()) { msg.innerHTML = box("err", "Say why."); w.focus(); return; }
+        btn.disabled = true; btn.textContent = "Withdrawing…";
+        try { await oc("", { action: "withdraw", id: line.id, note: why }); closePanel(); ocChanged(); if (onSaved) onSaved(); }
+        catch (e) { if (!isOpen(view)) return; btn.disabled = false; btn.textContent = "Withdraw"; msg.innerHTML = box("err", esc(e.message)); }
+      };
+    }
+    openPanel(view, push);
+  }
+
+  // a line of the Expenses & income list: everything about it, and Edit / Withdraw when allowed
+  function openLine(l, onSaved) {
+    var inc = l.kind === "income", nc = l.method && l.method !== "Cash";
+    function view() {
+      var fact = function (k, v) { return "<dt>" + k + "</dt><dd>" + v + "</dd>"; };
+      var can = l.can_change && !l.withdrawn;
+      var body = lineCard(l) + '<dl class="dcl-facts">'
+        + fact("Recorded", esc(fmtAt(l.at)) + " by " + esc(short(l.by)))
+        + fact("In the drawer of", esc(short(l.drawer_of || l.by)) + (nc ? "<small>not cash: never in the drawer</small>" : ""))
+        + fact("How", esc(l.method || "Cash"))
+        + fact("Category", esc(l.category) + (l.is_cost ? "" : "<small>not a cost</small>"))
+        + fact(inc ? "Received from" : "Paid to", esc(l.party || "—"))
+        + fact("Job", esc(l.job_code || "—"))
+        + fact("Day", l.day ? esc(fmtDay(l.day)) + "<small>closed</small>" : "The open day")
+        + fact("Recorded in", l.source === "form" ? "The old Day Closing forms" : "The portal")
+        + fact("Status", l.withdrawn ? "Withdrawn" : l.corrected ? "Corrected — this is the newest version" : "As recorded") + "</dl>"
+        + (can ? "" : box("info", l.withdrawn ? "This line was withdrawn; it no longer counts."
+            : l.day ? "Its day has closed: only a Day Closing manager can change it now."
+            : "Only the person who recorded it or a Day Closing manager can change it."));
+      var foot = can
+        ? '<div class="dcl-dfrow"><button type="button" class="dcl-dbtn danger grow" id="ocLwd">Withdraw</button><button type="button" class="dcl-dbtn ghost" data-dclose>Close</button>'
+          + '<button type="button" class="dcl-dbtn pri" id="ocLfix">Edit</button></div>'
+        : CLOSE_FOOT;
+      var el = frame(inc ? "Other income" : "Expense", esc(fmtAt(l.at)) + " · " + esc(short(l.drawer_of || l.by)), body, foot);
+      var f = el.querySelector("#ocLfix"); if (f) f.onclick = function () { openOffice({ line: l, onSaved: onSaved }, true); };
+      var w = el.querySelector("#ocLwd"); if (w) w.onclick = function () { withdrawOffice(l, onSaved, true); };
+    }
+    openPanel(view);
+  }
+
+  // the category list (managers): turn one off, mark it "not a cost", add one
+  function openCats(onChange) {
+    var st = { meta: OCMETA.d, err: "", busy: false };
+    function view() {
+      if (!st.meta) { frame("Categories", "", st.err ? box("err", esc(st.err)) : '<div class="dcl-load">Loading…</div>', CLOSE_FOOT); return; }
+      var sec = function (kind, title) {
+        return '<section class="dcl-catsec"><h3>' + title + "</h3>" + (st.meta.categories || []).filter(function (c) { return c.kind === kind; }).map(function (c) {
+            return '<div class="dcl-catrow' + (c.is_on ? "" : " off") + '"><span class="nm">' + esc(c.name) + "</span>"
+              + (kind === "expense" ? '<button type="button" class="dcl-dbtn sm" data-ccost="' + c.id + '" data-v1="' + (c.is_cost ? 0 : 1) + '" title="'
+                  + (c.is_cost ? "Counted as a company cost. Click to make it not a cost." : "Moves the drawer but is not a company cost. Click to count it as a cost.") + '">'
+                  + (c.is_cost ? "A cost" : "Not a cost") + "</button>" : "")
+              + '<button type="button" class="dcl-dbtn sm ghost" data-con="' + c.id + '" data-v1="' + (c.is_on ? 0 : 1) + '">' + (c.is_on ? "Turn off" : "Turn on") + "</button></div>";
+          }).join("")
+          + '<div class="dcl-catadd"><input class="dcl-in" data-cnew="' + kind + '" placeholder="New ' + (kind === "income" ? "income" : "expense") + ' category" maxlength="60" aria-label="New '
+          + (kind === "income" ? "income" : "expense") + ' category">' + (kind === "expense" ? '<label><input type="checkbox" data-cnc="expense"> not a cost</label>' : "")
+          + '<button type="button" class="dcl-dbtn sm" data-cadd="' + kind + '">Add</button></div></section>';
+      };
+      var el = frame("Categories", "Managers only · a category turned off stays on the lines that use it",
+        (st.err ? box("err", esc(st.err)) : "") + sec("expense", "Expense categories") + sec("income", "Income categories"),
+        '<div class="dcl-dfrow"><button type="button" class="dcl-dbtn" data-dclose>Done</button></div>');
+      var run = async function (body) {
+        st.err = ""; el.querySelectorAll(".dcl-db button").forEach(function (b) { b.disabled = true; });
+        try { await oc("", body); st.meta = await ocMeta(true); if (onChange) onChange(); }
+        catch (e) { st.err = e.message; }
+        if (isOpen(view)) view();
+      };
+      el.querySelectorAll("[data-con]").forEach(function (b) { b.onclick = function () { run({ action: "cat_set", id: +b.getAttribute("data-con"), is_on: +b.getAttribute("data-v1") }); }; });
+      el.querySelectorAll("[data-ccost]").forEach(function (b) { b.onclick = function () { run({ action: "cat_set", id: +b.getAttribute("data-ccost"), is_cost: +b.getAttribute("data-v1") }); }; });
+      el.querySelectorAll("[data-cadd]").forEach(function (b) {
+        var kind = b.getAttribute("data-cadd"), inp = el.querySelector('[data-cnew="' + kind + '"]'), nc = el.querySelector('[data-cnc="' + kind + '"]');
+        var add = function () { if (inp.value.trim()) run({ action: "cat_add", kind: kind, name: inp.value, is_cost: nc && nc.checked ? 0 : 1 }); };
+        b.onclick = add;
+        inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); add(); } });
+      });
+    }
+    openPanel(view);
+    if (!st.meta) ocMeta().then(function (m) { st.meta = m; }, function (e) { st.err = e.message; }).then(function () { if (isOpen(view)) view(); });
   }
 
   // ---- the strip on top of Money Flow (and of Day Closing) -------------------------------
@@ -639,7 +860,9 @@
                  short: short, esc: esc, isNotCash: isNotCash, notCash: notCash, ncText: ncText, ncLine: ncLine,
                  // office cash (2026-10-28)
                  oc: oc, ocMeta: ocMeta, openOffice: openOffice, withdrawOffice: withdrawOffice, wireOcButtons: wireOcButtons,
-                 isOffice: isOffice };
+                 isOffice: isOffice,
+                 // the side panel (2026-10-28): a line's details, the category list
+                 openLine: openLine, openCats: openCats, closePanel: closePanel };
 })();
 
 /* DAY CLOSING IS A TAB OF MONEY FLOW (his ask, 2026-10-08). This registration stays: Money Flow
@@ -671,7 +894,7 @@ registerPage({
     if (!S.popen) S.popen = {};
     if (!S.oopen) S.oopen = {};
     // the Expenses & income list (2026-10-28): its month and filters survive a re-mount
-    var OC = S.oc || (S.oc = { month: "", kind: "all", cat: "", who: "", q: "", cats: false });
+    var OC = S.oc || (S.oc = { month: "", kind: "all", cat: "", who: "", q: "" });
     var ocData = null, ocErr = "";
     async function loadOc() {
       try { var r = await Z.oc(OC.month ? "?month=" + encodeURIComponent(OC.month) : ""); if (mine()) { ocData = r; OC.month = r.month; ocErr = ""; } }
@@ -798,7 +1021,7 @@ registerPage({
     // a day line -> the shape the dialog corrects (the line IS the current row in the open day)
     function lineAsEntry(l) {
       return { id: +l.src_id, kind: l.office_kind, amount: Math.abs(+(l.method ? l.amount : l.value) || 0), method: l.method || "Cash",
-               category: l.category, party: l.party, job_code: l.job_code, note: l.note };
+               category: l.category, party: l.party, job_code: l.job_code, note: l.note, at: l.at, by: l.recorded_by || l.by, source: l.source };
     }
     function fmRow(d, p, f) {
       var fk = d.key + "|" + (p ? p.person : "") + "|" + f.foreman, open = !!S.fopen[fk];
@@ -862,41 +1085,28 @@ registerPage({
         + '<select id="ocWho">' + opt("", "Everyone", !OC.who) + Object.keys(people).sort().map(function (p) { return opt(p, Z.short(p), OC.who === p); }).join("") + "</select>"
         + '<input class="dcl-q" id="ocQ" placeholder="Search a reason, a name or a job" value="' + esc(OC.q) + '" style="min-width:200px">'
         + '<span style="margin-left:auto;display:inline-flex;gap:6px"><button class="dcl-btn sm" data-ocnew="expense">− Expense</button><button class="dcl-btn sm" data-ocnew="income">+ Other income</button>'
-        + '<button class="dcl-btn sm" id="ocCsv">CSV</button>' + (data.me.manager ? '<button class="dcl-btn sm" id="ocCats">' + (OC.cats ? "Hide categories" : "Categories") + "</button>" : "") + "</span></div>";
+        + '<button class="dcl-btn sm" id="ocCsv">CSV</button>' + (data.me.manager ? '<button class="dcl-btn sm" id="ocCats">Categories</button>' : "") + "</span></div>";
       var kpis = '<div class="dcl-kpis">'
         + '<div class="dcl-kpi"><b>' + money(cashExp) + "</b><span>Cash expenses</span><small>out of the drawer</small></div>"
         + '<div class="dcl-kpi"><b>' + money(cashInc) + "</b><span>Other income</span><small>cash into the drawer</small></div>"
         + '<div class="dcl-kpi"><b>' + money(notCost) + "</b><span>Not a cost</span><small>Tbilisi office, bank deposits: in the expenses, not a company cost</small></div>"
         + '<div class="dcl-kpi"><b>' + money(nonCash) + "</b><span>Not cash</span><small>card, Zelle, bank: listed, never in the drawer</small></div></div>";
       var table = '<div class="dcl-card"><div class="dcl-wrap"><table class="dcl-tbl oclist">'
-        + '<colgroup><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:11%"><col style="width:19%"><col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:7%"><col style="width:11%"></colgroup>'
+        + '<colgroup><col style="width:12%"><col style="width:8%"><col style="width:16%"><col style="width:11%"><col style="width:20%"><col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:9%"><col style="width:3%"></colgroup>'
         + '<thead><tr><th>When</th><th>Who</th><th>Category</th><th>Paid to / from</th><th>Reason</th><th>Job</th><th>How</th><th class="r">Amount</th><th>Day</th><th class="r"></th></tr></thead><tbody>'
+        // a row opens the line in the side panel (2026-10-28): its details, Edit, Withdraw
         + (rows.length ? rows.map(function (l) {
-            var acts = l.can_change ? '<button class="dcl-btn sm" data-lfix="' + l.id + '">Edit</button> <button class="dcl-btn sm" data-lwd="' + l.id + '">Withdraw</button>' : "";
             var who = Z.short(l.drawer_of || l.by) + (String(l.by || "").toLowerCase() !== String(l.drawer_of || "").toLowerCase() ? ' <span class="dcl-meta">by ' + esc(Z.short(l.by)) + "</span>" : "");
-            return '<tr class="' + (l.withdrawn ? "wd" : "") + '"><td>' + esc(Z.fmtAt(l.at)) + "</td><td>" + who + "</td><td>"
+            return '<tr class="ocr' + (l.withdrawn ? " wd" : "") + '" data-lid="' + l.id + '" tabindex="0" title="Open this line"><td>' + esc(Z.fmtAt(l.at)) + "</td><td>" + who + "</td><td>"
               + '<span class="dcl-pill ' + (l.kind === "income" ? "inc" : "exp") + '" style="margin:0 6px 0 0">' + (l.kind === "income" ? "in" : "out") + "</span>" + esc(l.category)
               + (l.is_cost ? "" : ' <span class="dcl-meta">not a cost</span>') + "</td><td>" + esc(l.party || "—") + '</td><td class="why">' + esc(l.note || "")
               + (l.corrected ? ' <span class="dcl-meta">corrected</span>' : "") + (l.source === "form" ? ' <span class="dcl-meta">old form</span>' : "") + "</td><td>" + esc(l.job_code || "—")
               + "</td><td>" + (l.method === "Cash" ? "Cash" : '<span class="dcl-pill nc" style="margin:0">' + esc(l.method) + "</span>") + '</td><td class="r ' + (l.withdrawn ? "" : l.kind === "income" ? "dcl-pos" : "dcl-neg") + '">'
-              + (l.kind === "income" ? "" : "−") + money2(l.amount) + "</td><td>" + (l.day ? esc(Z.fmtDay(l.day).replace(/, \d{4}$/, "")) : '<span class="dcl-pill open" style="margin:0">open</span>') + '</td><td class="r">' + acts + "</td></tr>";
+              + (l.kind === "income" ? "" : "−") + money2(l.amount) + "</td><td>" + (l.day ? esc(Z.fmtDay(l.day).replace(/, \d{4}$/, "")) : '<span class="dcl-pill open" style="margin:0">open</span>') + '</td><td class="r"><span class="dcl-chev" aria-hidden="true">›</span></td></tr>';
           }).join("") : '<tr><td colspan="10" style="color:var(--faint);padding:18px">Nothing recorded in ' + esc(label) + (OC.kind !== "all" || OC.cat || OC.who || OC.q ? " that matches" : "") + ".</td></tr>")
-        + '</tbody></table></div><div class="dcl-note">Each line sits in the drawer of whoever recorded it. Edit or withdraw a line while its day is open; once the day has closed only a Day Closing manager can, and the change counts in today’s drawer. '
+        + '</tbody></table></div><div class="dcl-note">Click a line to see it, edit it or withdraw it. Each line sits in the drawer of whoever recorded it. Edit or withdraw a line while its day is open; once the day has closed only a Day Closing manager can, and the change counts in today’s drawer. '
         + "Lines marked “old form” came from the old Day Closing System’s Expense / Other Revenue forms.</div></div>";
-      return bar + (OC.cats && data.me.manager ? catsHtml() : "") + kpis + table;
-    }
-    function catsHtml() {
-      var box = function (kind, title) {
-        return '<div class="box"><div class="dcl-oclbl">' + title + "</div>" + (ocData.categories || []).filter(function (c) { return c.kind === kind; }).map(function (c) {
-            return '<div class="row' + (c.is_on ? "" : " off") + '"><span>' + esc(c.name) + "</span>"
-              + (kind === "expense" ? '<button class="dcl-btn sm" data-ccost="' + c.id + '" data-v1="' + (c.is_cost ? 0 : 1) + '">' + (c.is_cost ? "a cost" : "not a cost") + "</button>" : "")
-              + '<button class="dcl-btn sm" data-con="' + c.id + '" data-v1="' + (c.is_on ? 0 : 1) + '">' + (c.is_on ? "Turn off" : "Turn on") + "</button></div>";
-          }).join("")
-          + '<div class="row"><input class="dcl-q" data-cnew="' + kind + '" placeholder="New ' + (kind === "income" ? "income" : "expense") + ' category" style="min-width:0;max-width:none">'
-          + (kind === "expense" ? '<label style="font-size:12px;white-space:nowrap"><input type="checkbox" data-cnc="expense"> not a cost</label>' : "")
-          + '<button class="dcl-btn sm" data-cadd="' + kind + '">Add</button></div></div>';
-      };
-      return '<div class="dcl-cats">' + box("expense", "Expense categories") + box("income", "Income categories") + "</div>";
+      return bar + kpis + table;
     }
     function wireOffice() {
       var root = $b();
@@ -907,9 +1117,12 @@ registerPage({
       var q = root.querySelector("#ocQ");
       if (q) q.oninput = function () { OC.q = q.value; var p = q.selectionStart; paint(); var n = host.querySelector("#ocQ"); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) { /* best effort */ } } };
       var byId = function (id) { return (ocData.lines || []).filter(function (l) { return String(l.id) === String(id); })[0]; };
-      root.querySelectorAll("[data-lfix]").forEach(function (b) { b.onclick = function () { var l = byId(b.getAttribute("data-lfix")); if (l) Z.openOffice({ line: l }); }; });
-      root.querySelectorAll("[data-lwd]").forEach(function (b) { b.onclick = function () { var l = byId(b.getAttribute("data-lwd")); if (l) Z.withdrawOffice(l); }; });
-      var cb = root.querySelector("#ocCats"); if (cb) cb.onclick = function () { OC.cats = !OC.cats; paint(); };
+      root.querySelectorAll("tr[data-lid]").forEach(function (tr) {
+        var open = function () { var l = byId(tr.getAttribute("data-lid")); if (l) Z.openLine(l); };
+        tr.onclick = open;
+        tr.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+      });
+      var cb = root.querySelector("#ocCats"); if (cb) cb.onclick = function () { Z.openCats(again); };
       var csv = root.querySelector("#ocCsv");
       if (csv) csv.onclick = function () {
         var cell = function (v) { v = v == null ? "" : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
@@ -922,16 +1135,6 @@ registerPage({
         var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "office-cash-" + OC.month + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       };
-      var cat = async function (body) { try { await Z.oc("", body); await Z.ocMeta(true); await again(); } catch (e) { alert(e.message); } };
-      root.querySelectorAll("[data-con]").forEach(function (b) { b.onclick = function () { cat({ action: "cat_set", id: +b.getAttribute("data-con"), is_on: +b.getAttribute("data-v1") }); }; });
-      root.querySelectorAll("[data-ccost]").forEach(function (b) { b.onclick = function () { cat({ action: "cat_set", id: +b.getAttribute("data-ccost"), is_cost: +b.getAttribute("data-v1") }); }; });
-      root.querySelectorAll("[data-cadd]").forEach(function (b) {
-        b.onclick = function () {
-          var kind = b.getAttribute("data-cadd"), inp = root.querySelector('[data-cnew="' + kind + '"]'), nc = root.querySelector('[data-cnc="' + kind + '"]');
-          if (!inp || !inp.value.trim()) return;
-          cat({ action: "cat_add", kind: kind, name: inp.value, is_cost: nc && nc.checked ? 0 : 1 });
-        };
-      });
     }
 
     // ---- the period report's page --------------------------------------------------------
