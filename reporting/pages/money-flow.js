@@ -3229,7 +3229,8 @@ registerPage({
           ])
           + h4("The words on the strip and in the table")
           + defs([
-            [q("in the drawer"), "What should be in the drawer: the cash that came in, less the cash paid out."],
+            [q("in the drawer"), "What should be in the drawer: the cash that came in, less the cash paid out, plus other income, less expenses (part 13)."],
+            [q("other income"), "Cash into the drawer that isn’t a job, and " + q("expenses") + ": cash the office paid out (part 13)."],
             [q("cash in"), "Cash brought to the base."],
             [q("paid out"), "Cash the base paid to foremen from the drawer."],
             [q("advances given"), "Cash handed to foremen as advances."],
@@ -3285,6 +3286,25 @@ registerPage({
           ].map(function (m) {
             return '<div class="mf-hmrow" role="row"><span class="mf-hmsg" role="cell">' + m[0] + '</span><span role="cell">' + m[1] + '</span><span role="cell">' + m[2] + "</span></div>";
           }).join("") + "</div>" },
+
+        // OFFICE CASH (2026-10-28): the old Day Closing System's Expense / Other Revenue forms, now
+        // recorded from the Day Closing strip (pages/day-closing.js). Last, so no part number moves.
+        { id: "mfHowOffice", icon: HI.card, title: "Expenses and other income", body:
+          p("Money the drawer pays or takes that <b>isn’t a job</b>: salaries, cash sent to the Tbilisi office, a towing bill, cleaning, a payroll check a worker cashed and handed back. "
+            + "It used to go in the old Expense Accounting and Other Revenue forms. Record it here instead.")
+          + steps([
+            "On the strip at the top press " + k("− Expense") + " (money out) or " + k("+ Other income") + " (money in).",
+            "Type the amount and pick how it was paid. <b>Cash</b> comes from (or goes into) your drawer. Card, Zelle or Bank are listed with the day but don’t change the drawer.",
+            "Pick a category, say who it was paid to or received from, add the job if there is one, and write the reason.",
+            "Press " + k("Save expense", "acc") + ". The strip shows it at once, in <b>your</b> drawer.",
+          ])
+          + list([
+            "To fix a line: " + k("Day Closing") + " tab → " + k("Expenses & income") + " → " + k("Edit") + ", or " + k("Withdraw") + " to cancel it. The drawer moves by the difference, today.",
+            "Once a day has closed, only a Day Closing manager can edit or withdraw its lines.",
+            "<b>Tbilisi office</b> and <b>Bank deposit</b> leave the drawer but are marked <b>not a cost</b>: they are moved money, not company spending.",
+            "A job’s own extra costs that the <b>foreman</b> paid are not office expenses: add them on the job as a Job expense (part 9).",
+          ])
+          + tip("The same amount in the same category twice within 10 minutes, or an expense that matches a Job expense on that job, asks " + q("Record it again?") + " first: it is usually the same money twice.", true) },
       ];
 
       var nav = '<nav class="mf-hnav" aria-label="Contents"><span class="mf-hnavt">Contents</span><ol>'

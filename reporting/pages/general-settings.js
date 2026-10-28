@@ -73,6 +73,11 @@ registerPage({
         p: "Step 1, at calendar load: the LEFT address is recorded as the RIGHT one — the address the fleet/closing world uses. (A person can have two addresses; this and the next map translate between the sheets that disagree about which one is 'his'. They run at different steps, so they do not conflict.)",
         kind: "pairs",
       },
+      day_closing_email_to: {
+        t: "Day Closing email",
+        p: "Who gets the day's report when the day closes itself at 8:00 PM New York: the cash in, paid out, other income, expenses and what is in the drawer, with the day sheet attached. Empty = no email. It replaced the old Day Closing System's 7 AM email.",
+        kind: "emails",
+      },
       foreman_translator_corrections: {
         t: "Foreman translator corrections",
         p: "Step 2, inside Money Flow only: applied right before the ForFormulas translator lookup, because that sheet may list the person under the other address. Once the old Net Cash sheet is retired, aligning the sheets on one address makes both maps deletable.",
