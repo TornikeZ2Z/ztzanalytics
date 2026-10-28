@@ -55,6 +55,10 @@
  *   * REDDIT ADS (ext_reddit_ads_day, 2026-10-23): spend, impressions, clicks per campaign, GMT days.
  *     The bank's Reddit total is more than this account (an agency fee and other charges), so the
  *     Channels table keeps the bank and this panel is the account's own figures.
+ *   * LINKEDIN (ext_linkedin_ads_day + ext_linkedin_page_day, 2026-10-28): the ad account 551791282
+ *     per campaign, UTC days, and the Company Page (followers, page views, post statistics). The
+ *     bank files LinkedIn as not advertising, so the Channels table has no LinkedIn spend; the cost
+ *     per booking is the account's spend over LinkedIn's bookings (marked ‡).
  *   * COST PER BOOKING on every platform (2026-10-23, the marketing team), and per Google Ads campaign:
  *     bookings traced by the form's UTM campaign or the campaign's CallRail number
  *     (mart_mkt_campaign_lead), the rest on one "not traced" row; coloured against $600.
@@ -76,7 +80,7 @@
  *     no connector keep a row with the bank's spend), Google Ads spend and conversions over time,
  *     and every channel.
  *   * PAID ADS -- the four platform panels above, each carrying the metrics his team listed, plus a
- *     card per platform not connected yet (Reddit, Nextdoor, LinkedIn, TikTok).
+ *     card per platform not connected yet (TikTok; Nextdoor's connector was dropped 2026-10-28).
  *   * SEARCH AND SEO -- Search Console (ext_gsc_site_day, the monthly query mart), Ahrefs and
  *     BrightLocal's weekly rank reports (ext_brightlocal_rank, src/brightlocal_api.py).
  *   * WEBSITE -- GA4: active users, engagement time, bounce rate, sources, locations (the month x
@@ -192,6 +196,12 @@
     // 2026-10-23: Reddit Ads per campaign-day (src/reddit_ads.py), the account's own figures
     mkt_reddit: { table: "ext_reddit_ads_day", cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks",
                                                       "Spend", "Conversions"] },
+    // 2026-10-28: LinkedIn per campaign-day and the Company Page per day (src/linkedin_ads.py)
+    mkt_li: { table: "ext_linkedin_ads_day", cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks",
+                                                    "Landing Page Clicks", "Spend", "Leads", "Conversions"] },
+    mkt_lipage: { table: "ext_linkedin_page_day", cols: ["Date", "Followers Gained", "Paid Followers Gained",
+                                                         "Page Views", "Post Impressions", "Post Clicks",
+                                                         "Post Reactions", "Post Comments", "Post Shares", "Followers"] },
     // 2026-10-23: the citation map (Ahrefs, weekly) and Google bookings traced to a campaign
     mkt_refdom: { table: "ext_ahrefs_refdomain", cols: ["Domain", "Domain Rating", "Is Spam", "Dofollow Links", "Links",
                                                         "First Seen", "Last Seen"] },
@@ -267,7 +277,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -862,6 +872,25 @@
       cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), conv: num(r.Conversions) }));
     const c = D.conn.find(r => r.Key === "reddit"), pulled = c && c["Newest Data"] ? d10(c["Newest Data"]) : null;
     if (P.first.reddit && pulled && pulled > P.last.reddit) P.last.reddit = pulled;
+  }
+  // LinkedIn (2026-10-28): the ads report only days that ran, like Reddit, so they run through the
+  // last pull; the Page reports every day, with the follower total on the days a pull saw it
+  function indexLinkedIn(ads, page) {
+    indexPlat("li", ads, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: (r.Campaign || "").trim() || "(no name)",
+      cost: num(r.Spend), imp: num(r.Impressions), clk: num(r.Clicks), lp: num(r["Landing Page Clicks"]),
+      conv: num(r.Leads) + num(r.Conversions) }));
+    const c = D.conn.find(r => r.Key === "linkedin"), pulled = c && c["Newest Data"] ? d10(c["Newest Data"]) : null;
+    if (P.first.li && pulled && pulled > P.last.li) P.last.li = pulled;
+    indexPlat("lip", page, r => ({ d: d10(r.Date), gain: num(r["Followers Gained"]) + num(r["Paid Followers Gained"]),
+      views: num(r["Page Views"]), imp: num(r["Post Impressions"]), clk: num(r["Post Clicks"]),
+      eng: num(r["Post Reactions"]) + num(r["Post Comments"]) + num(r["Post Shares"]),
+      fol: r.Followers == null || r.Followers === "" ? null : num(r.Followers), cost: 0 }));
+  }
+  // the Page's follower total at the end of day `d`: the newest total a pull saw, less the gains after d
+  function followersAt(d) {
+    const snap = P.lip.filter(r => r.fol != null).reduce((a, r) => (!a || r.d > a.d ? r : a), null);
+    if (!snap) return null;
+    return snap.fol - P.lip.filter(r => r.d > d && r.d <= snap.d).reduce((s, r) => s + r.gain, 0);
   }
   function indexPlatforms(ads, lsaC, lsaL, meta, gpt) {
     indexPlat("ads", ads, r => ({ d: d10(r.Date), id: r["Campaign Id"], name: r.Campaign || "(no name)",
@@ -1779,6 +1808,111 @@
     } };
   }
 
+  /* LinkedIn (2026-10-28): the ad account's own figures and the Company Page. The bank files LinkedIn
+     as not advertising, so the Channels table has no LinkedIn spend and the cost per booking here is
+     the account's spend over the bookings filed under LinkedIn (‡). */
+  function linkedinSection(w, cw) {
+    const pw = platWin("li", w, cw);
+    const head = platHead("li", "LinkedIn", "Campaign Manager · UTC days", pw);
+    const page = linkedinPage(w, cw);
+    const rows = pw ? inRange(P.li, pw.a, pw.b) : [];
+    const gate = platGate("LinkedIn Ads", "li", pw, rows);
+    const ran = P.li.filter(r => r.cost > 0 && (!pw || r.d < pw.a)).reduce((a, r) => (r.d > a ? r.d : a), "");
+    if (gate) {
+      const msg = ran && /activity in this period/.test(gate)
+        ? '<div class="mko-empty">No LinkedIn Ads spend in this period: the account last spent on ' + esc(day(ran))
+          + ". The pull still runs daily, so new spend shows up the day after it happens.</div>" : gate;
+      return { html: head + msg + page.html, wire: page.wire };
+    }
+    const cmp = pw.cw ? inRange(P.li, pw.cw.a, pw.cw.b) : null;
+    const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
+    const lp = sum(rows, "lp"), lpPrev = cmp ? sum(cmp, "lp") : undefined;
+    const tracked = P.li.some(r => r.conv > 0);
+    const f = famStat("LinkedIn", pw.a, pw.b);
+    const cpb = f && f.cBooked && cur.cost ? cur.cost / f.cBooked : null;
+    const list = groupBy(rows, r => r.id).map(x => {
+      const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
+      const days = x.rows.map(r => r.d).sort();
+      return Object.assign({ name: last.name, from: days[0], to: days[days.length - 1], lp: sum(x.rows, "lp") },
+                           clickStats(x.rows));
+    }).filter(x => x.cost || x.imp).sort((a, b) => (a.to < b.to ? 1 : -1));
+    const cols = [
+      { h: "Campaign", name: true, cell: r => esc(r.name) + '<div class="mko-sub">' + esc(shortDay(r.from))
+          + (r.to !== r.from ? " – " + esc(shortDay(r.to)) : "") + "</div>" },
+      { h: "Spend", num: true, cell: r => money0(r.cost) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => fmtN(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "To site", num: true, tip: "landing-page clicks: clicks that reached the website", cell: r => fmtN(r.lp) },
+      { h: "CTR", num: true, cell: r => pct2(r.ctr) },
+      { h: "CPC", num: true, cell: r => cents(r.cpc) },
+      { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
+    ];
+    const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
+      + "Why the Channels table has no LinkedIn spend</span></div><div class=\"mko-nm\">"
+      + "<p>The bank files LinkedIn under Marketing Related, not advertising, so its charges never reach "
+      + "the Channels table. This panel is the ad account alone (opened 2 Jul 2026); its August spend "
+      + "ties to the bank's $100.00 charge. The bank's Mar – Jun 2026 LinkedIn charges came before this "
+      + "account and are not in it.</p>"
+      + "<p>Clicks count every click on an ad (likes, the company name, “see more”); "
+      + "<b>to site</b> is the clicks that reached the website.</p></div></div>";
+    const sum0 = Object.assign({ name: "All campaigns", lp }, cur);
+    const html = head
+      + '<div class="rs-kpis" id="mkoK-li"></div>' + noCmpHint("LinkedIn Ads", pw)
+      + '<div class="mko-g2"><div id="mkoC-li"></div>' + note + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
+      + '<span class="mko-sub">newest first</span></div>'
+      + ptable(cols, list, list.length > 1 ? sum0 : null) + "</div>" + page.html;
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-li"), [
+        kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+        kp("Clicks", cur.clk, prev.clk, fmtN, false, "", pw),
+        kp("To site", lp, lpPrev, fmtN, false, "clicks that reached the website", pw),
+        kp("CTR", cur.ctr, prev.ctr, pct2, false, "clicks ÷ impressions", pw),
+        kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
+        kp("Avg CPM", cur.cpm, prev.cpm, cents, true, "spend per 1,000 impressions", pw),
+        kp("Spend", cur.cost, prev.cost, money, null, "the ad account only", pw),
+        tracked ? kp("Leads", sum(rows, "conv"), cmp ? sum(cmp, "conv") : undefined, fmtN, false,
+                     "lead forms + website conversions", pw)
+          : { label: "Leads", value: '<span class="mko-cov">not measured</span>',
+              sub: "no lead form or Insight Tag conversion set up" },
+        { label: "Cost per booking", value: cpb != null ? money0(cpb) + "‡" : "—",
+          sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " LinkedIn leads · ‡ the ad account's spend"
+            : "our side" },
+      ]);
+      costCard(host.querySelector("#mkoC-li"), "li", "Spend", pw, rows, cmp, null);
+      if (page.wire) page.wire(host);
+    } };
+  }
+  /* the Company Page: followers, page views and what its posts reached, for the same period */
+  function linkedinPage(w, cw) {
+    const pw = platWin("lip", w, cw);
+    const head = platHead("lip", "LinkedIn Company Page", "Zip To Zip Moving · organic and boosted posts", pw);
+    const rows = pw ? inRange(P.lip, pw.a, pw.b) : [];
+    const gate = platGate("LinkedIn Page", "lip", pw, rows.length ? [{ n: 1 }] : []);
+    if (gate) return { html: head + gate, wire: null };
+    const cmp = pw.cw ? inRange(P.lip, pw.cw.a, pw.cw.b) : null;
+    const s = rs => ({ gain: sum(rs, "gain"), views: sum(rs, "views"), imp: sum(rs, "imp"), clk: sum(rs, "clk"),
+                       eng: sum(rs, "eng") });
+    const cur = s(rows), prev = cmp ? s(cmp) : {};
+    const rate = x => (x.imp ? (x.clk + x.eng) / x.imp : null);
+    const end = followersAt(pw.b);
+    return {
+      html: head + '<div class="rs-kpis" id="mkoK-lip"></div>',
+      wire(host) {
+        RSC.kpis(host.querySelector("#mkoK-lip"), [
+          { label: "Followers", value: end == null ? "—" : fmtN(end),
+            sub: "at " + day(pw.b) + (end != null ? " · " + (cur.gain >= 0 ? "+" : "") + fmtN(cur.gain) + " in the period" : "") },
+          kp("New followers", cur.gain, prev.gain, fmtN, false, "", pw),
+          kp("Page views", cur.views, prev.views, fmtN, false, "", pw),
+          kp("Post impressions", cur.imp, prev.imp, fmtN, false, "", pw),
+          kp("Post clicks", cur.clk, prev.clk, fmtN, false, "", pw),
+          kp("Engagement rate", rate(cur), cmp ? rate(prev) : undefined, pct2, false,
+             "clicks, reactions, comments and shares ÷ impressions", pw),
+        ]);
+      },
+    };
+  }
+
   /* ChatGPT per ad, with the ad's own words: "Ad 1" / "Ad 2" say nothing by themselves */
   function gptAdsHtml(pw) {
     if (P.err.gptad) return "";
@@ -1834,13 +1968,13 @@
       + "charged, what it showed and what it counts as a result, with the metrics your team tracks.</p>";
     if (S.co === "Tuji") {
       return { html: head + '<div class="panel"><div class="mko-nm">Every live ad account here (Google '
-        + "Ads, Local Services, Meta, ChatGPT, Reddit) is Zip to Zip's. Tuji has none: its spend reaches us "
+        + "Ads, Local Services, Meta, ChatGPT, Reddit, LinkedIn) is Zip to Zip's. Tuji has none: its spend reaches us "
         + "through the bank ledger only, in the Overview's channel table. Pick Zip to Zip or Both "
         + "companies to see the platforms.</div></div>", wire() {} };
     }
     const parts = [["ads", "Google Ads", adsSection], ["lsa", "Local Services", lsaSection],
                    ["meta", "Meta", metaSection], ["gpt", "ChatGPT Ads", gptSection],
-                   ["reddit", "Reddit Ads", redditSection]]
+                   ["reddit", "Reddit Ads", redditSection], ["li", "LinkedIn", linkedinSection]]
       .map(([k, name, fn]) => Object.assign({ k, name }, fn(w, cw)));
     const nav = '<div class="mko-pnav"><span>Jump to:</span>' + parts.map(p =>
       '<button type="button" data-go="mkoP-' + p.k + '">' + esc(p.name) + "</button>").join("") + "</div>";
@@ -1914,9 +2048,11 @@
 
   /* --- the platform scoreboard: each ad platform's own claim beside what we booked from it --- */
   const AD_PLATFORMS = [["ads", "Google Ads", "Google"], ["lsa", "Local Services", "Google Local"],
-                        ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"], ["reddit", "Reddit Ads", "Reddit"]];
+                        ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"], ["reddit", "Reddit Ads", "Reddit"],
+                        ["li", "LinkedIn Ads", "LinkedIn"]];
   // the ad platforms with no connector yet, and the family their leads are filed under
-  const OFF_ADS = { nextdoor: "Nextdoor", linkedin: "LinkedIn", tiktok: "TikTok" };
+  // (Nextdoor's connector was dropped 2026-10-28: its spend and leads stay in the Channels table)
+  const OFF_ADS = { tiktok: "TikTok" };
   const OFF_KEYS = { tiktok: "parked" };
   function scoreRows(w) {
     const out = [];
@@ -1935,11 +2071,15 @@
           if (k === "ads") o.says = fmtN(sum(rows, "conv")) + " conversions";
           if (k === "meta") { const m = metaResult(rows); o.says = m ? compact(m.top.res) + " " + metaKind(m.top.k) : "no result"; }
           if (k === "gpt" || k === "reddit") o.says = P[k].some(r => r.conv > 0) ? fmtN(sum(rows, "conv")) + " conversions" : "not measured";
+          if (k === "li") o.says = P.li.some(r => r.conv > 0) ? fmtN(sum(rows, "conv")) + " leads" : "not measured";
         }
       }
       const f = famStat(fam, w.a, w.bEff);
       Object.assign(o, { leads: f ? f.leads : 0, booked: f ? f.booked : 0, cpb: f ? f.cpb : null,
                          thin: !f || f.cBooked < THIN, uncov: !!(f && f.uncov) });
+      // LinkedIn has no spend in the Channels table (the bank files it as not advertising): its cost
+      // per booking is the ad account's spend over the bookings filed under LinkedIn
+      if (k === "li") o.cpb = f && f.cBooked && o.spend ? o.spend / f.cBooked : null;
       out.push(o);
     });
     D.conn.filter(r => OFF_ADS[r.Key] && r.Connection === "Not connected").forEach(r => {
@@ -1965,7 +2105,7 @@
       + '<td class="mko-num mko-ours">' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</td>"
       + '<td class="mko-num mko-ours">' + fmtN(r.booked) + "</td>"
       + '<td class="mko-num mko-ours"><b>' + (r.live && r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
-        + (r.k === "reddit" ? "†" : "") : "—") + "</b></td></tr>";
+        + (r.k === "reddit" ? "†" : r.k === "li" ? "‡" : "") : "—") + "</b></td></tr>";
     return '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr>'
       + "<th>Platform</th>"
       + '<th class="mko-num">Spend</th><th class="mko-num" title="impressions">Impr.</th>'
@@ -1978,7 +2118,8 @@
       + '<p class="rs-hint">Platforms with no connector yet show what the bank ledger paid them this '
       + "year, so they stay on the board. * ChatGPT leads include visitors from chatgpt.com answers. "
       + "† Reddit's cost per booking is the Channels table's: the bank's Reddit total, which is more than "
-      + "the ad account (an agency fee and other charges).</p>";
+      + "the ad account (an agency fee and other charges). ‡ LinkedIn's is the ad account's spend: the "
+      + "bank files LinkedIn as not advertising, so the Channels table has none.</p>";
   }
   // cost per booking, one bar per live platform, cheapest first; the dearest is drawn red when it
   // costs at least 1.8 times the cheapest, a thin sample is drawn faint
@@ -4003,10 +4144,11 @@
         plat("mkt_ahuse", "ahuse"), plat("mkt_ahquota", "ahquota"),
         plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
         plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
+        plat("mkt_li", "li"), plat("mkt_lipage", "lip"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
-                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse]) => {
+                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -4015,6 +4157,7 @@
         indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, gscqd, gscpd });
         indexMarks(marks);
         indexReddit(reddit);
+        indexLinkedIn(li, lip);
         indexBatch3({ refdom, anchor, ctrace });
         indexBrandRadar({ brans, brmen, brcit });
         indexAhrefsUsage({ ahuse, ahquota });
