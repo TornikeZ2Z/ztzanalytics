@@ -1828,7 +1828,8 @@
     const cur = clickStats(rows), prev = cmp ? clickStats(cmp) : {};
     const lp = sum(rows, "lp"), lpPrev = cmp ? sum(cmp, "lp") : undefined;
     const tracked = P.li.some(r => r.conv > 0);
-    const f = famStat("LinkedIn", pw.a, pw.b);
+    // the lead family is filed "Linkedin" (small i), as the source mart spells it
+    const f = famStat(LI_FAM, pw.a, pw.b);
     const cpb = f && f.cBooked && cur.cost ? cur.cost / f.cBooked : null;
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
@@ -2047,9 +2048,10 @@
   }
 
   /* --- the platform scoreboard: each ad platform's own claim beside what we booked from it --- */
+  const LI_FAM = "Linkedin";          // mart_source_lead.Family, spelled as the source mapping writes it
   const AD_PLATFORMS = [["ads", "Google Ads", "Google"], ["lsa", "Local Services", "Google Local"],
                         ["meta", "Meta", "Meta"], ["gpt", "ChatGPT Ads", "ChatGPT"], ["reddit", "Reddit Ads", "Reddit"],
-                        ["li", "LinkedIn Ads", "LinkedIn"]];
+                        ["li", "LinkedIn Ads", LI_FAM]];
   // the ad platforms with no connector yet, and the family their leads are filed under
   // (Nextdoor's connector was dropped 2026-10-28: its spend and leads stay in the Channels table)
   const OFF_ADS = { tiktok: "TikTok" };
