@@ -240,12 +240,16 @@
 (() => {
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const LS_PERIOD = "mkoPeriod", LS_CMP = "mkoCmp", LS_TAB = "mkoTab";
-  const TABS = [["ov", "Overview"], ["paid", "Paid ads"], ["seo", "Search and SEO"], ["web", "Website"],
-                ["rev", "Reviews"], ["set", "Settings"]];
-  // the Search and SEO tab's topics (2026-10-23, his pick: topic tabs), the last one remembered
-  const SEO_TOPICS = [["ov", "Overview"], ["kw", "Keywords and pages"], ["blog", "Blog"],
-                      ["links", "Backlinks and citations"], ["ai", "AI visibility"], ["onpage", "On-page"],
-                      ["local", "Local rankings"]];
+  // THE MARKETING DASHBOARD (2026-10-29, his "beautiful redesign … imagine yourself as marketer"):
+  // one tab per question a marketer asks. Settings left the tab bar: the "Data sources" pill in the
+  // header opens it (S.tab "set"); Reviews became Reputation; Social & content is new.
+  const TABS = [["ov", "Overview"], ["paid", "Paid ads"], ["seo", "Search & SEO"], ["web", "Website"],
+                ["rev", "Reputation"], ["soc", "Social & content"]];
+  // the Search and SEO tab's topics (2026-10-23, his pick: topic tabs), the last one remembered.
+  // "Searches and demand" is the Organic Search page itself, hosted here since 2026-10-29.
+  const SEO_TOPICS = [["ov", "Overview"], ["demand", "Searches and demand"], ["kw", "Keywords and pages"],
+                      ["blog", "Blog"], ["links", "Backlinks and citations"], ["ai", "AI answers"],
+                      ["onpage", "Site health"], ["local", "Local rankings"]];
   const LS_SEO = "mkoSeoTopic";
   // Google's conversion categories that are a lead; everything else (YouTube follow-on views,
   // engagement, page views) is counted apart
@@ -510,7 +514,155 @@
       + "body.rs-app.light.v2 .mko .mko-track i.bad{background:#B42318}"
       + "body.rs-app.light.v2 .mko .mko-rk.top{color:#17733F}"
       + "body.rs-app.light.v2 .mko .mko-share i{background:#3F7D20}"
-      + "body.rs-app.light.v2 .mko .mko-d{font-weight:600}";
+      + "body.rs-app.light.v2 .mko .mko-d{font-weight:600}"
+      /* THE MARKETING DASHBOARD LOOK (2026-10-29): soft 16px cards, a pill tab bar, KPI tiles with a
+         12-month spark, tagged action cards, month bars and a cost-per-booking bar in the table.
+         Theme variables first (dark works), the green identity on the light theme. Colour, radius
+         and type only on the kit's own classes (.panel): never padding (the v2 trap). */
+      + ".mkd{display:flex;flex-direction:column;gap:18px}"
+      + ".mkd #mkoBody{display:flex;flex-direction:column;gap:18px}"
+      + ".mkd #mkoBody>.panel,.mkd #mkoBody .mkd-sec>.panel{margin:0}"
+      + ".mkd .mkd-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}"
+      + ".mkd .mkd-title{min-width:0}"
+      + ".mkd .mkd-eye{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--brand)}"
+      + ".mkd .mkd-head h1{margin:2px 0 0;font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--ink)}"
+      + ".mkd .mkd-head p{margin:4px 0 0;font-size:14px;color:var(--muted);line-height:1.45}"
+      + ".mkd .mkd-acts-r{display:flex;flex-wrap:wrap;gap:10px;align-items:center}"
+      + ".mkd .mkd-pill{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:999px;"
+      + "border:1px solid var(--line);background:var(--panel);font:inherit;font-size:13px;color:var(--ink);cursor:pointer}"
+      + ".mkd .mkd-pill i{width:8px;height:8px;border-radius:50%;background:var(--pos)}"
+      + ".mkd .mkd-pill.warn i{background:var(--amber,#B7791F)}"
+      + ".mkd .mkd-pill:hover{border-color:var(--muted)}"
+      + ".mkd .mkd-btn{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);"
+      + "color:var(--panel);font:inherit;font-size:13px;font-weight:600;cursor:pointer}"
+      + ".mkd .mkd-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;"
+      + "background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px 10px;scroll-margin-top:12px}"
+      + ".mkd .mkd-tabs{display:flex;flex-wrap:wrap;gap:4px}"
+      + ".mkd .mkd-tabs button{min-height:40px;padding:0 15px;border:0;border-radius:10px;background:transparent;font:inherit;"
+      + "font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}"
+      + ".mkd .mkd-tabs button:hover{background:var(--panel-2);color:var(--ink)}"
+      + ".mkd .mkd-tabs button.on{background:var(--ink);color:var(--panel);font-weight:600}"
+      + ".mkd .mkd-ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}"
+      + "body.rs-app .mko.mkd .panel{border-radius:16px;box-shadow:none}"
+      + "body.rs-app .mko.mkd .rs-kpis .kpi{border-radius:14px}"
+      + ".mkd .mkd-h{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px}"
+      + ".mkd .mkd-h h2{margin:0;font-size:18px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-card .mkd-h h2{font-size:16px}"
+      + ".mkd .mkd-h span{font-size:13px;color:var(--muted)}"
+      + ".mkd .mkd-h span.bad{color:var(--neg);font-weight:600}"
+      + ".mkd .mkd-sec{display:flex;flex-direction:column;gap:12px}"
+      + ".mkd .mkd-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;"
+      + "display:flex;flex-direction:column;gap:12px;min-width:0}"
+      + ".mkd .mkd-card .rs-hint{margin:0}"
+      + ".mkd .mkd-quiet{color:var(--muted);font-size:14px}"
+      + ".mkd .mkd-g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:14px}"
+      /* tiles */
+      + ".mkd .mkd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}"
+      + ".mkd .mkd-kpi{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px 12px;"
+      + "display:flex;flex-direction:column;gap:6px;min-width:0}"
+      + ".mkd .mkd-kpi .l{font-size:13px;color:var(--muted);font-weight:500}"
+      + ".mkd .mkd-kpi .v{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px}"
+      + ".mkd .mkd-kpi .v b{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.1;color:var(--ink)}"
+      + ".mkd .mkd-kpi .s{font-size:12.5px;color:var(--muted);line-height:1.4}"
+      + ".mkd .mkd-chip{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;"
+      + "background:var(--panel-2);color:var(--muted);white-space:nowrap}"
+      + ".mkd .mkd-chip.good{background:var(--pos-bg);color:var(--pos)}"
+      + ".mkd .mkd-chip.bad{background:var(--neg-bg);color:var(--neg)}"
+      + ".mkd .mkd-chip.mid{background:var(--warn-bg);color:var(--warn)}"
+      + ".mkd .mkd-spark{display:flex;align-items:flex-end;gap:3px;height:36px;margin-top:6px}"
+      + ".mkd .mkd-spark i{flex:1;background:var(--line-2);border-radius:3px 3px 0 0;min-height:2px}"
+      + ".mkd .mkd-spark i.now{background:var(--brand)}.mkd .mkd-spark i.bad{background:var(--neg)}"
+      + ".mkd .mkd-spark.sm{height:22px;gap:2px;width:132px;margin:0}"
+      + ".mkd .mkd-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}"
+      /* what to act on */
+      + ".mkd .mkd-acts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:14px}"
+      + ".mkd .mkd-act{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;"
+      + "display:flex;flex-direction:column;gap:8px;min-width:0}"
+      + ".mkd .mkd-act .t{display:flex;justify-content:space-between;align-items:center;gap:8px}"
+      + ".mkd .mkd-tag{font-size:11px;font-weight:700;letter-spacing:.1em;padding:4px 10px;border-radius:999px;"
+      + "background:var(--panel-2);color:var(--muted)}"
+      + ".mkd .mkd-tag.cut,.mkd .big.cut{color:var(--neg)}.mkd .mkd-tag.cut{background:var(--neg-bg)}"
+      + ".mkd .mkd-tag.scale,.mkd .big.scale{color:var(--pos)}.mkd .mkd-tag.scale{background:var(--pos-bg)}"
+      + ".mkd .mkd-tag.fix,.mkd .big.fix{color:var(--blue)}.mkd .mkd-tag.fix{background:var(--blue-bg)}"
+      + ".mkd .mkd-tag.watch,.mkd .big.watch{color:var(--warn)}.mkd .mkd-tag.watch{background:var(--warn-bg)}"
+      + ".mkd .mkd-act .big{font-size:22px;font-weight:700;letter-spacing:-.01em}"
+      + ".mkd .mkd-act h3{margin:0;font-size:15.5px;font-weight:600;line-height:1.35;color:var(--ink)}"
+      + ".mkd .mkd-act p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.5}"
+      + ".mkd .mkd-act .go{margin-top:auto;align-self:flex-start;background:none;border:0;padding:6px 0 0;font:inherit;"
+      + "font-size:13px;font-weight:600;color:var(--brand);cursor:pointer;text-decoration:none}"
+      + ".mkd .mkd-act .go:hover{text-decoration:underline}"
+      /* month bars */
+      + ".mkd .mkd-mb{display:flex;align-items:flex-end;gap:6px;height:180px;border-bottom:1px solid var(--line-2)}"
+      + ".mkd .mkd-mb>div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;min-width:0}"
+      + ".mkd .mkd-mb span{font-size:10.5px;font-weight:600;color:var(--ink);white-space:nowrap}"
+      + ".mkd .mkd-mb i{width:100%;background:var(--line-2);border-radius:5px 5px 0 0}"
+      + ".mkd .mkd-mb i.now{background:var(--brand)}.mkd .mkd-mb i.bad{background:var(--neg)}"
+      + ".mkd .mkd-ml{display:flex;gap:6px}.mkd .mkd-ml span{flex:1;text-align:center;font-size:11px;color:var(--muted)}"
+      + "@media(max-width:760px){.mkd .mkd-mb span{display:none}}"
+      /* horizontal bars (search mix, AI answers) */
+      + ".mkd .mkd-hb{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr) 54px;align-items:center;gap:12px;font-size:13.5px}"
+      + ".mkd .mkd-hb span.us{font-weight:700}"
+      + ".mkd .mkd-hb .tr{height:16px;background:var(--panel-2);border-radius:5px;overflow:hidden}"
+      + ".mkd .mkd-hb .tr i{display:block;height:100%;background:var(--line-2);border-radius:5px}"
+      + ".mkd .mkd-hb .tr i.now{background:var(--brand)}"
+      + ".mkd .mkd-hb b{text-align:right;font-variant-numeric:tabular-nums}"
+      /* where bookings came from */
+      + ".mkd .mkd-src{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px}"
+      + ".mkd .mkd-src th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}"
+      + ".mkd .mkd-src td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}"
+      + ".mkd .mkd-src .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}"
+      + ".mkd .mkd-src tr.grp td{background:var(--panel-2);font-size:11.5px;font-weight:700;letter-spacing:.06em;"
+      + "text-transform:uppercase;color:var(--muted);padding:8px 10px}"
+      + ".mkd .mkd-src tr.tot td{font-weight:700;background:var(--panel-2)}"
+      + ".mkd .mkd-cpb{display:flex;align-items:center;gap:10px;min-width:190px}"
+      + ".mkd .mkd-cpb .tr{flex:1;height:8px;border-radius:999px;background:var(--panel-2);overflow:hidden}"
+      + ".mkd .mkd-cpb .tr i{display:block;height:100%;border-radius:999px;background:var(--pos)}"
+      + ".mkd .mkd-cpb .tr i.mid{background:var(--amber,#B7791F)}.mkd .mkd-cpb .tr i.hi{background:var(--neg)}"
+      + ".mkd .mkd-cpb b{min-width:64px;text-align:right;font-weight:600}"
+      /* platform cards */
+      + ".mkd .mkd-plats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:14px}"
+      + ".mkd .mkd-plat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;"
+      + "display:flex;flex-direction:column;gap:12px;min-width:0}"
+      + ".mkd .mkd-plat.off{background:var(--panel-2);border-style:dashed}"
+      + ".mkd .mkd-plat .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}"
+      + ".mkd .mkd-plat .nm{display:flex;align-items:center;gap:8px;flex-wrap:wrap}"
+      + ".mkd .mkd-plat h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-plat .sp{text-align:right}.mkd .mkd-plat .sp b{display:block;font-size:22px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-plat .sp span{font-size:11.5px;color:var(--muted)}"
+      + ".mkd .mkd-plat p{margin:0;font-size:13px;color:var(--muted);line-height:1.5}"
+      + ".mkd .mkd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}"
+      + ".mkd .mkd-stats div{background:var(--panel-2);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}"
+      + ".mkd .mkd-stats span{font-size:11px;color:var(--muted)}.mkd .mkd-stats b{font-size:14px;font-weight:600;color:var(--ink)}"
+      + ".mkd .mkd-plat .ours{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;font-size:13px}"
+      + ".mkd .mkd-plat .ours .c{margin-left:auto;font-size:13px}"
+      /* Search & SEO topics as pills */
+      + ".mkd .mko-topics{display:flex;flex-wrap:wrap;gap:6px;border:0;margin:0}"
+      + ".mkd .mko-topics button{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);"
+      + "background:var(--panel);font:inherit;font-size:13px;color:var(--ink);cursor:pointer}"
+      + ".mkd .mko-topics button.on{border-color:var(--brand);background:var(--brand-glow);color:var(--ink);font-weight:600}"
+      + "@media(max-width:600px){.mkd .mkd-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mkd .mkd-head h1{font-size:24px}}"
+      /* the light theme: the portal's green identity */
+      + "body.rs-app.light .mkd .mkd-eye{color:#3F7D20}"
+      + "body.rs-app.light .mkd .mkd-tabs button.on,body.rs-app.light .mkd .mkd-btn{background:#14301F;border-color:#14301F;color:#FFFFFF}"
+      + "body.rs-app.light .mkd .mkd-tabs button{color:#33403A}"
+      + "body.rs-app.light .mkd .mkd-pill i{background:#3F7D20}"
+      + "body.rs-app.light .mkd .mkd-spark i,body.rs-app.light .mkd .mkd-mb i{background:#C9DABD}"
+      + "body.rs-app.light .mkd .mkd-spark i.now,body.rs-app.light .mkd .mkd-mb i.now,"
+      + "body.rs-app.light .mkd .mkd-hb .tr i.now{background:#3F7D20}"
+      + "body.rs-app.light .mkd .mkd-hb .tr i{background:#A3ADA5}"
+      + "body.rs-app.light .mkd .mkd-spark i.bad,body.rs-app.light .mkd .mkd-mb i.bad{background:#B04A7E}"
+      + "body.rs-app.light .mkd .mkd-h span.bad{color:#8E2F5F}"
+      + "body.rs-app.light .mkd .mkd-chip.good,body.rs-app.light .mkd .mkd-tag.scale{background:#EEF5E6;color:#2D5A17}"
+      + "body.rs-app.light .mkd .big.scale{color:#2D5A17}"
+      + "body.rs-app.light .mkd .mkd-chip.bad,body.rs-app.light .mkd .mkd-tag.cut{background:#FAEFF5;color:#8E2F5F}"
+      + "body.rs-app.light .mkd .big.cut{color:#8E2F5F}"
+      + "body.rs-app.light .mkd .mkd-chip.mid,body.rs-app.light .mkd .mkd-tag.watch{background:#FBF3E2;color:#7A4E00}"
+      + "body.rs-app.light .mkd .big.watch{color:#7A4E00}"
+      + "body.rs-app.light .mkd .mkd-tag.fix{background:#EAF0FB;color:#2F4F99}body.rs-app.light .mkd .big.fix{color:#2F4F99}"
+      + "body.rs-app.light .mkd .mkd-cpb .tr i{background:#3F7D20}"
+      + "body.rs-app.light .mkd .mkd-cpb .tr i.mid{background:#B7791F}body.rs-app.light .mkd .mkd-cpb .tr i.hi{background:#B04A7E}"
+      + "body.rs-app.light .mkd .mkd-act .go{color:#2F6316}"
+      + "body.rs-app.light .mkd .mko-topics button.on{border-color:#3F7D20;background:#EEF5E6;color:#2D5A17}";
     document.head.appendChild(st);
   }
 
@@ -646,13 +798,14 @@
     else if (saved && (okDay(saved.f) || okDay(saved.t))) {
       S.from = okDay(saved.f) ? saved.f : null; S.to = okDay(saved.t) ? saved.t : null;
     } else {
-      const tm = P.find(p => p[0] === "This month");
+      // the last whole month (2026-10-29): every number in it is complete, the bank ledger's too
+      const tm = P.find(p => p[0] === "Past month") || P.find(p => p[0] === "This month");   // the kit's whole previous month
       S.from = tm[1]; S.to = tm[2];
     }
     const c = lsGet(LS_CMP);
     if (c === "ly" || c === "prev") S.cmp = c;
     const t = lsGet(LS_TAB);
-    if (TABS.some(x => x[0] === t)) S.tab = t;
+    if (TABS.some(x => x[0] === t) || t === "set") S.tab = t;
     const st = lsGet(LS_SEO);
     if (SEO_TOPICS.some(x => x[0] === st)) S.seoTopic = st;
   }
@@ -1832,7 +1985,8 @@
   function linkedinSection(w, cw) {
     const pw = platWin("li", w, cw);
     const head = platHead("li", "LinkedIn", "Campaign Manager · UTC days", pw);
-    const page = linkedinPage(w, cw);
+    // the Company Page moved to Social & content (2026-10-29); this section is the ads alone
+    const page = { html: "", wire: null };
     const rows = pw ? inRange(P.li, pw.a, pw.b) : [];
     const gate = platGate("LinkedIn Ads", "li", pw, rows);
     const ran = P.li.filter(r => r.cost > 0 && (!pw || r.d < pw.a)).reduce((a, r) => (r.d > a ? r.d : a), "");
@@ -2264,6 +2418,264 @@
     });
   }
 
+  /* === THE DASHBOARD LOOK (2026-10-29) ===
+     His ask: "beautiful redesign … name it marketing dashboard … smoother … imagine yourself as
+     marketer" (mockup approved: "yes i love it"). The numbers are the page's own (aggregate,
+     totals, scoreRows, platWin); what changes is the order a marketer reads them in: how are we
+     doing (five tiles, each with its last 12 months), what to act on (tagged cards), how the
+     year ran (bookings and cost per booking a month), where the bookings came from (one table). */
+  const ymAdd = (ym, n) => {
+    let y = +ym.slice(0, 4), m = +ym.slice(5, 7) + n;
+    while (m < 1) { m += 12; y -= 1; }
+    while (m > 12) { m -= 12; y += 1; }
+    return y + "-" + String(m).padStart(2, "0");
+  };
+  const ymLast = ym => addDays(ymAdd(ym, 1) + "-01", -1);
+  const monShort = ym => MON[+ym.slice(5, 7) - 1] + " " + ym.slice(2, 4);
+  // the twelve whole months up to the window's end: its own month when the window reaches the
+  // month's last day, else the month before (This month's half-month never draws as a collapse)
+  function trendMonths(w) {
+    const endYm = w.bEff.slice(0, 7);
+    const last = addDays(w.bEff, 1).slice(0, 7) !== endYm ? endYm : ymAdd(endYm, -1);
+    const out = [];
+    for (let i = 11; i >= 0; i--) out.push(ymAdd(last, -i));
+    return out;
+  }
+  // a month's families, per company pick; cleared when the data is read again (render)
+  const TREND = {};
+  function monthFams(ym) {
+    const k = (S.co || "*") + "|" + ym;
+    if (!TREND[k]) TREND[k] = aggregate(ym + "-01", ymLast(ym));
+    return TREND[k];
+  }
+  function sparkHtml(vals, badLast, cls) {
+    const mx = Math.max.apply(null, vals.map(v => v || 0)) || 1;
+    return '<span class="mkd-spark' + (cls ? " " + cls : "") + '" aria-hidden="true">' + vals.map((v, i) =>
+      "<i" + (i === vals.length - 1 ? ' class="' + (badLast ? "bad" : "now") + '"' : "")
+      + ' style="height:' + Math.max(4, Math.round(100 * (v || 0) / mx)) + '%"></i>').join("") + "</span>";
+  }
+  // a change as a chip: good / bad when the direction means something, plain when it does not
+  function chipHtml(cur, prev, lowerIsBetter) {
+    if (cur == null || prev == null || !prev || isNaN(cur)) return "";
+    const d = cur / prev - 1;
+    if (Math.abs(d) < 0.005) return '<span class="mkd-chip">± 0%</span>';
+    const good = lowerIsBetter == null ? null : lowerIsBetter ? d < 0 : d > 0;
+    return '<span class="mkd-chip' + (good == null ? "" : good ? " good" : " bad") + '">' + (d > 0 ? "+" : "−")
+      + Math.abs(d * 100).toFixed(Math.abs(d) < 0.1 ? 1 : 0) + "%</span>";
+  }
+  function tileHtml(label, value, chip, sub, spark) {
+    return '<div class="mkd-kpi"><div class="l">' + esc(label) + '</div><div class="v"><b>' + value + "</b>"
+      + (chip || "") + '</div><div class="s">' + sub + "</div>" + (spark || "") + "</div>";
+  }
+  const wasWord = () => (S.cmp === "prev" ? "previous period " : "last year ");
+
+  function overviewTiles(w, cw, tm) {
+    const cur = totals(aggregate(w.a, w.bEff)), prev = cw ? totals(aggregate(cw.a, cw.b, cw)) : null;
+    const was = (v, f) => prev ? esc(wasWord() + f(v)) + " · " : "";
+    const series = tm.map(m => totals(monthFams(m)));
+    const ends = '<div class="mkd-ends"><span>' + esc(monShort(tm[0])) + "</span><span>"
+      + esc(monShort(tm[tm.length - 1])) + "</span></div>";
+    const spark = (f, bad) => sparkHtml(series.map(f), bad) + ends;
+    const cpbs = series.map(t => t.cpb || 0);
+    // "the highest in 12 months" only when the period IS the trend's last month
+    const lastYm = tm[tm.length - 1], isLast = w.a === lastYm + "-01" && w.bEff === ymLast(lastYm);
+    const cpbTop = isLast && cpbs.length > 1 && cpbs[cpbs.length - 1] > 0 && cpbs[cpbs.length - 1] >= Math.max.apply(null, cpbs);
+    return '<section class="mkd-kpis" aria-label="Headline numbers">'
+      + tileHtml("Bookings", fmtN(cur.booked), prev && chipHtml(cur.booked, prev.booked, false),
+          was(prev && prev.booked, fmtN) + pct(cur.book) + " of leads booked", spark(t => t.booked))
+      + tileHtml("Cost per booking", money0(cur.cpb), prev && chipHtml(cur.cpb, prev.cpb, true),
+          was(prev && prev.cpb, money0) + (cpbTop ? "the highest in 12 months" : "paid channels"), spark(t => t.cpb, cpbTop))
+      + tileHtml("Booked value per $1", perDollar(cur.roas), prev && chipHtml(cur.roas, prev.roas, false),
+          was(prev && prev.roas, perDollar) + "booked value ÷ spend", spark(t => t.roas))
+      + tileHtml("Marketing spend", money(cur.spend), prev && chipHtml(cur.spend, prev.spend, null),
+          was(prev && prev.spend, money) + (cur.spL && cur.spG ? "live ads + bank ledger" : cur.spL ? "live ads" : "bank ledger"),
+          spark(t => t.spend))
+      + tileHtml("Leads", fmtN(cur.leads), prev && chipHtml(cur.leads, prev.leads, false),
+          was(prev && prev.leads, fmtN) + (cur.cpl != null ? money0(cur.cpl) + " a lead" : "created in the period"),
+          spark(t => t.leads))
+      + "</section>";
+  }
+
+  /* --- what to act on: the period's checks as tagged cards, the most pressing first ---
+     CUT a channel whose bookings cost far more than the rest · SCALE one that books cheaply ·
+     FIX something broken or misleading · WATCH a slide · NOTE what the numbers cannot see yet */
+  function actions(w, cw, score, fams) {
+    const out = [];
+    const add = (rank, tag, big, title, why, go) => out.push(Object.assign({ rank, tag, big, title, why }, go || {}));
+    const toSrc = f => ({ go: "Open " + f.fam + " in Source Analysis", href: "#page=source-report&src=" + encodeURIComponent(f.fam) });
+    const t = totals(fams);
+    const paid = fams.filter(f => f.paid && f.spend > 0 && f.anyCov && !COMMUNITY.includes(f.fam));
+    let cutFam = null;
+    if (t.cpb) {
+      const cut = paid.filter(f => f.spend >= 1500 && (f.cBooked === 0 || f.cpb >= 3 * t.cpb))
+        .sort((a, b) => (b.cpb == null ? 1e12 : b.cpb) - (a.cpb == null ? 1e12 : a.cpb) || b.spend - a.spend)[0];
+      if (cut) {
+        cutFam = cut.fam;
+        add(1, "CUT", cut.cBooked ? money0(cut.cpb) : "0 booked",
+          esc(cut.fam) + ": " + money0(cut.spend) + " for " + fmtN(cut.cBooked) + (cut.cBooked === 1 ? " booking" : " bookings"),
+          (cut.cBooked ? money0(cut.cpb) + " a booking, " + (cut.cpb / t.cpb).toFixed(1) + " times the paid average of " + money0(t.cpb) + ". " : "")
+          + pct(cut.book) + " of its " + fmtN(cut.leads) + " leads booked.", toSrc(cut));
+      }
+      const scale = paid.filter(f => f.cBooked >= THIN && f.cpb != null && f.cpb <= 0.5 * t.cpb)
+        .sort((a, b) => a.cpb - b.cpb)[0];
+      if (scale) {
+        add(3, "SCALE", money0(scale.cpb), esc(scale.fam) + " books at " + money0(scale.cpb),
+          fmtN(scale.cBooked) + " bookings for " + money0(scale.spend) + "; " + pct(scale.book)
+          + " of its leads book. The paid average is " + money0(t.cpb) + ".", toSrc(scale));
+      }
+    }
+    if (S.co !== "Tuji") {
+      const pw = platWin("ads", w, cw);
+      if (pw && !pw.before && !pw.after) {
+        const conv = sum(inRange(P.ads, pw.a, pw.b), "conv"), f = famStat("Google", pw.a, pw.b);
+        if (f && conv >= 30 && conv >= 1.3 * f.leads) {
+          const cv = inRange(P.conv, pw.a, pw.b);
+          const yt = sum(cv.filter(r => r.cat === "YOUTUBE_FOLLOW_ON_VIEWS"), "n");
+          const lead = sum(cv.filter(r => CONV_LEAD.has(r.cat)), "n");
+          add(2, "FIX", fmtN(conv), yt ? "Most of Google's conversions are YouTube views"
+            : "Google counts more conversions than we get leads",
+            "Google Ads counts " + fmtN(conv) + " conversions" + (yt ? "; " + fmtN(yt) + " are YouTube follow-on views and "
+              + fmtN(lead) + " are lead forms, calls and quote requests" : "") + ". Moveboard got " + fmtN(f.leads)
+            + " Google leads and " + fmtN(f.booked) + " bookings: judge Google on cost per booking.",
+            { tab: "paid", go: "See Paid ads" });
+        }
+      }
+      const ok = score.filter(r => r.live && r.cpb != null && !r.thin).sort((a, b) => a.cpb - b.cpb);
+      if (ok.length >= 2) {
+        const lo = ok[0], hi = ok[ok.length - 1];
+        if (hi.cpb >= 1.8 * lo.cpb && hi.fam !== cutFam) {
+          add(4, "CUT", money0(hi.cpb), esc(hi.name) + " costs " + (hi.cpb / lo.cpb).toFixed(1) + " times " + esc(lo.name),
+            money0(hi.cpb) + " a booking on " + money(hi.spend) + " of spend, against " + money0(lo.cpb) + " on "
+            + money(lo.spend) + ".", { tab: "paid", go: "See Paid ads" });
+        }
+      }
+      const gp = score.find(r => r.k === "gpt");
+      if (gp && gp.spend > 0 && !P.gpt.some(r => r.conv > 0)) {
+        add(9, "NOTE", "", "ChatGPT Ads has no conversion event",
+          "It spent " + money0(gp.spend) + " and reports 0 conversions; read its leads and bookings on our side.",
+          { tab: "paid", go: "See Paid ads" });
+      }
+    }
+    if (cw) {
+      const cur = totals(aggregate(w.a, w.bEff)), prev = totals(aggregate(cw.a, cw.b, cw));
+      if (prev.spend > 0 && prev.booked > 0 && cur.spend / prev.spend - 1 >= 0.15 && cur.booked / prev.booked - 1 <= -0.05) {
+        add(5, "WATCH", upDown(cur.spend / prev.spend - 1).replace(/^up /, "+"), "Spend is up while bookings fall",
+          "Ad spend is " + upDown(cur.spend / prev.spend - 1) + " on the " + esc(cw.label) + "; bookings are "
+          + upDown(cur.booked / prev.booked - 1) + ".");
+      }
+    }
+    const gw = platWin("gsc", w, cw);
+    if (gw && gw.cw && !gw.before && !gw.after) {
+      const c = sum(inRange(P.gsc, gw.a, gw.b), "clk"), p = sum(inRange(P.gsc, gw.cw.a, gw.cw.b), "clk");
+      if (p > 0 && c / p - 1 <= -0.15) {
+        add(6, "WATCH", "−" + Math.round(100 * (1 - c / p)) + "%", "Organic clicks are sliding",
+          "Search Console clicks are " + upDown(c / p - 1) + " on the " + esc(gw.cw.label) + ": " + fmtN(p) + " to " + fmtN(c) + ".",
+          { tab: "seo", go: "See Search & SEO" });
+      }
+    }
+    blLatest().forEach(loc => {
+      const g = loc.kws.filter(k => k.Google != null);
+      if (loc.kws.length && !g.length) {
+        add(8, "FIX", "", esc(loc.loc) + " is not in Google's top 100",
+          "None of its " + loc.kws.length + " tracked keywords ranks on Google's first ten pages.", { tab: "seo", go: "See Search & SEO" });
+      }
+    });
+    if (D.ledgerEnd && dayCount(D.ledgerEnd, today()) > 40) {
+      add(10, "NOTE", "", "The bank ledger needs this month's paste",
+        "It runs through " + esc(day(D.ledgerEnd)) + ": Yelp, Angi, postcards and the other ledger channels show no spend after that.",
+        { tab: "set", go: "See data sources" });
+    }
+    return out.sort((a, b) => a.rank - b.rank).slice(0, 4);
+  }
+  function actionsHtml(list) {
+    if (!list.length) return '<div class="mkd-card mkd-quiet">Nothing needs action in this period.</div>';
+    return '<div class="mkd-acts">' + list.map(a => {
+      const t = a.tag.toLowerCase();
+      return '<article class="mkd-act"><div class="t"><span class="mkd-tag ' + t + '">' + a.tag + "</span>"
+        + (a.big ? '<span class="big ' + t + '">' + esc(a.big) + "</span>" : "") + "</div>"
+        + "<h3>" + a.title + "</h3><p>" + a.why + "</p>"
+        + (a.tab ? '<button type="button" class="go" data-tab="' + a.tab + '">' + esc(a.go) + " ›</button>"
+          : a.href ? '<a class="go" href="' + esc(a.href) + '">' + esc(a.go) + " ›</a>" : "")
+        + "</article>";
+    }).join("") + "</div>";
+  }
+
+  /* a month bar chart drawn in HTML: the value over each bar, the latest month in the strong colour */
+  function monthBarsHtml(title, sub, subBad, tm, vals, fmt, badLast) {
+    const mx = Math.max.apply(null, vals.map(v => v || 0)) || 1;
+    return '<div class="mkd-card"><div class="mkd-h"><h2>' + esc(title) + "</h2><span" + (subBad ? ' class="bad"' : "")
+      + ">" + esc(sub) + "</span></div>"
+      + '<div class="mkd-mb" role="img" aria-label="' + esc(title + ", " + monthWord(tm[0]) + " to " + monthWord(tm[tm.length - 1])) + '">'
+      + vals.map((v, i) => "<div><span>" + (v ? fmt(v) : "—") + '</span><i class="' + (i === vals.length - 1 ? (badLast ? "bad" : "now") : "")
+        + '" style="height:' + Math.max(2, Math.round(86 * (v || 0) / mx)) + '%"></i></div>').join("")
+      + '</div><div class="mkd-ml">' + tm.map(m => "<span>" + esc(MON[+m.slice(5, 7) - 1]) + "</span>").join("") + "</div></div>";
+  }
+  function trendCharts(tm) {
+    const series = tm.map(m => totals(monthFams(m)));
+    const bk = series.map(t => t.booked), cp = series.map(t => t.cpb || 0);
+    const peak = bk.indexOf(Math.max.apply(null, bk));
+    const cpTop = cp.length > 1 && cp[cp.length - 1] > 0 && cp[cp.length - 1] >= Math.max.apply(null, cp);
+    const lowI = cp.reduce((b, v, i) => (v > 0 && (cp[b] <= 0 || v < cp[b]) ? i : b), 0);
+    return '<div class="mkd-g2">'
+      + monthBarsHtml("Bookings a month", "peak " + fmtN(bk[peak]) + " in " + monthWord(tm[peak]), false, tm, bk, fmtN, false)
+      + monthBarsHtml("Cost per booking", cpTop ? monthWord(tm[tm.length - 1]) + " is the highest in 12 months"
+          : "lowest " + money0(cp[lowI]) + " in " + monthWord(tm[lowI]), cpTop, tm, cp, money0, cpTop)
+      + "</div>";
+  }
+
+  /* --- where bookings came from: one row a source, its cost per booking as a bar, its year as a spark --- */
+  function srcRows(list, label, sortKey, totLabel, tm, avg) {
+    if (!list.length) return "";
+    list.sort((x, y) => (y[sortKey] - x[sortKey]) || (y.leads - x.leads));
+    const t = totals(list);
+    const bar = (v, f) => {
+      if (v == null) return costCell(v, f, money0, false);
+      const cls = !avg || v <= avg ? "" : v <= 2 * avg ? "mid" : "hi";
+      return '<div class="mkd-cpb"><span class="tr" aria-hidden="true"><i class="' + cls + '" style="width:'
+        + Math.max(3, Math.min(100, Math.round(100 * v / Math.max(1000, 2 * (avg || 0))))) + '%"></i></span><b>'
+        + costCell(v, f, money0, f.cBooked < THIN) + "</b></div>";
+    };
+    let h = '<tr class="grp"><td colspan="8">' + esc(label) + " · " + list.length + (list.length === 1 ? " source" : " sources") + "</td></tr>";
+    list.forEach(f => {
+      const sp = tm.map(m => { const x = monthFams(m).find(y => y.fam === f.fam); return x ? x.booked : 0; });
+      h += '<tr><td class="mko-fam">' + famCell(f) + "</td>"
+        + '<td class="n">' + spendCell(f) + "</td>"
+        + '<td class="n">' + fmtN(f.leads) + "</td>"
+        + '<td class="n"><b>' + fmtN(f.booked) + "</b></td>"
+        + '<td class="n">' + pct(f.book) + "</td>"
+        + "<td>" + (f.paid ? bar(f.cpb, f) : '<span class="mko-sub">free</span>') + "</td>"
+        + '<td class="n">' + (f.paid ? costCell(f.roas, f, perDollar, f.cBooked < THIN) : '<span class="mko-sub">—</span>') + "</td>"
+        + "<td>" + (sp.some(v => v) ? sparkHtml(sp, false, "sm") : '<span class="mko-sub">—</span>') + "</td></tr>";
+    });
+    const paid = list.some(f => f.paid);
+    h += '<tr class="tot"><td>' + esc(totLabel || "All " + label.toLowerCase()) + "</td>"
+      + '<td class="n">' + (!paid ? "—" : list.filter(f => f.paid).some(f => f.anyCov) ? money0(t.spend) : '<span class="mko-cov">not in yet</span>') + "</td>"
+      + '<td class="n">' + fmtN(t.leads) + "</td>"
+      + '<td class="n">' + fmtN(t.booked) + "</td>"
+      + '<td class="n">' + pct(t.book) + "</td>"
+      + '<td class="n">' + (paid ? costCell(t.cpb, t, money0, false) : "—") + "</td>"
+      + '<td class="n">' + (paid ? costCell(t.roas, t, perDollar, false) : "—") + "</td><td></td></tr>";
+    return h;
+  }
+  function sourcesTableHtml(fams, tm) {
+    if (!fams.length) return '<div class="mkd-card mkd-quiet">No leads or spend in this period for this company.</div>';
+    const isCom = f => COMMUNITY.includes(f.fam);
+    const avg = totals(fams).cpb;
+    return '<div class="rs-tablewrap"><table class="mkd-src"><thead><tr>'
+      + '<th scope="col">Source</th><th scope="col" class="n">Spend</th>'
+      + '<th scope="col" class="n" title="leads created in the period">Leads</th>'
+      + '<th scope="col" class="n" title="of those leads, how many booked (Confirmed)">Booked</th>'
+      + '<th scope="col" class="n" title="booked ÷ leads">Booking rate</th>'
+      + '<th scope="col" title="spend ÷ booked jobs; green at or under the paid average, amber up to twice it, red beyond">Cost per booking</th>'
+      + '<th scope="col" class="n" title="booked value ÷ spend">Value per $1</th>'
+      + '<th scope="col" title="bookings a month, ' + esc(monthWord(tm[0]) + " to " + monthWord(tm[tm.length - 1])) + '">Bookings, 12 months</th>'
+      + "</tr></thead><tbody>"
+      + srcRows(fams.filter(f => f.paid && !isCom(f)), "Paid", "spend", null, tm, avg)
+      + srcRows(fams.filter(isCom), "AI assistants and communities", "leads", "All AI assistants and communities", tm, avg)
+      + srcRows(fams.filter(f => !f.paid && !isCom(f)), "Unpaid", "leads", null, tm, avg)
+      + "</tbody></table></div>";
+  }
+
   /* === OVERVIEW === */
   function overviewTab(w, cw) {
     if (D.chErr) {
@@ -2273,74 +2685,107 @@
     }
     const score = S.co === "Tuji" ? [] : scoreRows(w);
     const fams = aggregate(w.a, w.bEff);
+    const tm = trendMonths(w);
     const past = D.ledgerEnd && w.bEff > D.ledgerEnd;
-    const apw = S.co === "Tuji" ? null : platWin("ads", w, null);
-    const html = '<div class="rs-kpis" id="mkoKpis"></div>'
-      + '<p class="rs-hint hidden" id="mkoKpiHint"></p>'
-      + '<div class="mko-g2e">'
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">What stands out</span>'
-      + '<span class="mko-sub">read from this period\'s numbers</span></div>' + insightsHtml(insights(w, cw, score)) + "</div>"
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Cost per booking by platform</span></div>'
-      + (S.co === "Tuji" ? '<div class="mko-empty">Every ad platform here is Zip to Zip\'s.</div>' : cpbBarsHtml(score)) + "</div>"
-      + "</div>"
-      + (S.co === "Tuji" ? "" : '<div class="panel"><div class="panel-head"><span class="panel-title">Platform scoreboard</span>'
-        + '<span class="mko-sub">what each platform claims, beside what we booked from it</span></div>'
-        + scoreboardHtml(score) + "</div>")
-      + (apw && !apw.before && !apw.after ? '<div class="mko-g2e"><div id="mkoGw1"></div><div id="mkoGw2"></div></div>' : "")
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Every channel</span>'
-      + '<span class="mko-sub">the ad platforms and every bank-ledger source</span></div>'
-      + '<p class="rs-hint">Booked = leads created in the period that booked. Spend is live from Google Ads, '
-      + "Local Services, Meta and ChatGPT; every other channel is the bank ledger"
+    const notes = [];
+    if (fams.some(f => f.paid && f.uncov)) {
+      notes.push("The bank ledger runs through " + day(D.ledgerEnd) + ": for later days the cost figures count only the "
+        + "channels with live spend (Google Ads, Local Services, Meta, ChatGPT)" + (cw ? ", in both periods" : "") + ".");
+    }
+    if (cw) notes.push("The " + cw.label + "'s bookings are counted as they stood on " + day(cw.asOf)
+      + ", so a young cohort is not set against one that had longer to book.");
+    const html = overviewTiles(w, cw, tm)
+      + (notes.length ? '<p class="rs-hint">' + esc(notes.join(" ")) + "</p>" : "")
+      + '<section class="mkd-sec" aria-labelledby="mkdActH"><div class="mkd-h"><h2 id="mkdActH">What to act on</h2>'
+      + "<span>read from this period's numbers; each card opens the place to fix it</span></div>"
+      + actionsHtml(actions(w, cw, score, fams)) + "</section>"
+      + trendCharts(tm)
+      + '<section class="mkd-card" aria-labelledby="mkdSrcH"><div class="mkd-h"><h2 id="mkdSrcH">Where bookings came from</h2>'
+      + "<span>leads created in the period and how many booked · click a source to open it in Source Analysis</span></div>"
+      + sourcesTableHtml(fams, tm)
+      + '<p class="rs-hint">Spend is live from Google Ads, Local Services, Meta and ChatGPT; every other channel is the bank ledger'
       + (D.ledgerEnd ? ", which runs through " + esc(day(D.ledgerEnd)) : "")
-      + (past ? "; a * marks cost figures read on the leads whose spend is in" : "")
-      + ". Click a channel to open it in Source Analysis.</p>" + channelsHtml(fams) + "</div>";
-    return { html, wire(host) {
-      const k = host.querySelector("#mkoKpis");
-      if (k) kpisFor(k, w, cw);
-      const kh = host.querySelector("#mkoKpiHint");
-      if (kh) {
-        const bits = [];
-        if (fams.some(f => f.paid && f.uncov)) {
-          bits.push("The bank ledger runs through " + day(D.ledgerEnd) + ": for later days the cost figures "
-            + "count only the channels with live spend (Google Ads, Local Services, Meta, ChatGPT)"
-            + (cw ? ", in both periods" : "") + ".");
-        }
-        if (cw) {
-          bits.push("The " + cw.label + "'s bookings are counted as they stood on " + day(cw.asOf)
-            + ", so a young cohort is not set against one that had longer to book.");
-        }
-        kh.innerHTML = bits.map(esc).join(" ");
-        kh.classList.toggle("hidden", !bits.length);
-      }
-      if (apw && !apw.before && !apw.after) {
-        const rows = inRange(P.ads, apw.a, apw.b), keys = bucketsOf(apw.a, apw.b, apw.g);
-        barCard(host.querySelector("#mkoGw1"), "gw-cost", "Google Ads spend by " + GRAIN_WORD[apw.g], keys, apw.g,
-                seriesOf(rows, keys, apw.g, r => r.cost).map(v => +v.toFixed(2)), money0, "main");
-        barCard(host.querySelector("#mkoGw2"), "gw-conv", "Conversions Google counts by " + GRAIN_WORD[apw.g], keys, apw.g,
-                seriesOf(rows, keys, apw.g, r => r.conv).map(v => +v.toFixed(1)), fmtN, "alt");
-      }
-    } };
+      + (past ? "; a * marks a cost read on the leads whose spend is in" : "")
+      + ". Booked value is the bill where the move happened, the quote where it is still to come.</p></section>";
+    return { html };
   }
 
   /* === PAID ADS === */
   function offCardsHtml(w) {
     const rows = D.conn.filter(r => OFF_ADS[r.Key] && r.Connection === "Not connected");
-    if (!rows.length) return "";
-    return '<div class="mko-h"><h2>Not connected yet</h2><span class="mko-sub">each card fills itself the day '
-      + "its connector lands; until then it shows what the bank paid</span></div>"
-      + '<div class="mko-offs">' + rows.map(r => {
-        const f = S.co === "Tuji" ? null : famStat(OFF_ADS[r.Key], w.a, w.bEff);
-        const st = OFF_KEYS[r.Key] || "waiting";
-        return '<div class="mko-off"><div><b>' + esc(r.Platform) + "</b> " + pill(st, st === "waiting" ? "warn" : "mute")
-          + "</div><div>" + esc(r.Metrics || "") + "</div>"
-          + "<div>Bank " + esc(r["Bank Year"] || "") + ": <b>" + (r["Bank Spend"] != null ? money0(+r["Bank Spend"]) : "—") + "</b>"
-          + (f && f.leads ? " · " + fmtN(f.leads) + " leads filed under it in the period" : "") + "</div>"
-          + (r["Next Step"] ? "<div>Next: " + esc(r["Next Step"]) + "</div>" : "") + "</div>";
-      }).join("") + "</div>";
+    return rows.map(r => {
+      const f = S.co === "Tuji" ? null : famStat(OFF_ADS[r.Key], w.a, w.bEff);
+      const st = OFF_KEYS[r.Key] || "waiting";
+      return '<article class="mkd-plat off"><div class="hd"><div><div class="nm"><h3>' + esc(r.Platform) + "</h3>"
+        + '<span class="mkd-chip">' + esc(st) + "</span></div>"
+        + '<div class="mko-sub">' + esc(r.Metrics || "") + "</div></div></div>"
+        + "<p>Bank " + esc(r["Bank Year"] || "") + ": <b>" + (r["Bank Spend"] != null ? money0(+r["Bank Spend"]) : "—") + "</b>"
+        + (f && f.leads ? " · " + fmtN(f.leads) + " leads filed under it in the period" : "") + "."
+        + (r["Next Step"] ? " Next: " + esc(r["Next Step"]) : "") + "</p></article>";
+    }).join("");
+  }
+  function platCardHtml(r, avg) {
+    const dash = "—";
+    const tone = r.cpb == null ? "" : !avg || r.cpb <= avg ? " good" : r.cpb <= 2 * avg ? " mid" : " bad";
+    const stat = (l, v) => "<div><span>" + l + "</span><b>" + v + "</b></div>";
+    return '<article class="mkd-plat"><div class="hd"><div><div class="nm"><h3>' + esc(r.name) + '</h3><span class="mkd-chip good">live</span></div>'
+      + '<div class="mko-sub">Platform says: ' + esc(r.says) + "</div></div>"
+      + '<div class="sp"><b>' + (r.spend != null ? money0(r.spend) : dash) + "</b><span>spent</span></div></div>"
+      + '<div class="mkd-stats">' + stat("Impressions", r.imp != null ? compact(r.imp) : dash) + stat("Clicks", r.clk != null ? fmtN(r.clk) : dash)
+      + stat("CTR", pct2(r.ctr)) + stat("CPC", cents(r.cpc)) + "</div>"
+      + '<div class="ours"><span><b>' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</b> leads</span>"
+      + '<span aria-hidden="true">→</span><span><b>' + fmtN(r.booked) + "</b> booked</span>"
+      + '<span class="mkd-chip c' + tone + '">' + (r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
+        + (r.k === "reddit" ? "†" : r.k === "li" ? "‡" : "") + " a booking" : "no bookings") + "</span></div></article>";
   }
   function paidTab(w, cw) {
+    if (S.co === "Tuji") {
+      const plat = platformsSection(w, cw);
+      return { html: plat.html, wire: plat.wire };
+    }
+    const score = scoreRows(w), live = score.filter(r => r.live);
+    const spend = sum(live, "spend"), leads = sum(live, "leads"), booked = sum(live, "booked");
+    const avg = ratio(spend, booked);
+    const g = live.find(r => r.k === "ads");
+    const gConv = g ? (String(g.says).match(/^[\d,]+/) || [""])[0] : "";
     const plat = platformsSection(w, cw);
-    return { html: plat.html + offCardsHtml(w), wire: plat.wire };
+    const html = '<section class="mkd-kpis" aria-label="Paid ads in total">'
+      + tileHtml("Paid spend", money(spend), "", live.length + " live ad accounts")
+      + tileHtml("Leads from paid ads", fmtN(leads), "", "our Moveboard leads, not platform counts")
+      + tileHtml("Booked", fmtN(booked), "", pct(ratio(booked, leads)) + " of paid leads")
+      + tileHtml("Cost per booking", money0(avg), "", "paid ad platforms only")
+      + (g ? tileHtml("Google says vs we booked", (gConv || "—") + " / " + fmtN(g.booked), "",
+          "Google Ads conversions against our Google bookings") : "")
+      + "</section>"
+      + '<div class="mkd-card"><div class="mkd-h"><h2>Cost per booking, by platform</h2><span>our bookings from each platform\'s leads; lower is better</span></div>'
+      + cpbBarsHtml(score) + "</div>"
+      + '<section class="mkd-sec" aria-labelledby="mkdPlatH"><div class="mkd-h"><h2 id="mkdPlatH">Every platform</h2>'
+      + "<span>what each platform reports, next to what we booked from it</span></div>"
+      + '<div class="mkd-plats">' + live.map(r => platCardHtml(r, avg)).join("") + offCardsHtml(w) + "</div>"
+      + '<p class="rs-hint">* ChatGPT leads include visitors from chatgpt.com answers. † Reddit\'s cost per booking is the '
+      + "Channels table's: the bank's Reddit total, which is more than the ad account. ‡ LinkedIn's is the ad account's "
+      + "spend: the bank files LinkedIn as not advertising.</p></section>"
+      + '<section class="mkd-sec" aria-labelledby="mkdDetH"><div class="mkd-h"><h2 id="mkdDetH">Platform detail</h2>'
+      + "<span>each account's campaigns, charts and results</span></div>" + plat.html + "</section>";
+    return { html, wire: plat.wire };
+  }
+
+  /* === SOCIAL AND CONTENT (2026-10-29) === our own pages and posts, outside the ads */
+  function socialTab(w, cw) {
+    const li = linkedinPage(w, cw);
+    const card = (name, chip, body) => '<article class="mkd-plat off"><div class="hd"><div><div class="nm"><h3>' + esc(name)
+      + '</h3><span class="mkd-chip">' + esc(chip) + "</span></div></div></div><p>" + body + "</p></article>";
+    const html = '<section class="mkd-sec" aria-label="LinkedIn Company Page">' + li.html + "</section>"
+      + '<section class="mkd-sec" aria-labelledby="mkdSocH"><div class="mkd-h"><h2 id="mkdSocH">Coming next</h2>'
+      + "<span>each fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
+      + card("Facebook Page and Instagram", "waiting on access",
+          "Organic posts, reach and engagement, and which posts work best by format. Needs a Page admin to approve our "
+          + "access request in Meta Business Suite (sent 19 Oct), and the Instagram account shared with the Zip to Zip "
+          + "Moving business portfolio.")
+      + card("TikTok", "later", "Organic video stats need TikTok's account scope, which the reporting app does not "
+          + "ask for yet; the ads connection is in TikTok's review first.")
+      + "</div></section>";
+    return { html, wire: li.wire };
   }
 
   /* === SEARCH AND SEO === */
@@ -2704,8 +3149,13 @@
       + esc(l) + "</button>").join("") + "</nav>";
     const panel = (title, sub, body) => '<div class="panel"><div class="panel-head"><span class="panel-title">' + title
       + '</span><span class="mko-sub">' + sub + "</span></div>" + body + "</div>";
+    const card = (title, sub, body) => '<div class="mkd-card"><div class="mkd-h"><h2>' + title + "</h2><span>" + sub
+      + "</span></div>" + body + "</div>";
     const topics = {
-      ov: () => (gate ? "" : rep.parts.ov)
+      ov: () => '<div class="mkd-g2">'
+        + card("What people searched", esc(monthSpan(ms)) || "Search Console", queryMixHtml(ms))
+        + card("Who AI answers recommend", "ChatGPT and Google AI Overviews", aiMixHtml()) + "</div>"
+        + (gate ? "" : rep.parts.ov)
         + panel("Search clicks", "Google search" + (gw && gw.last ? " · data through " + esc(day(gw.last)) : ""),
           gate || '<div id="mkoC-gsc"></div>')
         + panel("Us and the competitors · Semrush", (smLast(P.smOrg) ? esc(day(smLast(P.smOrg))) + " · " : "") + "weekly, US",
@@ -2721,6 +3171,11 @@
         + panel("Keywords by service", esc(monthSpan(ms)) + " · Search Console, monthly", svcHtml(qs)) + "</div>")
         + panel("Top keywords · Semrush", (P.smKwDay ? esc(day(P.smKwDay)) + " · " : "") + "by traffic, weekly"
           + (P.sm.org && P.sm.org.kw ? " · of " + fmtN(P.sm.org.kw) + " keywords Semrush ranks us for" : ""), smKwHtml()),
+      // the Organic Search page, drawn by its own render (pages/organic-search.js); it reads whole
+      // months, so it keeps its own month picker
+      demand: () => '<p class="rs-hint">Search Console by whole months: what people searched, from which state and city, '
+        + "and which pages and Business Profile listings won the click. It keeps its own month picker.</p>"
+        + '<div id="mkoOrg"><div class="mko-empty">Loading Searches and demand…</div></div>',
       blog: () => gate || rep.parts.blog,
       links: () => rep.parts.links
         + panel("Authority Score bands · Semrush", (smAsDays() ? esc(day(smAsDays().cur)) + " · " : "") + "daily", smBandsHtml())
@@ -2738,10 +3193,20 @@
         + '<p class="rs-hint">Citation Tracker is not in BrightLocal\'s Management API, so its citations are not '
         + "pulled; the Backlinks and citations topic maps every site linking to us from Ahrefs.</p>"),
     };
-    const html = '<div class="rs-kpis" id="mkoK-seo"></div>' + nav + topics[topic]();
+    // Searches and demand carries its own tiles for its own months: no second row above it
+    const html = (topic === "demand" ? "" : '<div class="rs-kpis" id="mkoK-seo"></div>') + nav + topics[topic]();
     return { html, wire(host) {
       const on = !!(gw && gw.cw);
-      RSC.kpis(host.querySelector("#mkoK-seo"), [
+      if (topic === "demand") {
+        const box = host.querySelector("#mkoOrg");
+        const pg = (window.PAGES || []).find(p => p.id === "organic-search");
+        if (box && pg) {
+          Promise.resolve().then(() => pg.render(box, { embedded: true })).catch(e => {
+            box.innerHTML = '<div class="mko-empty">Searches and demand could not load — ' + esc(String((e && e.message) || e)) + "</div>";
+          });
+        } else if (box) box.innerHTML = '<div class="mko-empty">Searches and demand is not in this build of the portal.</div>';
+      }
+      if (host.querySelector("#mkoK-seo")) RSC.kpis(host.querySelector("#mkoK-seo"), [
         kp("Search clicks", cur.clk, on ? prev.clk : undefined, fmtN, false,
            rep.best ? "best month " + monthWord(rep.best.m) + ": " + fmtN(rep.best.clk) : "Search Console", gw),
         kp("Search impressions", cur.imp, on ? prev.imp : undefined, compact, false, "CTR " + pct2(ratio(cur.clk, cur.imp)), gw),
@@ -2810,6 +3275,34 @@
         }
       }
     } };
+  }
+
+  /* the Overview topic's two cards (2026-10-29): what the months' searches were, and who AI answers name */
+  function hbHtml(rows) {
+    const mx = Math.max.apply(null, rows.map(r => r.n)) || 1;
+    return rows.map(r => '<div class="mkd-hb"><span' + (r.strong ? ' class="us"' : "") + ">" + esc(r.k) + '</span><span class="tr" aria-hidden="true"><i'
+      + (r.strong ? ' class="now"' : "") + ' style="width:' + Math.max(1, Math.round(100 * r.n / mx)) + '%"></i></span><b>'
+      + fmtN(r.n) + "</b></div>").join("");
+  }
+  function queryMixHtml(ms) {
+    const rows = P.gscq.filter(r => ms.includes(r.m));
+    if (!rows.length) return '<div class="mko-empty">No search list for these months yet.</div>';
+    const by = groupBy(rows, r => r.type).map(x => ({ k: x.k, n: sum(x.rows, "clk") })).filter(x => x.n > 0);
+    const hidden = (by.find(x => x.k === "Hidden by Google") || {}).n || 0;
+    const named = by.filter(x => x.k !== "Hidden by Google").sort((a, b) => b.n - a.n);
+    const tot = sum(named, "n"), brand = (named.find(x => x.k === "Brand") || {}).n || 0;
+    return hbHtml(named.map(x => ({ k: x.k === "Brand" ? "Our own name" : x.k, n: x.n, strong: x.k === "Brand" })))
+      + '<p class="rs-hint">' + fmtN(tot) + " clicks Google names" + (hidden ? ", and " + fmtN(hidden) + " more it hides" : "")
+      + (tot ? ". Searches for our own name are " + pct(brand / tot) + " of the named clicks; the rest are people still choosing a mover." : ".") + "</p>";
+  }
+  function aiMixHtml() {
+    const m = aiModel();
+    if (!m) return '<div class="mko-empty">No AI answers read yet.</div>';
+    const top = m.rows.filter(r => r.men > 0 || r.us).slice(0, 6);
+    return hbHtml(top.map(r => ({ k: r.b, n: r.men, strong: r.us })))
+      + '<p class="rs-hint">We are named in ' + fmtN(m.usAns) + " of " + fmtN(m.answers) + " answers ("
+      + esc(m.engines.map(e => e[1]).join(" + ")) + ", " + esc(m.dates.map(day).join(", "))
+      + "). Leads from AI answers never pass through Search Console. The AI answers topic has the questions we miss.</p>";
   }
 
   /* keywords by the service they ask about, read from the query's words; brand searches apart */
@@ -3981,15 +4474,15 @@
       ]);
     } };
   }
-  function statusChip() {
-    const plat = D.conn.filter(r => r.Group === "Marketing platforms");
-    if (!plat.length) return "";
-    const live = plat.filter(r => r.Connection !== "Not connected").length;
-    const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]).length;
-    const late = D.conn.filter(r => r.Status === "Behind").length;
-    return '<button type="button" class="mko-chip" data-tab="set" title="Open Settings: every source and its status">'
-      + '<i class="mko-dot ' + (late ? "warn" : "ok") + '"></i>' + live + " live · " + wait + " waiting"
-      + (late ? " · " + late + " behind" : "") + "</button>";
+  // the header's "Data sources" pill: how many connected sources are up to date; amber when one is
+  // behind. It opens the data sources (S.tab "set"), which is no longer a tab of its own.
+  function sourcesPill() {
+    const on = D.conn.filter(r => r.Status !== "Not connected");
+    if (!on.length) return "";
+    const fresh = on.filter(r => r.Status === "Up to date").length, late = on.filter(r => r.Status === "Behind").length;
+    return '<button type="button" class="mkd-pill' + (late ? " warn" : "") + '" data-tab="set" title="Every source, '
+      + 'what it gives and how fresh it is"><i aria-hidden="true"></i>Data sources: ' + fresh + " of " + on.length
+      + " up to date" + (late ? " · " + late + " behind" : "") + "</button>";
   }
 
   /* --- the data sources (the Settings tab) --- */
@@ -4071,27 +4564,46 @@
       + " · refreshed every hour by the pipeline.</div>";
   }
 
+  // what each tab answers, said under the title with the window it reads
+  const TAB_ASK = {
+    ov: "Every channel, what it cost and what it booked.", paid: "Is each ad platform earning its money?",
+    seo: "Who finds us without an ad, where that demand is, and whether we win it.",
+    web: "What visitors do on the website.", rev: "Reviews against their goals, and the negative ones.",
+    soc: "Our own pages and posts, outside the ads.", set: "Every source this dashboard reads, and whether it is up to date.",
+  };
   function paint(host) {
     const w = win();
     const cw = cmpWin(w);
-    const tab = { ov: overviewTab, paid: paidTab, seo: seoTab, web: webTab, rev: reviewsTab, set: settingsTab }[S.tab] || overviewTab;
+    const tab = { ov: overviewTab, paid: paidTab, seo: seoTab, web: webTab, rev: reviewsTab, soc: socialTab, set: settingsTab }[S.tab] || overviewTab;
+    if (!TAB_ASK[S.tab]) S.tab = "ov";
     const body = tab(w, cw);
-    host.innerHTML = '<div class="mko">'
-      + '<div class="rs-page-head"><h1>Marketing Overview</h1>'
-      + "<p>Every channel, ad platform and search signal in one place.</p></div>"
-      + '<div class="rs-bar">'
-      + '<div id="mkoCo"></div>'
+    const when = w.open ? "All time" : dayRange(w.a, w.bEff) + (cw ? ", against the " + cw.label : "");
+    host.innerHTML = '<div class="mko mkd">'
+      + '<header class="mkd-head"><div class="mkd-title"><div class="mkd-eye">Marketing</div>'
+      + "<h1>" + (S.tab === "set" ? "Data sources" : "Marketing Dashboard") + "</h1>"
+      + "<p>" + esc(TAB_ASK[S.tab]) + (S.tab === "set" ? "" : " " + esc(when) + ".") + "</p></div>"
+      + '<div class="mkd-acts-r">' + (S.tab === "set" ? '<button type="button" class="mkd-pill" data-tab="ov">← Back to the dashboard</button>' : sourcesPill())
+      + (window.RSC && RSC.printView && S.tab !== "set" ? '<button type="button" class="mkd-btn" id="mkdPdf">Download PDF</button>' : "")
+      + "</div></header>"
+      + '<div class="mkd-bar">'
+      + '<nav class="mkd-tabs" aria-label="Marketing Dashboard tabs">' + TABS.map(([k, l]) =>
+        '<button type="button" data-tab="' + k + '"' + (k === S.tab ? ' class="on" aria-current="page"' : "")
+        + ">" + esc(l) + "</button>").join("") + "</nav>"
+      + '<div class="mkd-ctl">'
       + '<div class="rs-fld"><span>Period</span><div id="mkoDate"></div></div>'
       + '<div class="rs-fld"><span>Compare</span><div class="rs-seg" id="mkoCmp">'
       + '<button type="button" data-v="ly">vs last year</button>'
       + '<button type="button" data-v="prev">vs previous period</button></div></div>'
-      + statusChip()
-      + "</div>"
-      + '<nav class="mko-tabs" aria-label="Marketing Overview tabs">' + TABS.map(([k, l]) =>
-        '<button type="button" data-tab="' + k + '"' + (k === S.tab ? ' class="on" aria-current="page"' : "")
-        + ">" + esc(l) + "</button>").join("") + "</nav>"
+      + '<div id="mkoCo"></div>'
+      + "</div></div>"
       + '<div id="mkoBody">' + body.html + "</div>"
       + "</div>";
+    const pdf = host.querySelector("#mkdPdf");
+    if (pdf) {
+      pdf.onclick = () => RSC.printView({ host: host.querySelector("#mkoBody"),
+        title: "Marketing Dashboard · " + ((TABS.find(t => t[0] === S.tab) || [])[1] || ""),
+        subtitle: (S.co || "Both companies") + " · " + when });
+    }
 
     RSC.localSelect(host.querySelector("#mkoCo"), {
       label: "Company", allLabel: "Both companies",
@@ -4115,7 +4627,7 @@
     host.querySelectorAll("[data-tab]").forEach(b => {
       b.onclick = () => {
         S.tab = b.dataset.tab; lsSet(LS_TAB, S.tab); paint(host);
-        const nav = host.querySelector(".mko-tabs");
+        const nav = host.querySelector(".mkd-bar");
         if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
       };
     });
@@ -4125,14 +4637,17 @@
   registerPage({
     id: "marketing-overview",
     group: "marketing",
-    title: "Marketing Overview",
-    subtitle: "Every channel, ad platform and search signal in one place: overview, paid ads, search " +
-              "and SEO, website, and the data sources under Settings.",
+    title: "Marketing Dashboard",
+    subtitle: "Every channel, what it cost and what it booked: overview, paid ads, search and SEO (Organic " +
+              "Search included), website, reputation, social, and the data sources behind it.",
     datasets: [],
 
     render(host) {
       const mine = host;
       const alive = () => document.body.contains(mine);
+      // an old #page=organic-search link is forwarded here by the shell's REDIRECTS: open its topic
+      const fromOrganic = window.__navRequested === "organic-search";
+      if (fromOrganic) window.__navRequested = null;
       injectStyle();
       // RS.load caches per refresh epoch, so asking again on every visit is free and picks up the
       // hourly rebuild; the loading bar shows on the first visit only
@@ -4184,8 +4699,10 @@
         indexSemrush({ smov, smas, smorg, smkw, smaud, smhist, smuse });
         // a failed read is tried again on the next visit
         D.ready = !D.chErr && !D.connErr && !Object.keys(P.err).length;
+        Object.keys(TREND).forEach(k => { delete TREND[k]; });   // the month trends read the new rows
         if (!alive()) return;
         boot();
+        if (fromOrganic) { S.tab = "seo"; S.seoTopic = "demand"; }
         paint(host);
       });
     },

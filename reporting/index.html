@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="f9c507974940a7df984b9c10d41f2e325ba8a757">
+<meta name="ztz-ref" content="c7356a4949048002caf6e8013e72516df5d5b8e1">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -250,8 +250,9 @@ const GROUP_OVERRIDE = {
   "jobs-by-area": "marketing",
   "packing-sales": "logistics",
   "relocation-trends": "marketing",
-  // Census Data (2026-09-23): the ACS 2024 figures behind Seasonal Planning, view only
-  "census-data": "marketing",
+  // Census Data (2026-09-23): the ACS 2024 figures behind Seasonal Planning, view only. Moved to the
+  // Tech Team 2026-10-29 (his ask, with the Marketing Dashboard redesign): reference data, not a marketing report
+  "census-data": "tech",
   // Organic Search (2026-09-24): Search Console folded by query, place and landing page, view only
   "organic-search": "marketing",
   // Marketing Automations (2026-09-23)
@@ -453,7 +454,8 @@ const RETIRED = new Set([
    old links go through REDIRECTS to the host page, which reads window.__navRequested to open on
    that tab. Day Closing is the Day Closing tab of Money Flow (his ask: "combine day closing and
    money flow as a separate tabs"); /api/_dc already admits money-flow holders. */
-const TAB_HOSTED = new Set(["day-closing"]);
+// Organic Search (2026-10-29) is the "Searches and demand" topic of the Marketing Dashboard's Search & SEO tab.
+const TAB_HOSTED = new Set(["day-closing", "organic-search"]);
 /* ARCHIVED PAGES (2026-10-08): out of the sidebar, the nav search and the landing pick like a
    tab-hosted page, still GRANTED as before (ACL lists untouched), but NOT redirected: the page
    stays reachable by its own link because it holds history nothing else shows. Foreman Net Cash
@@ -464,6 +466,8 @@ function navHidden(id) { return TAB_HOSTED.has(id) || ARCHIVED.has(id); }
 const REDIRECTS = {
   // 2026-10-08: Day Closing is a tab of Money Flow; old links land on #page=money-flow&tab=day-closing
   "day-closing": "money-flow",
+  // 2026-10-29: Organic Search lives in the Marketing Dashboard (Search & SEO -> Searches and demand)
+  "organic-search": "marketing-overview",
   "sales-comms": "sales-trackers",
   // 2026-09-23: ERP Bug Briefs was replaced by Things to do; old links land there
   "erp-briefs": "things-to-do",
@@ -1386,7 +1390,7 @@ const NAV_TITLES = {
   "foreman-closings": "Foreman Closings",
   "data-quality": "Data Quality",
   "data-migration": "Data Migration",
-  "marketing-overview": "Marketing Overview",
+  "marketing-overview": "Marketing Dashboard",
   "target-map": "Target Map",
   "source-report": "Source Analysis",
   "marketing-roi": "Return on Investment",
@@ -1481,7 +1485,7 @@ const SEARCH_ALIASES = {
   "estimate-accuracy": "estimate accuracy sales vs reality estimated vs actual sold real cf cubic feet inventory items time hours act minimum under over estimate bias foreman sold rep accuracy",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "target-map": "target map targeting zip codes zips tiers tier 1 2 3 core good normal current mid max plan where to advertise ads google meta download upload market",
-  "marketing-overview": "marketing overview sources connected connectors platforms status up to date fresh late google ads local services lsa analytics ga4 search console facebook instagram meta chatgpt openai tiktok reddit linkedin nextdoor semrush ahrefs brightlocal bank spend ledger callrail leads campaigns performance max pmax search demand gen cpc ctr impressions clicks conversions charged credited results",
+  "marketing-overview": "marketing dashboard overview organic search search console queries brand demand business profile sources connected connectors platforms status up to date fresh late google ads local services lsa analytics ga4 search console facebook instagram meta chatgpt openai tiktok reddit linkedin nextdoor semrush ahrefs brightlocal bank spend ledger callrail leads campaigns performance max pmax search demand gen cpc ctr impressions clicks conversions charged credited results",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "marketing-roi": "return on investment roi roas revenue per dollar ad spend by state split spend states placed not placed missing data drill cost per job yelp meta reddit nextdoor google angi post card marketing budget",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
@@ -1977,7 +1981,7 @@ const REPORT_LABELS = {
   "conversations": "Conversations (call transcripts)",
   "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
-  "marketing-overview": "Marketing Overview",
+  "marketing-overview": "Marketing Dashboard",
   "target-map": "Target Map",
   "source-report": "Source Analysis",
   "marketing-roi": "Return on Investment",
@@ -2092,7 +2096,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "census-data", "organic-search"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -2105,7 +2109,7 @@ const ACL_DEPTS = [
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "branch-owner", "cl-analysis", "postcard-purchases", "subscriptions"] },
   { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
-  { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns"] },
+  { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
 /* A department that ALSO grants other departments, permanently, for today's holders and
@@ -2371,7 +2375,7 @@ registerPage({
 <script src="pages/things-to-do.js?v=4"></script>
 <script src="pages/conversations.js?v=13"></script>
 <script src="pages/source-trace.js?v=30"></script>
-<script src="pages/marketing-overview.js?v=23"></script>
+<script src="pages/marketing-overview.js?v=24"></script>
 <script src="pages/roi-core.js?v=3"></script>
 <script src="pages/source-report.js?v=16"></script>
 <script src="pages/marketing-roi.js?v=3"></script>
