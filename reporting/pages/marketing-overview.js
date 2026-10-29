@@ -43,7 +43,8 @@
  * Company / Period / Compare bar, between the channel table and the source list:
  *   * GOOGLE ADS (ext_ads_campaign_day): cost, clicks, CTR, CPC and Google's conversions, a cost
  *     line, the split by campaign type (Performance Max / Search / Demand Gen) and every campaign.
- *   * LOCAL SERVICES (ext_lsa_cost_day + mart_mkt_lsa_lead_day): cost, Google's leads by job type,
+ *   * LOCAL SERVICES (ext_lsa_cost_day + mart_mkt_lsa_lead_day): cost, Google's leads by OUR service (the
+ *     Moveboard request each became, matched by phone in the mart) with Google's own job type beside,
  *     charged vs credited, phone vs message, cost per charged lead. The lead list itself holds
  *     callers' phones and never reaches the portal; the mart is a count.
  *   * META (ext_meta_ads_day): spend, impressions, clicks and RESULTS per campaign. A result is
@@ -140,7 +141,7 @@
                cols: ["Date", "Campaign Id", "Campaign", "Channel", "Cost", "Impressions", "Clicks",
                       "Conversions"] },
     mkt_lsa_cost: { table: "ext_lsa_cost_day", cols: ["Date", "Cost", "Impressions", "Clicks"] },
-    mkt_lsa_lead: { table: "mart_mkt_lsa_lead_day", cols: ["Date", "Lead Type", "Service", "Charge", "Leads"] },
+    mkt_lsa_lead: { table: "mart_mkt_lsa_lead_day", cols: ["Date", "Lead Type", "Service", "Zip Service", "Charge", "Leads"] },
     mkt_meta: { table: "ext_meta_ads_day",
                 cols: ["Date", "Campaign Id", "Campaign", "Objective", "Impressions", "Reach", "Clicks",
                        "Spend", "Post Engagement", "Leads", "Results", "Result Indicator"] },
@@ -294,6 +295,11 @@
     "video_thruplay_watched_actions": "ThruPlays", "actions:link_click": "link clicks",
   };
   const LSA_CHARGE = ["Charged", "Credited", "In review", "Not charged"];
+  // the mart's Zip Service rows that found no Moveboard request, and what each means (src/mkt_overview_mart.py)
+  const LSA_ZIP_DAYS = 30;
+  const LSA_NO_SVC = { "Not in Moveboard": "the caller never became a Moveboard request",
+                       "No phone": "Google cleared the caller's phone before we stored it",
+                       "Not checked": "Moveboard was rebuilding; it fills in next hour" };
 
   /* ------------------------------------------------------------------ helpers ---- */
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
@@ -899,7 +905,8 @@
     indexPlat("lsaC", lsaC, r => ({ d: d10(r.Date), cost: num(r.Cost), imp: num(r.Impressions),
       clk: num(r.Clicks) }));
     indexPlat("lsaL", lsaL, r => ({ d: d10(r.Date), lt: r["Lead Type"] || "Other",
-      svc: r.Service || "Not given", chg: r.Charge || "Not charged", n: num(r.Leads) }));
+      svc: r.Service || "Not given", zs: r["Zip Service"] || "Not checked", chg: r.Charge || "Not charged",
+      n: num(r.Leads) }));
     // a Meta row's result: Meta's own Results where it returned them; a campaign that returned
     // none but counted leads reads its lead count (kind "lead"); otherwise it has no result
     indexPlat("meta", meta, r => {
@@ -1479,8 +1486,11 @@
       + "leads; the Google Local row in the Channels table is the Moveboard leads matched to them by phone.</p>"
       + noCmpHint("Local Services", pw)
       + '<div class="mko-g2"><div id="mkoC-lsa"></div>'
-      + '<div class="panel"><div class="panel-head"><span class="panel-title">Leads by job type</span>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Leads by service</span>'
       + '<span class="mko-sub">' + esc(typeLine) + "</span></div>"
+      + '<p class="rs-hint">The service is our own: the Moveboard request each lead became (the same phone, '
+      + "the nearest request within " + LSA_ZIP_DAYS + " days). Google's job type is what the customer picked on "
+      + "Google, in Google's words, and Google leaves it blank on most leads.</p>"
       + lsaTypeTable(leads, cur) + "</div></div>";
     return { html, wire(host) {
       RSC.kpis(host.querySelector("#mkoK-lsa"), [
@@ -1496,24 +1506,32 @@
       lsaCard(host.querySelector("#mkoC-lsa"), pw, cost, leads);
     } };
   }
+  /* By OUR service (2026-10-29, the marketing head: Google's "Senior move" is no word of ours): the
+     Moveboard request's Service Type, from mart_mkt_lsa_lead_day.Zip Service. The rows that found no
+     request sink to the bottom with what they mean; Google's own job type rides beside, small. */
   function lsaTypeTable(leads, cur) {
-    const list = groupBy(leads, r => r.svc).map(x => {
-      const o = { k: x.k, n: sum(x.rows, "n") };
+    const list = groupBy(leads, r => r.zs).map(x => {
+      const o = { k: x.k, n: sum(x.rows, "n"), g: groupBy(x.rows.filter(r => r.svc !== "Not given"), r => r.svc)
+        .map(y => ({ k: y.k, n: sum(y.rows, "n") })).sort((a, b) => b.n - a.n) };
       LSA_CHARGE.forEach(c => { o[c] = sum(x.rows.filter(r => r.chg === c), "n"); });
       return o;
-    }).sort((a, b) => (a.k === "Not given") - (b.k === "Not given") || b.n - a.n);
-    const tot = { k: "All leads", n: cur.leads };
+    }).sort((a, b) => (LSA_NO_SVC[a.k] ? 1 : 0) - (LSA_NO_SVC[b.k] ? 1 : 0) || b.n - a.n);
+    const tot = { k: "All leads", n: cur.leads, g: null };
     LSA_CHARGE.forEach(c => { tot[c] = cur[c]; });
     const isTot = r => r.k === "All leads";
     return ptable([
-      { h: "Job type", name: true, tip: "Not given = Google recorded no job type for the lead",
+      { h: "Service", name: true, tip: "the Service Type of the Moveboard request the lead became",
         cell: r => isTot(r) ? esc(r.k) : shareName(esc(r.k)
-          + (r.k === "Not given" ? '<div class="mko-sub">no job type recorded</div>' : ""), r.n, cur.leads) },
+          + (LSA_NO_SVC[r.k] ? '<div class="mko-sub">' + esc(LSA_NO_SVC[r.k]) + "</div>" : ""), r.n, cur.leads) },
       { h: "Leads", num: true, cell: r => isTot(r) ? fmtN(r.n) : withShare(fmtN(r.n), r.n, cur.leads) },
       { h: "Charged", num: true, cell: r => fmtN(r.Charged) },
       { h: "Credited", num: true, cell: r => fmtN(r.Credited) },
       { h: "Not charged", num: true, tip: "not billed by Google (and any still in review)",
         cell: r => fmtN(r["Not charged"] + r["In review"]) },
+      { h: "Google's job type", tip: "what the customer picked on Google; blank on most leads",
+        cell: r => !r.g ? "" : r.g.length
+          ? '<span class="mko-sub">' + r.g.map(t => fmtN(t.n) + " " + esc(t.k.toLowerCase())).join(" · ") + "</span>"
+          : '<span class="mko-sub">not given</span>' },
     ], list, tot, true);
   }
   /* Local Services: leads per bucket stacked by charge, the cost a line on its own axis */
