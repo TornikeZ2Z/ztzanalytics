@@ -233,6 +233,15 @@
                                                    "Pages Crawled", "Pages With Issues", "Last Crawl"] },
     mkt_smhist: { table: "ext_semrush_history", cols: ["Month", "Backlinks", "Ref Domains", "Authority Score",
                                                       "Org Keywords", "Org Traffic"] },
+    // 2026-10-30 Facebook + Instagram per post, organic against paid (src/meta_page.py)
+    mkt_mpost: { table: "ext_meta_post", cols: ["Post Id", "Platform", "Date", "Format", "Text", "Link", "Views", "Organic Views", "Paid Views",
+                                                "Reach", "Clicks", "Reactions", "Comments", "Shares", "Saves", "Profile Visits"] },
+    mkt_mad: { table: "ext_meta_ad", cols: ["Ad Id", "Ad Name", "Campaign", "Story Id", "Media Id", "Text"] },
+    mkt_mlife: { table: "ext_meta_ad_life", cols: ["Ad Id", "Platform", "Reach"] },
+    mkt_mpd: { table: "ext_meta_ad_post_day", cols: ["Date", "Ad Id", "Platform", "Spend", "Impressions", "Reach", "Clicks", "Reactions", "Comments",
+                                                     "Shares", "Saves", "Leads"] },
+    mkt_msoc: { table: "ext_meta_social_day", cols: ["Platform", "Date", "Views", "Organic Views", "Paid Views", "Organic Reach", "Paid Reach",
+                                                     "New Followers", "Followers", "Page Views"] },
     mkt_smuse: { table: "ext_semrush_usage", cols: ["Run At", "Step", "Ran", "Reason", "Cadence Days", "Calls", "Units",
                                                    "Est Units"] },
   };
@@ -286,7 +295,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -724,6 +733,20 @@
       + ".mkd .mkd-vt.p2{background:#FBF3E2;color:#7A4E00}.mkd .mkd-vt.inv{background:#FAEFF5;color:#8E2F5F}"
       + ".mkd .mkd-vt.few{background:var(--panel-2);color:var(--muted)}"
       + ".mkd .mkd-grey td{color:var(--muted)}body.rs-app.light .mkd .mko-d.dn{color:#B04A7E}"
+      // Facebook and Instagram: the two teams, and the list that adds up to them
+      + ".mkd .mkd-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:12px 0}"
+      + ".mkd .mkd-team{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}"
+      + ".mkd .mkd-team h3{margin:0;font-size:16px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-team p{margin:2px 0 12px;font-size:12.5px;color:var(--muted)}"
+      + ".mkd .mkd-tstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}"
+      + ".mkd .mkd-tstats .mkd-nb b{display:flex;align-items:center;gap:8px;flex-wrap:wrap}"
+      + ".mkd #mkoMeta{display:flex;flex-direction:column;gap:14px}.mkd #mkoMeta .panel,.mkd #mkoMeta .mkd-teams{margin:0}"
+      + ".mkd #mkoMeta .panel-head{gap:10px;flex-wrap:wrap}"
+      + ".mkd .mkd-mt th.grp{text-align:center}.mkd .mkd-mt .sep{border-left:1px solid var(--line-2)}"
+      + ".mkd .mkd-mt thead tr:nth-child(2) th{top:36px}"
+      + ".mkd .mkd-mt .mkd-post{min-width:300px;max-width:400px;white-space:normal}"
+      + ".mkd .mkd-mt .mkd-post a{color:var(--ink);font-weight:600;text-decoration:none}.mkd .mkd-mt .mkd-post a:hover{text-decoration:underline}"
+      + ".mkd .mkd-mt .mkd-post .mko-sub{display:flex;align-items:center;gap:6px;margin-top:3px}"
       + ".mkd .mkd-scroll{max-height:560px;overflow:auto}.mkd .mkd-scroll th{position:sticky;top:0;z-index:1;background:var(--panel-2)}"
       + ".mkd .mkd-heat{display:inline-block;min-width:26px;padding:1px 5px;border-radius:5px;text-align:center;font-weight:600;"
       + "background:color-mix(in srgb,#3F7D20 var(--h),transparent);color:var(--ink)}"
@@ -2990,21 +3013,221 @@
   }
 
   /* === SOCIAL AND CONTENT (2026-10-29) === our own pages and posts, outside the ads */
+  /* === FACEBOOK AND INSTAGRAM, ORGANIC TEAM AGAINST PAID TEAM (2026-10-30, src/meta_page.py) ===
+     He: "we have employees who take care of paid and who take care of organic and we want to see who
+     did what." Two totals and every post, no personal names. What the numbers obey:
+       * The list holds what the team did IN THE PERIOD: posts published in it, and ads that ran in it.
+         A post boosted now but published earlier shows its paid side only, so the rows add up to the
+         tiles. A post's organic numbers are its total to date; an ad's numbers are inside the period.
+       * 81% of the spend runs on ad-only creatives, so they are rows of their own, grouped by the ad's
+         post: several ads on one creative are one row.
+       * Meta splits only VIEWS on a boosted Facebook post, so its organic reach, clicks and engagement
+         are its total x its organic share of views, marked ≈. Subtracting the ads does not work.
+       * Reach is people: totals add up each row's reach, and say so. An ad's reach in a period is the
+         lesser of its daily reach added up and its reach over 13 months.
+       * Engagement is reactions + comments + shares + saves on both sides, so they compare: Meta's own
+         post_engagement also holds 3-second video plays. Rate = engagement ÷ reach.
+       * Instagram gives a post no clicks, so its organic side shows profile visits (Reels: neither). */
+  const MK = { net: "Facebook", show: "", sort: "new", all: false };
+  const META_SORT = { new: "Newest", org: "Organic reach", paid: "Paid reach", eng: "Engagement", cost: "Spend" };
+  const META_SHOW = { Organic: "Organic posts", Boosted: "Boosted posts", "Ad only": "Ad-only creatives" };
+  function indexMeta(t) {
+    P.mpost = (t.mpost || []).map(r => ({ id: r["Post Id"], net: r.Platform, d: d10(r.Date), fmt: r.Format || "", text: r.Text || "",
+      link: r.Link || "", views: num(r.Views), orgV: num(r["Organic Views"]), paidV: num(r["Paid Views"]), reach: num(r.Reach),
+      clk: num(r.Clicks), pv: num(r["Profile Visits"]),
+      eng: num(r.Reactions) + num(r.Comments) + num(r.Shares) + num(r.Saves) })).filter(r => r.d);
+    P.mad = {};
+    (t.mad || []).forEach(r => { P.mad[r["Ad Id"]] = { name: r["Ad Name"] || "", camp: r.Campaign || "", story: r["Story Id"] || "",
+      media: r["Media Id"] || "", text: r.Text || "" }; });
+    P.mlife = {};
+    (t.mlife || []).forEach(r => { if (r.Reach != null && r.Reach !== "") P.mlife[r["Ad Id"] + "|" + r.Platform] = num(r.Reach); });
+    indexPlat("mpd", t.mpd, r => ({ d: d10(r.Date), ad: r["Ad Id"], plat: r.Platform, cost: num(r.Spend), imp: num(r.Impressions),
+      reach: r.Reach == null || r.Reach === "" ? null : num(r.Reach), clk: num(r.Clicks), lead: num(r.Leads),
+      eng: num(r.Reactions) + num(r.Comments) + num(r.Shares) + num(r.Saves) }));
+    indexPlat("msoc", t.msoc, r => ({ d: d10(r.Date), net: r.Platform, views: num(r.Views), orgV: num(r["Organic Views"]),
+      paidV: num(r["Paid Views"]), orgR: num(r["Organic Reach"]), paidR: num(r["Paid Reach"]), gain: num(r["New Followers"]),
+      fol: r.Followers == null || r.Followers === "" ? null : num(r.Followers), pv: num(r["Page Views"]) }));
+  }
+  function metaPaid(net, a, b) {
+    const plat = net.toLowerCase(), byAd = {}, other = {};
+    P.mpd.forEach(r => {
+      if (r.d < a || r.d > b) return;
+      if (r.plat !== "facebook" && r.plat !== "instagram") { other[r.plat] = (other[r.plat] || 0) + r.cost; return; }
+      if (r.plat !== plat) return;
+      const x = byAd[r.ad] = byAd[r.ad] || { cost: 0, imp: 0, days: 0, hasR: false, clk: 0, eng: 0, lead: 0, first: r.d };
+      x.cost += r.cost; x.imp += r.imp; x.clk += r.clk; x.eng += r.eng; x.lead += r.lead;
+      if (r.reach != null) { x.days += r.reach; x.hasR = true; }
+      if (r.d < x.first) x.first = r.d;
+    });
+    const groups = {};
+    Object.keys(byAd).forEach(id => {
+      const x = byAd[id], info = P.mad[id] || {}, life = P.mlife[id + "|" + plat];
+      const reach = !x.hasR ? 0 : life != null ? Math.min(x.days, life) : x.days;
+      const key = (net === "Instagram" ? info.media : info.story) || info.story || "ad:" + id;
+      const g = groups[key] = groups[key] || { ads: 0, cost: 0, imp: 0, reach: 0, clk: 0, eng: 0, lead: 0, first: x.first, text: "", name: "" };
+      g.ads++; g.cost += x.cost; g.imp += x.imp; g.reach += reach; g.clk += x.clk; g.eng += x.eng; g.lead += x.lead;
+      if (x.first < g.first) g.first = x.first;
+      g.text = g.text || info.text; g.name = g.name || info.name;
+    });
+    return { groups, other };
+  }
+  function metaRows(net, a, b) {
+    const { groups, other } = metaPaid(net, a, b), rows = [], seen = {};
+    P.mpost.forEach(p => {
+      if (p.net !== net) return;
+      const paid = groups[p.id], inP = p.d >= a && p.d <= b;
+      if (!paid && !inP) return;
+      seen[p.id] = 1;
+      const share = p.paidV > 0 && p.views ? p.orgV / p.views : 1;
+      rows.push({ d: p.d, fmt: p.fmt, text: p.text, link: p.link, kind: paid ? "Boosted" : "Organic", paid: paid || null,
+        org: inP ? { views: p.orgV, reach: p.reach * share, act: (net === "Instagram" ? p.pv : p.clk) * share, eng: p.eng * share, approx: share < 1 } : null });
+    });
+    Object.keys(groups).forEach(k => {
+      if (seen[k]) return;
+      const g = groups[k];
+      rows.push({ d: g.first, fmt: "", text: g.text || g.name || "(no text)", link: "", kind: "Ad only", paid: g, org: null });
+    });
+    return { rows, other };
+  }
+  function metaSum(rows) {
+    const t = { posts: 0, views: 0, reach: 0, act: 0, eng: 0, ads: 0, cost: 0, imp: 0, pReach: 0, clk: 0, pEng: 0, lead: 0 };
+    rows.forEach(r => {
+      if (r.org) { t.posts++; t.views += r.org.views; t.reach += r.org.reach; t.act += r.org.act; t.eng += r.org.eng; }
+      if (r.paid) { t.ads += r.paid.ads; t.cost += r.paid.cost; t.imp += r.paid.imp; t.pReach += r.paid.reach; t.clk += r.paid.clk; t.pEng += r.paid.eng; t.lead += r.paid.lead; }
+    });
+    return t;
+  }
+  function metaTable(rows, net, tot) {
+    const key = { new: r => r.d, org: r => (r.org ? r.org.reach : -1), paid: r => (r.paid ? r.paid.reach : -1),
+                  eng: r => (r.org ? r.org.eng : 0) + (r.paid ? r.paid.eng : 0), cost: r => (r.paid ? r.paid.cost : -1) }[MK.sort];
+    const list = rows.filter(r => !MK.show || r.kind === MK.show).sort((a, b) => (key(b) < key(a) ? -1 : key(b) > key(a) ? 1 : 0));
+    const shown = MK.all ? list : list.slice(0, 40);
+    const n = v => (v == null ? "—" : fmtN(v)), ap = o => (o.approx ? "≈ " : "");
+    const cells = (o, p) => (o ? '<td class="mko-num sep">' + fmtN(o.views) + '</td><td class="mko-num">' + ap(o) + fmtN(o.reach) + '</td><td class="mko-num">'
+        + (o.act ? ap(o) + fmtN(o.act) : "—") + '</td><td class="mko-num">' + ap(o) + fmtN(o.eng) + '</td><td class="mko-num">' + pct2(ratio(o.eng, o.reach)) + "</td>"
+      : '<td class="mko-num sep">—</td><td class="mko-num">—</td><td class="mko-num">—</td><td class="mko-num">—</td><td class="mko-num">—</td>')
+      + (p ? '<td class="mko-num sep"><b>' + money0(p.cost) + '</b></td><td class="mko-num">' + fmtN(p.imp) + '</td><td class="mko-num">' + (p.reach ? fmtN(p.reach) : "—")
+        + '</td><td class="mko-num">' + fmtN(p.clk) + '</td><td class="mko-num">' + fmtN(p.eng) + '</td><td class="mko-num">' + pct2(ratio(p.eng, p.reach)) + "</td>"
+      : '<td class="mko-num sep">—</td><td class="mko-num">—</td><td class="mko-num">—</td><td class="mko-num">—</td><td class="mko-num">—</td><td class="mko-num">—</td>');
+    const pillOf = { Organic: "ok", Boosted: "info", "Ad only": "warn" };
+    const row = r => {
+      const words = r.text.length > 90 ? r.text.slice(0, 88) + "…" : r.text;
+      return '<tr><td class="mkd-post">' + (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noopener">' + esc(words) + "</a>" : esc(words))
+        + '<span class="mko-sub">' + pill(r.kind, pillOf[r.kind]) + " " + esc([r.fmt, day(r.d)].filter(Boolean).join(" · "))
+        + (r.paid && r.paid.ads > 1 ? " · " + r.paid.ads + " ads" : "") + "</span></td>" + cells(r.org, r.paid) + "</tr>";
+    };
+    return '<div class="rs-tablewrap mkd-scroll"><table class="rs-table mko-pt mkd-mt"><thead><tr><th></th><th class="sep grp" colspan="5">Organic team</th><th class="sep grp" colspan="6">Paid team</th></tr>'
+      + '<tr><th>Post</th><th class="mko-num sep">Views</th><th class="mko-num">Reach</th><th class="mko-num">' + (net === "Instagram" ? "Profile visits" : "Clicks")
+      + '</th><th class="mko-num">Engagement</th><th class="mko-num">Rate</th><th class="mko-num sep">Spend</th><th class="mko-num">Views</th><th class="mko-num">Reach</th>'
+      + '<th class="mko-num">Clicks</th><th class="mko-num">Engagement</th><th class="mko-num">Rate</th></tr></thead><tbody>'
+      + (shown.length ? shown.map(row).join("") : '<tr><td colspan="12" class="mko-sub">Nothing in this period.</td></tr>')
+      + '<tr class="mko-tot"><td>All ' + fmtN(rows.length) + " rows, reach added up</td>"
+      + cells({ views: tot.views, reach: tot.reach, act: tot.act, eng: tot.eng }, { cost: tot.cost, imp: tot.imp, reach: tot.pReach, clk: tot.clk, eng: tot.pEng })
+      + "</tr></tbody></table></div>"
+      + (list.length > 40 ? '<button type="button" class="rs-btn" id="mkoMtAll">' + (MK.all ? "Show the first 40" : "Show all " + fmtN(list.length)) + "</button>" : "");
+  }
+  function metaPaint(box, w, cw) {
+    if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && box.contains(ch.canvas)) ch.destroy(); });
+    const pw = platWin("msoc", w, cw), any = P.mpost.length ? [{ n: 1 }] : [];
+    const gate = P.err.mpost ? platGate("Facebook and Instagram", "mpost", pw, any) : platGate("Facebook and Instagram", "msoc", pw, any);
+    if (gate) { box.innerHTML = gate; return; }
+    const net = MK.net, { rows, other } = metaRows(net, pw.a, pw.b), cur = metaSum(rows);
+    const prev = pw.cw ? metaSum(metaRows(net, pw.cw.a, pw.cw.b).rows) : null;
+    const days = P.msoc.filter(r => r.net === net && r.d >= pw.a && r.d <= pw.b);
+    const was = k => (prev ? prev[k] : null), rate = (e, r) => ratio(e, r), late = net === "Instagram" && days.length && days[0].d > pw.a;
+    const box6 = (l, v, chip, s) => '<div class="mkd-nb"><span>' + esc(l) + "</span><b>" + v + (chip || "") + "</b>" + (s ? "<em>" + esc(s) + "</em>" : "") + "</div>";
+    const orgV = sum(days, "orgV"), paidV = sum(days, "paidV"), gain = sum(days, "gain");
+    const fol = P.msoc.filter(r => r.net === net && r.fol != null && r.d <= pw.b).reduce((a, r) => (!a || r.d > a.d ? r : a), null);
+    const otherKeys = Object.keys(other).filter(k => other[k] >= 1), otherSum = otherKeys.reduce((a, k) => a + other[k], 0);
+    box.innerHTML = platHead("msoc", "Facebook and Instagram", "Organic team against Paid team · posts published and ads run in the period", pw)
+      + '<div class="mko-topics" id="mkoMtNet">' + ["Facebook", "Instagram"].map(k => '<button type="button" data-net="' + k + '" class="' + (k === net ? "on" : "") + '">' + k + "</button>").join("") + "</div>"
+      + '<div class="mkd-teams">'
+      + '<section class="mkd-team"><h3>Organic team</h3><p>' + fmtN(cur.posts) + " posts published · each post's numbers to date</p><div class=\"mkd-tstats\">"
+      + box6("Views", compact(cur.views), chipHtml(cur.views, was("views"), false))
+      + box6("Reach", compact(cur.reach), chipHtml(cur.reach, was("reach"), false), "added up by post")
+      + box6(net === "Instagram" ? "Profile visits" : "Clicks", fmtN(cur.act), chipHtml(cur.act, was("act"), false))
+      + box6("Engagement", fmtN(cur.eng), chipHtml(cur.eng, was("eng"), false), "reactions, comments, shares, saves")
+      + box6("Engagement rate", pct2(rate(cur.eng, cur.reach)), "", "engagement ÷ reach")
+      + box6("Posts", fmtN(cur.posts), chipHtml(cur.posts, was("posts"), false))
+      + '</div></section><section class="mkd-team"><h3>Paid team</h3><p>' + fmtN(cur.ads) + " ads on " + net + " · their own numbers inside the period</p><div class=\"mkd-tstats\">"
+      + box6("Views", compact(cur.imp), chipHtml(cur.imp, was("imp"), false))
+      + box6("Reach", cur.pReach ? compact(cur.pReach) : "—", chipHtml(cur.pReach, was("pReach"), false), cur.pReach ? "added up by ad" : "Meta keeps it 13 months")
+      + box6("Clicks", fmtN(cur.clk), chipHtml(cur.clk, was("clk"), false), cur.clk ? "$" + (cur.cost / cur.clk).toFixed(2) + " a click" : "")
+      + box6("Engagement", fmtN(cur.pEng), chipHtml(cur.pEng, was("pEng"), false), "reactions, comments, shares, saves")
+      + box6("Engagement rate", pct2(rate(cur.pEng, cur.pReach)), "", "engagement ÷ reach")
+      + box6("Spend", money0(cur.cost), chipHtml(cur.cost, was("cost"), null), fmtN(cur.lead) + " leads by Meta's count")
+      + "</div></section></div>"
+      + '<div class="rs-kpis" id="mkoK-meta"></div><div id="mkoMtChart"></div>'
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Every post and ad</span><span id="mkoMtShow"></span><span id="mkoMtSort"></span>'
+      + '<span class="rs-spacer"></span><button type="button" class="rs-btn" id="mkoMtCsv">Export CSV</button></div>' + metaTable(rows, net, cur)
+      + '<p class="rs-hint">Organic numbers are each post\'s total to date, for posts published in the period; paid numbers are the ads\' own, inside the period. '
+      + "≈ on a boosted post: Meta splits only its views, so its organic reach and engagement are its total × the organic share of its views. "
+      + "Reach is people, so a person who saw two posts counts twice in the totals. An ad's reach in a period is the lesser of its daily reach added up and its reach over 13 months."
+      + " The chart is Meta's count for the whole account, every placement and every older post, so it does not match the tables to the view."
+      + (net === "Instagram" ? " Instagram gives a post no click count, so the organic side shows profile visits, and Reels give neither." : "")
+      + (otherSum ? " Also ran, not in these tables: " + money0(otherSum) + " on " + esc(otherKeys.join(", ").replace(/_/g, " ")) + "." : "") + "</p></div>";
+    const repaint = () => metaPaint(box, w, cw);
+    box.querySelectorAll("#mkoMtNet [data-net]").forEach(b => { b.onclick = () => { MK.net = b.dataset.net; MK.all = false; repaint(); }; });
+    RSC.kpis(box.querySelector("#mkoK-meta"), [
+      { label: "Followers", value: fol ? fmtN(fol.fol) : "—", sub: fol ? "at " + day(fol.d) : "from the next pull on" },
+      { label: "New followers", value: net === "Instagram" ? "—" : fmtN(gain), sub: net === "Instagram" ? "Instagram keeps no daily count here" : "in the period" },
+      { label: "Views from ads", value: pct(ratio(paidV, orgV + paidV)), sub: "of every view of our content" + (late ? ", from " + day(days[0].d) : "") },
+    ]);
+    const keys = bucketsOf(pw.a, pw.b, pw.g), series = [["Organic", "#3F7D20", "orgV"], ["Paid", "#B7791F", "paidV"]];
+    RSC.chartCard(box.querySelector("#mkoMtChart"), {
+      title: "All views of our " + net + " content: organic against ads", key: "mko-mt-views",
+      buildChart(canvas) {
+        return new Chart(canvas, { type: "bar",
+          data: { labels: keys.map(k => bucketLabel(k, pw.g)), datasets: series.map(([l, c, f]) => ({ label: l, data: seriesOf(days, keys, pw.g, r => r[f]), backgroundColor: c, stack: "a" })) },
+          options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
+            scales: { x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true } }, y: { stacked: true, beginAtZero: true } } } });
+      },
+      buildTable() {
+        const a = seriesOf(days, keys, pw.g, r => r.orgV), b = seriesOf(days, keys, pw.g, r => r.paidV);
+        return ptable([{ h: "When", cell: i => esc(bucketLabel(keys[i], pw.g)) }, { h: "Organic", num: true, cell: i => fmtN(a[i]) }, { h: "Paid", num: true, cell: i => fmtN(b[i]) }], keys.map((_, i) => i));
+      },
+    });
+    RSC.localSelect(box.querySelector("#mkoMtShow"), { label: "Show", allLabel: "Everything",
+      values: Object.keys(META_SHOW).map(k => ({ v: k, l: META_SHOW[k], n: rows.filter(r => r.kind === k).length })), value: MK.show,
+      onChange: v => { MK.show = v; MK.all = false; repaint(); } });
+    RSC.localSelect(box.querySelector("#mkoMtSort"), { label: "Sort", allLabel: "Newest",
+      values: Object.keys(META_SORT).filter(k => k !== "new").map(k => ({ v: k, l: META_SORT[k] })), value: MK.sort === "new" ? "" : MK.sort,
+      onChange: v => { MK.sort = v || "new"; MK.all = false; repaint(); } });
+    const all = box.querySelector("#mkoMtAll");
+    if (all) all.onclick = () => { MK.all = !MK.all; repaint(); };
+    box.querySelector("#mkoMtCsv").onclick = () => {
+      const cell = x => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"', o = (r, k) => (r.org ? Math.round(r.org[k]) : ""), p = (r, k) => (r.paid ? Math.round(r.paid[k]) : "");
+      const lines = [["Date", "Kind", "Format", "Text", "Link", "Organic views", "Organic reach", net === "Instagram" ? "Profile visits" : "Organic clicks", "Organic engagement",
+                      "Spend", "Paid views", "Paid reach", "Paid clicks", "Paid engagement", "Leads (Meta)"]]
+        .concat(rows.filter(r => !MK.show || r.kind === MK.show).map(r => [r.d, r.kind, r.fmt, r.text, r.link, o(r, "views"), o(r, "reach"), o(r, "act"), o(r, "eng"),
+                                                                          r.paid ? r.paid.cost.toFixed(2) : "", p(r, "imp"), p(r, "reach"), p(r, "clk"), p(r, "eng"), p(r, "lead")]));
+      const blob = new Blob([lines.map(r => r.map(cell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = net + " posts and ads (" + pw.a + " to " + pw.b + ").csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    };
+  }
+
   function socialTab(w, cw) {
     const li = linkedinPage(w, cw);
     const card = (name, chip, body) => '<article class="mkd-plat off"><div class="hd"><div><div class="nm"><h3>' + esc(name)
       + '</h3><span class="mkd-chip">' + esc(chip) + "</span></div></div></div><p>" + body + "</p></article>";
-    const html = '<section class="mkd-sec" aria-label="LinkedIn Company Page">' + li.html + "</section>"
+    const html = '<section class="mkd-sec" id="mkoMeta" aria-label="Facebook and Instagram"></section>'
+      + '<section class="mkd-sec" aria-label="LinkedIn Company Page">' + li.html + "</section>"
       + '<section class="mkd-sec" aria-labelledby="mkdSocH"><div class="mkd-h"><h2 id="mkdSocH">Coming next</h2>'
-      + "<span>each fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
-      + card("Facebook Page and Instagram", "waiting on access",
-          "Organic posts, reach and engagement, and which posts work best by format. Needs a Page admin to approve our "
-          + "access request in Meta Business Suite (sent 19 Oct), and the Instagram account shared with the Zip to Zip "
-          + "Moving business portfolio.")
+      + "<span>fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
       + card("TikTok", "later", "Organic video stats need TikTok's account scope, which the reporting app does not "
           + "ask for yet; the ads connection is in TikTok's review first.")
       + "</div></section>";
-    return { html, wire: li.wire };
+    return { html, wire(host) {
+      const box = host.querySelector("#mkoMeta");
+      if (S.co === "Tuji") box.innerHTML = '<p class="mkd-note">The Facebook Page and Instagram account are Zip to Zip\'s, so they are not shown for Tuji.</p>';
+      else metaPaint(box, w, cw);
+      if (li.wire) li.wire(host);
+    } };
   }
 
   /* === SEARCH AND SEO === */
@@ -5184,7 +5407,7 @@
     ov: "Every channel, what it cost and what it booked.", paid: "Is each ad platform earning its money?",
     seo: "Who finds us without an ad, where that demand is, and whether we win it.",
     web: "What visitors do on the website.", rev: "Reviews against their goals, and the negative ones.",
-    soc: "Our own pages and posts, outside the ads.", set: "Every source this dashboard reads, and whether it is up to date.",
+    soc: "Our pages and posts: what the organic team did, and what the paid team did.", set: "Every source this dashboard reads, and whether it is up to date.",
   };
   function paint(host) {
     const w = win();
@@ -5303,10 +5526,11 @@
         plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
         plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
         plat("mkt_li", "li"), plat("mkt_lipage", "lip"),
+        plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
-                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip]) => {
+                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, mpost, mad, mlife, mpd, msoc]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -5316,6 +5540,7 @@
         indexMarks(marks);
         indexReddit(reddit);
         indexLinkedIn(li, lip);
+        indexMeta({ mpost, mad, mlife, mpd, msoc });
         indexBatch3({ refdom, anchor, ctrace });
         indexBrandRadar({ brans, brmen, brcit });
         indexAhrefsUsage({ ahuse, ahquota });
