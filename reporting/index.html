@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="c7356a4949048002caf6e8013e72516df5d5b8e1">
+<meta name="ztz-ref" content="494e440c51e854e5163f952cdf908fadcfbfd2a5">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -454,7 +454,8 @@ const RETIRED = new Set([
    old links go through REDIRECTS to the host page, which reads window.__navRequested to open on
    that tab. Day Closing is the Day Closing tab of Money Flow (his ask: "combine day closing and
    money flow as a separate tabs"); /api/_dc already admits money-flow holders. */
-// Organic Search (2026-10-29) is the "Searches and demand" topic of the Marketing Dashboard's Search & SEO tab.
+// Organic Search (2026-10-29) is the "Searches and demand" topic of the Marketing Dashboard's Search & SEO tab;
+// native there since 2026-10-30, so the page itself is gone: old grants and links land on the dashboard.
 const TAB_HOSTED = new Set(["day-closing", "organic-search"]);
 /* ARCHIVED PAGES (2026-10-08): out of the sidebar, the nav search and the landing pick like a
    tab-hosted page, still GRANTED as before (ACL lists untouched), but NOT redirected: the page
@@ -912,7 +913,6 @@ const PAGE_DATASETS = {
   "packing-sales": [],         // loads its two packing marts itself; period/company/size live on the page
   "relocation-trends": [],     // loads mart_relocation itself; year/window/company live on the page
   "census-data": [],           // loads mart_census_zip + mart_census_state itself; its filters live on the page
-  "organic-search": [],        // loads its three mart_gsc_* marts itself; window / compare live on the page
   "angi-funnel": [],           // loads mart_angi_lead itself; month/status/speed/ZIP live on the page
   // [] on purpose: the global DATE filter would be wrong here. The CMS export carries no
   // submission timestamp at all, so this table has no date of its own to slice on.
@@ -1232,8 +1232,6 @@ function navigate(id, push) {
 const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
-  // Organic Search (2026-09-24) brings its own window + last-year compare bar
-  "organic-search",
   // Marketing Overview (2026-10-15): its source list has no date to slice
   "marketing-overview",
   // Sales team (2026-10-16): a list of people and switches, nothing a slicer could act on
@@ -2375,7 +2373,7 @@ registerPage({
 <script src="pages/things-to-do.js?v=4"></script>
 <script src="pages/conversations.js?v=13"></script>
 <script src="pages/source-trace.js?v=30"></script>
-<script src="pages/marketing-overview.js?v=24"></script>
+<script src="pages/marketing-overview.js?v=25"></script>
 <script src="pages/roi-core.js?v=3"></script>
 <script src="pages/source-report.js?v=16"></script>
 <script src="pages/marketing-roi.js?v=3"></script>
@@ -2384,7 +2382,6 @@ registerPage({
 <script src="pages/packing-sales.js?v=8"></script>
 <script src="pages/relocation-trends.js?v=9"></script>
 <script src="pages/census-data.js?v=5"></script>
-<script src="pages/organic-search.js?v=3"></script>
 <script src="pages/utm-campaigns.js?v=5"></script>
 <script src="pages/angi-funnel.js?v=11"></script>
 <script src="pages/promised-reviews.js?v=15"></script>

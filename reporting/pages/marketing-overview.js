@@ -149,7 +149,11 @@
                cols: ["Date", "Campaign Id", "Campaign", "Impressions", "Clicks", "Spend", "Conversions"] },
     // the Search and SEO tab
     mkt_gsc: { table: "ext_gsc_site_day", cols: ["Date", "Clicks", "Impressions", "Position"] },
-    mkt_gscq: { table: "mart_gsc_query", cols: ["Date", "Query", "Type", "Clicks", "Impressions", "Position"] },
+    mkt_gscq: { table: "mart_gsc_query", cols: ["Date", "Query", "Type", "State", "City", "Clicks", "Impressions", "Position"] },
+    mkt_gsca: { table: "mart_gsc_area", cols: ["Date", "Level", "State", "City", "County", "Query Clicks", "Query Impressions", "Query Position",
+                                               "Impr Top 3", "Impr 4 To 10", "Impr 11 To 20", "Impr 21 Plus",
+                                               "Business Profile Clicks", "City Page Clicks", "Location Page Clicks",
+                                               "Search Volume", "Leads", "Jobs", "Days"] },
     mkt_ahd: { table: "ext_ahrefs_day", cols: ["Date", "Domain Rating", "Org Keywords", "Org Keywords Top 3",
                                               "Org Traffic", "Backlinks Live", "Ref Domains Live"] },
     mkt_ahm: { table: "ext_ahrefs_month", cols: ["Month", "Domain Rating", "Org Traffic", "Ref Domains History"] },
@@ -179,7 +183,7 @@
     mkt_ga4demo: { table: "ext_ga4_demo_month", cols: ["Month", "Age", "Gender", "Active Users"] },
     mkt_ga4geo: { table: "mart_mkt_ga4_geo_month", cols: ["Month", "Country", "Region", "Active Users"] },
     // batch 2 (2026-10-21): the SEO report, the GA4 dashboard and the negative reviews (with names, his call)
-    mkt_gscp: { table: "mart_gsc_page", cols: ["Date", "Page", "Family", "Clicks", "Impressions"] },
+    mkt_gscp: { table: "mart_gsc_page", cols: ["Date", "Page", "Family", "State", "Place", "Tag", "Clicks", "Impressions", "Position"] },
     mkt_links: { table: "ext_ahrefs_backlink", cols: ["URL From", "Domain From", "Title", "Domain Rating", "Is Spam",
                                                       "First Seen"] },
     mkt_ga4ev: { table: "ext_ga4_event_day", cols: ["Date", "Event", "Key Events", "Event Count"] },
@@ -279,7 +283,7 @@
   const D = { ready: false, conn: [], connErr: null, rows: [], chErr: null,
               liveFrom: {}, ledgerEnd: null, minDay: null, maxDay: null };
   // the platform panels: rows per platform, its first / last day on file, a load error
-  const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], ahd: [], ahm: [], bl: [],
+  const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
               gscqd: [], gscpd: [], reddit: [], li: [], lip: [], refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
@@ -347,6 +351,8 @@
     if (Math.abs(d) < 0.0005) return '<span class="mko-d eq">± 0%</span>';
     const good = lowerIsBetter ? d < 0 : d > 0;
     const cls = lowerIsBetter === null ? "eq" : (good ? "up" : "dn");
+    // past +300% a percentage stops meaning anything: say the multiple
+    if (d >= 3) return '<span class="mko-d ' + cls + '" title="' + (d * 100).toFixed(0) + '% up">×' + (d + 1).toFixed(d + 1 >= 10 ? 0 : 1) + "</span>";
     return '<span class="mko-d ' + cls + '" title="change in percent">' + (d > 0 ? "▲ " : "▼ ")
       + Math.abs(d * 100).toFixed(Math.abs(d) < 0.1 ? 1 : 0) + "%</span>";
   }
@@ -511,7 +517,8 @@
       + "body.rs-app.light.v2 .mko .mko-rk.low{color:#64748B}"
       + "body.rs-app.light.v2 .mko .mko-tabs button.on{color:#0F172A;border-bottom-color:#3F7D20}"
       + "body.rs-app.light.v2 .mko .mko-track i{background:#3F7D20}"
-      + "body.rs-app.light.v2 .mko .mko-track i.bad{background:#B42318}"
+      + "body.rs-app.light.v2 .mko .mko-track i.bad{background:#B04A7E}"
+      + "body.rs-app.light.v2 .mko .mko-track i.mid{background:#B7791F}"
       + "body.rs-app.light.v2 .mko .mko-rk.top{color:#17733F}"
       + "body.rs-app.light.v2 .mko .mko-share i{background:#3F7D20}"
       + "body.rs-app.light.v2 .mko .mko-d{font-weight:600}"
@@ -575,7 +582,7 @@
       + ".mkd .mkd-spark.sm{height:22px;gap:2px;width:132px;margin:0}"
       + ".mkd .mkd-ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}"
       /* what to act on */
-      + ".mkd .mkd-acts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(270px,100%),1fr));gap:14px}"
+      + ".mkd .mkd-acts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(215px,100%),1fr));gap:14px}"
       + ".mkd .mkd-act{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;"
       + "display:flex;flex-direction:column;gap:8px;min-width:0}"
       + ".mkd .mkd-act .t{display:flex;justify-content:space-between;align-items:center;gap:8px}"
@@ -661,6 +668,65 @@
       + "body.rs-app.light .mkd .mkd-tag.fix{background:#EAF0FB;color:#2F4F99}body.rs-app.light .mkd .big.fix{color:#2F4F99}"
       + "body.rs-app.light .mkd .mkd-cpb .tr i{background:#3F7D20}"
       + "body.rs-app.light .mkd .mkd-cpb .tr i.mid{background:#B7791F}body.rs-app.light .mkd .mkd-cpb .tr i.hi{background:#B04A7E}"
+      // one tile system and one heading scale over the old kit panels (his advisor, 2026-10-30)
+      + "body.rs-app.light .mko.mkd .rs-kpis .kpi{border-top:1px solid var(--line);border-radius:16px;padding:16px 18px}"
+      + ".mkd .panel-title{font-size:16px;font-weight:700}"
+      + ".mkd .mko-ph h3{font-size:18px;font-weight:700}.mkd .mko-ph .mko-sub{font-size:12.5px}"
+      // the month still running: an outlined bar, never a collapse
+      + ".mkd .mkd-spark i.part,.mkd .mkd-mb i.part{background:transparent;box-shadow:inset 0 0 0 1.5px var(--brand)}"
+      + "body.rs-app.light .mkd .mkd-spark i.part,body.rs-app.light .mkd .mkd-mb i.part{background:transparent;box-shadow:inset 0 0 0 1.5px #3F7D20}"
+      + ".mkd .mkd-note{margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--warn-bg);color:var(--ink);font-size:13px;line-height:1.45}"
+      + ".mkd .mkd-fold{cursor:pointer}.mkd .mkd-fold td{color:var(--muted);font-size:13px;font-weight:600}.mkd .mkd-fold:hover td{color:var(--ink)}"
+      + ".mkd .mkd-fold.on .rs-caret{transform:rotate(90deg);display:inline-block}"
+      // Paid ads: the jump row stays in reach, each platform's detail opens on demand
+      + ".mkd .mko-pnav{position:sticky;top:0;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 14px;margin:0 0 10px}"
+      + ".mkd details.mko-plat{border:1px solid var(--line);border-radius:16px;background:var(--panel);margin:0 0 12px;scroll-margin-top:56px}"
+      + ".mkd details.mko-plat>summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;cursor:pointer;list-style:none}"
+      + ".mkd details.mko-plat>summary::-webkit-details-marker{display:none}"
+      + ".mkd details.mko-plat>summary b{font-size:16px;font-weight:700;color:var(--ink)}"
+      + ".mkd details.mko-plat>summary span{font-size:13px;color:var(--muted)}"
+      + ".mkd details.mko-plat>summary i{margin-left:auto;font-style:normal;font-size:13px;font-weight:600;color:var(--brand)}"
+      + "body.rs-app.light .mkd details.mko-plat>summary i{color:#3F7D20}"
+      + ".mkd details.mko-plat[open]>summary{border-bottom:1px solid var(--line)}"
+      + ".mkd details.mko-plat[open]>summary i{font-size:0}.mkd details.mko-plat[open]>summary i::after{content:'Close';font-size:13px}"
+      + ".mkd details.mko-plat>*:not(summary){margin-left:18px;margin-right:18px}"
+      + ".mkd details.mko-plat>.mko-ph{margin-top:14px}.mkd details.mko-plat>.mko-ph h3{display:none}"
+      + ".mkd .mkd-plat .go{align-self:flex-start;background:none;border:0;padding:6px 0 0;font:inherit;font-size:13px;font-weight:600;color:var(--brand);cursor:pointer}"
+      + "body.rs-app.light .mkd .mkd-plat .go{color:#3F7D20}.mkd .mkd-plat .go:hover{text-decoration:underline}"
+      + ".mkd .mkd-plat .why{font-size:12.5px;color:var(--muted)}"
+      // Google: where the money went
+      + ".mkd .mkd-split{display:flex;height:16px;border-radius:5px;overflow:hidden;background:var(--line);margin:4px 0 10px}"
+      + ".mkd .mkd-split i{display:block}.mkd .mkd-split .s{background:#3F7D20}.mkd .mkd-split .y{background:#B04A7E}.mkd .mkd-split .o{background:#A3ADA5}"
+      + ".mkd .mkd-nets{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}"
+      + ".mkd .mkd-nb{background:var(--panel-2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}"
+      + ".mkd .mkd-nb span{font-size:12.5px;font-weight:600;color:var(--muted)}.mkd .mkd-nb b{font-size:22px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-nb em{font-style:normal;font-size:12.5px;color:var(--muted)}"
+      // anything that folds away
+      + ".mkd details.mkd-more{border:1px solid var(--line);border-radius:16px;background:var(--panel)}"
+      + ".mkd details.mkd-more>summary{padding:14px 18px;cursor:pointer;font-size:14px;font-weight:600;color:var(--ink)}"
+      + ".mkd .mkd-morein{padding:0 18px 14px;font-size:13.5px;color:var(--muted);line-height:1.55}"
+      + ".mkd .mkd-morein h3{margin:12px 0 4px;font-size:14px;color:var(--ink)}.mkd .mkd-morein p{margin:0 0 8px}"
+      + ".mkd .mkd-apis{display:flex;flex-direction:column;gap:14px;padding:0 18px 14px}"
+      // Searches and demand
+      + ".mkd .mkd-dmbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}"
+      + ".mkd #mkoDm{display:flex;flex-direction:column;gap:14px}.mkd #mkoDm .panel{margin:0}"
+      + ".mkd .mkd-dmtools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}"
+      + ".mkd .mkd-in{font:inherit;font-size:13.5px;min-height:38px;padding:0 12px;min-width:240px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)}"
+      + ".mkd .mkd-bands{display:flex;height:12px;min-width:110px;border-radius:4px;overflow:hidden;background:var(--line)}"
+      + ".mkd .mkd-bands i,.mkd .mkd-bandkey i{display:block}"
+      + ".mkd .b1{background:#14301F}.mkd .b2{background:#3F7D20}.mkd .b3{background:#A9C793}.mkd .b4{background:#D5DAD3}"
+      + ".mkd .mkd-bandkey{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 0;font-size:12.5px;color:var(--muted)}"
+      + ".mkd .mkd-bandkey span{display:inline-flex;align-items:center;gap:6px}.mkd .mkd-bandkey i{width:12px;height:12px;border-radius:3px}"
+      + ".mkd .mkd-verdicts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}"
+      + ".mkd .mkd-vt{border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}"
+      + ".mkd .mkd-vt b{font-size:24px;font-weight:700;line-height:1.1}.mkd .mkd-vt span{font-size:12.5px}"
+      + ".mkd .mkd-vt.win{background:#14301F;color:#FFFFFF}.mkd .mkd-vt.p1{background:#3F7D20;color:#FFFFFF}"
+      + ".mkd .mkd-vt.p2{background:#FBF3E2;color:#7A4E00}.mkd .mkd-vt.inv{background:#FAEFF5;color:#8E2F5F}"
+      + ".mkd .mkd-vt.few{background:var(--panel-2);color:var(--muted)}"
+      + ".mkd .mkd-grey td{color:var(--muted)}body.rs-app.light .mkd .mko-d.dn{color:#B04A7E}"
+      + ".mkd .mkd-scroll{max-height:560px;overflow:auto}.mkd .mkd-scroll th{position:sticky;top:0;z-index:1;background:var(--panel-2)}"
+      + ".mkd .mkd-heat{display:inline-block;min-width:26px;padding:1px 5px;border-radius:5px;text-align:center;font-weight:600;"
+      + "background:color-mix(in srgb,#3F7D20 var(--h),transparent);color:var(--ink)}"
       + "body.rs-app.light .mkd .mkd-act .go{color:#2F6316}"
       + "body.rs-app.light .mkd .mko-topics button.on{border-color:#3F7D20;background:#EEF5E6;color:#2D5A17}";
     document.head.appendChild(st);
@@ -678,6 +744,14 @@
       imp: r.Impressions == null ? null : num(r.Impressions),
       clk: r.Clicks == null ? null : num(r.Clicks),
     })).filter(r => r.d);
+    // aggregate() runs once per month for the 12-month trends: it reads these buckets, not every row
+    D.byYm = new Map();
+    D.rows.forEach(r => {
+      const ym = r.d.slice(0, 7);
+      if (!D.byYm.has(ym)) D.byYm.set(ym, []);
+      D.byYm.get(ym).push(r);
+    });
+    D.paidMemo = new Map();
     D.liveFrom = {}; D.ledgerEnd = null; D.minDay = null; D.maxDay = null;
     rows.forEach(r => {
       const le = String(r["Ledger End"] || "").slice(0, 10);
@@ -723,13 +797,18 @@
     // reached yet, a postcard run between drops) -- per COMPANY and family: Tuji's Google Local
     // leads cost nothing, so with both companies picked they are not "spend not in yet"
     const look = [a, addDays(b, -PAID_LOOKBACK)].sort()[0];
-    const paidKey = new Set();
-    D.rows.forEach(r => {
-      if (r.d >= look && r.d <= b && ((r.spL || 0) + (r.spG || 0))) paidKey.add(r.co + "|" + r.fam);
+    const span = (lo, hi, fn) => D.byYm.forEach((rows, ym) => {
+      if (ym < lo.slice(0, 7) || ym > hi.slice(0, 7)) return;
+      rows.forEach(r => { if (r.d >= lo && r.d <= hi) fn(r); });
     });
-    D.rows.forEach(r => {
+    let paidKey = D.paidMemo.get(look + "|" + b);
+    if (!paidKey) {
+      paidKey = new Set();
+      span(look, b, r => { if ((r.spL || 0) + (r.spG || 0)) paidKey.add(r.co + "|" + r.fam); });
+      D.paidMemo.set(look + "|" + b, paidKey);
+    }
+    span(a, b, r => {
       if (S.co && r.co !== S.co) return;
-      if (r.d > b || r.d < a) return;
       let f = by.get(r.fam);
       if (!f) {
         f = { fam: r.fam, leads: 0, booked: 0, billed: 0, bval: 0, spL: 0, spG: 0, imp: 0, clk: 0,
@@ -786,12 +865,20 @@
   }
 
   /* ------------------------------------------------------------------ period memory ---- */
+  /* the marketing ladder (his pick, 2026-10-30): "Yesterday" means little on a page driven by a
+     monthly ledger. This page only; the kit's wording wherever the two lists overlap. */
+  function periodPresets() {
+    const kit = RSC.datePresets(), by = n => kit.find(p => p[0] === n), t = today();
+    return [by("This month"), by("Past month"), ["Last 30 days", addDays(t, -29), t], by("Last 3 months"),
+            ["Year to date", t.slice(0, 4) + "-01-01", t], ["Last 12 months", addYears(t, -1), t], by("All time")].filter(Boolean);
+  }
   function boot() {
     if (S.booted) return;
     S.booted = true;
-    const P = RSC.datePresets();
+    const P = periodPresets();
     let saved = null;
     try { saved = JSON.parse(lsGet(LS_PERIOD) || "null"); } catch (e) { saved = null; }
+    if (saved && saved.p === "This year") saved.p = "Year to date";      // the kit's name for it
     const hit = saved && saved.p ? P.find(p => p[0] === saved.p) : null;
     const okDay = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
     if (hit) { S.from = hit[1] || null; S.to = hit[2] || null; }
@@ -811,7 +898,7 @@
   }
   // a preset by NAME (so "This month" moves with the calendar), anything else by its dates
   function savePeriod() {
-    const hit = RSC.datePresets().find(p => p[1] === (S.from || "") && p[2] === (S.to || ""));
+    const hit = periodPresets().find(p => p[1] === (S.from || "") && p[2] === (S.to || ""));
     lsSet(LS_PERIOD, JSON.stringify(hit ? { p: hit[0] } : { f: S.from, t: S.to }));
   }
 
@@ -1090,7 +1177,13 @@
       med: r.Medium || "(not set)", ses: num(r.Sessions), eng: num(r["Engaged Sessions"]), ssec: num(r["Session Seconds"]),
       kev: num(r["Key Events"]), lead: num(r["Lead Events"]) }));
     const m7 = v => String(v || "").slice(0, 7);
-    P.gscq = (t.gscq || []).map(r => ({ m: m7(r.Date), q: r.Query || "", type: r.Type || "Other",
+    P.gsca = (t.gsca || []).map(r => ({ m: m7(r.Date), lvl: r.Level || "", st: r.State || "", city: r.City || "", county: r.County || "",
+      qc: num(r["Query Clicks"]), qi: num(r["Query Impressions"]), qp: num(r["Query Position"]),
+      b1: num(r["Impr Top 3"]), b2: num(r["Impr 4 To 10"]), b3: num(r["Impr 11 To 20"]), b4: num(r["Impr 21 Plus"]),
+      bp: num(r["Business Profile Clicks"]), cp: num(r["City Page Clicks"]), lp: num(r["Location Page Clicks"]),
+      vol: r["Search Volume"] == null || r["Search Volume"] === "" ? null : num(r["Search Volume"]),
+      leads: num(r.Leads), jobs: num(r.Jobs), days: num(r.Days) })).filter(r => r.m);
+    P.gscq = (t.gscq || []).map(r => ({ m: m7(r.Date), q: r.Query || "", type: r.Type || "Other", st: r.State || "", city: r.City || "",
       clk: num(r.Clicks), imp: num(r.Impressions), pos: r.Position == null ? null : num(r.Position) }));
     P.ahd = (t.ahd || []).map(r => ({ d: d10(r.Date), dr: r["Domain Rating"] == null ? null : num(r["Domain Rating"]),
       kw: num(r["Org Keywords"]), kw3: num(r["Org Keywords Top 3"]), traffic: num(r["Org Traffic"]),
@@ -1140,8 +1233,8 @@
       .filter(r => r.d);
     P.gscpd = (t.gscpd || []).map(r => ({ d: d10(r.Date), page: r.Page || "", fam: r.Family || "Other", clk: num(r.Clicks) }))
       .filter(r => r.d);
-    P.gscp = (t.gscp || []).map(r => ({ m: m7(r.Date), page: r.Page || "", fam: r.Family || "Other",
-      clk: num(r.Clicks), imp: num(r.Impressions) })).filter(r => r.m);
+    P.gscp = (t.gscp || []).map(r => ({ m: m7(r.Date), page: r.Page || "", fam: r.Family || "Other", st: r.State || "", place: r.Place || "",
+      tag: r.Tag || "", clk: num(r.Clicks), imp: num(r.Impressions), pos: num(r.Position) })).filter(r => r.m);
     P.links = (t.links || []).map(r => ({ d: d10(r["First Seen"]), url: r["URL From"] || "", dom: r["Domain From"] || "",
       title: r.Title || "", dr: r["Domain Rating"] == null ? null : num(r["Domain Rating"]), spam: num(r["Is Spam"]) === 1 }))
       .filter(r => r.d);
@@ -1227,12 +1320,12 @@
   function palette() {
     if (RS.isV2 && RS.isV2()) {
       const V = RS.V2;
-      return { main: V.navy, alt: V.accent, light: V.accentL, ctx: V.ctx, faint: V.other, violet: V.cat[4] };
+      return { main: V.navy, alt: V.accent, light: V.accentL, ctx: V.ctx, faint: V.other, violet: "#7FA864", neg: "#B04A7E" };
     }
     const cs = getComputedStyle(document.body);
     const v = (n, fb) => (cs.getPropertyValue(n) || "").trim() || fb;
     return { main: v("--brand", "#b7e23b"), alt: v("--blue", "#5b8cff"), light: v("--purple", "#a78bfa"),
-             ctx: v("--faint", "#5c6a7c"), faint: v("--faint", "#5c6a7c"), violet: v("--purple", "#a78bfa") };
+             ctx: v("--faint", "#5c6a7c"), faint: v("--faint", "#5c6a7c"), violet: "#7FA864", neg: "#B04A7E" };
   }
   const moneyTick = v => v >= 1000 ? "$" + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k" : "$" + v;
 
@@ -1254,13 +1347,14 @@
       rows.forEach(r => { const k = bucketOf(r.d, g); m[k] = (m[k] || 0) + extra.val(r); });
       keys.forEach((k, i) => { ex[i] = m[k] || 0; });
     }
-    // a platform that reports today reports a day still running: its last stretch is dashed
-    const partial = pw.b >= today();
+    // a platform that reports today or yesterday reports a day still filling (Meta runs on Los
+    // Angeles time, Reddit on GMT; the morning pull catches yesterday half done): dashed end
+    const partial = pw.b >= addDays(today(), -1);
     const lastI = keys.length - 1;
     RSC.chartCard(host, {
       title: title + " by " + GRAIN_WORD[g],
       key: "mko-" + key + "-cost",
-      controlsHtml: partial ? '<span class="lbl">dashed end = today so far</span>' : "",
+      controlsHtml: partial ? '<span class="lbl">dashed end = still filling</span>' : "",
       controlsGraphOnly: true,
       buildChart(canvas) {
         const C = palette();
@@ -1281,7 +1375,7 @@
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { display: !!prev, position: "top", labels: { boxWidth: 12 } },
                        tooltip: { callbacks: { label: c => c.dataset.label + ": " + money0(c.raw)
-                         + (partial && c.datasetIndex === 0 && c.dataIndex === lastI ? " (so far)" : "") } } },
+                         + (partial && c.datasetIndex === 0 && c.dataIndex === lastI ? " (still filling)" : "") } } },
             scales: { y: { beginAtZero: true, ticks: { callback: moneyTick } },
                       x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } },
           },
@@ -1310,7 +1404,10 @@
   }
 
   /* one KPI card with its comparison: `lower` = a cost (down is good), null = neither */
+  const VOLUME = /^(impressions|clicks|reach|engagement|results|conversions|to site)$/i;
   function kp(label, cur, prev, fmt, lower, sub, pw) {
+    // more impressions or clicks is not a win by itself: only money per outcome keeps red and green
+    if (VOLUME.test(label)) lower = null;
     const on = !!(pw && pw.cw) && prev !== undefined;
     const was = on ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmt(prev) : "";
     return { label, value: fmt(cur) + (on ? delta(cur, prev, lower) : ""),
@@ -1318,7 +1415,8 @@
   }
   function platHead(key, title, sub, pw) {
     return '<div class="mko-ph"><h3>' + esc(title) + '</h3><span class="mko-sub">' + esc(sub)
-      + (pw && pw.last ? " · data through " + esc(day(pw.last)) : "") + "</span></div>";
+      + (pw && pw.last ? " · data through " + esc(day(pw.last))
+        + (pw.last >= addDays(today(), -1) ? ", the last day still filling" : "") : "") + "</span></div>";
   }
   // a platform younger than the period reads from its first day; say so, and why there is no
   // comparison
@@ -1529,8 +1627,12 @@
     const idle = Object.entries(P.camp).filter(([id, c]) => c.status === "ENABLED" && !list.some(x => x.id === id));
     const g = famStat("Google", pw.a, pw.b), gBooked = g ? g.booked : 0;
     const traced = Object.values(tr).reduce((a, x) => a + x.bk, 0);
+    // under half the bookings traced, a campaign's "0 bookings" is the tracing, not the campaign:
+    // no red, and Google's leads are the column to read
+    const thinTrace = gBooked >= THIN && traced / gBooked < 0.5;
     const bkCell = r => {
       if (r.nt) return "<b>" + fmtN(r.bk) + "</b>";
+      if (thinTrace && !r.tot) return '<span class="mko-sub">' + fmtN(r.bk) + "</span>";
       if (r.tot) return "<b>" + fmtN(r.bk) + "</b>" + '<div class="mko-sub">' + (r.cpb != null ? money0(r.cpb) + " each" : "—") + "</div>";
       return "<b>" + fmtN(r.bk) + "</b>" + '<div class="mko-sub">' + (r.bk ? '<span class="' + cpbCls(r.cost / r.bk) + '">'
         + money0(r.cost / r.bk) + " each</span>" : r.cost >= 1 ? '<span class="mko-neg">' + money0(r.cost) + " spent</span>" : "—") + "</div>";
@@ -1568,7 +1670,7 @@
                                    bk: gBooked, cpb: g ? g.cpb : null }, sumOf(list));
     const ntRow = { nt: true, bk: Math.max(gBooked - traced, 0) };
     const formTo = P.ctrace.filter(r => r.via === "Form").reduce((a, r) => (r.d > a ? r.d : a), "");
-    const notes = ["Colours against $" + fmtN(CPB_TARGET) + " a booking: green under, amber up to $" + fmtN(CPB_TARGET * 1.25)
+    const notes = thinTrace ? [] : ["Colours against $" + fmtN(CPB_TARGET) + " a booking: green under, amber up to $" + fmtN(CPB_TARGET * 1.25)
       + ", red above it or spend with no booking."];
     if (formTo && pw.b > addDays(formTo, 7)) {
       notes.push("Website forms are traced through " + day(formTo) + ": the CMS form export has not arrived since, so later "
@@ -1578,6 +1680,8 @@
     return '<div class="panel"><div class="panel-head"><span class="panel-title">Active campaigns</span>'
       + '<span class="mko-sub">' + (known ? "enabled in Google Ads, most cost first" : "every campaign that showed an ad")
       + (gBooked ? " · " + fmtN(traced) + " of " + fmtN(gBooked) + " Google bookings traced to a campaign" : "") + "</span></div>"
+      + (thinTrace ? '<p class="mkd-note">Only ' + fmtN(traced) + " of " + fmtN(gBooked) + " bookings can be traced to a campaign "
+        + "(website form UTM or a CallRail number): judge campaigns on cost per lead until tracing improves.</p>" : "")
       + (active.length ? table(active.concat(gBooked ? [ntRow] : [], [allRow]))
         : '<div class="mko-empty">No active campaign spent in this period.</div>')
       + '<p class="rs-hint">' + notes.map(esc).join(" ") + "</p>"
@@ -2136,7 +2240,12 @@
   }
 
   /* the whole middle section; `wire` runs once the markup is in the page */
-  function platformsSection(w, cw) {
+  function drawNow(fn) {
+    const was = Chart.defaults.animation;
+    Chart.defaults.animation = false;
+    try { fn(); } finally { Chart.defaults.animation = was; }
+  }
+  function platformsSection(w, cw, score) {
     const head = '<p class="rs-hint" id="mkoPlatforms">Each platform\'s own numbers for the period: what it '
       + "charged, what it showed and what it counts as a result, with the metrics your team tracks.</p>";
     if (S.co === "Tuji") {
@@ -2151,17 +2260,29 @@
       .map(([k, name, fn]) => Object.assign({ k, name }, fn(w, cw)));
     const nav = '<div class="mko-pnav"><span>Jump to:</span>' + parts.map(p =>
       '<button type="button" data-go="mkoP-' + p.k + '">' + esc(p.name) + "</button>").join("") + "</div>";
+    const line = k => {
+      const r = (score || []).find(x => x.k === k);
+      return r ? (r.spend != null ? money0(r.spend) + " spent · " : "") + fmtN(r.leads) + " leads · " + fmtN(r.booked) + " booked" : "";
+    };
     return {
-      html: head + nav + parts.map(p => '<section class="mko-plat" id="mkoP-' + p.k + '">' + p.html
-        + "</section>").join(""),
+      // closed until asked for: 9,400px of detail is one click away, not in the way
+      html: head + nav + parts.map(p => '<details class="mko-plat" id="mkoP-' + p.k + '"><summary><b>' + esc(p.name) + "</b><span>"
+        + esc(line(p.k)) + "</span><i>Open detail ›</i></summary>" + p.html + "</details>").join(""),
       wire(host) {
-        host.querySelectorAll(".mko-pnav [data-go]").forEach(b => {
-          b.onclick = () => {
-            const t = host.querySelector("#" + b.dataset.go);
-            if (t) t.scrollIntoView({ block: "start" });
-          };
+        const go = id => {
+          const t = host.querySelector("#" + id);
+          if (t) { t.open = true; t.scrollIntoView({ block: "start" }); }
+        };
+        host.querySelectorAll(".mko-pnav [data-go]").forEach(b => { b.onclick = () => go(b.dataset.go); });
+        host.querySelectorAll("[data-open]").forEach(b => { b.onclick = () => go(b.dataset.open); });
+        // a chart built in a closed box measures nothing: each detail wires on its first opening
+        parts.forEach(p => {
+          const el = host.querySelector("#mkoP-" + p.k);
+          let done = false;
+          el.addEventListener("toggle", () => {
+            if (el.open && !done) { done = true; if (p.wire) drawNow(() => p.wire(el)); }
+          });
         });
-        parts.forEach(p => { if (p.wire) p.wire(host.querySelector("#mkoP-" + p.k)); });
       },
     };
   }
@@ -2254,6 +2375,11 @@
       // LinkedIn has no spend in the Channels table (the bank files it as not advertising): its cost
       // per booking is the ad account's spend over the bookings filed under LinkedIn
       if (k === "li") o.cpb = f && f.cBooked && o.spend ? o.spend / f.cBooked : null;
+      // why a card reads the way it does: no spend, or nothing set up to count a result
+      const src = k === "lsa" ? P.lsaC : P[k];
+      const lastSpend = (src || []).reduce((a, r) => (r.cost > 0 && r.d > a ? r.d : a), "");
+      if (o.spend === 0 && lastSpend) o.why = lastSpend < w.a ? "no spend since " + day(lastSpend) : "no spend in this period";
+      else if ((k === "li" || k === "gpt" || k === "reddit") && o.says === "not measured") o.why = "no conversion event set up";
       out.push(o);
     });
     D.conn.filter(r => OFF_ADS[r.Key] && r.Connection === "Not connected").forEach(r => {
@@ -2295,18 +2421,21 @@
       + "the ad account (an agency fee and other charges). ‡ LinkedIn's is the ad account's spend: the "
       + "bank files LinkedIn as not advertising, so the Channels table has none.</p>";
   }
-  // cost per booking, one bar per live platform, cheapest first; the dearest is drawn red when it
-  // costs at least 1.8 times the cheapest, a thin sample is drawn faint
-  function cpbBarsHtml(rows) {
+  // cost per booking, one bar per live platform, cheapest first, coloured against the paid average as
+  // the sources table is. The scale stops at twice the average (at least $1,000): one runaway channel
+  // must not squash the rest into the left edge
+  function cpbBarsHtml(rows, avg) {
     const list = rows.filter(r => r.live && r.cpb != null).sort((a, b) => a.cpb - b.cpb);
     if (!list.length) return '<div class="mko-empty">No platform booked a job in this period.</div>';
-    const max = list[list.length - 1].cpb, min = list[0].cpb;
-    return list.map((r, i) => {
-      const cls = r.thin ? "thin" : i === list.length - 1 && list.length > 1 && max >= 1.8 * min ? "bad" : "";
+    const cap = Math.max(1000, 2 * (avg || 0));
+    return list.map(r => {
+      const cls = (r.thin ? "thin " : "") + (!avg || r.cpb <= avg ? "" : r.cpb <= 2 * avg ? "mid" : "bad");
+      const off = r.cpb > cap;
       return '<div class="mko-hbar"><span>' + esc(r.name) + (r.thin ? '<span class="mko-sub">few bookings</span>' : "")
-        + '</span><span class="mko-track"><i class="' + cls + '" style="width:' + Math.max(3, Math.round(100 * r.cpb / max))
-        + '%"></i></span><b>' + money0(r.cpb) + "</b></div>";
-    }).join("") + '<p class="rs-hint">Spend ÷ the bookings of leads filed under each platform. Lower is better.</p>';
+        + '</span><span class="mko-track"><i class="' + cls + '" style="width:' + (off ? 100 : Math.max(3, Math.round(100 * r.cpb / cap)))
+        + '%"></i></span><b>' + money0(r.cpb) + (off ? '<span class="mko-sub">off the scale</span>' : "") + "</b></div>";
+    }).join("") + '<p class="rs-hint">Spend ÷ the bookings of leads filed under each platform. Lower is better.'
+      + (avg ? " Green at or under the paid average of " + money0(avg) + ", amber up to twice it, raspberry beyond." : "") + "</p>";
   }
 
   /* --- what stands out: fixed checks on this period's numbers, most important first --- */
@@ -2441,6 +2570,11 @@
     for (let i = 11; i >= 0; i--) out.push(ymAdd(last, -i));
     return out;
   }
+  // the month still running, when the period reaches into it: drawn as a 13th, outlined bar
+  function runningMonth(tm, w) {
+    const nx = ymAdd(tm[tm.length - 1], 1);
+    return nx <= w.bEff.slice(0, 7) ? nx : null;
+  }
   // a month's families, per company pick; cleared when the data is read again (render)
   const TREND = {};
   function monthFams(ym) {
@@ -2448,11 +2582,13 @@
     if (!TREND[k]) TREND[k] = aggregate(ym + "-01", ymLast(ym));
     return TREND[k];
   }
-  function sparkHtml(vals, badLast, cls) {
-    const mx = Math.max.apply(null, vals.map(v => v || 0)) || 1;
+  function sparkHtml(vals, badLast, cls, running) {
+    const mx = Math.max.apply(null, vals.concat(running == null ? [] : [running]).map(v => v || 0)) || 1;
     return '<span class="mkd-spark' + (cls ? " " + cls : "") + '" aria-hidden="true">' + vals.map((v, i) =>
       "<i" + (i === vals.length - 1 ? ' class="' + (badLast ? "bad" : "now") + '"' : "")
-      + ' style="height:' + Math.max(4, Math.round(100 * (v || 0) / mx)) + '%"></i>').join("") + "</span>";
+      + ' style="height:' + Math.max(4, Math.round(100 * (v || 0) / mx)) + '%"></i>').join("")
+      + (running == null ? "" : '<i class="part" style="height:' + Math.max(4, Math.round(100 * (running || 0) / mx)) + '%"></i>')
+      + "</span>";
   }
   // a change as a chip: good / bad when the direction means something, plain when it does not
   function chipHtml(cur, prev, lowerIsBetter) {
@@ -2470,28 +2606,35 @@
   const wasWord = () => (S.cmp === "prev" ? "previous period " : "last year ");
 
   function overviewTiles(w, cw, tm) {
-    const cur = totals(aggregate(w.a, w.bEff)), prev = cw ? totals(aggregate(cw.a, cw.b, cw)) : null;
+    const fams = aggregate(w.a, w.bEff);
+    const cur = totals(fams), prev = cw ? totals(aggregate(cw.a, cw.b, cw)) : null;
     const was = (v, f) => prev ? esc(wasWord() + f(v)) + " · " : "";
     const series = tm.map(m => totals(monthFams(m)));
+    const run = runningMonth(tm, w), rt = run ? totals(monthFams(run)) : null;
     const ends = '<div class="mkd-ends"><span>' + esc(monShort(tm[0])) + "</span><span>"
-      + esc(monShort(tm[tm.length - 1])) + "</span></div>";
-    const spark = (f, bad) => sparkHtml(series.map(f), bad) + ends;
+      + esc(run ? MON[+run.slice(5, 7) - 1] + " to date" : monShort(tm[tm.length - 1])) + "</span></div>";
+    const spark = (f, bad) => sparkHtml(series.map(f), bad, "", rt ? f(rt) : null) + ends;
     const cpbs = series.map(t => t.cpb || 0);
-    // "the highest in 12 months" only when the period IS the trend's last month
+    // the same rule as the month chart under it, so the spark and the chart never disagree
+    const cpbTop = cpbs.length > 1 && cpbs[cpbs.length - 1] > 0 && cpbs[cpbs.length - 1] >= Math.max.apply(null, cpbs);
+    // the tile says it in words only when the period IS that month
     const lastYm = tm[tm.length - 1], isLast = w.a === lastYm + "-01" && w.bEff === ymLast(lastYm);
-    const cpbTop = isLast && cpbs.length > 1 && cpbs[cpbs.length - 1] > 0 && cpbs[cpbs.length - 1] >= Math.max.apply(null, cpbs);
+    // nothing to read yet is not $0: the page's own rule
+    const notIn = cur.spend === 0 && fams.some(f => f.paid && f.uncov && !f.anyCov);
+    const ledger = D.ledgerEnd ? "bank ledger runs through " + day(D.ledgerEnd) : "bank ledger";
     return '<section class="mkd-kpis" aria-label="Headline numbers">'
       + tileHtml("Bookings", fmtN(cur.booked), prev && chipHtml(cur.booked, prev.booked, false),
           was(prev && prev.booked, fmtN) + pct(cur.book) + " of leads booked", spark(t => t.booked))
-      + tileHtml("Cost per booking", money0(cur.cpb), prev && chipHtml(cur.cpb, prev.cpb, true),
-          was(prev && prev.cpb, money0) + (cpbTop ? "the highest in 12 months" : "paid channels"), spark(t => t.cpb, cpbTop))
-      + tileHtml("Booked value per $1", perDollar(cur.roas), prev && chipHtml(cur.roas, prev.roas, false),
-          was(prev && prev.roas, perDollar) + "booked value ÷ spend", spark(t => t.roas))
-      + tileHtml("Marketing spend", money(cur.spend), prev && chipHtml(cur.spend, prev.spend, null),
-          was(prev && prev.spend, money) + (cur.spL && cur.spG ? "live ads + bank ledger" : cur.spL ? "live ads" : "bank ledger"),
-          spark(t => t.spend))
+      + tileHtml("Cost per booking", money0(cur.cpb), notIn ? "" : prev && chipHtml(cur.cpb, prev.cpb, true),
+          notIn ? esc(ledger) : was(prev && prev.cpb, money0) + (isLast && cpbTop ? "the highest in 12 months"
+            : cur.uncov ? "paid, live channels" : "paid channels, communities included"), spark(t => t.cpb, cpbTop))
+      + tileHtml("Booked value per $1", perDollar(cur.roas), notIn ? "" : prev && chipHtml(cur.roas, prev.roas, false),
+          notIn ? esc(ledger) : was(prev && prev.roas, perDollar) + "booked value ÷ spend", spark(t => t.roas))
+      + tileHtml("Marketing spend", notIn ? "not in yet" : money(cur.spend), notIn ? "" : prev && chipHtml(cur.spend, prev.spend, null),
+          notIn ? esc(ledger) : was(prev && prev.spend, money) + (cur.spL && cur.spG ? "live ads + bank ledger"
+            : cur.spL ? "live ad accounts; ledger not in yet" : "bank ledger"), spark(t => t.spend))
       + tileHtml("Leads", fmtN(cur.leads), prev && chipHtml(cur.leads, prev.leads, false),
-          was(prev && prev.leads, fmtN) + (cur.cpl != null ? money0(cur.cpl) + " a lead" : "created in the period"),
+          was(prev && prev.leads, fmtN) + (cur.cpl != null ? money0(cur.cpl) + " a paid lead" : "created in the period"),
           spark(t => t.leads))
       + "</section>";
   }
@@ -2532,7 +2675,7 @@
           const cv = inRange(P.conv, pw.a, pw.b);
           const yt = sum(cv.filter(r => r.cat === "YOUTUBE_FOLLOW_ON_VIEWS"), "n");
           const lead = sum(cv.filter(r => CONV_LEAD.has(r.cat)), "n");
-          add(2, "FIX", fmtN(conv), yt ? "Most of Google's conversions are YouTube views"
+          add(2, "FIX", yt ? fmtN(yt) + " of " + fmtN(conv) : fmtN(conv), yt ? "Most of Google's conversions are YouTube views"
             : "Google counts more conversions than we get leads",
             "Google Ads counts " + fmtN(conv) + " conversions" + (yt ? "; " + fmtN(yt) + " are YouTube follow-on views and "
               + fmtN(lead) + " are lead forms, calls and quote requests" : "") + ". Moveboard got " + fmtN(f.leads)
@@ -2540,13 +2683,24 @@
             { tab: "paid", go: "See Paid ads" });
         }
       }
-      const ok = score.filter(r => r.live && r.cpb != null && !r.thin).sort((a, b) => a.cpb - b.cpb);
-      if (ok.length >= 2) {
-        const lo = ok[0], hi = ok[ok.length - 1];
-        if (hi.cpb >= 1.8 * lo.cpb && hi.fam !== cutFam) {
-          add(4, "CUT", money0(hi.cpb), esc(hi.name) + " costs " + (hi.cpb / lo.cpb).toFixed(1) + " times " + esc(lo.name),
-            money0(hi.cpb) + " a booking on " + money(hi.spend) + " of spend, against " + money0(lo.cpb) + " on "
-            + money(lo.spend) + ".", { tab: "paid", go: "See Paid ads" });
+      // against the paid average, never against the cheapest channel: ChatGPT's $70 on $700 must not
+      // make the channel with a third of the bookings look like a cut (his advisor's catch, 2026-10-30)
+      const hi = score.filter(r => r.live && r.cpb != null && !r.thin).sort((a, b) => b.cpb - a.cpb)[0];
+      if (hi && t.cpb && hi.spend >= 1500 && hi.fam !== cutFam && hi.cpb >= 1.5 * t.cpb) {
+        const x = hi.cpb / t.cpb;
+        add(4, x >= 2 ? "CUT" : "WATCH", money0(hi.cpb), esc(hi.name) + " costs " + x.toFixed(1) + " times the paid average",
+          money0(hi.cpb) + " a booking on " + money(hi.spend) + " of spend; the paid average is " + money0(t.cpb) + ".",
+          { tab: "paid", go: "See Paid ads" });
+      }
+      // leads Google charged for that never became a Moveboard request (his pick, 2026-10-30)
+      const lw = platWin("lsa", w, cw);
+      if (lw && !lw.before && !lw.after) {
+        const ch = inRange(P.lsaL, lw.a, lw.b).filter(r => r.chg === "Charged");
+        const all = sum(ch, "n"), lost = sum(ch.filter(r => r.zs === "Not in Moveboard"), "n");
+        if (all >= 20 && lost / all >= 0.3) {
+          add(2.5, "FIX", pct(lost / all), "Local Services: " + fmtN(lost) + " charged leads never became a request",
+            "Of " + fmtN(all) + " leads Google charged for, " + fmtN(lost) + " have no Moveboard request from the same phone within "
+            + LSA_ZIP_DAYS + " days. Dispute them with Google, or chase them in sales.", { tab: "paid", go: "See Paid ads" });
         }
       }
       const gp = score.find(r => r.k === "gpt");
@@ -2559,12 +2713,15 @@
     if (cw) {
       const cur = totals(aggregate(w.a, w.bEff)), prev = totals(aggregate(cw.a, cw.b, cw));
       if (prev.spend > 0 && prev.booked > 0 && cur.spend / prev.spend - 1 >= 0.15 && cur.booked / prev.booked - 1 <= -0.05) {
-        add(5, "WATCH", upDown(cur.spend / prev.spend - 1).replace(/^up /, "+"), "Spend is up while bookings fall",
-          "Ad spend is " + upDown(cur.spend / prev.spend - 1) + " on the " + esc(cw.label) + "; bookings are "
-          + upDown(cur.booked / prev.booked - 1) + ".");
+        // the one finding the CEO must see: first, before any channel's own card
+        add(0, "WATCH", upDown(cur.spend / prev.spend - 1).replace(/^up /, "+"),
+          "Spend is " + upDown(cur.spend / prev.spend - 1) + " while bookings are " + upDown(cur.booked / prev.booked - 1),
+          "On the " + esc(cw.label) + ": " + money(prev.spend) + " to " + money(cur.spend) + " of spend, "
+          + fmtN(prev.booked) + " to " + fmtN(cur.booked) + " bookings.", { tab: "paid", go: "See Paid ads" });
       }
     }
-    const gw = platWin("gsc", w, cw);
+    // Search Console, Ahrefs and BrightLocal are Zip to Zip's site: nothing of Tuji's in them
+    const gw = S.co === "Tuji" ? null : platWin("gsc", w, cw);
     if (gw && gw.cw && !gw.before && !gw.after) {
       const c = sum(inRange(P.gsc, gw.a, gw.b), "clk"), p = sum(inRange(P.gsc, gw.cw.a, gw.cw.b), "clk");
       if (p > 0 && c / p - 1 <= -0.15) {
@@ -2573,7 +2730,15 @@
           { tab: "seo", go: "See Search & SEO" });
       }
     }
-    blLatest().forEach(loc => {
+    if (S.co !== "Tuji" && P.refdom.length) {
+      const st = citeStats(w.a, w.bEff);
+      if (st.live.length && st.spam.length / st.live.length >= 0.5) {
+        add(7, "FIX", fmtN(st.spam.length) + " of " + fmtN(st.live.length), "Most sites linking to us are flagged as spam",
+          "Ahrefs flags " + pct(st.spam.length / st.live.length) + " of the sites linking to us. Disavow the network before it costs rankings.",
+          { tab: "seo", topic: "links", go: "See Backlinks" });
+      }
+    }
+    if (S.co !== "Tuji") blLatest().forEach(loc => {
       const g = loc.kws.filter(k => k.Google != null);
       if (loc.kws.length && !g.length) {
         add(8, "FIX", "", esc(loc.loc) + " is not in Google's top 100",
@@ -2585,7 +2750,7 @@
         "It runs through " + esc(day(D.ledgerEnd)) + ": Yelp, Angi, postcards and the other ledger channels show no spend after that.",
         { tab: "set", go: "See data sources" });
     }
-    return out.sort((a, b) => a.rank - b.rank).slice(0, 4);
+    return out.sort((a, b) => a.rank - b.rank).slice(0, 5);
   }
   function actionsHtml(list) {
     if (!list.length) return '<div class="mkd-card mkd-quiet">Nothing needs action in this period.</div>';
@@ -2594,32 +2759,36 @@
       return '<article class="mkd-act"><div class="t"><span class="mkd-tag ' + t + '">' + a.tag + "</span>"
         + (a.big ? '<span class="big ' + t + '">' + esc(a.big) + "</span>" : "") + "</div>"
         + "<h3>" + a.title + "</h3><p>" + a.why + "</p>"
-        + (a.tab ? '<button type="button" class="go" data-tab="' + a.tab + '">' + esc(a.go) + " ›</button>"
+        + (a.tab ? '<button type="button" class="go" data-tab="' + a.tab + '"' + (a.topic ? ' data-topic-go="' + a.topic + '"' : "") + ">" + esc(a.go) + " ›</button>"
           : a.href ? '<a class="go" href="' + esc(a.href) + '">' + esc(a.go) + " ›</a>" : "")
         + "</article>";
     }).join("") + "</div>";
   }
 
   /* a month bar chart drawn in HTML: the value over each bar, the latest month in the strong colour */
-  function monthBarsHtml(title, sub, subBad, tm, vals, fmt, badLast) {
-    const mx = Math.max.apply(null, vals.map(v => v || 0)) || 1;
+  function monthBarsHtml(title, sub, subBad, tm, vals, fmt, badLast, run, runVal) {
+    const mx = Math.max.apply(null, vals.concat(run ? [runVal] : []).map(v => v || 0)) || 1;
+    const bar = (v, cls) => "<div><span>" + (v ? fmt(v) : "—") + '</span><i class="' + cls
+      + '" style="height:' + Math.max(2, Math.round(86 * (v || 0) / mx)) + '%"></i></div>';
     return '<div class="mkd-card"><div class="mkd-h"><h2>' + esc(title) + "</h2><span" + (subBad ? ' class="bad"' : "")
       + ">" + esc(sub) + "</span></div>"
-      + '<div class="mkd-mb" role="img" aria-label="' + esc(title + ", " + monthWord(tm[0]) + " to " + monthWord(tm[tm.length - 1])) + '">'
-      + vals.map((v, i) => "<div><span>" + (v ? fmt(v) : "—") + '</span><i class="' + (i === vals.length - 1 ? (badLast ? "bad" : "now") : "")
-        + '" style="height:' + Math.max(2, Math.round(86 * (v || 0) / mx)) + '%"></i></div>').join("")
-      + '</div><div class="mkd-ml">' + tm.map(m => "<span>" + esc(MON[+m.slice(5, 7) - 1]) + "</span>").join("") + "</div></div>";
+      + '<div class="mkd-mb" role="img" aria-label="' + esc(title + ", " + monthWord(tm[0]) + " to " + monthWord(run || tm[tm.length - 1])) + '">'
+      + vals.map((v, i) => bar(v, i === vals.length - 1 ? (badLast ? "bad" : "now") : "")).join("") + (run ? bar(runVal, "part") : "")
+      + '</div><div class="mkd-ml">' + tm.map(m => "<span>" + esc(MON[+m.slice(5, 7) - 1]) + "</span>").join("")
+      + (run ? "<span>" + esc(MON[+run.slice(5, 7) - 1]) + " to date</span>" : "") + "</div></div>";
   }
-  function trendCharts(tm) {
-    const series = tm.map(m => totals(monthFams(m)));
+  function trendCharts(tm, run) {
+    const series = tm.map(m => totals(monthFams(m))), rt = run ? totals(monthFams(run)) : null;
     const bk = series.map(t => t.booked), cp = series.map(t => t.cpb || 0);
     const peak = bk.indexOf(Math.max.apply(null, bk));
     const cpTop = cp.length > 1 && cp[cp.length - 1] > 0 && cp[cp.length - 1] >= Math.max.apply(null, cp);
     const lowI = cp.reduce((b, v, i) => (v > 0 && (cp[b] <= 0 || v < cp[b]) ? i : b), 0);
     return '<div class="mkd-g2">'
-      + monthBarsHtml("Bookings a month", "peak " + fmtN(bk[peak]) + " in " + monthWord(tm[peak]), false, tm, bk, fmtN, false)
-      + monthBarsHtml("Cost per booking", cpTop ? monthWord(tm[tm.length - 1]) + " is the highest in 12 months"
-          : "lowest " + money0(cp[lowI]) + " in " + monthWord(tm[lowI]), cpTop, tm, cp, money0, cpTop)
+      + monthBarsHtml("Bookings a month", "peak " + fmtN(bk[peak]) + " in " + monthWord(tm[peak]), false, tm, bk, fmtN, false, run, rt && rt.booked)
+      + monthBarsHtml("Cost per booking", cpTop && rt && rt.cpb > cp[cp.length - 1]
+          ? monthWord(tm[tm.length - 1]) + " is the highest whole month; " + MON[+run.slice(5, 7) - 1] + " is running at " + money0(rt.cpb)
+          : cpTop ? monthWord(tm[tm.length - 1]) + " is the highest in 12 months"
+          : "lowest " + money0(cp[lowI]) + " in " + monthWord(tm[lowI]), cpTop, tm, cp, money0, cpTop, run, rt && (rt.cpb || 0))
       + "</div>";
   }
 
@@ -2636,9 +2805,20 @@
         + costCell(v, f, money0, f.cBooked < THIN) + "</b></div>";
     };
     let h = '<tr class="grp"><td colspan="8">' + esc(label) + " · " + list.length + (list.length === 1 ? " source" : " sources") + "</td></tr>";
+    // ledger channels with nothing in yet and no booking: one line, opened on a click
+    const quiet = list.filter(f => f.paid && f.uncov && !f.anyCov && !f.booked);
+    const fold = quiet.length >= 3 ? new Set(quiet) : null;
+    if (fold) list = list.filter(f => !fold.has(f)).concat(quiet);
+    let folded = false;
     list.forEach(f => {
       const sp = tm.map(m => { const x = monthFams(m).find(y => y.fam === f.fam); return x ? x.booked : 0; });
-      h += '<tr><td class="mko-fam">' + famCell(f) + "</td>"
+      const hide = !!fold && fold.has(f);
+      if (hide && !folded) {
+        folded = true;
+        h += '<tr class="mkd-fold" tabindex="0" role="button" aria-expanded="false"><td colspan="8"><span class="rs-caret">›</span> '
+          + fmtN(quiet.length) + " more ledger channels, 0 bookings</td></tr>";
+      }
+      h += "<tr" + (hide ? ' class="mkd-folded" hidden' : "") + '><td class="mko-fam">' + famCell(f) + "</td>"
         + '<td class="n">' + spendCell(f) + "</td>"
         + '<td class="n">' + fmtN(f.leads) + "</td>"
         + '<td class="n"><b>' + fmtN(f.booked) + "</b></td>"
@@ -2651,9 +2831,11 @@
     h += '<tr class="tot"><td>' + esc(totLabel || "All " + label.toLowerCase()) + "</td>"
       + '<td class="n">' + (!paid ? "—" : list.filter(f => f.paid).some(f => f.anyCov) ? money0(t.spend) : '<span class="mko-cov">not in yet</span>') + "</td>"
       + '<td class="n">' + fmtN(t.leads) + "</td>"
-      + '<td class="n">' + fmtN(t.booked) + "</td>"
+      + '<td class="n">' + fmtN(t.booked) + (paid && t.pBooked < t.booked
+        ? '<div class="mko-sub">' + fmtN(t.pBooked) + " with spend in</div>" : "") + "</td>"
       + '<td class="n">' + pct(t.book) + "</td>"
-      + '<td class="n">' + (paid ? costCell(t.cpb, t, money0, false) : "—") + "</td>"
+      + '<td class="n" title="' + (paid ? "spend ÷ the " + fmtN(t.pBooked) + " bookings of channels whose spend is in" : "") + '">'
+      + (paid ? costCell(t.cpb, t, money0, false) : "—") + "</td>"
       + '<td class="n">' + (paid ? costCell(t.roas, t, perDollar, false) : "—") + "</td><td></td></tr>";
     return h;
   }
@@ -2699,7 +2881,7 @@
       + '<section class="mkd-sec" aria-labelledby="mkdActH"><div class="mkd-h"><h2 id="mkdActH">What to act on</h2>'
       + "<span>read from this period's numbers; each card opens the place to fix it</span></div>"
       + actionsHtml(actions(w, cw, score, fams)) + "</section>"
-      + trendCharts(tm)
+      + trendCharts(tm, runningMonth(tm, w))
       + '<section class="mkd-card" aria-labelledby="mkdSrcH"><div class="mkd-h"><h2 id="mkdSrcH">Where bookings came from</h2>'
       + "<span>leads created in the period and how many booked · click a source to open it in Source Analysis</span></div>"
       + sourcesTableHtml(fams, tm)
@@ -2707,7 +2889,18 @@
       + (D.ledgerEnd ? ", which runs through " + esc(day(D.ledgerEnd)) : "")
       + (past ? "; a * marks a cost read on the leads whose spend is in" : "")
       + ". Booked value is the bill where the move happened, the quote where it is still to come.</p></section>";
-    return { html };
+    return { html, wire(host) {
+      const line = host.querySelector(".mkd-fold");
+      if (!line) return;
+      const flip = () => {
+        const open = line.getAttribute("aria-expanded") !== "true";
+        line.setAttribute("aria-expanded", String(open));
+        line.classList.toggle("on", open);
+        host.querySelectorAll(".mkd-folded").forEach(r => { r.hidden = !open; });
+      };
+      line.onclick = flip;
+      line.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+    } };
   }
 
   /* === PAID ADS === */
@@ -2724,19 +2917,39 @@
         + (r["Next Step"] ? " Next: " + esc(r["Next Step"]) : "") + "</p></article>";
     }).join("");
   }
+  /* the mockup's card: where Google's money went, Search against YouTube */
+  function googleSplitCard(w) {
+    const pw = platWin("ads", w, null);
+    if (!pw || pw.before || pw.after || !P.net.length) return "";
+    const tmap = {};
+    P.ads.forEach(r => { tmap[String(r.id)] = r.type; });
+    const all = adsNetSplit(inRange(P.net, pw.a, pw.b), inRange(P.netc, pw.a, pw.b), id => tmap[id] || (P.camp[id] || {}).type || "");
+    const tc = sum(all, "cost");
+    if (!tc) return "";
+    const seg = (x, c) => (x.cost > 0 ? '<i class="' + c + '" style="width:' + (100 * x.cost / tc).toFixed(1) + '%"></i>' : "");
+    const box = x => '<div class="mkd-nb"><span>' + esc(x.k) + " · " + pct(x.cost / tc) + "</span><b>" + money0(x.cost) + "</b><em>" + fmtN(x.lead)
+      + (x.lead === 1 ? " lead" : " leads") + (x.lead >= 0.5 ? " · " + money0(x.cost / x.lead) + " each" : "") + "</em></div>";
+    const [s, y, o] = all;
+    return '<div class="mkd-card"><div class="mkd-h"><h2>Google Ads: where the money went</h2><span>by network; leads are Google\'s lead conversions</span></div>'
+      + '<div class="mkd-split" role="img" aria-label="Search ' + pct(s.cost / tc) + ", YouTube " + pct(y.cost / tc) + '">'
+      + seg(s, "s") + seg(y, "y") + seg(o, "o") + '</div><div class="mkd-nets">' + box(s) + box(y) + (o.cost >= 1 ? box(o) : "") + "</div>"
+      + (y.cost > s.cost && y.lead < s.lead ? '<p class="rs-hint">Most of the money shows ads on YouTube; most of the leads come from Search.</p>' : "") + "</div>";
+  }
   function platCardHtml(r, avg) {
     const dash = "—";
     const tone = r.cpb == null ? "" : !avg || r.cpb <= avg ? " good" : r.cpb <= 2 * avg ? " mid" : " bad";
     const stat = (l, v) => "<div><span>" + l + "</span><b>" + v + "</b></div>";
     return '<article class="mkd-plat"><div class="hd"><div><div class="nm"><h3>' + esc(r.name) + '</h3><span class="mkd-chip good">live</span></div>'
-      + '<div class="mko-sub">Platform says: ' + esc(r.says) + "</div></div>"
+      + '<div class="mko-sub">Platform says: ' + esc(r.says) + "</div>"
+      + (r.why ? '<div class="why">' + esc(r.why) + "</div>" : "") + "</div>"
       + '<div class="sp"><b>' + (r.spend != null ? money0(r.spend) : dash) + "</b><span>spent</span></div></div>"
       + '<div class="mkd-stats">' + stat("Impressions", r.imp != null ? compact(r.imp) : dash) + stat("Clicks", r.clk != null ? fmtN(r.clk) : dash)
       + stat("CTR", pct2(r.ctr)) + stat("CPC", cents(r.cpc)) + "</div>"
       + '<div class="ours"><span><b>' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</b> leads</span>"
       + '<span aria-hidden="true">→</span><span><b>' + fmtN(r.booked) + "</b> booked</span>"
       + '<span class="mkd-chip c' + tone + '">' + (r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
-        + (r.k === "reddit" ? "†" : r.k === "li" ? "‡" : "") + " a booking" : "no bookings") + "</span></div></article>";
+        + (r.k === "reddit" ? "†" : r.k === "li" ? "‡" : "") + " a booking" : "no bookings") + "</span></div>"
+      + '<button type="button" class="go" data-open="mkoP-' + r.k + '">Open detail ›</button></article>';
   }
   function paidTab(w, cw) {
     if (S.co === "Tuji") {
@@ -2744,27 +2957,33 @@
       return { html: plat.html, wire: plat.wire };
     }
     const score = scoreRows(w), live = score.filter(r => r.live);
-    const spend = sum(live, "spend"), leads = sum(live, "leads"), booked = sum(live, "booked");
-    const avg = ratio(spend, booked);
+    // one number per concept per period: the Overview's own totals, never a second sum of the ad
+    // accounts ($39.6k and $400 here against $39.3k and $397 there, until 2026-10-30)
+    const t = totals(aggregate(w.a, w.bEff));
+    const spend = t.spend, leads = sum(live, "leads"), booked = t.pBooked;
+    const avg = t.cpb;
     const g = live.find(r => r.k === "ads");
     const gConv = g ? (String(g.says).match(/^[\d,]+/) || [""])[0] : "";
-    const plat = platformsSection(w, cw);
+    const plat = platformsSection(w, cw, score);
+    const li = live.find(r => r.k === "li");
     const html = '<section class="mkd-kpis" aria-label="Paid ads in total">'
-      + tileHtml("Paid spend", money(spend), "", live.length + " live ad accounts")
-      + tileHtml("Leads from paid ads", fmtN(leads), "", "our Moveboard leads, not platform counts")
-      + tileHtml("Booked", fmtN(booked), "", pct(ratio(booked, leads)) + " of paid leads")
-      + tileHtml("Cost per booking", money0(avg), "", "paid ad platforms only")
-      + (g ? tileHtml("Google says vs we booked", (gConv || "—") + " / " + fmtN(g.booked), "",
+      + tileHtml("Paid spend", money(spend), "", t.spG ? "the " + live.length + " ad accounts + ledger channels: Yelp, Angi, postcards"
+          : live.length + " live ad accounts; ledger not in yet")
+      + tileHtml("Leads from the " + live.length + " ad accounts", fmtN(leads), "", "our Moveboard leads, not platform counts")
+      + tileHtml("Booked", fmtN(booked), "", pct(ratio(t.pBooked, t.pLeads)) + " of " + fmtN(t.pLeads) + " leads on channels with spend in")
+      + tileHtml("Cost per booking", money0(avg), "", t.uncov ? "paid, live channels" : "paid channels, communities included")
+      + (g ? tileHtml("Google says vs we booked", (gConv || "—") + " vs " + fmtN(g.booked), "",
           "Google Ads conversions against our Google bookings") : "")
       + "</section>"
-      + '<div class="mkd-card"><div class="mkd-h"><h2>Cost per booking, by platform</h2><span>our bookings from each platform\'s leads; lower is better</span></div>'
-      + cpbBarsHtml(score) + "</div>"
+      + '<div class="mkd-g2"><div class="mkd-card"><div class="mkd-h"><h2>Cost per booking, by platform</h2><span>our bookings from each platform\'s leads; lower is better</span></div>'
+      + cpbBarsHtml(score, avg) + "</div>" + googleSplitCard(w) + "</div>"
       + '<section class="mkd-sec" aria-labelledby="mkdPlatH"><div class="mkd-h"><h2 id="mkdPlatH">Every platform</h2>'
       + "<span>what each platform reports, next to what we booked from it</span></div>"
       + '<div class="mkd-plats">' + live.map(r => platCardHtml(r, avg)).join("") + offCardsHtml(w) + "</div>"
       + '<p class="rs-hint">* ChatGPT leads include visitors from chatgpt.com answers. † Reddit\'s cost per booking is the '
       + "Channels table's: the bank's Reddit total, which is more than the ad account. ‡ LinkedIn's is the ad account's "
-      + "spend: the bank files LinkedIn as not advertising.</p></section>"
+      + "spend: the bank files LinkedIn as not advertising"
+      + (li && li.spend ? ", so its " + money0(li.spend) + " is not in the Paid spend above" : "") + ".</p></section>"
       + '<section class="mkd-sec" aria-labelledby="mkdDetH"><div class="mkd-h"><h2 id="mkdDetH">Platform detail</h2>'
       + "<span>each account's campaigns, charts and results</span></div>" + plat.html + "</section>";
     return { html, wire: plat.wire };
@@ -3104,8 +3323,8 @@
               data: { labels: m12.map(mLabel), datasets: [
                 { type: "bar", label: "Clicks", data: m12.map(m => (byM[m] || {}).clk || 0), backgroundColor: C.main,
                   borderRadius: 3, maxBarThickness: 26, yAxisID: "y" },
-                { type: "line", label: "Impressions", data: m12.map(m => (byM[m] || {}).imp || 0), borderColor: C.ctx,
-                  backgroundColor: C.ctx, borderWidth: 1.5, pointRadius: 2, yAxisID: "y2" }] },
+                { type: "line", label: "Impressions", data: m12.map(m => (byM[m] || {}).imp || 0), borderColor: "#6B7F73",
+                  backgroundColor: "#6B7F73", borderWidth: 1.5, pointRadius: 2, yAxisID: "y2" }] },
               options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
                 plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
                 scales: { y: { beginAtZero: true, ticks: { callback: v => fmtN(v) } },
@@ -3121,6 +3340,400 @@
         });
       },
     };
+  }
+
+  /* === SEARCHES AND DEMAND, NATIVE (his pick, 2026-10-30) ===
+     The Organic Search page rebuilt inside the dashboard: its own window and compare switches sat
+     60px under the dashboard's, it fetched three marts under its own keys, and its stacked charts
+     wore eight colours. Now the topic reads the dashboard's Period and Compare, whole months only
+     (the marts are monthly; a month still filling says so). What the numbers obey, each measured
+     when the page was built (2026-09-24):
+       * Google hides about 45% of clicks from the query rows. Every query breakdown carries a
+         "hidden by Google" remainder so it adds up to the site total, and every place figure is a
+         FLOOR: Search Console never says where the searcher was; a place comes only from the words
+         of the search or the page they landed on.
+       * Impressions and position broke on 12-13 Sep 2025 (Google ended the 100-results setting),
+         so a compare is CLICKS ONLY and impressions / position count from Oct 2025.
+       * The compare matches whole months only: a month both sides hold completely.
+       * Leads beside the searches are context, never cause: the lead side cannot tell paid Google
+         from organic, and ChatGPT leads never pass through Search Console.
+       * A Business Profile click is a click on the listing's WEBSITE link only, not a call or a
+         direction request.
+       * Under 100 impressions an average position is a handful of searches (the Bronx read "page
+         1" on 18 impressions), so it gets no verdict. */
+  const GSC_CLEAN = "2025-10", GSC_BREAK = "12–13 Sep 2025", DM_TOP = 100;
+  const MIN_VERDICT_IMPR = 100;
+  function verdictOf(pos, imp) {
+    if (!imp || pos == null) return "Not shown";
+    if (imp < MIN_VERDICT_IMPR) return "Rarely shown";
+    return pos <= 3.5 ? "Winning" : pos <= 10.5 ? "Page 1" : pos <= 20.5 ? "Page 2" : "Invisible";
+  }
+  const DM_PILL = { Winning: "ok", "Page 1": "info", "Page 2": "warn", Invisible: "bad", "Rarely shown": "mute", "Not shown": "mute" };
+  const dmPill = (pos, imp) => { const v = verdictOf(pos, imp); return pill(v, DM_PILL[v]); };
+  const QTYPES = ["Brand", "Movers near me", "Movers + place", "Movers generic", "How-to", "Town name only", "Other"];
+  // a green ramp and one grey, never a rainbow: six series at most on a chart
+  const Q_CHART = [["Brand", "#14301F"], ["Movers near me", "#3F7D20"], ["Movers + place", "#7FA864"],
+                   ["Movers generic", "#A9C793"], ["Everything else", "#C9DABD"], ["Hidden by Google", "#A3ADA5"]];
+  const qBucket = t => (Q_CHART.some(c => c[0] === t) ? t : "Everything else");
+  const PAGE_CHART = [["Home", "#14301F"], ["Business Profile listing", "#3F7D20"], ["Location and state pages", "#7FA864"],
+                      ["City pages", "#A9C793"], ["Service pages", "#C9DABD"], ["Everything else", "#A3ADA5"]];
+  const pBucket = f => (f === "Location page" || f === "State page" ? "Location and state pages" : f === "City page" ? "City pages"
+    : f === "Service page" ? "Service pages" : f === "Home" || f === "Business Profile listing" ? f : "Everything else");
+  const DM = { st: "", fam: "", qType: "", q: "", open: {}, cityAll: false };
+  const dmPos = v => (v == null ? "—" : v.toFixed(1));
+
+  function dmInfo() {
+    const days = {};
+    P.gsca.forEach(r => { days[r.m] = Math.max(days[r.m] || 0, r.days); });
+    const list = Array.from(new Set(P.gscq.map(r => r.m).concat(Object.keys(days)))).sort();
+    const whole = m => (days[m] || 0) >= new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate();
+    return { days, list, whole };
+  }
+  function dmClicks(ms) {
+    const set = new Set(ms), t = {};
+    P.gscq.forEach(r => { if (set.has(r.m)) t[r.type] = (t[r.type] || 0) + r.clk; });
+    const site = Object.keys(t).reduce((a, k) => a + t[k], 0), hidden = t["Hidden by Google"] || 0;
+    return { t, site, hidden, named: site - hidden };
+  }
+  function dmSum(rows) {
+    const z = { qc: 0, qi: 0, pw: 0, b1: 0, b2: 0, b3: 0, b4: 0, bp: 0, cp: 0, lp: 0, leads: 0, jobs: 0, vol: null };
+    rows.forEach(r => {
+      z.qc += r.qc; z.bp += r.bp; z.cp += r.cp; z.lp += r.lp; z.leads += r.leads; z.jobs += r.jobs;
+      if (r.vol != null) z.vol = r.vol;
+      if (r.m >= GSC_CLEAN) {
+        z.qi += r.qi; z.pw += r.qp * r.qi;
+        z.b1 += r.b1; z.b2 += r.b2; z.b3 += r.b3; z.b4 += r.b4;
+      }
+    });
+    z.pos = z.qi ? z.pw / z.qi : null;
+    return z;
+  }
+  function dmBands(z) {
+    const n = z.b1 + z.b2 + z.b3 + z.b4;
+    if (!n) return '<span class="mko-sub">—</span>';
+    const w = x => (100 * x / n).toFixed(1);
+    return '<span class="mkd-bands" title="positions 1–3: ' + w(z.b1) + "% · 4–10: " + w(z.b2) + "% · 11–20: " + w(z.b3) + "% · 21+: " + w(z.b4) + '%">'
+      + '<i class="b1" style="width:' + w(z.b1) + '%"></i><i class="b2" style="width:' + w(z.b2) + '%"></i>'
+      + '<i class="b3" style="width:' + w(z.b3) + '%"></i><i class="b4" style="width:' + w(z.b4) + '%"></i></span>';
+  }
+  const dmCells = z => '<td class="mko-num"><b>' + fmtN(z.qc) + '</b></td><td class="mko-num">' + (z.qi ? fmtN(z.qi) : "—")
+    + '</td><td class="mko-num">' + dmPos(z.pos) + "</td><td>" + dmBands(z) + "</td>"
+    + '<td class="mko-num">' + fmtN(z.bp) + '</td><td class="mko-num">' + fmtN(z.cp + z.lp) + '</td><td class="mko-num">' + fmtN(z.leads) + "</td>";
+  const dmHead = first => "<thead><tr><th>" + esc(first) + '</th><th class="mko-num" title="movers searches that name the place">Clicks</th>'
+    + '<th class="mko-num">Impressions</th><th class="mko-num">Position</th><th>Where we rank</th>'
+    + '<th class="mko-num" title="website-link clicks on the Business Profile listings in this place">Listing clicks</th>'
+    + '<th class="mko-num" title="clicks that landed on our city, location and state pages about this place">Page clicks</th>'
+    + '<th class="mko-num" title="Zip to Zip leads created in these months, by pickup place: context, never cause">Leads</th></tr></thead>';
+
+  function dmStateDetail(ms, st, whole) {
+    const set = new Set(ms), rows = P.gsca.filter(r => set.has(r.m) && r.st === st && r.lvl !== "State");
+    const by = {};
+    rows.forEach(r => {
+      if (r.lvl === "Other") return;
+      const k = r.lvl + "|" + (r.lvl === "County" ? r.county : r.city);
+      (by[k] = by[k] || []).push(r);
+    });
+    const list = Object.keys(by).map(k => ({ k, z: dmSum(by[k]) }))
+      .filter(o => o.z.qc || o.z.qi || o.z.bp || o.z.cp || o.z.lp)
+      .sort((a, b) => (b.z.qc - a.z.qc) || (b.z.qi - a.z.qi));
+    const shown = list.slice(0, 40), parts = dmSum(rows), rest = dmSum(rows.filter(r => r.lvl === "Other"));
+    list.slice(40).forEach(o => { ["qc", "qi", "pw", "b1", "b2", "b3", "b4", "bp", "cp", "lp"].forEach(k => { rest[k] += o.z[k]; }); });
+    rest.pos = rest.qi ? rest.pw / rest.qi : null;
+    rest.leads = 0;
+    const grey = (label, z) => '<tr class="mkd-grey"><td>' + esc(label) + '</td><td class="mko-num">' + fmtN(z.qc) + '</td><td class="mko-num">'
+      + (z.qi ? fmtN(z.qi) : "—") + '</td><td class="mko-num">' + dmPos(z.pos) + "</td><td></td>"
+      + '<td class="mko-num">' + fmtN(z.bp) + '</td><td class="mko-num">' + fmtN(z.cp + z.lp) + "</td><td></td></tr>";
+    return '<table class="rs-table mko-pt">' + dmHead("Place") + "<tbody>" + shown.map(o => {
+      const p = o.k.split("|"), z = o.z;
+      if (p[0] === "County") z.leads = 0;
+      return "<tr><td>" + esc(p[1]) + (p[0] === "County" && !/county$/i.test(p[1]) ? ' <span class="mko-sub">county</span>' : "") + "</td>" + dmCells(z) + "</tr>";
+    }).join("")
+      + grey(list.length > shown.length ? "Every other place (" + fmtN(list.length - shown.length) + " more, plus the small ones)"
+        : "Smaller places (under 20 impressions and no click in a month)", rest)
+      + grey("The state named alone (no town)", { qc: whole.qc - parts.qc, qi: 0, pos: null, bp: whole.bp - parts.bp, cp: whole.cp - parts.cp, lp: whole.lp - parts.lp })
+      + "</tbody></table>";
+  }
+  function dmStates(ms) {
+    const set = new Set(ms);
+    const rows = P.gsca.filter(r => set.has(r.m) && r.lvl === "State" && (!DM.st || r.st === DM.st));
+    const by = {};
+    rows.forEach(r => { (by[r.st] = by[r.st] || []).push(r); });
+    const sts = Object.keys(by).map(st => ({ st, z: dmSum(by[st]) }))
+      .filter(o => o.z.qc || o.z.qi || o.z.bp || o.z.cp || o.z.lp || o.z.leads)
+      .sort((a, b) => (b.z.qi - a.z.qi) || (b.z.qc - a.z.qc));
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Where the demand comes from</span>'
+      + '<span class="mko-sub">click a state for its cities and counties</span></div>'
+      + '<p class="rs-hint">Only a search that <b>names a place</b> can be put in a state ("movers wilmington de"), plus the pages about a '
+      + "place, so these are floors, not that state's whole demand.</p>"
+      + '<div class="rs-tablewrap"><table class="rs-table mko-pt" id="mkoDmStates">' + dmHead("State") + "<tbody>"
+      + sts.map(o => {
+        const open = !!DM.open[o.st];
+        return '<tr class="rs-group' + (open ? " on" : "") + '" data-st="' + esc(o.st) + '" tabindex="0"><td><span class="rs-caret">›</span> ' + esc(o.st) + "</td>" + dmCells(o.z) + "</tr>"
+          + (open ? '<tr class="rs-sub"><td colspan="8"><div class="rs-sub-card">' + dmStateDetail(ms, o.st, o.z) + "</div></td></tr>" : "");
+      }).join("")
+      + '<tr class="mko-tot"><td>' + (DM.st ? esc(DM.st) : "All states") + "</td>" + dmCells(dmSum(rows)) + "</tr></tbody></table></div>"
+      + '<div class="mkd-bandkey"><span><i class="b1"></i>positions 1–3</span><span><i class="b2"></i>4–10, page 1</span>'
+      + '<span><i class="b3"></i>11–20</span><span><i class="b4"></i>21+, nobody scrolls there</span></div></div>';
+  }
+  function dmCities(ms, I) {
+    const set = new Set(ms);
+    const rows = P.gsca.filter(r => set.has(r.m) && r.lvl === "City" && r.vol != null && (!DM.st || r.st === DM.st));
+    const by = {};
+    rows.forEach(r => { const k = r.st + "|" + r.city; (by[k] = by[k] || []).push(r); });
+    const mths = ms.reduce((a, m) => a + (I.days[m] || 0), 0) / 30.4375;
+    const list = Object.keys(by).map(k => {
+      const z = dmSum(by[k]), p = k.split("|");
+      return { st: p[0], city: p[1], z, per: z.vol && mths ? 1000 * z.qc / (z.vol * mths) : null };
+    }).sort((a, b) => (b.z.vol || 0) - (a.z.vol || 0));
+    if (!list.length) return "";
+    const T = { vol: 0, qc: 0 }, tags = {};
+    list.forEach(o => { T.vol += o.z.vol || 0; T.qc += o.z.qc; const v = verdictOf(o.z.pos, o.z.qi); tags[v] = (tags[v] || 0) + 1; });
+    const perAll = mths && T.vol ? 1000 * T.qc / (T.vol * mths) : null;
+    const shown = DM.cityAll ? list : list.slice(0, 15);
+    const count = k => tags[k] || 0;
+    const tile = (n, label, cls) => '<div class="mkd-vt ' + cls + '"><b>' + n + "</b><span>" + esc(label) + "</span></div>";
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Are we winning it</span>'
+      + '<span class="mko-sub">the ' + list.length + " cities with Keyword Planner volume · "
+      + (perAll == null ? "—" : perAll.toFixed(2)) + " clicks per 1,000 searches</span></div>"
+      + '<div class="mkd-verdicts">' + tile(count("Winning"), "winning, positions 1–3", "win") + tile(count("Page 1"), "on page 1", "p1")
+      + tile(count("Page 2"), "on page 2", "p2") + tile(count("Invisible"), "invisible, 21 or worse", "inv")
+      + tile(count("Rarely shown") + count("Not shown"), "shown too rarely to judge", "few") + "</div>"
+      + '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>City</th><th class="mko-num" title="Keyword Planner: searches a month for movers in this city">Searches a month</th>'
+      + '<th class="mko-num">Our clicks</th><th class="mko-num">Position</th><th>Verdict</th>'
+      + '<th class="mko-num" title="our clicks per 1,000 Keyword Planner searches over these months">Clicks per 1,000</th>'
+      + '<th class="mko-num">Leads</th><th class="mko-num">Jobs</th></tr></thead><tbody>'
+      + shown.map(o => "<tr><td><b>" + esc(o.city) + '</b> <span class="mko-sub">' + esc(o.st) + "</span></td>"
+        + '<td class="mko-num">' + fmtN(o.z.vol) + '</td><td class="mko-num"><b>' + fmtN(o.z.qc) + '</b></td><td class="mko-num">' + dmPos(o.z.pos)
+        + "</td><td>" + dmPill(o.z.pos, o.z.qi) + '</td><td class="mko-num">' + (o.per == null ? "—" : o.per.toFixed(2))
+        + '</td><td class="mko-num">' + fmtN(o.z.leads) + '</td><td class="mko-num">' + fmtN(o.z.jobs) + "</td></tr>").join("")
+      + "</tbody></table></div>"
+      + (list.length > 15 ? '<button type="button" class="rs-btn" id="mkoDmCities">' + (DM.cityAll ? "Show the top 15" : "Show all " + list.length) + "</button>" : "")
+      + '<p class="rs-hint">Under ' + MIN_VERDICT_IMPR + " impressions an average position is a handful of searches, so there is no verdict.</p></div>";
+  }
+  function dmTopHtml(ms) {
+    const set = new Set(ms), agg = {}, tail = {};
+    let hidden = 0;
+    P.gscq.forEach(r => {
+      if (!set.has(r.m)) return;
+      const clean = r.m >= GSC_CLEAN, i = clean ? r.imp : 0, pw = clean ? (r.pos || 0) * r.imp : 0;
+      if (r.type === "Hidden by Google") { hidden += r.clk; return; }
+      if (r.q === "(long tail)") { const t = tail[r.type] = tail[r.type] || { c: 0, i: 0 }; t.c += r.clk; t.i += i; return; }
+      if (DM.st && r.st !== DM.st) return;
+      const a = agg[r.q] = agg[r.q] || { q: r.q, type: r.type, st: r.st, city: r.city, c: 0, i: 0, pw: 0 };
+      a.c += r.clk; a.i += i; a.pw += pw;
+    });
+    const all = Object.keys(agg).map(k => agg[k]);
+    const brand = all.filter(a => a.type === "Brand");
+    const brandT = { c: sum(brand, "c"), i: sum(brand, "i"), pw: sum(brand, "pw") };
+    const q = DM.q.trim().toLowerCase();
+    const list = all.filter(a => (!DM.qType || a.type === DM.qType) && (!q || a.q.indexOf(q) >= 0) && (DM.qType === "Brand" || q || a.type !== "Brand"))
+      .sort((a, b) => (b.c - a.c) || (b.i - a.i));
+    const shown = list.slice(0, DM_TOP), more = list.slice(DM_TOP);
+    const counts = {};
+    all.forEach(a => { counts[a.type] = (counts[a.type] || 0) + 1; });
+    const row = a => '<tr><td class="mko-name">' + esc(a.q) + "</td><td>" + esc(a.type) + "</td><td>" + esc([a.city, a.st].filter(Boolean).join(", ") || "—")
+      + '</td><td class="mko-num"><b>' + fmtN(a.c) + '</b></td><td class="mko-num">' + (a.i ? fmtN(a.i) : "—") + '</td><td class="mko-num">' + dmPos(a.i ? a.pw / a.i : null) + "</td></tr>";
+    const grey = (label, type, c, i) => '<tr class="mkd-grey"><td>' + esc(label) + "</td><td>" + esc(type) + '</td><td>—</td><td class="mko-num">' + fmtN(c)
+      + '</td><td class="mko-num">' + (i ? fmtN(i) : "—") + '</td><td class="mko-num">—</td></tr>';
+    const plain = !DM.qType && !q;
+    return { list, counts, html: '<div class="panel-head"><span class="panel-title">Top searches</span><span class="mko-sub">' + fmtN(list.length) + " searches match"
+      + (more.length ? " · top " + DM_TOP + " shown" : "") + "</span></div>"
+      + '<div class="mkd-dmtools"><span id="mkoDmType"></span><input class="mkd-in" id="mkoDmQ" aria-label="Find a word in the search" placeholder="Find a word in the search" value="' + esc(DM.q) + '">'
+      + '<span class="rs-spacer"></span><button type="button" class="rs-btn" id="mkoDmCsv">Export CSV</button></div>'
+      + '<div class="rs-tablewrap mkd-scroll"><table class="rs-table mko-pt"><thead><tr><th>Search</th><th>Type</th><th>Place named</th>'
+      + '<th class="mko-num">Clicks</th><th class="mko-num">Impressions</th><th class="mko-num">Position</th></tr></thead><tbody>'
+      + (plain && brand.length ? '<tr class="rs-group" id="mkoDmBrand" tabindex="0"><td>All brand searches <span class="mko-sub">' + fmtN(brand.length)
+        + ' searches · open to list them</span></td><td>Brand</td><td>—</td><td class="mko-num">' + fmtN(brandT.c) + '</td><td class="mko-num">' + fmtN(brandT.i)
+        + '</td><td class="mko-num">' + dmPos(brandT.i ? brandT.pw / brandT.i : null) + "</td></tr>" : "")
+      + (shown.length ? shown.map(row).join("") : '<tr><td colspan="6" class="mko-sub">No search matches.</td></tr>')
+      + (more.length ? grey("(" + fmtN(more.length) + " more listed searches, all in the CSV)", "—", sum(more, "c"), sum(more, "i")) : "")
+      + (plain ? Object.keys(tail).map(k => grey("(long tail: rare searches)", k, tail[k].c, tail[k].i)).join("") + grey("(hidden by Google)", "—", hidden, 0) : "")
+      + "</tbody></table></div>"
+      + '<p class="rs-hint">A search is listed on its own once it earned a click or 50 impressions in a month; the rest is its type\'s long tail. '
+      + "With no filter the rows add up to the site total. The State pick follows searches that name a place; the long tail and hidden rows name none.</p>" };
+  }
+  function dmTopPaint(el, ms) {
+    const T = dmTopHtml(ms);
+    el.innerHTML = T.html;
+    RSC.localSelect(el.querySelector("#mkoDmType"), {
+      label: "Type", allLabel: "Every type",
+      values: QTYPES.map(k => ({ v: k, l: k, n: T.counts[k] || 0 })), value: DM.qType,
+      onChange: v => { DM.qType = v; dmTopPaint(el, ms); },
+    });
+    let tq = null;
+    el.querySelector("#mkoDmQ").oninput = e => {
+      clearTimeout(tq);
+      tq = setTimeout(() => {
+        DM.q = e.target.value; dmTopPaint(el, ms);
+        const inp = el.querySelector("#mkoDmQ");
+        if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      }, 220);
+    };
+    const br = el.querySelector("#mkoDmBrand");
+    if (br) {
+      const go = () => { DM.qType = "Brand"; dmTopPaint(el, ms); };
+      br.onclick = go;
+      br.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    }
+    el.querySelector("#mkoDmCsv").onclick = () => {
+      const cell = x => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"';
+      const lines = [["Search", "Type", "State", "Place named", "Clicks", "Impressions (from " + GSC_CLEAN + ")", "Position"]]
+        .concat(T.list.map(a => [a.q, a.type, a.st || "", a.city || "", a.c, a.i, a.i ? (a.pw / a.i).toFixed(1) : ""]));
+      const blob = new Blob([lines.map(r => r.map(cell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "Organic searches (" + T.list.length + ").csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    };
+  }
+  function dmPages(ms) {
+    const set = new Set(ms), agg = {};
+    P.gscp.forEach(r => {
+      if (!set.has(r.m) || (DM.st && r.st !== DM.st) || (DM.fam && r.fam !== DM.fam)) return;
+      const a = agg[r.page] = agg[r.page] || { p: r.page, f: r.fam, st: r.st, place: r.place, c: 0, i: 0, pw: 0 };
+      a.c += r.clk;
+      if (r.m >= GSC_CLEAN) { a.i += r.imp; a.pw += r.pos * r.imp; }
+    });
+    const list = Object.keys(agg).map(k => agg[k]).sort((a, b) => (b.c - a.c) || (b.i - a.i)).slice(0, 25);
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Top landing pages</span><span id="mkoDmFam"></span></div>'
+      + '<div class="rs-tablewrap mkd-scroll"><table class="rs-table mko-pt"><thead><tr><th>Page</th><th>Kind</th><th>Place</th>'
+      + '<th class="mko-num">Clicks</th><th class="mko-num">Impressions</th><th class="mko-num">Position</th></tr></thead><tbody>'
+      + (list.length ? list.map(a => '<tr><td class="mko-name">' + esc(pagePath(a.p)) + "</td><td>" + esc(a.f) + "</td><td>" + esc([a.place, a.st].filter(Boolean).join(", ") || "—")
+        + '</td><td class="mko-num"><b>' + fmtN(a.c) + '</b></td><td class="mko-num">' + (a.i ? fmtN(a.i) : "—") + '</td><td class="mko-num">' + dmPos(a.i ? a.pw / a.i : null) + "</td></tr>").join("")
+        : '<tr><td colspan="6" class="mko-sub">No page matches.</td></tr>')
+      + "</tbody></table></div></div>";
+  }
+  function dmListings(ms, I) {
+    const rows = P.gscp.filter(r => r.fam === "Business Profile listing" && (!DM.st || r.st === DM.st));
+    if (!rows.length) return "";
+    const by = {}, first = {}, tags = {}, meta = {};
+    rows.forEach(r => {
+      const o = by[r.page] = by[r.page] || {};
+      o[r.m] = (o[r.m] || 0) + r.clk;
+      if (r.clk || r.imp) first[r.page] = first[r.page] && first[r.page] < r.m ? first[r.page] : r.m;
+      (r.tag ? String(r.tag).split(", ") : []).forEach(t => { (tags[r.page] = tags[r.page] || {})[t] = 1; });
+      meta[r.page] = { st: r.st || "", place: r.place || "" };
+    });
+    const set = new Set(ms);
+    const cols = I.list.filter(m => Object.keys(by).some(k => by[k][m])).slice(-12);
+    const inWin = k => cols.reduce((a, m) => a + (set.has(m) ? by[k][m] || 0 : 0), 0);
+    const keys = Object.keys(by).sort((a, b) => (inWin(b) - inWin(a)) || a.localeCompare(b));
+    const mx = Math.max.apply(null, keys.map(k => Math.max.apply(null, cols.map(m => by[k][m] || 0)))) || 1;
+    const heat = v => (!v ? '<span class="mko-sub">·</span>' : '<span class="mkd-heat" style="--h:' + Math.max(8, Math.round(100 * v / mx)) + '%">' + fmtN(v) + "</span>");
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Business Profile listings</span>'
+      + '<span class="mko-sub">website clicks by month · a month with clicks is the sign the listing is live</span></div>'
+      + '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>Listing</th><th>First click</th>'
+      + cols.map(m => '<th class="mko-num">' + esc(monShort(m)) + (I.whole(m) ? "" : "*") + "</th>").join("") + '<th class="mko-num">In the period</th></tr></thead><tbody>'
+      + keys.map(k => "<tr><td><b>" + esc(meta[k].place ? meta[k].place + ", " + meta[k].st : (meta[k].st ? meta[k].st + ", statewide" : k)) + '</b> <span class="mko-sub">'
+        + esc(Object.keys(tags[k] || {}).join(" · ")) + "</span></td><td>" + (first[k] ? esc(monShort(first[k])) : "—") + "</td>"
+        + cols.map(m => '<td class="mko-num">' + heat(by[k][m] || 0) + "</td>").join("") + '<td class="mko-num"><b>' + fmtN(inWin(k)) + "</b></td></tr>").join("")
+      + "</tbody></table></div>"
+      + '<p class="rs-hint">Search Console sees only the click on the listing\'s <b>website</b> link: not calls, directions or views. A first click here is when its '
+      + "tagged link first earned one, not when the listing was made.</p></div>";
+  }
+  function dmUnplaced(ms) {
+    const set = new Set(ms), amb = {};
+    P.gscq.forEach(r => {
+      if (!set.has(r.m) || r.type !== "Movers + place" || r.st || !r.city) return;
+      const a = amb[r.city] = amb[r.city] || { c: 0, i: 0, n: 0 };
+      a.c += r.clk; a.i += r.imp; a.n++;
+    });
+    const keys = Object.keys(amb).sort((a, b) => amb[b].i - amb[a].i).slice(0, 15);
+    return "<h3>Place names we could not put in one state</h3><p>A movers search naming a town several of our states share, with no state in the search and "
+      + "no leads to break the tie, is left out of the state table.</p>"
+      + (keys.length ? '<div class="rs-tablewrap"><table class="rs-table mko-pt"><thead><tr><th>Name in the search</th><th class="mko-num">Searches</th><th class="mko-num">Clicks</th>'
+        + '<th class="mko-num">Impressions</th></tr></thead><tbody>' + keys.map(k => "<tr><td>" + esc(k) + '</td><td class="mko-num">' + fmtN(amb[k].n) + '</td><td class="mko-num">'
+        + fmtN(amb[k].c) + '</td><td class="mko-num">' + fmtN(amb[k].i) + "</td></tr>").join("") + "</tbody></table></div>" : "<p>None in this period.</p>");
+  }
+  function demandPaint(box, ms0) {
+    if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && box.contains(ch.canvas)) ch.destroy(); });
+    const err = P.err.gsca || P.err.gscq || P.err.gscp;
+    if (err) {
+      box.innerHTML = '<div class="mko-empty">Searches and demand could not load — ' + esc(err)
+        + (/404|unknown dataset|not granted|403/i.test(err) ? " (it arrives with the next bridge deploy)" : "") + "</div>";
+      return;
+    }
+    const I = dmInfo(), ms = ms0.filter(m => I.list.includes(m));
+    if (!ms.length) { box.innerHTML = '<div class="mko-empty">No Search Console months in this period.</div>'; return; }
+    const cur = dmClicks(ms);
+    const back = S.cmp === "prev" ? ms.length : 12;
+    const hasBack = m => I.whole(m) && I.list.includes(ymAdd(m, -back)) && I.whole(ymAdd(m, -back));
+    const matched = ms.filter(hasBack);
+    // one running month holds nothing whole: the last whole month before it answers instead
+    const lastWhole = matched.length ? "" : I.list.filter(m => m < ms[0] && hasBack(m)).slice(-1)[0] || "";
+    const cmpMs = matched.length ? matched : lastWhole ? [lastWhole] : [];
+    const nowC = cmpMs.length ? dmClicks(cmpMs) : null, wasC = cmpMs.length ? dmClicks(cmpMs.map(m => ymAdd(m, -back))) : null;
+    const brand = cur.t.Brand || 0, movers = (cur.t["Movers near me"] || 0) + (cur.t["Movers + place"] || 0) + (cur.t["Movers generic"] || 0);
+    const set = new Set(ms), nList = new Set();
+    let listing = 0;
+    P.gscp.forEach(r => { if (set.has(r.m) && r.fam === "Business Profile listing") { listing += r.clk; nList.add(r.page); } });
+    const running = ms.filter(m => !I.whole(m));
+    const cmpSub = nowC ? monthSpan(cmpMs) + " " + (S.cmp !== "prev" ? "vs a year earlier" : back === 1 ? "vs the month before" : "vs the months before")
+      + ": " + fmtN(wasC.site) + " to " + fmtN(nowC.site) : "no whole month to compare";
+    const cleanNote = ms.some(m => m < GSC_CLEAN) ? '<p class="mkd-note">Impressions and position count from ' + esc(monthWord(GSC_CLEAN)) + " only: Google changed how it counts on "
+      + GSC_BREAK + ", so earlier months cannot be compared. Clicks were not affected.</p>" : "";
+    box.innerHTML = '<div class="mkd-dmbar"><span class="mko-sub">' + esc(monthSpan(ms))
+      + (running.length === ms.length ? " to date, still filling" : (running.length ? " · " + esc(monthWord(running[running.length - 1])) + " still filling" : "")
+        + " · whole months, from the Period above")
+      + "</span><span class=\"rs-spacer\"></span><span id=\"mkoDmState\"></span></div>"
+      + '<section class="mkd-kpis" aria-label="Organic search in numbers">'
+      + tileHtml("Organic clicks", fmtN(cur.site), matched.length ? chipHtml(nowC.site, wasC.site, false) : "", esc(cmpSub))
+      + tileHtml("Brand share", pct(ratio(brand, cur.named)), "", "of the clicks Google names: people who searched for us by name")
+      + tileHtml("Movers searches", fmtN(movers), "", pct(ratio(movers, cur.named)) + " of named clicks · " + fmtN(cur.t["Movers + place"] || 0) + " named a place")
+      + tileHtml("Hidden by Google", pct(ratio(cur.hidden, cur.site)), "", "clicks Google counts but never names")
+      + tileHtml("Listing clicks", fmtN(listing), "", "website-link clicks on " + nList.size + " Business Profile listings")
+      + "</section>" + cleanNote
+      + (S.co === "Tuji" ? '<p class="mkd-note">Search Console covers ziptozipmoving.com only, so this is the Zip to Zip site whichever company is picked.</p>' : "")
+      + '<div id="mkoDmWho"></div>' + dmStates(ms) + dmCities(ms, I)
+      + '<div class="panel" id="mkoDmTop"></div><div id="mkoDmPg"></div>' + dmPages(ms) + dmListings(ms, I)
+      + '<details class="mkd-more"><summary>How to read these numbers</summary><div class="mkd-morein">'
+      + "<ul><li><b>Search Console never says where the searcher was.</b> A place comes only from the words of the search or the page they landed on, so every place "
+      + "figure is a floor. Keyword Planner's volume is the demand number.</li><li><b>Google hides about " + pct(ratio(cur.hidden, cur.site)) + " of clicks</b> from the list of searches; the "
+      + "hidden remainder keeps every search total equal to the site total.</li><li><b>Impressions and position changed meaning on " + GSC_BREAK + ".</b> Across that date a compare "
+      + "would show a fake collapse, so it is clicks only, and impressions count from " + esc(monthWord(GSC_CLEAN)) + ".</li><li><b>Summer 2025 is capped</b>: each day to 11 Sep 2025 holds "
+      + "5,000 searches, so rare searches are missing there. Clicks look unaffected.</li><li><b>Leads are context, not cause.</b> The lead side cannot separate paid Google from organic, and "
+      + "ChatGPT leads never pass through Search Console.</li><li>Google finalises a day about 3 days late.</li></ul>" + dmUnplaced(ms) + "</div></details>";
+
+    const repaint = () => demandPaint(box, ms0);
+    const states = Array.from(new Set(P.gsca.filter(r => r.lvl === "State" && r.st).map(r => r.st))).sort();
+    RSC.localSelect(box.querySelector("#mkoDmState"), {
+      label: "State", allLabel: "All states", values: states.map(v => ({ v, l: v })), value: DM.st,
+      onChange: v => { DM.st = v; repaint(); },
+    });
+    const fams = Array.from(new Set(P.gscp.map(r => r.fam))).sort();
+    RSC.localSelect(box.querySelector("#mkoDmFam"), {
+      label: "Kind of page", allLabel: "Every kind", values: fams.map(v => ({ v, l: v })), value: DM.fam,
+      onChange: v => { DM.fam = v; repaint(); },
+    });
+    box.querySelectorAll("#mkoDmStates tr.rs-group").forEach(tr => {
+      const go = () => { const st = tr.getAttribute("data-st"); DM.open[st] = !DM.open[st]; repaint(); };
+      tr.onclick = go;
+      tr.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    });
+    const ca = box.querySelector("#mkoDmCities");
+    if (ca) ca.onclick = () => { DM.cityAll = !DM.cityAll; repaint(); };
+    dmTopPaint(box.querySelector("#mkoDmTop"), ms);
+    const endM = ms[ms.length - 1], lastM = I.list.filter(m => m <= endM).slice(-13);
+    const stack = (el, key, title, series, val, note) => RSC.chartCard(el, {
+      title, key,
+      buildChart(canvas) {
+        return new Chart(canvas, { type: "bar",
+          data: { labels: lastM.map(m => monShort(m) + (I.whole(m) ? "" : "*")),
+                  datasets: series.map(([k, col]) => ({ label: k, data: lastM.map(m => val(m, k)), backgroundColor: col, stack: "a" })) },
+          options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "top", labels: { boxWidth: 12 } } },
+            scales: { x: { stacked: true, ticks: { maxRotation: 0, autoSkip: true } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } } });
+      },
+      buildTable() {
+        return ptable([{ h: "Month", cell: m => esc(monthWord(m)) }].concat(series.map(([k]) => ({ h: k, num: true, cell: m => fmtN(val(m, k)) }))), lastM.slice().reverse());
+      },
+    });
+    const byQ = {}, byP = {};
+    P.gscq.forEach(r => { const o = byQ[r.m] = byQ[r.m] || {}, k = qBucket(r.type); o[k] = (o[k] || 0) + r.clk; });
+    P.gscp.forEach(r => { if (DM.st && r.st !== DM.st) return; const o = byP[r.m] = byP[r.m] || {}, k = pBucket(r.fam); o[k] = (o[k] || 0) + r.clk; });
+    stack(box.querySelector("#mkoDmWho"), "mko-dm-who", "Who finds us: clicks by what was searched", Q_CHART, (m, k) => (byQ[m] || {})[k] || 0);
+    stack(box.querySelector("#mkoDmPg"), "mko-dm-pg", "Which pages win: clicks by the page they landed on", PAGE_CHART, (m, k) => (byP[m] || {})[k] || 0);
   }
 
   /* SEARCH AND SEO IN TOPICS (2026-10-23, the marketing head: "click a topic and it opens its full data";
@@ -3155,12 +3768,11 @@
       ov: () => '<div class="mkd-g2">'
         + card("What people searched", esc(monthSpan(ms)) || "Search Console", queryMixHtml(ms))
         + card("Who AI answers recommend", "ChatGPT and Google AI Overviews", aiMixHtml()) + "</div>"
-        + (gate ? "" : rep.parts.ov)
-        + panel("Search clicks", "Google search" + (gw && gw.last ? " · data through " + esc(day(gw.last)) : ""),
-          gate || '<div id="mkoC-gsc"></div>')
+        + (gate || rep.parts.ov)
         + panel("Us and the competitors · Semrush", (smLast(P.smOrg) ? esc(day(smLast(P.smOrg))) + " · " : "") + "weekly, US",
           smSitesHtml()),
-      kw: () => (gate || rep.parts.kw + '<div class="mko-g2e">'
+      kw: () => (gate || rep.parts.kw + panel("Search clicks", "Google search" + (gw && gw.last ? " · data through " + esc(day(gw.last)) : ""),
+          '<div id="mkoC-gsc"></div>') + '<div class="mko-g2e">'
         + panel("Top queries", esc(monthSpan(ms)) + " (the query list is monthly)"
           + (allClk ? " · searches for our name bring " + pct(brandClk / allClk) + " of the clicks" : ""), ptable([
           { h: "Query", name: true, cell: q => esc(q.q) + " " + pill(q.type === "Brand" ? "brand" : q.type, q.type === "Brand" ? "mute" : "ok") },
@@ -3171,21 +3783,18 @@
         + panel("Keywords by service", esc(monthSpan(ms)) + " · Search Console, monthly", svcHtml(qs)) + "</div>")
         + panel("Top keywords · Semrush", (P.smKwDay ? esc(day(P.smKwDay)) + " · " : "") + "by traffic, weekly"
           + (P.sm.org && P.sm.org.kw ? " · of " + fmtN(P.sm.org.kw) + " keywords Semrush ranks us for" : ""), smKwHtml()),
-      // the Organic Search page, drawn by its own render (pages/organic-search.js); it reads whole
-      // months, so it keeps its own month picker
-      demand: () => '<p class="rs-hint">Search Console by whole months: what people searched, from which state and city, '
-        + "and which pages and Business Profile listings won the click. It keeps its own month picker.</p>"
-        + '<div id="mkoOrg"><div class="mko-empty">Loading Searches and demand…</div></div>',
+      demand: () => gate || '<div id="mkoDm"></div>',
       blog: () => gate || rep.parts.blog,
-      links: () => rep.parts.links
+      links: () => { const cite = citeHtml(w); return (CITE_TODO.length ? panel("What to do", "from the numbers below",
+          '<ol class="mko-ctodo">' + CITE_TODO.map(t => "<li>" + t + "</li>").join("") + "</ol>") : "") + rep.parts.links
         + panel("Authority Score bands · Semrush", (smAsDays() ? esc(day(smAsDays().cur)) + " · " : "") + "daily", smBandsHtml())
-        + citeHtml(w)
+        + cite
         + panel("Off-page · Ahrefs and Semrush", [snap ? "Ahrefs " + esc(day(snap.d)) : "", P.sm.ov ? "Semrush " + esc(day(P.sm.ov.d)) : ""]
             .filter(Boolean).join(" · ") || "no snapshot yet",
           P.err.ahd && !P.sm.ov ? '<div class="mko-empty">Ahrefs could not load — ' + esc(P.err.ahd) + "</div>" : !snap && !P.sm.ov ? "" :
           '<div class="rs-kpis" id="mkoK-ah"></div><div id="mkoC-ah"></div>'
           + '<p class="rs-hint">Each tool\'s own estimates from its crawler and keyword panel, side by side and never added up; '
-          + "not our measured traffic (that is Search Console and Analytics).</p>"),
+          + "not our measured traffic (that is Search Console and Analytics).</p>"); },
       ai: () => aiVisHtml(),
       onpage: () => panel("On-page · Ahrefs Site Audit", P.audit ? "crawl " + esc(day(P.audit.crawl)) : "no crawl yet", onPageHtml())
         + panel("On-page · Semrush Site Audit", P.sm.aud && P.sm.aud.crawl ? "crawl " + esc(day(P.sm.aud.crawl)) : "weekly", smAuditHtml()),
@@ -3197,22 +3806,19 @@
     const html = (topic === "demand" ? "" : '<div class="rs-kpis" id="mkoK-seo"></div>') + nav + topics[topic]();
     return { html, wire(host) {
       const on = !!(gw && gw.cw);
-      if (topic === "demand") {
-        const box = host.querySelector("#mkoOrg");
-        const pg = (window.PAGES || []).find(p => p.id === "organic-search");
-        if (box && pg) {
-          Promise.resolve().then(() => pg.render(box, { embedded: true })).catch(e => {
-            box.innerHTML = '<div class="mko-empty">Searches and demand could not load — ' + esc(String((e && e.message) || e)) + "</div>";
-          });
-        } else if (box) box.innerHTML = '<div class="mko-empty">Searches and demand is not in this build of the portal.</div>';
-      }
+      // impressions and position changed meaning on 12-13 Sep 2025: no delta across that date
+      const same = on && gw.cw.a >= GSC_CLEAN + "-01", notSame = "not comparable across Sep 2025";
+      // the average rises by itself when deep-ranked impressions disappear: no credit for that
+      const deep = same && prev.imp && prev.pos && cur.imp <= 0.6 * prev.imp && cur.pos < prev.pos;
+      if (host.querySelector("#mkoDm")) demandPaint(host.querySelector("#mkoDm"), ms);
       if (host.querySelector("#mkoK-seo")) RSC.kpis(host.querySelector("#mkoK-seo"), [
         kp("Search clicks", cur.clk, on ? prev.clk : undefined, fmtN, false,
            rep.best ? "best month " + monthWord(rep.best.m) + ": " + fmtN(rep.best.clk) : "Search Console", gw),
-        kp("Search impressions", cur.imp, on ? prev.imp : undefined, compact, false, "CTR " + pct2(ratio(cur.clk, cur.imp)), gw),
+        kp("Search impressions", cur.imp, same ? prev.imp : undefined, compact, false, (on && !same ? notSame + " · " : "") + "CTR " + pct2(ratio(cur.clk, cur.imp)), gw),
         { label: "Avg position", value: (cur.pos == null ? "—" : cur.pos.toFixed(1))
-            + (on && prev.pos ? posDelta(cur.pos, prev.pos) : ""),
-          sub: (on && prev.pos ? (S.cmp === "prev" ? "previous" : "last year") + ": " + prev.pos.toFixed(1) + " · " : "") + "lower is better" },
+            + (same && prev.pos ? (deep ? posDelta(cur.pos, prev.pos).replace("mko-d up", "mko-d eq") : posDelta(cur.pos, prev.pos)) : ""),
+          sub: deep ? "was " + prev.pos.toFixed(1) + "; deep-ranked impressions fell"
+            : same && prev.pos ? (S.cmp === "prev" ? "previous" : "last year") + ": " + prev.pos.toFixed(1) + " · lower is better" : on ? notSame : "lower is better" },
         kp("Brand share", rep.brand.share, rep.brandPrev ? rep.brandPrev.share : undefined, pct, null,
            fmtN(rep.brand.kw) + " keywords with clicks · " + rep.spanCur, gw),
         { label: "Authority", value: two(snap && snap.dr != null ? snap.dr : null, P.sm.ov ? P.sm.ov.as : null, v => String(Math.round(v))),
@@ -3239,7 +3845,6 @@
       if ((snap || P.sm.ov) && host.querySelector("#mkoK-ah")) {
         const A = snap || {}, so = P.sm.ov || {}, sg = P.sm.org || {};
         RSC.kpis(host.querySelector("#mkoK-ah"), [
-          { label: "Authority", value: two(A.dr, so.as, v => String(Math.round(v))), sub: "Domain Rating · Authority Score" },
           { label: "Referring domains", value: two(A.rd, so.rd, fmtN), sub: "live" },
           { label: "Backlinks", value: two(A.bl, so.bl, compact), sub: "live" },
           { label: "Organic keywords", value: two(A.kw, sg.kw, fmtN), sub: "US" },
@@ -3481,8 +4086,8 @@
       "twitter.com", "reddit.com", "nextdoor.com", "medium.com", "quora.com", "tumblr.com", "substack.com"], null],
   ];
   const CITE_ORDER = CITE_TYPES.map(t => t[0]).concat([CITE_OTHER]);
-  const CITE_COLOR = { "Reviews and ratings": "#7F77DD", Directories: "#1D9E75", "Moving and storage": "#D85A30",
-                       Press: "#D4537E", Social: "#378ADD", [CITE_OTHER]: "#888780" };
+  const CITE_COLOR = { "Reviews and ratings": "#14301F", Directories: "#3F7D20", "Moving and storage": "#7FA864",
+                       Press: "#A9C793", Social: "#C9DABD", [CITE_OTHER]: "#A3ADA5" };
   function citeType(dom) {
     const d = String(dom || "").replace(/^www\./, "");
     for (const [t, list] of CITE_TYPES) if (list.some(x => d === x || d.endsWith("." + x))) return t;
@@ -3560,7 +4165,9 @@
       + "sized by its rating; hollow = it no longer links to us. The red dotted ring stands for the "
       + fmtN(st.spam.length) + " spam-flagged sites, which are not drawn.</p>";
   }
+  let CITE_TODO = [];        // citeHtml's to-do list; the topic shows it first
   function citeHtml(w) {
+    CITE_TODO = [];
     const err = P.err.refdom;
     const wrap = body => '<div class="mko-h"><h2>Citation map</h2><span class="mko-sub">every site linking to '
       + "ziptozipmoving.com · Ahrefs, weekly</span></div>" + body;
@@ -3578,6 +4185,7 @@
     const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
     // what to do: rules over the same numbers, never a judgement call
     const todo = [];
+    CITE_TODO = todo;
     if (st.spam.length) {
       todo.push("<b>Disavow the spam network.</b> " + fmtN(st.spam.length) + " of the " + fmtN(st.live.length)
         + " sites linking to us carry Ahrefs' spam flag (" + pct(st.spam.length / st.live.length) + ")"
@@ -3643,7 +4251,6 @@
           + '<div class="mko-sub">' + fmtN(r.dof) + ' dofollow</div></td><td class="mko-num">' + esc(shortDay(r.first)) + '</td><td class="mko-num">'
           + (r.last ? '<span class="mko-neg">lost ' + esc(shortDay(r.last)) + "</span>" : '<span class="mko-pos">live</span>') + "</td></tr>").join("")
         + "</tbody></table></div></div>")
-      + panel("What to do", "from the numbers above", '<ol class="mko-ctodo">' + todo.map(t => "<li>" + t + "</li>").join("") + "</ol>")
       + "</div>");
   }
   function citeWire(host, w) {
@@ -4006,7 +4613,7 @@
         buildChart(canvas) {
           return new Chart(canvas, { type: "bar",
             data: { labels: m12.map(monthWord), datasets: [{ label: "Written", data: m12.map(m => byM[m] || 0),
-              backgroundColor: "#B91C1C", borderRadius: 3, maxBarThickness: 26 }] },
+              backgroundColor: "#B04A7E", borderRadius: 3, maxBarThickness: 26 }] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
               scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 0, autoSkip: true } } } } });
         },
@@ -4096,7 +4703,7 @@
           return new Chart(canvas, { type: "bar",
             data: { labels: months12.map(monthWord), datasets: [
               { label: "Added", data: months12.map(ym => (flow.byMonth[ym] || {}).added || 0), backgroundColor: C.main, borderRadius: 3 },
-              { label: "Removed", data: months12.map(ym => -((flow.byMonth[ym] || {}).removed || 0)), backgroundColor: "#B91C1C", borderRadius: 3 }] },
+              { label: "Removed", data: months12.map(ym => -((flow.byMonth[ym] || {}).removed || 0)), backgroundColor: "#B04A7E", borderRadius: 3 }] },
             options: { responsive: true, maintainAspectRatio: false,
               plugins: { legend: { position: "top", labels: { boxWidth: 12 } },
                          tooltip: { callbacks: { label: c => c.dataset.label + ": " + fmtN(Math.abs(c.raw)) } } },
@@ -4463,9 +5070,15 @@
     const wait = plat.filter(r => r.Connection === "Not connected" && !OFF_KEYS[r.Key]);
     const behind = ours.filter(r => r.Status === "Behind");
     const names = list => list.map(r => r.Platform.replace(/ \(.*\)$/, "")).join(", ");
-    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + ahUsageHtml() + smUsageHtml() + sourcesHtml(), wire(host) {
-      ahUsageWire(host);
-      smUsageWire(host);
+    return { html: '<div class="rs-kpis" id="mkoK-set"></div>' + sourcesHtml()
+      + '<details class="mkd-more" id="mkoApi"><summary>API budgets: Ahrefs and Semrush units this month</summary><div class="mkd-apis">'
+      + ahUsageHtml() + smUsageHtml() + "</div></details>", wire(host) {
+      // their charts measure their box: drawn on the first opening
+      const api = host.querySelector("#mkoApi");
+      let done = false;
+      api.addEventListener("toggle", () => {
+        if (api.open && !done) { done = true; drawNow(() => { ahUsageWire(host); smUsageWire(host); }); }
+      });
       RSC.kpis(host.querySelector("#mkoK-set"), [
         { label: "Live", value: String(live.length), sub: "platforms pulled by API" },
         { label: "Waiting on others", value: String(wait.length), sub: names(wait) || "none" },
@@ -4480,9 +5093,11 @@
     const on = D.conn.filter(r => r.Status !== "Not connected");
     if (!on.length) return "";
     const fresh = on.filter(r => r.Status === "Up to date").length, late = on.filter(r => r.Status === "Behind").length;
-    return '<button type="button" class="mkd-pill' + (late ? " warn" : "") + '" data-tab="set" title="Every source, '
+    // the only freshness signal a marketer sees: a monthly ledger counts as late past 40 days
+    const age = D.ledgerEnd ? dayCount(D.ledgerEnd, today()) : 0, oldLedger = age >= 40;
+    return '<button type="button" class="mkd-pill' + (late || oldLedger ? " warn" : "") + '" data-tab="set" title="Every source, '
       + 'what it gives and how fresh it is"><i aria-hidden="true"></i>Data sources: ' + fresh + " of " + on.length
-      + " up to date" + (late ? " · " + late + " behind" : "") + "</button>";
+      + " up to date" + (late ? " · " + late + " behind" : "") + (oldLedger ? " · ledger " + age + " days behind" : "") + "</button>";
   }
 
   /* --- the data sources (the Settings tab) --- */
@@ -4600,9 +5215,14 @@
       + "</div>";
     const pdf = host.querySelector("#mkdPdf");
     if (pdf) {
-      pdf.onclick = () => RSC.printView({ host: host.querySelector("#mkoBody"),
-        title: "Marketing Dashboard · " + ((TABS.find(t => t[0] === S.tab) || [])[1] || ""),
-        subtitle: (S.co || "Both companies") + " · " + when });
+      pdf.onclick = () => {
+        // a closed detail would print as one line: open them all, let their charts draw, then print
+        const shut = Array.from(host.querySelectorAll("details.mko-plat:not([open])"));
+        shut.forEach(d => { d.open = true; });
+        setTimeout(() => RSC.printView({ host: host.querySelector("#mkoBody"),
+          title: "Marketing Dashboard · " + ((TABS.find(t => t[0] === S.tab) || [])[1] || ""),
+          subtitle: (S.co || "Both companies") + " · " + when }), shut.length ? 500 : 0);
+      };
     }
 
     RSC.localSelect(host.querySelector("#mkoCo"), {
@@ -4612,6 +5232,7 @@
       onChange: v => { S.co = v; paint(host); },
     });
     RSC.dateRange(host.querySelector("#mkoDate"), {
+      presets: periodPresets(),
       get: () => ({ from: S.from, to: S.to }),
       set: (f, t) => { S.from = f; S.to = t; savePeriod(); },
       onChange: () => paint(host),
@@ -4626,7 +5247,9 @@
     // the tab bar, the status chip and every "See ..." link inside a tab switch tabs
     host.querySelectorAll("[data-tab]").forEach(b => {
       b.onclick = () => {
-        S.tab = b.dataset.tab; lsSet(LS_TAB, S.tab); paint(host);
+        S.tab = b.dataset.tab; lsSet(LS_TAB, S.tab);
+        if (b.dataset.topicGo) { S.seoTopic = b.dataset.topicGo; lsSet(LS_SEO, S.seoTopic); }
+        paint(host);
         const nav = host.querySelector(".mkd-bar");
         if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
       };
@@ -4663,7 +5286,7 @@
         RS.load("mkt_channel").catch(e => { D.chErr = (e && e.message) || String(e); return []; }),
         plat("mkt_ads", "ads"), plat("mkt_lsa_cost", "lsaC"), plat("mkt_lsa_lead", "lsaL"),
         plat("mkt_meta", "meta"), plat("mkt_gpt", "gpt"),
-        plat("mkt_gsc", "gsc"), plat("mkt_gscq", "gscq"), plat("mkt_ahd", "ahd"), plat("mkt_ahm", "ahm"),
+        plat("mkt_gsc", "gsc"), plat("mkt_gscq", "gscq"), plat("mkt_gsca", "gsca"), plat("mkt_ahd", "ahd"), plat("mkt_ahm", "ahm"),
         plat("mkt_bl", "bl"), plat("mkt_ga4", "ga4"), plat("mkt_ga4ch", "ga4ch"), plat("mkt_ga4demo", "demo"),
         plat("mkt_ga4geo", "geo"),
         plat("mkt_adsconv", "conv"), plat("mkt_adscamp", "camp"), plat("mkt_gptad", "gptad"),
@@ -4680,14 +5303,14 @@
         plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
         plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
         plat("mkt_li", "li"), plat("mkt_lipage", "lip"),
-      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo,
+      ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
-        indexWeb({ gsc, gscq, ahd, ahm, bl, ga4, ga4ch, demo, geo });
+        indexWeb({ gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo });
         indexBatch1({ conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc });
         indexBatch2({ gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, gscqd, gscpd });
         indexMarks(marks);
