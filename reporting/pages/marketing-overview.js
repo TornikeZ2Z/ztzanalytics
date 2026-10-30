@@ -2009,8 +2009,11 @@
       + "no result.</div>" : "");
   }
   /* Bookings by campaign on every source (Giga, 2026-10-30). The UTM on a lead's website form is the
-     only link from a lead to these campaigns; Google has its call-tracking numbers too. A campaign is
-     found by its id or its name, so utm_campaign={{campaign.id}} and a typed name both work. */
+     only link from a lead to these campaigns; Google has its call-tracking numbers too. The links are
+     typed by hand, so a UTM finds its campaign by id, by name, or as the one name that holds it
+     ("Awareness_ PA" is "July 2026 // awareness PA"). A UTM that fits none, or two, is named below the
+     table and never guessed. */
+  const UTM_ALIAS = { clicks2: "ziptozipmovingcampaign" };   // ChatGPT Ad 2's link says Clicks2
   const normCamp = v => String(v == null ? "" : v).toLowerCase().replace(/[^a-z0-9]+/g, "");
   function utmTrace(key, a, b) {
     const map = {};
@@ -2022,8 +2025,24 @@
     });
     return { map, leads, booked };
   }
-  function traceCols(t) {
-    const of = r => (r.name === "All campaigns" ? t : t.map[normCamp(r.id)] || t.map[normCamp(r.name)] || null);
+  function utmBind(t, list) {
+    if (t.by) return t;
+    const rows = list.map(r => ({ r, name: normCamp(r.name), id: normCamp(r.id) }));
+    t.by = new Map();
+    t.stray = [];
+    Object.keys(t.map).forEach(k => {
+      const key = UTM_ALIAS[k] || k, exact = rows.filter(x => x.name === key || x.id === key);
+      const hit = exact.length ? exact : key.length >= 5 ? rows.filter(x => x.name.includes(key)) : [];
+      if (hit.length !== 1) { t.stray.push(k); return; }
+      const x = t.by.get(hit[0].r) || { leads: 0, booked: 0 };
+      x.leads += t.map[k].leads; x.booked += t.map[k].booked;
+      t.by.set(hit[0].r, x);
+    });
+    return t;
+  }
+  function traceCols(t, list) {
+    utmBind(t, list);
+    const of = r => (r.name === "All campaigns" ? t : t.by.get(r) || null);
     return [
       { h: "Leads", num: true, tip: "our leads whose website form carried this campaign's UTM", cell: r => (of(r) ? fmtN(of(r).leads) : "—") },
       { h: "Booked", num: true, cell: r => (of(r) ? fmtN(of(r).booked) : "—") },
@@ -2031,9 +2050,7 @@
     ];
   }
   function utmNote(t, list, fam, pw) {
-    const f = famStat(fam, pw.a, pw.b), known = new Set();
-    list.forEach(r => { known.add(normCamp(r.id)); known.add(normCamp(r.name)); });
-    const stray = Object.keys(t.map).filter(k => !known.has(k));
+    const f = famStat(fam, pw.a, pw.b), stray = utmBind(t, list).stray;
     return '<p class="rs-hint">Leads and bookings by campaign read the UTM on the website form, so only ads whose link carries one can be traced: <b>'
       + fmtN(t.leads) + " of " + fmtN(f ? f.leads : 0) + "</b> leads filed under " + esc(fam) + " in this period. New links reach this table with the next website form export."
       + (stray.length ? " " + fmtN(stray.length) + (stray.length === 1 ? " UTM names" : " UTMs name") + " no campaign here: " + esc(stray.slice(0, 3).join(", ")) + "." : "") + "</p>";
@@ -2060,7 +2077,7 @@
           : r.kinds.map(y => fmtN(y.res) + ' <span class="mko-sub">' + esc(metaKind(y.k)) + "</span>").join("<br>") },
       { h: "Cost each", num: true, cell: r => r.kinds && r.kinds.length === 1
           ? each(ratio(r.cost, r.kinds[0].res)) : "" },
-    ].concat(traceCols(tr)), list, tot) + utmNote(tr, list, "Meta", pw);
+    ].concat(traceCols(tr, list)), list, tot) + utmNote(tr, list, "Meta", pw);
   }
 
   /* --- ChatGPT Ads --- */
@@ -2091,7 +2108,7 @@
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
     ];
     if (tracked) cols.push({ h: "Conv.", num: true, cell: r => fmtN(r.conv) });
-    traceCols(tr).forEach(c => cols.push(c));
+    traceCols(tr, list).forEach(c => cols.push(c));
     const note = tracked ? "" : '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Conversions: not measured</span></div><div class=\"mko-nm\">"
       + "<p>ChatGPT reports <b>0 conversions</b> every day because no conversion event is attached to "
@@ -2157,7 +2174,7 @@
       { h: "CTR", num: true, cell: r => pct2(r.ctr) },
       { h: "CPC", num: true, cell: r => cents(r.cpc) },
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
-    ].concat(traceCols(tr));
+    ].concat(traceCols(tr, list));
     const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Why the bank shows more</span></div><div class=\"mko-nm\">"
       + "<p>This is the ad account alone. The bank's Reddit total also carries Taktical Digital's "
@@ -2227,7 +2244,7 @@
       { h: "CTR", num: true, cell: r => pct2(r.ctr) },
       { h: "CPC", num: true, cell: r => cents(r.cpc) },
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
-    ].concat(traceCols(utmTrace("li", pw.a, pw.b)));
+    ].concat(traceCols(utmTrace("li", pw.a, pw.b), list));
     const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Why the Channels table has no LinkedIn spend</span></div><div class=\"mko-nm\">"
       + "<p>The bank files LinkedIn under Marketing Related, not advertising, so its charges never reach "
@@ -2295,7 +2312,7 @@
       { h: "CVR", num: true, tip: "conversions ÷ clicks", cell: r => (tracked ? pct2(ratio(r.conv, r.clk)) : "—") },
       { h: "CPA", num: true, tip: "spend ÷ conversions", cell: r => (tracked && r.conv ? cents(r.cost / r.conv) : "—") },
       { h: "Video views", num: true, cell: r => fmtN(r.vv) },
-    ].concat(traceCols(utmTrace("tt", pw.a, pw.b)));
+    ].concat(traceCols(utmTrace("tt", pw.a, pw.b), list));
     const sum0 = Object.assign({ name: "All campaigns", conv, vv: sum(rows, "vv") }, cur);
     const html = head + '<div class="rs-kpis" id="mkoK-tt"></div>' + noCmpHint("TikTok Ads", pw)
       + '<div id="mkoC-tt"></div><div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
