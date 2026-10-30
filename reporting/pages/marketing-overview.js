@@ -216,6 +216,7 @@
     mkt_anchor: { table: "ext_ahrefs_anchor", cols: ["Anchor", "Ref Domains", "Links", "Dofollow Links", "First Seen",
                                                      "Last Seen"] },
     mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
+    mkt_utmc: { table: "mart_mkt_utm_campaign_lead", cols: ["Date", "Platform", "UTM Campaign", "Leads", "Booked"] },
     // 2026-10-26 AI visibility: Ahrefs Brand Radar answers to our questions (src/brand_radar.py), monthly
     mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
     mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
@@ -298,7 +299,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], tt: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], tt: [], utmc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -736,6 +737,7 @@
       + ".mkd .mkd-vt.p2{background:#FBF3E2;color:#7A4E00}.mkd .mkd-vt.inv{background:#FAEFF5;color:#8E2F5F}"
       + ".mkd .mkd-vt.few{background:var(--panel-2);color:var(--muted)}"
       + ".mkd .mkd-grey td{color:var(--muted)}body.rs-app.light .mkd .mko-d.dn{color:#B04A7E}"
+      + ".mkd .mkd-pager{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px}.mkd .mkd-pager .mko-sub{margin-right:auto}"
       // Facebook and Instagram: the two teams, and the list that adds up to them
       + ".mkd .mkd-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:12px 0}"
       + ".mkd .mkd-team{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}"
@@ -1489,6 +1491,20 @@
       + th + "</tr></thead><tbody>"
       + rows.map(r => tr(r)).join("") + (tot ? tr(tot, "mko-tot") : "") + "</tbody></table></div>";
   }
+  /* a long list in pages, so the card keeps its height (Giga, 2026-10-30) */
+  function pagedTable(el, cols, rows, size, tight) {
+    let page = 0;
+    const pages = Math.ceil(rows.length / size);
+    const paint = () => {
+      const from = page * size, to = Math.min(rows.length, from + size);
+      el.innerHTML = ptable(cols, rows.slice(from, to), null, tight)
+        + (pages > 1 ? '<div class="mkd-pager"><span class="mko-sub">' + fmtN(from + 1) + "–" + fmtN(to) + " of " + fmtN(rows.length) + "</span>"
+          + '<button type="button" class="rs-btn" data-p="-1"' + (page ? "" : " disabled") + '>‹ Previous</button>'
+          + '<button type="button" class="rs-btn" data-p="1"' + (page < pages - 1 ? "" : " disabled") + ">Next ›</button></div>" : "");
+      el.querySelectorAll("[data-p]").forEach(b => { b.onclick = () => { page += +b.dataset.p; paint(); }; });
+    };
+    paint();
+  }
   // a name with its share of the whole drawn as a bar beneath it (the % rides in the next cell)
   const shareName = (name, v, of) => name + '<span class="mko-share" title="' + esc(pct(of > 0 ? v / of : 0))
     + ' of the period"><i style="width:' + Math.round(100 * (of > 0 ? v / of : 0)) + '%"></i></span>';
@@ -1956,7 +1972,7 @@
       + metaCatTable(rows, cur) + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
-      + metaCampTable(rows, cur) + "</div>";
+      + metaCampTable(rows, cur, pw) + "</div>";
     return { html, wire(host) {
       // a result of one kind is compared only with the same kind in the other period
       const mr = metaResult(rows), pm = cmp && mr
@@ -1992,12 +2008,43 @@
     ], list) + (none ? '<div class="mko-foot">' + money0(none) + " was spent by campaigns that returned "
       + "no result.</div>" : "");
   }
-  function metaCampTable(rows, cur) {
+  /* Bookings by campaign on every source (Giga, 2026-10-30). The UTM on a lead's website form is the
+     only link from a lead to these campaigns; Google has its call-tracking numbers too. A campaign is
+     found by its id or its name, so utm_campaign={{campaign.id}} and a typed name both work. */
+  const normCamp = v => String(v == null ? "" : v).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  function utmTrace(key, a, b) {
+    const map = {};
+    let leads = 0, booked = 0;
+    P.utmc.forEach(r => {
+      if (r.plat !== key || r.d < a || r.d > b) return;
+      const x = map[r.camp] = map[r.camp] || { leads: 0, booked: 0 };
+      x.leads += r.leads; x.booked += r.booked; leads += r.leads; booked += r.booked;
+    });
+    return { map, leads, booked };
+  }
+  function traceCols(t) {
+    const of = r => (r.name === "All campaigns" ? t : t.map[normCamp(r.id)] || t.map[normCamp(r.name)] || null);
+    return [
+      { h: "Leads", num: true, tip: "our leads whose website form carried this campaign's UTM", cell: r => (of(r) ? fmtN(of(r).leads) : "—") },
+      { h: "Booked", num: true, cell: r => (of(r) ? fmtN(of(r).booked) : "—") },
+      { h: "Cost per booking", num: true, cell: r => (of(r) && of(r).booked ? money0(r.cost / of(r).booked) : "—") },
+    ];
+  }
+  function utmNote(t, list, fam, pw) {
+    const f = famStat(fam, pw.a, pw.b), known = new Set();
+    list.forEach(r => { known.add(normCamp(r.id)); known.add(normCamp(r.name)); });
+    const stray = Object.keys(t.map).filter(k => !known.has(k));
+    return '<p class="rs-hint">Leads and bookings by campaign read the UTM on the website form, so only ads whose link carries one can be traced: <b>'
+      + fmtN(t.leads) + " of " + fmtN(f ? f.leads : 0) + "</b> leads filed under " + esc(fam) + " in this period. New links reach this table with the next website form export."
+      + (stray.length ? " " + fmtN(stray.length) + (stray.length === 1 ? " UTM names" : " UTMs name") + " no campaign here: " + esc(stray.slice(0, 3).join(", ")) + "." : "") + "</p>";
+  }
+  function metaCampTable(rows, cur, pw) {
+    const tr = utmTrace("meta", pw.a, pw.b);
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
       const kinds = groupBy(x.rows.filter(r => r.kind), r => r.kind)
         .map(y => ({ k: y.k, res: sum(y.rows, "res") })).filter(y => y.res).sort((a, b) => b.res - a.res);
-      return Object.assign({ name: last.name, obj: last.obj, cat: metaCat(last.name, last.obj), kinds }, clickStats(x.rows));
+      return Object.assign({ id: x.k, name: last.name, obj: last.obj, cat: metaCat(last.name, last.obj), kinds }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost || b.imp - a.imp);
     const tot = Object.assign({ name: "All campaigns", obj: "", kinds: null }, cur);
     return ptable([
@@ -2013,7 +2060,7 @@
           : r.kinds.map(y => fmtN(y.res) + ' <span class="mko-sub">' + esc(metaKind(y.k)) + "</span>").join("<br>") },
       { h: "Cost each", num: true, cell: r => r.kinds && r.kinds.length === 1
           ? each(ratio(r.cost, r.kinds[0].res)) : "" },
-    ], list, tot);
+    ].concat(traceCols(tr)), list, tot) + utmNote(tr, list, "Meta", pw);
   }
 
   /* --- ChatGPT Ads --- */
@@ -2031,8 +2078,9 @@
     cur.conv = sum(rows, "conv"); prev.conv = cmp ? sum(cmp, "conv") : undefined;
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
-      return Object.assign({ name: last.name, conv: sum(x.rows, "conv") }, clickStats(x.rows));
+      return Object.assign({ id: x.k, name: last.name, conv: sum(x.rows, "conv") }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => b.cost - a.cost);
+    const tr = utmTrace("gpt", pw.a, pw.b), allF = famStat("ChatGPT", pw.a, pw.b);
     const cols = [
       { h: "Campaign", name: true, cell: r => esc(r.name) },
       { h: "Spend", num: true, cell: r => money0(r.cost) },
@@ -2043,19 +2091,20 @@
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
     ];
     if (tracked) cols.push({ h: "Conv.", num: true, cell: r => fmtN(r.conv) });
+    traceCols(tr).forEach(c => cols.push(c));
     const note = tracked ? "" : '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Conversions: not measured</span></div><div class=\"mko-nm\">"
       + "<p>ChatGPT reports <b>0 conversions</b> every day because no conversion event is attached to "
       + "the campaign in Ads Manager (Set up, under Conversions). That 0 means <b>not measured</b>, not "
       + "that the ads brought nothing, so this panel shows no result figure.</p>"
-      + "<p>What the ads brought is read on our side: the ChatGPT row in the Channels table counts the "
-      + "leads filed under ChatGPT, which also include visitors from chatgpt.com answers, not only "
-      + "the ads.</p></div></div>";
+      + "<p>What the ads brought is read on our side, from the UTM on the lead's website form. The ChatGPT row "
+      + "in the Channels table counts every lead filed under ChatGPT, so it also holds visitors from "
+      + "chatgpt.com answers: that total is never the ads' result.</p></div></div>";
     const html = head
       + '<div class="rs-kpis" id="mkoK-gpt"></div>' + noCmpHint("ChatGPT Ads", pw)
       + (note ? '<div class="mko-g2"><div id="mkoC-gpt"></div>' + note + "</div>" : '<div id="mkoC-gpt"></div>')
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span></div>'
-      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>"
+      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + utmNote(tr, list, "ChatGPT", pw) + "</div>"
       + gptAdsHtml(pw);
     return { html, wire(host) {
       const k = [
@@ -2068,7 +2117,9 @@
         tracked ? kp("Conversions", cur.conv, prev.conv, fmtN, false, "ChatGPT's count", pw)
           : { label: "Conversions", value: '<span class="mko-cov">not measured</span>',
               sub: "no conversion event set up" },
-        cpbKp("ChatGPT", pw, "ChatGPT"),
+        { label: "Leads from the ads", value: fmtN(tr.leads), sub: fmtN(allF ? allF.leads : 0) + " ChatGPT leads in all, answers included" },
+        { label: "Cost per booking", value: tr.booked && cur.cost ? money0(cur.cost / tr.booked) : "—",
+          sub: fmtN(tr.booked) + " booked from the ads, by UTM" },
       ];
       RSC.kpis(host.querySelector("#mkoK-gpt"), k);
       costCard(host.querySelector("#mkoC-gpt"), "gpt", "Spend", pw, rows, cmp, null);
@@ -2094,8 +2145,9 @@
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
       const days = x.rows.map(r => r.d).sort();
-      return Object.assign({ name: last.name, from: days[0], to: days[days.length - 1] }, clickStats(x.rows));
+      return Object.assign({ id: x.k, name: last.name, from: days[0], to: days[days.length - 1] }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => (a.to < b.to ? 1 : -1));
+    const tr = utmTrace("reddit", pw.a, pw.b);
     const cols = [
       { h: "Campaign", name: true, cell: r => esc(r.name) + '<div class="mko-sub">' + esc(shortDay(r.from))
           + (r.to !== r.from ? " – " + esc(shortDay(r.to)) : "") + "</div>" },
@@ -2105,7 +2157,7 @@
       { h: "CTR", num: true, cell: r => pct2(r.ctr) },
       { h: "CPC", num: true, cell: r => cents(r.cpc) },
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
-    ];
+    ].concat(traceCols(tr));
     const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Why the bank shows more</span></div><div class=\"mko-nm\">"
       + "<p>This is the ad account alone. The bank's Reddit total also carries Taktical Digital's "
@@ -2119,7 +2171,7 @@
       + '<div class="mko-g2"><div id="mkoC-reddit"></div>' + note + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">newest first</span></div>'
-      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + "</div>";
+      + ptable(cols, list, list.length > 1 ? Object.assign({ name: "All campaigns" }, cur) : null) + utmNote(tr, list, "Reddit", pw) + "</div>";
     return { html, wire(host) {
       RSC.kpis(host.querySelector("#mkoK-reddit"), [
         kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
@@ -2162,7 +2214,7 @@
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]);
       const days = x.rows.map(r => r.d).sort();
-      return Object.assign({ name: last.name, from: days[0], to: days[days.length - 1], lp: sum(x.rows, "lp") },
+      return Object.assign({ id: x.k, name: last.name, from: days[0], to: days[days.length - 1], lp: sum(x.rows, "lp") },
                            clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => (a.to < b.to ? 1 : -1));
     const cols = [
@@ -2175,7 +2227,7 @@
       { h: "CTR", num: true, cell: r => pct2(r.ctr) },
       { h: "CPC", num: true, cell: r => cents(r.cpc) },
       { h: "CPM", num: true, tip: "spend per 1,000 impressions", cell: r => cents(r.cpm) },
-    ];
+    ].concat(traceCols(utmTrace("li", pw.a, pw.b)));
     const note = '<div class="panel"><div class="panel-head"><span class="panel-title">'
       + "Why the Channels table has no LinkedIn spend</span></div><div class=\"mko-nm\">"
       + "<p>The bank files LinkedIn under Marketing Related, not advertising, so its charges never reach "
@@ -2190,7 +2242,7 @@
       + '<div class="mko-g2"><div id="mkoC-li"></div>' + note + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">newest first</span></div>'
-      + ptable(cols, list, list.length > 1 ? sum0 : null) + "</div>" + page.html;
+      + ptable(cols, list, list.length > 1 ? sum0 : null) + utmNote(utmTrace("li", pw.a, pw.b), list, LI_FAM, pw) + "</div>" + page.html;
     return { html, wire(host) {
       RSC.kpis(host.querySelector("#mkoK-li"), [
         kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
@@ -2229,7 +2281,7 @@
     const f = famStat("TikTok", pw.a, pw.b), cpb = f && f.cBooked && cur.cost ? cur.cost / f.cBooked : null;
     const list = groupBy(rows, r => r.id).map(x => {
       const last = x.rows.reduce((a, r) => (r.d > a.d ? r : a), x.rows[0]), days = x.rows.map(r => r.d).sort();
-      return Object.assign({ name: last.name, from: days[0], to: days[days.length - 1], conv: sum(x.rows, "conv"), vv: sum(x.rows, "vv") }, clickStats(x.rows));
+      return Object.assign({ id: x.k, name: last.name, from: days[0], to: days[days.length - 1], conv: sum(x.rows, "conv"), vv: sum(x.rows, "vv") }, clickStats(x.rows));
     }).filter(x => x.cost || x.imp).sort((a, b) => (a.to < b.to ? 1 : -1));
     const cols = [
       { h: "Campaign", name: true, cell: r => esc(r.name) + '<div class="mko-sub">' + esc(shortDay(r.from)) + (r.to !== r.from ? " – " + esc(shortDay(r.to)) : "") + "</div>" },
@@ -2243,11 +2295,11 @@
       { h: "CVR", num: true, tip: "conversions ÷ clicks", cell: r => (tracked ? pct2(ratio(r.conv, r.clk)) : "—") },
       { h: "CPA", num: true, tip: "spend ÷ conversions", cell: r => (tracked && r.conv ? cents(r.cost / r.conv) : "—") },
       { h: "Video views", num: true, cell: r => fmtN(r.vv) },
-    ];
+    ].concat(traceCols(utmTrace("tt", pw.a, pw.b)));
     const sum0 = Object.assign({ name: "All campaigns", conv, vv: sum(rows, "vv") }, cur);
     const html = head + '<div class="rs-kpis" id="mkoK-tt"></div>' + noCmpHint("TikTok Ads", pw)
       + '<div id="mkoC-tt"></div><div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
-      + '<span class="mko-sub">newest first</span></div>' + ptable(cols, list, list.length > 1 ? sum0 : null) + "</div>";
+      + '<span class="mko-sub">newest first</span></div>' + ptable(cols, list, list.length > 1 ? sum0 : null) + utmNote(utmTrace("tt", pw.a, pw.b), list, "TikTok", pw) + "</div>";
     return { html, wire(host) {
       RSC.kpis(host.querySelector("#mkoK-tt"), [
         kp("Impressions", cur.imp, prev.imp, fmtN, false, "", pw),
@@ -2480,6 +2532,12 @@
       // per booking is the ad account's spend over the bookings filed under LinkedIn
       // (TikTok reads the same way, so a month the ledger has not reached still has a figure)
       if (k === "li" || k === "tt") o.cpb = f && f.cBooked && o.spend ? o.spend / f.cBooked : null;
+      // ChatGPT's filed leads hold its answers too: the ads' own result is what their UTM traced (Giga)
+      if (k === "gpt") {
+        const tr = utmTrace("gpt", w.a, w.bEff);
+        Object.assign(o, { allLeads: o.leads, allBooked: o.booked, leads: tr.leads, booked: tr.booked,
+                           cpb: tr.booked && o.spend ? o.spend / tr.booked : null, thin: tr.booked < THIN });
+      }
       // why a card reads the way it does: no spend, or nothing set up to count a result
       const src = k === "lsa" ? P.lsaC : P[k];
       const lastSpend = (src || []).reduce((a, r) => (r.cost > 0 && r.d > a ? r.d : a), "");
@@ -2752,7 +2810,9 @@
     const add = (rank, tag, big, title, why, go) => out.push(Object.assign({ rank, tag, big, title, why }, go || {}));
     const toSrc = f => ({ go: "Open " + f.fam + " in Source Analysis", href: "#page=source-report&src=" + encodeURIComponent(f.fam) });
     const t = totals(fams);
-    const paid = fams.filter(f => f.paid && f.spend > 0 && f.anyCov && !COMMUNITY.includes(f.fam));
+    // a channel whose leads are wider than its ads cannot be judged on them: ChatGPT's "$47 a booking"
+    // divided the ads' spend by bookings that came from its answers too
+    const paid = fams.filter(f => f.paid && f.spend > 0 && f.anyCov && !COMMUNITY.includes(f.fam) && !FAM_NOTE[f.fam]);
     let cutFam = null;
     if (t.cpb) {
       const cut = paid.filter(f => f.spend >= 1500 && (f.cBooked === 0 || f.cpb >= 3 * t.cpb))
@@ -3050,7 +3110,8 @@
       + '<div class="sp"><b>' + (r.spend != null ? money0(r.spend) : dash) + "</b><span>spent</span></div></div>"
       + '<div class="mkd-stats">' + stat("Impressions", r.imp != null ? compact(r.imp) : dash) + stat("Clicks", r.clk != null ? fmtN(r.clk) : dash)
       + stat("CTR", pct2(r.ctr)) + stat("CPC", cents(r.cpc)) + "</div>"
-      + '<div class="ours"><span><b>' + fmtN(r.leads) + (FAM_NOTE[r.fam] ? "*" : "") + "</b> leads</span>"
+      + (r.allLeads != null ? '<div class="why">' + fmtN(r.allLeads) + " ChatGPT leads in all, " + fmtN(r.allBooked) + " booked: answers and ads together</div>" : "")
+      + '<div class="ours"><span><b>' + fmtN(r.leads) + (r.allLeads == null && FAM_NOTE[r.fam] ? "*" : "") + "</b> " + (r.allLeads != null ? "leads from the ads" : "leads") + "</span>"
       + '<span aria-hidden="true">→</span><span><b>' + fmtN(r.booked) + "</b> booked</span>"
       + '<span class="mkd-chip c' + tone + '">' + (r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
         + (r.k === "reddit" ? "†" : r.k === "li" || r.k === "tt" ? "‡" : "") + " a booking" : "no bookings") + "</span></div>"
@@ -5231,14 +5292,8 @@
         { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], sm.slice(0, 12), null, true)
         : '<div class="mko-empty">No sessions in this period.</div>') + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Landing pages</span>'
-      + '<span class="mko-sub">top 12 · ' + esc(monthSpan(ms)) + " (monthly)</span></div>"
-      + (lp.length ? ptable([
-        { h: "Landing page", name: true, cell: x => esc(x.k) + (x.k === "(not set)" ? '<div class="mko-sub">sessions with no page view: a tag or bot pattern</div>' : "") },
-        { h: "Sessions", num: true, cell: x => fmtN(x.ses) },
-        { h: "Engaged", num: true, cell: x => pct(ratio(x.eng, x.ses)) },
-        { h: "Avg. session", num: true, cell: x => dur(ratio(x.ssec, x.ses)) },
-        { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], lp.slice(0, 12), null, true)
-        : '<div class="mko-empty">No landing pages for these months yet.</div>') + "</div>"
+      + '<span class="mko-sub">by sessions · ' + esc(monthSpan(ms)) + " (monthly)</span></div>"
+      + (lp.length ? '<div id="mkoLpList"></div>' : '<div class="mko-empty">No landing pages for these months yet.</div>') + "</div>"
       + "</div>"
       + '<div class="mko-g2e">'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Devices</span><span class="mko-sub">sessions</span></div>'
@@ -5255,6 +5310,12 @@
       + (sex.length ? '<p class="rs-hint">' + sex.map(x => esc(x.k[0].toUpperCase() + x.k.slice(1)) + " " + fmtN(x.v)).join(" · ") + "</p>" : "")
       + '<p class="rs-hint">Google signals off in GA4 leaves most visitors without an age or gender.</p></div>';
     return { html, wire(host) {
+      if (lp.length) pagedTable(host.querySelector("#mkoLpList"), [
+        { h: "Landing page", name: true, cell: x => esc(x.k) + (x.k === "(not set)" ? '<div class="mko-sub">sessions with no page view: a tag or bot pattern</div>' : "") },
+        { h: "Sessions", num: true, cell: x => fmtN(x.ses) },
+        { h: "Engaged", num: true, cell: x => pct(ratio(x.eng, x.ses)) },
+        { h: "Avg. session", num: true, cell: x => dur(ratio(x.ssec, x.ses)) },
+        { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], lp, 12, true);
       const was = (v, fmt) => pw.cw ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmt(v) : "";
       RSC.kpis(host.querySelector("#mkoK-web"), [
         kp("Sessions", cur.ses, prev.ses, fmtN, false, "", pw),
@@ -5701,7 +5762,7 @@
         ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
         plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
-        plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"),
+        plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"), plat("mkt_utmc", "utmc"),
         plat("mkt_brans", "brans"), plat("mkt_brmen", "brmen"), plat("mkt_brcit", "brcit"),
         plat("mkt_ahuse", "ahuse"), plat("mkt_ahquota", "ahquota"),
         plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
@@ -5710,7 +5771,7 @@
         plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace,
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
@@ -5724,6 +5785,7 @@
         indexTikTok(tt);
         indexMeta({ mpost, mad, mlife, mpd, msoc });
         indexBatch3({ refdom, anchor, ctrace });
+        P.utmc = (utmc || []).map(r => ({ d: d10(r.Date), plat: r.Platform, camp: normCamp(r["UTM Campaign"]), leads: num(r.Leads), booked: num(r.Booked) }));
         indexBrandRadar({ brans, brmen, brcit });
         indexAhrefsUsage({ ahuse, ahquota });
         indexSemrush({ smov, smas, smorg, smkw, smaud, smhist, smuse });
