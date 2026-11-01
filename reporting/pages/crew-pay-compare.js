@@ -87,7 +87,14 @@
    table makes at its base-leg miles (new table - today's table, at the same miles -- the two sources never
    mix); a contract job without one takes the average change of the GPS jobs that were paid the same
    travel; a travel no GPS job shares, the change across that band of the table, mile by mile; a job with
-   no contract (its travel estimated), its travel x the GPS jobs' ratio. */
+   no contract (its travel estimated), its travel x the GPS jobs' ratio.
+   ...and then ONE RATE + BONUS (his ask the same day, having seen it: "we need to add increased hourly rate
+   to it too. so, instead of having 2 rates - we will have 1 rate + bonus pool thing as we do in hourly +
+   travel - but we will have bigger travel time calculations"). Hourly + travel's structure with the travel
+   and job rates merged into one rate per seat: every hour -- the job's and the new table's travel -- at
+   that rate, the bonus rate on the job hours (withheld on a job with a claim, as there), packing 20% to the
+   foreman and a 6% pool over the crew, everything else as today. Defaults: the rate is Hourly + travel's job
+   rate ($20 / $18 / $17), the bonus its bonus ($4 / $3 / $3); all its own settings. */
 if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
   RS.DATASETS.crew_pay_compare = {
     table: "mart_crew_pay_compare",
@@ -139,6 +146,9 @@ registerPage({
       hrFmPackPct: 20, hrCrewPackPct: 6, travelMph: 35,
       // NEW TRAVEL TABLE (his ask 2026-11-01): 1 hour up to 60 miles (today 113), then half an hour per 25 miles
       ntFirstMi: 60, ntStepMi: 25, ntStepH: 0.5,
+      // ...paid at ONE rate per seat + a bonus rate on the job hours, and Hourly + travel's packing (his ask, same day)
+      ntRateForeman: 20, ntBonusForeman: 4, ntRateDriver: 18, ntBonusDriver: 3, ntRateHelper: 17, ntBonusHelper: 3,
+      ntFmPackPct: 20, ntCrewPackPct: 6,
       // today's pay for the custom job -- empty = this year's average
       todayForeman: "", todayDriver: "", todayHelper: "", todayLdForeman: "", todayLdDriver: "", todayLdHelper: "", todayReview: "",
       todayPackPct: 20, todayStairsShare: 100, todayBulkyShare: 50,
@@ -152,15 +162,19 @@ registerPage({
       todayLdHelper: "Long-distance helper", todayReview: "Review pay, a reviewed job", todayPackPct: "Foreman's packing, of materials sold",
       todayStairsShare: "Of the stairs fee, to the crew", todayBulkyShare: "Of the bulky-item fee, to the crew",
       ntFirstMi: "1 hour of travel up to", ntStepMi: "Then a step every", ntStepH: "Each step adds",
+      ntFmPackPct: "Foreman's packing, of materials sold", ntCrewPackPct: "Crew packing pool, of materials sold",
     };
     // the hourly option's three rates per seat: travel, job, bonus
     const HR = { Foreman: ["hrTravelForeman", "hrJobForeman", "hrBonusForeman"], Driver: ["hrTravelDriver", "hrJobDriver", "hrBonusDriver"],
                  Helper: ["hrTravelHelper", "hrJobHelper", "hrBonusHelper"] };
     Object.entries(HR).forEach(([s, ks]) => ks.forEach((k, i) => { LABELS[k] = s + " · " + ["travel", "job", "bonus"][i]; }));
+    // the new travel table's two per seat: one rate for every hour, and the bonus rate on the job hours
+    const NTR = { Foreman: ["ntRateForeman", "ntBonusForeman"], Driver: ["ntRateDriver", "ntBonusDriver"], Helper: ["ntRateHelper", "ntBonusHelper"] };
+    Object.entries(NTR).forEach(([s, ks]) => ks.forEach((k, i) => { LABELS[k] = s + " · " + ["rate", "bonus"][i]; }));
     // the unit drawn beside each box: $ in front; %, /h, mph after
     const UNIT = {};
-    [["%", "netMargin pctPool pctBonus pctBonusPaid pctStraight pctRegular hrFmPackPct hrCrewPackPct todayPackPct todayStairsShare todayBulkyShare"],
-     ["$/h", Object.values(HR).flat().join(" ") + " todayForeman todayDriver todayHelper"], ["$/day", "todayLdForeman todayLdDriver todayLdHelper"],
+    [["%", "netMargin pctPool pctBonus pctBonusPaid pctStraight pctRegular hrFmPackPct hrCrewPackPct ntFmPackPct ntCrewPackPct todayPackPct todayStairsShare todayBulkyShare"],
+     ["$/h", Object.values(HR).flat().join(" ") + " " + Object.values(NTR).flat().join(" ") + " todayForeman todayDriver todayHelper"], ["$/day", "todayLdForeman todayLdDriver todayLdHelper"],
      ["$", "todayReview"], ["mph", "travelMph"], ["mi", "ntFirstMi ntStepMi"], ["h", "ntStepH"]]
       .forEach(([u, ks]) => ks.split(" ").forEach(k => { UNIT[k] = u; }));
     for (let i = 1; i <= 6; i++) { UNIT["pctB" + i + "From"] = "$"; UNIT["pctB" + i] = "%"; }
@@ -186,7 +200,7 @@ registerPage({
     const LEVERS = {
       pct: ["pctPool", "pctStraight", "pctRegular", "pctBonus"],
       hourly: Object.values(HR).flat().concat(["travelMph", "hrFmPackPct", "hrCrewPackPct"]),
-      nt: ["ntFirstMi", "ntStepMi", "ntStepH"],
+      nt: Object.values(NTR).flat().concat(["ntFirstMi", "ntStepMi", "ntStepH", "ntFmPackPct", "ntCrewPackPct"]),
     };
     const SHORT = { pctPool: "Local", pctStraight: "Straight", pctRegular: "Regular", pctBonus: "Bonus pool",
       ntFirstMi: "1 hour up to", ntStepMi: "then a step every", ntStepH: "each step adds",
@@ -386,14 +400,14 @@ registerPage({
         today["ld" + s] = d ? xs.reduce((a, x) => a + x.a.wage, 0) / d : 0; });
       const rv = Object.values(jobs).filter(j => num(j.r0["Review Paid"]) > 0);
       today.review = rv.length ? rv.reduce((a, j) => a + num(j.r0["Review Paid"]), 0) / rv.length : 0;
-      // NEW TRAVEL TABLE (his ask 2026-11-01): today's pay exactly, with the travel hours from the new table.
+      // NEW TRAVEL TABLE (his asks 2026-11-01): the travel hours from the new table, one rate + bonus (below).
       // A job's change in travel hours (j.nt.d): a GPS job's at its base-leg miles, both tables read at the
       // same miles; a contract job without a form, the average change of the GPS jobs paid the same travel
       // (NT_MIN of them at least), else the change across that band of today's table, mile by mile; a job
       // with no contract (its travel estimated), its travel x the GPS jobs' ratio. Every hourly person on a
-      // local job is paid that change at their own rate on the job -- the travel is the job's, as today.
+      // local job is paid the job's travel -- the travel is the job's, as today.
       const keyH = h => String(Math.round(h * 100) / 100), bandMemo = {};
-      const NT = { by: {}, gpsPaid: 0, gpsD: 0, src: {}, rows: {}, paid: 0, neu: 0, cost: 0, local: 0 };
+      const NT = { by: {}, gpsPaid: 0, gpsD: 0, src: {}, rows: {}, paid: 0, neu: 0, payToday: 0, payNew: 0, local: 0 };
       Object.values(jobs).forEach(j => {
         const t = j.trav;
         if (j.pct.isLd) { j.nt = { d: 0, src: "ld" }; return; }
@@ -423,14 +437,26 @@ registerPage({
         const o = NT.rows[ntRow(j)] = NT.rows[ntRow(j)] || { k: ntRow(j), jobs: 0, gps: 0, paid: 0, d: 0, crewH: 0, cost: 0 };
         o.jobs++; o.paid += j.trav.paid; o.d += j.nt.d; if (j.nt.src === "gps") o.gps++;
       });
+      // THE PAY (his ask, same day: "1 rate + bonus pool thing as we do in hourly + travel"): Hourly + travel's
+      // structure with one rate per seat for every hour. Travel = today's paid travel + the job's change; job
+      // hours = the hours paid less today's travel, as there. A long-distance trip's day pay stays as today;
+      // an hourly long-distance row has no travel line, so all its hours are job hours.
       lines.forEach(x => {
-        const j = x.j;
-        if (x.dayRow || !(x.hours > 0) || j.pct.isLd) { x.nt = { asToday: true, dH: 0, rate: 0, extra: 0, total: x.T }; return; }
-        const r = num(x.r["Rate"]), rate = r > 0 && r < LD_DAY_RATE ? r : x.a.wage > 0 ? x.a.wage / x.hours : today[x.role] || 0;
-        const dH = j.nt.d, extra = dH * rate, o = NT.rows[ntRow(j)];
-        x.nt = { dH, rate, extra, total: x.T + extra };
-        NT.paid += j.trav.paid; NT.neu += j.trav.paid + dH; NT.cost += extra;
-        o.crewH += dH; o.cost += extra;
+        const j = x.j, [rk, bk] = NTR[x.role] || NTR.Helper, sold = num(x.r["Packing Sold"]);
+        if (x.dayRow || !(x.hours > 0)) { x.nt = { asToday: true, trH: 0, jobH: 0, dH: 0, rate: 0, travelPay: 0, jobPay: 0, bonusPay: 0, withheld: 0, pack: 0, kept: x.T, total: x.T }; return; }
+        const rate = num(c[rk]), claim = num(j.r0["Claims Filed"]) > 0, dH = j.nt.d;
+        const jobH = Math.max(0, x.hours - j.trav.paid), trH = Math.max(0, j.trav.paid + dH);
+        const travelPay = trH * rate, jobPay = jobH * rate, bonusFull = jobH * num(c[bk]);
+        const pack = x.role === "Foreman" ? sold * num(c.ntFmPackPct) / 100 / Math.max(1, j.nf)
+                   : j.n - j.nf ? sold * num(c.ntCrewPackPct) / 100 / (j.n - j.nf) : 0;
+        const kept = x.a.stairs + x.a.bulky + x.a.review + x.a.other, bonusPay = claim ? 0 : bonusFull;
+        x.nt = { trH, jobH, dH, rate, claim, travelPay, jobPay, bonusPay, withheld: claim ? bonusFull : 0, pack, kept,
+                 total: travelPay + jobPay + bonusPay + pack + kept };
+        if (j.pct.isLd) return;
+        // the travel panel: crew-hours and travel pay, today (each person's own rate) and under the option
+        const r = num(x.r["Rate"]), own = r > 0 && r < LD_DAY_RATE ? r : x.a.wage > 0 ? x.a.wage / x.hours : today[x.role] || 0, o = NT.rows[ntRow(j)];
+        NT.paid += j.trav.paid; NT.neu += trH; NT.payToday += j.trav.paid * own; NT.payNew += travelPay;
+        o.crewH += dH; o.cost += dH * rate;
       });
       const nt = mk("nt", "New travel table", x => x.nt.total);
       // TRAVEL PAID AGAINST THE REAL DRIVE, in crew-hours -- every person on a crew is paid the job's travel
@@ -592,14 +618,18 @@ registerPage({
     function madeOf(SC, key) {
       const c = SC.c;
       if (key === "actual") return PARTS.map(([k, l, how]) => [l, how, x => x.a[k]]);
-      if (key === "nt") { const t = ntShape(c);
-        return PARTS.slice(0, 1).map(([k, l, how]) => [l + ", as today", how, x => x.a[k]])
-          .concat([["Extra travel, new table", `1 hour up to ${t.first} miles, then ${durTxt(t.add)} per ${t.step} miles — the hours above today's table, at each person's own hourly rate`, x => x.nt.extra]])
-          .concat(PARTS.slice(1).map(([k, l, how]) => [l, how, x => x.a[k]])); }
+      const claimJobs = Object.values(SC.jobs).filter(j => num(j.r0["Claims Filed"]) > 0).length;
+      if (key === "nt") { const t = ntShape(c), held = sumOf(SC.lines, x => x.nt.withheld);
+        return [
+          ["Travel, new table", `1 hour up to ${t.first} miles, then ${durTxt(t.add)} per ${t.step} miles — at the seat's rate`, x => x.nt.travelPay],
+          ["Job hours", "the hours paid less today's travel, at the same rate", x => x.nt.jobPay],
+          ["Bonus rate", `on the job hours; withheld on the ${claimJobs.toLocaleString()} jobs with a claim (${money(held)})`, x => x.nt.bonusPay],
+          ["Packing", `${num(c.ntFmPackPct)}% of packing sold to the foreman, a ${num(c.ntCrewPackPct)}% pool over the driver and helpers`, x => x.nt.pack],
+          ["Paid as today", "stairs, bulky, review and hoisting/storage/junk pay, long-distance day pay", x => x.nt.kept]]; }
       if (key === "pct") return [
         ["Salary pool", `local ${num(c.pctPool)}% of the splitable bill, straight ${num(c.pctStraight)}% and regular ${num(c.pctRegular)}% of the bill, shared out`, x => x.pct.pool],
         ["Bonus pool", `local jobs: ${num(c.pctBonus)}% of the splitable bill, ${num(c.pctBonusPaid)}% of it paid out`, x => x.pct.bonus]];
-      const held = sumOf(SC.lines, x => x.hr.withheld), claimJobs = Object.values(SC.jobs).filter(j => num(j.r0["Claims Filed"]) > 0).length;
+      const held = sumOf(SC.lines, x => x.hr.withheld);
       return [
         ["Travel", `the real drive — GPS miles at ${num(c.travelMph)} mph, never below today's table — at the travel rate`, x => x.hr.travelPay],
         ["Job hours", "the hours paid less today's travel, at the job rate", x => x.hr.jobPay],
@@ -615,7 +645,7 @@ registerPage({
         actual: `Each crew member is paid by the hour at their own rate, for the job's hours — labor or the minimum, plus travel from a miles table (1 hour up to 113 miles, then half an hour per 25 miles). On top, the foreman gets ${num(c.todayPackPct)}% of packing sold and the review bonus, and the crew splits all of the stairs fee, half of the bulky-item fee and any hoisting, storage or junk pay. Long-distance drivers and helpers are paid by the day. Tips are the crew's.`,
         pct: `The crew shares a pool from every job: <b>${num(c.pctPool)}%</b> of the bill on local moves, <b>${num(c.pctStraight)}%</b> on straight and <b>${num(c.pctRegular)}%</b> on regular long distance. Local jobs add a <b>${num(c.pctBonus)}%</b> bonus pool, cut when something goes wrong. The foreman takes one share plus an extra that grows with the bill (${Math.min(...bands)}% to ${Math.max(...bands)}%); the driver and every helper take one share each. Each salary is rounded up to the dollar. Nothing else is paid on top, and tips stay with the crew.`,
         hourly: `Today's hourly structure, with travel and the job paid apart. <b>Travel</b> — the real drive, from the GPS miles at <b>${num(c.travelMph)} mph</b> (never less than today's table pays): foreman <b>${$(c.hrTravelForeman)}</b>, driver ${$(c.hrTravelDriver)}, helper ${$(c.hrTravelHelper)} an hour. <b>The job</b>: foreman <b>${$(c.hrJobForeman)} + ${$(c.hrBonusForeman)}</b> bonus, driver ${$(c.hrJobDriver)} + ${$(c.hrBonusDriver)}, helper ${$(c.hrJobHelper)} + ${$(c.hrBonusHelper)} an hour; the bonus part is withheld on a job with a claim. <b>Packing</b>: the foreman ${num(c.hrFmPackPct)}% of materials sold, and a ${num(c.hrCrewPackPct)}% pool split over the driver and helpers. Everything else as today — stairs, bulky items, reviews, hoisting/storage/junk, long-distance day pay. Tips stay with the crew.`,
-        nt: `Today's pay, unchanged — except travel. The miles table gives <b>1 hour up to ${t.first} miles</b> (today: up to 113), then <b>${durTxt(t.add)} more for every ${t.step} miles</b> (today: 30 minutes per 25 miles from 113). The extra travel hours are paid at each person's own hourly rate, to everyone on the crew, as travel is today. Packing, stairs, bulky items, reviews, hoisting/storage/junk and long-distance day pay stay as they are; long-distance jobs have no travel line. Tips stay with the crew.`,
+        nt: `Hourly + travel's structure with <b>one rate</b> for every hour and bigger travel. <b>Travel</b> comes from a new miles table: <b>1 hour up to ${t.first} miles</b> (today: up to 113), then <b>${durTxt(t.add)} more for every ${t.step} miles</b> (today: 30 minutes per 25 miles from 113). <b>Travel and the job</b> are paid at the same rate: foreman <b>${$(c.ntRateForeman)} + ${$(c.ntBonusForeman)}</b> bonus, driver ${$(c.ntRateDriver)} + ${$(c.ntBonusDriver)}, helper ${$(c.ntRateHelper)} + ${$(c.ntBonusHelper)} an hour; the bonus is on the job hours and withheld on a job with a claim. <b>Packing</b>: the foreman ${num(c.ntFmPackPct)}% of materials sold, and a ${num(c.ntCrewPackPct)}% pool split over the driver and helpers. Everything else as today — stairs, bulky items, reviews, hoisting/storage/junk, long-distance day pay. Tips stay with the crew.`,
         custom: `Enter a job — the crew, the job hours, the base-leg miles and the bill — and see what each seat earns today and under every option, with the working under every amount. Today's pay uses this year's average rates (Settings can change them); start from a real job to fill everything in.`,
       };
       return `<section class="cpc-explain"><div class="cpc-ex-h">How pay works ${key === "actual" ? "today" : key === "custom" ? "on one job" : "in this option"}</div><p>${T[key]}</p></section>`;
@@ -721,7 +751,7 @@ registerPage({
       return out;
     }
     function ntPanel(SC, c) {
-      const N = SC.NT, t = ntShape(c), add = N.neu - N.paid, own = add ? N.cost / add : 0;
+      const N = SC.NT, t = ntShape(c), add = N.neu - N.paid;
       const look = ntLookup(c).map(r => `<tr><td><b>${r.miles}</b> <span class="cpc-sub">mi</span></td><td class="num">${r.today}</td>
           <td class="num"><b>${r.neu}</b></td><td class="num ${r.up ? "cpc-up" : ""}">${r.d}</td></tr>`).join("");
       const order = k => k === "other" ? 1e6 : k === "share" ? 1e6 + 1 : +k;
@@ -736,7 +766,7 @@ registerPage({
           <div><span>Travel paid today</span><b>${Math.round(N.paid).toLocaleString()} h</b><em>1 hour up to 113 miles</em></div>
           <div><span>Under the new table</span><b>${Math.round(N.neu).toLocaleString()} h</b><em>1 hour up to ${t.first} miles</em></div>
           <div class="main"><span>Travel hours added</span><b>${add >= 0 ? "+" : "−"}${Math.round(Math.abs(add)).toLocaleString()} h</b><em>${N.paid ? (add >= 0 ? "+" : "−") + Math.round(Math.abs(add) / N.paid * 100) + "% on today's travel" : ""}</em></div>
-          <div><span>Paying them costs</span><b>${signK(N.cost)}</b><em>a year · at each person's own rate${own ? `, ~$${own.toFixed(2)} an hour` : ""}</em></div>
+          <div><span>Travel pay</span><b>${moneyK(N.payToday)} → ${moneyK(N.payNew)}</b><em>today at each person's own rate → the new table at the seat rates (${signK(N.payNew - N.payToday)})</em></div>
         </div>
         <div class="cpc-trgrid">
           <div><div class="cpc-kh">Miles to travel hours</div><div class="rs-tablewrap"><table class="rs-table">
@@ -744,7 +774,7 @@ registerPage({
             <tbody>${look}</tbody></table></div>
             <p class="cpc-note">…and so on: ${durTxt(t.add)} more for every ${t.step} miles (today 30 minutes per 25).</p></div>
           <div><div class="cpc-kh">The year, by the travel today's table paid</div><div class="rs-tablewrap"><table class="rs-table">
-            <thead><tr><th>Paid today</th><th class="num">Jobs</th><th class="num">GPS form</th><th class="num">A job, new table</th><th class="num">Crew-hours added</th><th class="num">Costs</th></tr></thead>
+            <thead><tr><th>Paid today</th><th class="num">Jobs</th><th class="num">GPS form</th><th class="num">A job, new table</th><th class="num">Crew-hours added</th><th class="num">Those hours, at the seat rates</th></tr></thead>
             <tbody>${rowsP}</tbody></table></div></div>
         </div>
       </section>`;
@@ -755,7 +785,7 @@ registerPage({
           its GPS form's base-leg miles, read on both tables at the same miles (${s("gps")} of ${N.local.toLocaleString()} local jobs);
           without a form, the average change of the GPS jobs that were paid the same travel (${s("band")} jobs)${N.src.table ? `, or the change across that band of the table, mile by mile (${s("table")})` : ""};
           a job with no contract, its estimated travel × ${N.ratio.toFixed(2)}, the GPS jobs' ratio (${(N.src.share || 0) + (N.src.ratio || 0)} jobs).${N.src.none ? ` ${s("none")} jobs paid no travel and stay as they are.` : ""}</li>
-        <li><b>The extra hours</b> are paid at each person's own hourly rate on the job, to everyone on the crew — as travel is today. Long-distance jobs and day-rate rows are paid exactly as today.</li>`;
+        <li><b>Every hour</b> — the job's and the new table's travel — is paid at the seat's one rate, to everyone on the crew (the travel is the job's, as today); <b>job hours</b> are the hours paid less today's travel, and the bonus rate rides on them, withheld on a job with a claim (the Job P&L's). Long-distance day-rate rows keep today's day pay; hourly long-distance rows have no travel line, so all their hours are job hours.</li>`;
     }
 
     /* THE TRAVEL REPORT AS A PDF (his asks 2026-10-24: "i need that single page as pdf - and i need more data
@@ -1030,6 +1060,27 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         wireInputs(el);
         return;
       }
+      // THE NEW TRAVEL TABLE'S NUMBERS, the same layout: one rate + bonus per seat, the miles table, packing
+      if (S.tab === "nt") {
+        el.innerHTML = `<section class="cpc-levers cpc-knobs">
+            <div class="cpc-knobt"><div class="cpc-kh">Hourly rates — one rate for travel and the job</div>
+              <div class="rs-tablewrap"><table class="rs-table cpc-bandt">
+                <thead><tr><th>Seat</th><th>Rate</th><th>Bonus</th><th class="num">Job hour with bonus</th></tr></thead>
+                <tbody>${SEATS.map(st => { const [rk, bk] = NTR[st];
+                  return `<tr><td><b>${st}</b></td><td>${box(rk, c, { aria: st + ": rate" })}</td><td>${box(bk, c, { aria: st + ": bonus rate" })}</td>
+                    <td class="num">$${+(num(c[rk]) + num(c[bk])).toFixed(2)}/h</td></tr>`; }).join("")}</tbody>
+              </table></div></div>
+            <div class="cpc-knobside"><div class="cpc-kh">Travel table and packing</div>
+              <label class="cpc-lv"><span>1 hour of travel up to</span>${box("ntFirstMi", c)}</label>
+              <label class="cpc-lv"><span>then a step every</span>${box("ntStepMi", c)}</label>
+              <label class="cpc-lv"><span>each step adds</span>${box("ntStepH", c)}</label>
+              <label class="cpc-lv"><span>Foreman's packing, of materials sold</span>${box("ntFmPackPct", c)}</label>
+              <label class="cpc-lv"><span>Crew packing pool, split over the driver and helpers</span>${box("ntCrewPackPct", c)}</label>
+              <div class="cpc-lvside">${actions()}<button class="btn" data-go="settings">All settings</button></div>
+            </div></section>`;
+        wireInputs(el);
+        return;
+      }
       // how the model works is said once, in the explanation above
       el.innerHTML = `<section class="cpc-levers">
           <div class="cpc-lvrow">${keys.map(k => `<label class="cpc-lv"><span>${SHORT[k]}</span>${box(k, c)}</label>`).join("")}</div>
@@ -1085,13 +1136,16 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         const sh = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
         out.actual[s] = { v: b.v + sh, how: [b.how, extras([[s === "Foreman" ? fmPack : 0, "packing"], [stairsEach, "stairs"], [bulkyEach, "bulky"], [s === "Foreman" ? rev : 0, "review"]])].filter(Boolean).join(" + ") };
       });
-      // NEW TRAVEL TABLE: today's rules, the travel from the new table
+      // NEW TRAVEL TABLE: the travel from the new table and the job hours at one rate, a bonus rate on the job
+      // hours, Hourly + travel's packing; a long-distance trip keeps today's day pay, as there
       out.nt = {};
       SEATS.forEach(s => {
-        const b = dayTrip(s) ? { v: J.days * tR["ld" + s], how: `${h2(J.days)} ${J.days === 1 ? "day" : "days"} × ${m2(tR["ld" + s])} (as today)` }
-                             : { v: (J.jobHours + tNew) * tR[s], how: `(${h2(J.jobHours)} h + ${h2(tNew)} h travel) × ${m2(tR[s])}` };
-        const sh = stairsEach + bulkyEach + (s === "Foreman" ? fmPack + rev : 0);
-        out.nt[s] = { v: b.v + sh, how: [b.how, extras([[s === "Foreman" ? fmPack : 0, "packing"], [stairsEach, "stairs"], [bulkyEach, "bulky"], [s === "Foreman" ? rev : 0, "review"]])].filter(Boolean).join(" + ") };
+        const [rk, bk] = NTR[s], kept = stairsEach + bulkyEach + (s === "Foreman" ? rev : 0);
+        const pk = s === "Foreman" ? J.pack * num(c.ntFmPackPct) / 100 : (J.drivers + J.helpers ? J.pack * num(c.ntCrewPackPct) / 100 / (J.drivers + J.helpers) : 0);
+        if (dayTrip(s)) { out.nt[s] = { v: J.days * tR["ld" + s] + pk + kept, how: [`${h2(J.days)} ${J.days === 1 ? "day" : "days"} × ${m2(tR["ld" + s])} (as today)`, extras([[pk, "packing"], [kept, "paid as today"]])].filter(Boolean).join(" + ") }; return; }
+        const hp = (tNew + J.jobHours) * num(c[rk]), bp = J.claim ? 0 : J.jobHours * num(c[bk]);
+        out.nt[s] = { v: hp + bp + pk + kept, how: [`(${tNew ? h2(tNew) + " h travel + " : ""}${h2(J.jobHours)} h) × ${m2(num(c[rk]))}`,
+          J.claim ? "no bonus (claim)" : `${m2(bp)} bonus`, extras([[pk, "packing"], [kept, "paid as today"]])].filter(Boolean).join(" + ") };
       });
       // FLAT RATE
       const sv = isLd ? bill : Math.max(0, J.labor * (1 - J.cash / 100) + J.pack + J.bulky + J.stairs + J.other - J.disc);
@@ -1229,12 +1283,14 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
           if (x.pct.bonusRaw > 0) L2.push(ln(`+ bonus ${num(c.pctBonus)}%${num(c.pctBonusPaid) !== 100 ? " × " + num(c.pctBonusPaid) + "% paid" : ""} × ${(x.pct.share * 100).toFixed(1)}% → <b>${m2(x.pct.bonus)}</b>`));
           L2.push(ln(`= ${m2(x.pct.total)}`, "cpc-tot"));
         } else if (P.key === "nt") {
-          const h = x.nt;
-          if (h.asToday) L2.push(ln(`${m2(h.total)} paid as today (${x.dayRow ? "day pay" : j.pct.isLd ? "long distance: no travel line" : "nothing to replay"})`));
+          const h = x.nt, [, bk] = NTR[x.role] || NTR.Helper, sold = num(r0["Packing Sold"]);
+          if (h.asToday) L2.push(ln(`${m2(h.total)} paid as today (${x.dayRow ? keptOf(x) : "nothing to replay"})`));
           else {
-            L2.push(ln(`${m2(x.T)} as today`));
-            L2.push(Math.abs(h.dH) < 1e-9 ? ln("+ no change in travel", "cpc-sub")
-              : ln(`${h.dH > 0 ? "+" : "−"} travel ${h2(Math.abs(h.dH))} h × ${m2(h.rate)} = <b>${m2(Math.abs(h.extra))}</b>`));
+            if (h.trH) L2.push(ln(`travel ${h2(h.trH)} h × ${m2(h.rate)} = <b>${m2(h.travelPay)}</b>`));
+            L2.push(ln(`${h.trH ? "+ " : ""}job ${h2(h.jobH)} h × ${m2(h.rate)} = <b>${m2(h.jobPay)}</b>`));
+            L2.push(h.claim ? ln(`+ no bonus rate — the job had a claim (${m2(h.withheld)} withheld)`, "cpc-sub") : ln(`+ bonus ${h2(h.jobH)} h × ${m2(num(c[bk]))} = <b>${m2(h.bonusPay)}</b>`));
+            if (h.pack > 0.004) L2.push(ln(`+ ${m2(h.pack)} packing (${x.role === "Foreman" ? num(c.ntFmPackPct) + "% of " + m2(sold) : num(c.ntCrewPackPct) + "% of " + m2(sold) + (j.n - j.nf > 1 ? " ÷ " + (j.n - j.nf) : "")})`));
+            if (h.kept > 0.004) L2.push(ln(`+ ${m2(h.kept)} paid as today (${keptOf(x)})`));
           }
           L2.push(ln(`= ${m2(h.total)}`, "cpc-tot"));
         } else {
@@ -1252,14 +1308,15 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         return L2.join("");
       };
       const tv = j.trav || {}, jn = j.nt || {}, nts = ntShape(c);
-      const ntFacts = () => jn.src === "ld" ? "a long-distance job: no travel line — paid as today"
+      const ntFacts = () => jn.src === "ld" ? "a long-distance job: no travel line — every hour is a job hour; day-rate rows keep today's day pay"
         : `travel: today's table paid <b>${h2(tv.paid)} h</b>${tv.src === "share" ? " (no contract: the contract jobs' share of the hours)" : ""}; `
           + (jn.src === "gps" ? `the GPS form's base legs are ${Math.round(tv.miles)} miles — today's table gives ${h2(jn.o)} h there, the new table (1 h up to ${nts.first} mi) <b>${h2(jn.n)} h</b>`
             : jn.src === "band" ? `no GPS form — the ${jn.n.toLocaleString()} GPS jobs also paid ${h2(tv.paid)} h gain ${h2(jn.d)} h on average under the new table`
             : jn.src === "table" ? `no GPS form — across the miles today's table pays ${h2(tv.paid)} h for, the new table adds ${h2(jn.d)} h on average`
             : jn.src === "none" ? "no travel was paid — nothing changes"
             : `no GPS form — × ${SC.NT.ratio.toFixed(2)}, the GPS jobs' ratio`)
-          + (jn.src === "none" ? "" : ` · <b>${jn.d >= 0 ? "+" : "−"}${h2(Math.abs(jn.d))} h</b> for everyone paid by the hour`);
+          + (jn.src === "none" ? "" : ` · travel <b>${h2(Math.max(0, tv.paid + jn.d))} h</b> (${jn.d >= 0 ? "+" : "−"}${h2(Math.abs(jn.d))} h) for everyone paid by the hour`)
+          + (num(r0["Claims Filed"]) > 0 ? " · the job had a claim: no bonus rate" : "");
       const facts = P.key === "nt" ? ntFacts() : P.key === "pct"
         ? (s.src === "contract"
           ? `splitable bill: moving fee ${m2(s.lab)}${s.cp ? ` at the cash price (−${+(s.cp * 100).toFixed(2)}%) ${m2(s.lab * (1 - s.cp))}` : ""} + packing ${m2(s.pack)} + fees ${m2(s.fees)} − discounts ${m2(s.disc)} = <b>${m2(s.v)}</b>`
@@ -1328,6 +1385,10 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
       const hrRows = SEATS.map(st => { const [tk, jk, bk] = HR[st];
         return `<tr><td><b>${st}</b></td><td>${box(tk, c, { aria: st + ": travel rate" })}</td><td>${box(jk, c, { aria: st + ": job rate" })}</td>
           <td>${box(bk, c, { aria: st + ": bonus rate" })}</td><td class="num">$${(num(c[jk]) + num(c[bk])).toFixed(2).replace(/\.00$/, "")}/h</td></tr>`; }).join("");
+      // the new travel table's rates: one row per seat -- rate, bonus
+      const ntRows = SEATS.map(st => { const [rk, bk] = NTR[st];
+        return `<tr><td><b>${st}</b></td><td>${box(rk, c, { aria: st + ": rate" })}</td><td>${box(bk, c, { aria: st + ": bonus rate" })}</td>
+          <td class="num">$${(num(c[rk]) + num(c[bk])).toFixed(2).replace(/\.00$/, "")}/h</td></tr>`; }).join("");
       const ld = esc(String(c.ldTypes).replace(/,/g, ", "));
       body.innerHTML = `
         <div class="cpc-setbar">
@@ -1369,8 +1430,13 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
 
         <h2 class="cpc-seth">New travel table</h2>
         <div class="cpc-sets">
-          ${sec("Miles to travel hours", `Today's pay with one change: travel is 1 hour up to these miles, then each step of miles adds this much. Today's table is 1 hour up to 113 miles, then 30 minutes per 25 miles — set 113 / 25 / 0.5 here and this option equals Actual. The extra hours are paid at each person's own hourly rate.`,
+          ${sec("Rates", "One rate per seat for every hour — the job's and the travel's — plus a bonus rate on the job hours, withheld on a job with a claim.",
+            `<div class="rs-tablewrap"><table class="rs-table cpc-bandt">
+              <thead><tr><th>Seat</th><th>Rate</th><th>Bonus</th><th class="num">Job hour with bonus</th></tr></thead>
+              <tbody>${ntRows}</tbody></table></div>`)}
+          ${sec("Miles to travel hours", `Travel is 1 hour up to these miles, then each step of miles adds this much. Today's table is 1 hour up to 113 miles, then 30 minutes per 25 miles — set 113 / 25 / 0.5 here to see the rates alone.`,
             fields(["ntFirstMi", "ntStepMi", "ntStepH"]))}
+          ${sec("Packing", "The foreman's % of materials sold, and a crew pool split evenly over the driver and helpers.", fields(["ntFmPackPct", "ntCrewPackPct"]))}
         </div>
 
         <h2 class="cpc-seth">Custom job — today's pay</h2>
