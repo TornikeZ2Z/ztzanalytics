@@ -217,6 +217,7 @@
                                                      "Last Seen"] },
     mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
     mkt_utmc: { table: "mart_mkt_utm_campaign_lead", cols: ["Date", "Platform", "UTM Campaign", "Leads", "Booked"] },
+    mkt_fsrc: { table: "mart_mkt_form_source_lead", cols: ["Date", "Source", "Medium", "Leads", "Booked"] },
     // 2026-10-26 AI visibility: Ahrefs Brand Radar answers to our questions (src/brand_radar.py), monthly
     mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
     mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
@@ -299,7 +300,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], tt: [], utmc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], tt: [], utmc: [], fsrc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -1491,6 +1492,13 @@
       + th + "</tr></thead><tbody>"
       + rows.map(r => tr(r)).join("") + (tot ? tr(tot, "mko-tot") : "") + "</tbody></table></div>";
   }
+  /* one source, one row (Giga, 2026-11-03): GA4 and the forms spell a source several ways */
+  const SRC_ALIAS = { fb: "facebook", "facebook.com": "facebook", "m.facebook.com": "facebook", "l.facebook.com": "facebook",
+    "lm.facebook.com": "facebook", ig: "instagram", "instagram.com": "instagram", "l.instagram.com": "instagram",
+    "linkedin.com": "linkedin", "lnkd.in": "linkedin", "reddit.com": "reddit", "out.reddit.com": "reddit",
+    "t.co": "x", "twitter.com": "x", "x.com": "x", "youtube.com": "youtube", "m.youtube.com": "youtube" };
+  const normSrc = s => { const v = String(s || "").trim().toLowerCase().replace(/\s+/g, " ").replace(/^www\./, ""); return SRC_ALIAS[v] || v || "(not set)"; };
+  const normMed = m => String(m || "").trim().toLowerCase().replace(/\s+/g, " ") || "(none)";
   /* a long list in pages, so the card keeps its height (Giga, 2026-10-30) */
   function pagedTable(el, cols, rows, size, tight) {
     let page = 0;
@@ -1737,12 +1745,20 @@
     const allRow = Object.assign({ tot: true, name: "All Google", sub: paused.length ? "the paused campaigns below included" : "",
                                    bk: gBooked, cpb: g ? g.cpb : null }, sumOf(list));
     const ntRow = { nt: true, bk: Math.max(gBooked - traced, 0) };
+    const via = { Form: 0, Call: 0 };
+    inRange(P.ctrace, pw.a, pw.b).forEach(r => { via[r.via] = (via[r.via] || 0) + r.booked; });
     const formTo = P.ctrace.filter(r => r.via === "Form").reduce((a, r) => (r.d > a ? r.d : a), "");
     const notes = thinTrace ? [] : ["Colours against $" + fmtN(CPB_TARGET) + " a booking: green under, amber up to $" + fmtN(CPB_TARGET * 1.25)
       + ", red above it or spend with no booking."];
     if (formTo && pw.b > addDays(formTo, 7)) {
       notes.push("Website forms are traced through " + day(formTo) + ": the CMS form export has not arrived since, so later "
         + "bookings trace through CallRail calls only.");
+    }
+    if (gBooked) {
+      notes.push("Of " + fmtN(gBooked) + " Google bookings, " + fmtN(traced) + " carry a campaign trail: " + fmtN(via.Form) + " by a website form's UTM, "
+        + fmtN(via.Call) + " by a call to a campaign's CallRail number. The other " + fmtN(Math.max(gBooked - traced, 0)) + " came in with neither: calls to "
+        + "the main number, the Business Profile, Moveboard's own Google source, or a form without a UTM. Google's own click tag (gclid) never "
+        + "reaches Moveboard, so only a UTM on the ad's final URL or a campaign call number can trace one.");
     }
     if (P.err.ctrace) notes.unshift("Bookings by campaign could not load — " + P.err.ctrace + ".");
     return '<div class="panel"><div class="panel-head"><span class="panel-title">Active campaigns</span>'
@@ -1786,7 +1802,9 @@
   /* --- Local Services --- */
   function lsaSection(w, cw) {
     const pw = platWin("lsa", w, cw);
-    const head = platHead("lsa", "Local Services", "account 748-852-6235 · Google's leads, by phone call or message", pw);
+    const head = platHead("lsa", "Local Services", "account 748-852-6235 · Google's leads, by phone call or message", pw)
+      + '<p class="rs-hint">Local Services Ads are Google\'s "Google Guaranteed" listings above the search ads. Google charges per lead, '
+      + "a call or message from the listing, not per click, and credits back a lead it agrees was not genuine.</p>";
     const cost = pw ? inRange(P.lsaC, pw.a, pw.b) : [];
     const leads = pw ? inRange(P.lsaL, pw.a, pw.b) : [];
     const gate = platGate("Local Services", "lsa", pw, cost.concat(leads));
@@ -1946,6 +1964,26 @@
     ], list, null);
   }
   const metaKind = k => META_KIND[k] || prettyCode(k).toLowerCase();
+  /* Meta by placement (Giga, 2026-11-03), read from the per-ad day table of src/meta_page.py */
+  const PLACE = { facebook: "Facebook", instagram: "Instagram", messenger: "Messenger", audience_network: "Audience Network",
+                  threads: "Threads", whatsapp: "WhatsApp", unknown: "Other" };
+  function metaPlaceHtml(pw) {
+    if (P.err.mpd) return '<div class="mko-empty">Placements could not load — ' + esc(P.err.mpd) + "</div>";
+    const list = groupBy(inRange(P.mpd, pw.a, pw.b), r => r.plat).map(x => ({ name: PLACE[x.k] || prettyCode(x.k), cost: sum(x.rows, "cost"),
+      imp: sum(x.rows, "imp"), clk: sum(x.rows, "clk"), lead: sum(x.rows, "lead") })).filter(x => x.cost >= 0.5 || x.imp).sort((a, b) => b.cost - a.cost);
+    if (!list.length) return '<div class="mko-empty">No placement data for this period.</div>';
+    const tc = sum(list, "cost"), tot = { tot: true, name: "All placements", cost: tc, imp: sum(list, "imp"), clk: sum(list, "clk"), lead: sum(list, "lead") };
+    return ptable([
+      { h: "Placement", name: true, cell: r => (r.tot ? "<b>" + esc(r.name) + "</b>" : shareName(esc(r.name), r.cost, tc)) },
+      { h: "Spend", num: true, cell: r => (r.tot ? money0(r.cost) : withShare(money0(r.cost), r.cost, tc)) },
+      { h: "Impr.", num: true, tip: "impressions", cell: r => compact(r.imp) },
+      { h: "Clicks", num: true, cell: r => fmtN(r.clk) },
+      { h: "CTR", num: true, cell: r => pct2(ratio(r.clk, r.imp)) },
+      { h: "CPC", num: true, cell: r => cents(ratio(r.cost, r.clk)) },
+      { h: "Leads", num: true, tip: "Meta's own lead count, from its forms", cell: r => fmtN(r.lead) },
+      { h: "Cost per lead", num: true, cell: r => (r.lead ? money0(r.cost / r.lead) : "—") },
+    ], list, list.length > 1 ? tot : null);
+  }
   function metaSection(w, cw) {
     const pw = platWin("meta", w, cw);
     const head = platHead("meta", "Meta", "Facebook + Instagram · account 276439726601232 · Los Angeles days", pw);
@@ -1970,6 +2008,10 @@
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By category</span>'
       + '<span class="mko-sub">read from each campaign\'s name: Referral, B2B, Leads, Awareness, Engagement, Traffic</span></div>'
       + metaCatTable(rows, cur) + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">By placement</span>'
+      + '<span class="mko-sub">where Meta showed the ads</span></div>' + metaPlaceHtml(pw)
+      + '<p class="rs-hint">A new placement, WhatsApp among them, gets its own row the day ads run there. Leads are Meta\'s own count from its '
+      + "forms; our bookings cannot be split by placement.</p></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
       + metaCampTable(rows, cur, pw) + "</div>";
@@ -2281,6 +2323,13 @@
       if (page.wire) page.wire(host);
     } };
   }
+  const TT_BUDGET = 600;   // the "low-season budget" file, per Elene's TikTok plan (2026-11-03)
+  // a monthly budget for the days of a period: each day carries its month's share
+  function budgetFor(a, b, perMonth) {
+    let t = 0;
+    for (let d = a; d <= b; d = addDays(d, 1)) t += perMonth / new Date(+d.slice(0, 4), +d.slice(5, 7), 0).getDate();
+    return t;
+  }
   function tiktokSection(w, cw) {
     const pw = platWin("tt", w, cw);
     const head = platHead("tt", "TikTok", "Ads Manager · the ad account's own days", pw);
@@ -2325,6 +2374,8 @@
         kp("Avg CPC", cur.cpc, prev.cpc, cents, true, "spend ÷ clicks", pw),
         kp("Avg CPM", cur.cpm, prev.cpm, cents, true, "spend per 1,000 impressions", pw),
         kp("Spend", cur.cost, prev.cost, money, null, "the ad account only", pw),
+        { label: "Against budget", value: money0(cur.cost) + " of " + money0(budgetFor(pw.a, pw.b, TT_BUDGET)),
+          sub: "low-season plan: " + money0(TT_BUDGET) + " a month, for these days" },
         tracked ? kp("Conversions", conv, convPrev, fmtN, false, "CVR " + pct2(ratio(conv, cur.clk)) + (conv ? " · CPA " + cents(cur.cost / conv) : ""), pw)
           : { label: "Conversions", value: '<span class="mko-cov">not measured</span>', sub: "no conversion event set up" },
         { label: "Cost per booking", value: cpb != null ? money0(cpb) + "‡" : "—",
@@ -3117,6 +3168,24 @@
       + seg(s, "s") + seg(y, "y") + seg(o, "o") + '</div><div class="mkd-nets">' + box(s) + box(y) + (o.cost >= 1 ? box(o) : "") + "</div>"
       + (y.cost > s.cost && y.lead < s.lead ? '<p class="rs-hint">Most of the money shows ads on YouTube; most of the leads come from Search.</p>' : "") + "</div>";
   }
+  /* YouTube on its own card (Giga, 2026-11-03): the Google Ads networks YouTube, YouTube search and watch.
+     Its money is in the Google Ads card too, and a Google lead arrives with no network, so no booking split. */
+  function ytCardHtml(w) {
+    const pw = platWin("ads", w, null);
+    if (!pw || pw.before || pw.after || !P.net.length) return "";
+    const tmap = {};
+    P.ads.forEach(r => { tmap[String(r.id)] = r.type; });
+    const y = adsNetSplit(inRange(P.net, pw.a, pw.b), inRange(P.netc, pw.a, pw.b), id => tmap[id] || (P.camp[id] || {}).type || "")[1];
+    if (!y.cost && !y.imp) return "";
+    const stat = (l, v) => "<div><span>" + l + "</span><b>" + v + "</b></div>";
+    return '<article class="mkd-plat"><div class="hd"><div><div class="nm"><h3>YouTube</h3><span class="mkd-chip">inside Google Ads</span></div>'
+      + '<div class="mko-sub">Google says: ' + fmtN(y.lead) + " lead conversions · " + fmtN(y.other) + " other</div>"
+      + '<div class="why">its spend is in the Google Ads card too</div></div>'
+      + '<div class="sp"><b>' + money0(y.cost) + "</b><span>spent</span></div></div>"
+      + '<div class="mkd-stats">' + stat("Impressions", compact(y.imp)) + stat("Clicks", fmtN(y.clk)) + stat("CTR", pct2(y.ctr)) + stat("CPC", cents(y.cpc)) + "</div>"
+      + '<div class="ours"><span>Bookings are not split out of Google\'s: a Google lead arrives with no network</span></div>'
+      + '<button type="button" class="go" data-open="mkoP-ads">Open detail ›</button></article>';
+  }
   function platCardHtml(r, avg) {
     const dash = "—";
     const tone = r.cpb == null ? "" : !avg || r.cpb <= avg ? " good" : r.cpb <= 2 * avg ? " mid" : " bad";
@@ -3162,7 +3231,7 @@
       + cpbBarsHtml(score, avg) + "</div>" + googleSplitCard(w) + "</div>"
       + '<section class="mkd-sec" aria-labelledby="mkdPlatH"><div class="mkd-h"><h2 id="mkdPlatH">Every platform</h2>'
       + "<span>what each platform reports, next to what we booked from it</span></div>"
-      + '<div class="mkd-plats">' + live.map(r => platCardHtml(r, avg)).join("") + offCardsHtml(w) + "</div>"
+      + '<div class="mkd-plats">' + live.map(r => platCardHtml(r, avg) + (r.k === "ads" ? ytCardHtml(w) : "")).join("") + offCardsHtml(w) + "</div>"
       + '<p class="rs-hint">* ChatGPT leads include visitors from chatgpt.com answers. † Reddit\'s cost per booking is the '
       + "Channels table's: the bank's Reddit total, which is more than the ad account. ‡ TikTok's is the ad account's spend, "
       + "and so is LinkedIn's: the bank files LinkedIn as not advertising"
@@ -3321,6 +3390,24 @@
       + "</tr></tbody></table></div>"
       + (list.length > 40 ? '<button type="button" class="rs-btn" id="mkoMtAll">' + (MK.all ? "Show the first 40" : "Show all " + fmtN(list.length)) + "</button>" : "");
   }
+  /* organic results by format (Elene, 2026-10-29: "per platform, then per format") */
+  function metaFormatHtml(rows, net) {
+    const list = groupBy(rows.filter(r => r.org && r.fmt), r => r.fmt).map(x => {
+      const o = x.rows.map(r => r.org);
+      return { k: x.k, n: x.rows.length, views: sum(o, "views"), reach: sum(o, "reach"), eng: sum(o, "eng"), act: sum(o, "act") };
+    }).sort((a, b) => b.reach / b.n - a.reach / a.n);
+    if (!list.length) return "";
+    const avg = (v, n) => (n ? (v / n >= 10 ? fmtN(v / n) : (v / n).toFixed(1)) : "—");
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">By format</span><span class="mko-sub">' + esc(net)
+      + ", organic posts published in the period, best average reach first</span></div>" + ptable([
+        { h: "Format", name: true, cell: x => "<b>" + esc(x.k) + "</b>" },
+        { h: "Posts", num: true, cell: x => fmtN(x.n) },
+        { h: "Avg. views", num: true, cell: x => avg(x.views, x.n) },
+        { h: "Avg. reach", num: true, cell: x => avg(x.reach, x.n) },
+        { h: net === "Instagram" ? "Avg. profile visits" : "Avg. clicks", num: true, cell: x => avg(x.act, x.n) },
+        { h: "Engagement rate", num: true, tip: "engagement ÷ reach, the format's posts together", cell: x => pct2(ratio(x.eng, x.reach)) },
+      ], list) + "</div>";
+  }
   function metaPaint(box, w, cw) {
     if (window.Chart) Object.values(Chart.instances || {}).forEach(ch => { if (ch.canvas && box.contains(ch.canvas)) ch.destroy(); });
     const pw = platWin("msoc", w, cw), any = P.mpost.length ? [{ n: 1 }] : [];
@@ -3352,7 +3439,7 @@
       + box6("Engagement rate", pct2(rate(cur.pEng, cur.pReach)), "", "engagement ÷ reach")
       + box6("Spend", money0(cur.cost), chipHtml(cur.cost, was("cost"), null), fmtN(cur.lead) + " leads by Meta's count")
       + "</div></section></div>"
-      + '<div class="panel" id="mkoMtTop"></div>'
+      + '<div class="panel" id="mkoMtTop"></div>' + metaFormatHtml(rows, net)
       + '<div class="rs-kpis" id="mkoK-meta"></div><div id="mkoMtChart"></div>'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Every post and ad</span><span id="mkoMtShow"></span>'
       + '<span class="mko-sub">click a column heading to rank by it, again to flip it</span>'
@@ -5240,8 +5327,12 @@
     const chRows = inRange(P.ga4ch, pw.a, pw.b);
     const ch = groupBy(chRows, r => r.grp).map(x => ({ k: x.k || "(other)", ses: sum(x.rows, "ses"), eng: sum(x.rows, "eng"),
       lead: sum(x.rows, "lead"), kev: sum(x.rows, "kev") })).filter(x => x.ses).sort((a, b) => b.ses - a.ses);
-    const sm = groupBy(chRows, r => r.src + " / " + r.med).map(x => ({ k: x.k, ses: sum(x.rows, "ses"), eng: sum(x.rows, "eng"),
+    const sm = groupBy(chRows, r => normSrc(r.src) + " / " + normMed(r.med)).map(x => ({ k: x.k, ses: sum(x.rows, "ses"), eng: sum(x.rows, "eng"),
       ssec: sum(x.rows, "ssec"), lead: sum(x.rows, "lead") })).filter(x => x.ses).sort((a, b) => b.ses - a.ses);
+    // Giga (2026-11-03): GA4 never sees a booking, so the website form tells which source booked
+    const fs = groupBy(inRange(P.fsrc, pw.a, pw.b), r => normSrc(r.src) + " / " + normMed(r.med)).map(x => ({ k: x.k, leads: sum(x.rows, "leads"),
+      booked: sum(x.rows, "booked") })).filter(x => x.leads).sort((a, b) => (b.booked - a.booked) || (b.leads - a.leads));
+    const fsTo = P.fsrc.reduce((a, r) => (r.d > a ? r.d : a), "");
     // the key events by name, lead actions first
     const ev = groupBy(inRange(P.ga4ev, pw.a, pw.b).filter(r => r.kev > 0), r => r.ev).map(x => ({ k: x.k, n: sum(x.rows, "kev") }))
       .sort((a, b) => b.n - a.n);
@@ -5289,6 +5380,13 @@
       + '<span class="mko-sub">by name · GA4 counts more than leads</span></div>' + evHtml
       + '<p class="rs-hint">GA4 marks first visits, the quote form\'s "continue" step and "read reviews" as key events '
       + "(first_visit since August 2026), so its key-event total is not a lead count. Lead actions are the rest.</p></div></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Website forms that booked</span>'
+      + '<span class="mko-sub">by the form\'s source / medium' + (fsTo ? " · forms through " + esc(day(fsTo)) : "") + "</span></div>"
+      + (P.err.fsrc ? '<div class="mko-empty">Could not load — ' + esc(P.err.fsrc) + "</div>"
+        : fs.length ? '<div id="mkoFsList"></div>' : '<div class="mko-empty">No website forms in this period yet.</div>')
+      + '<p class="rs-hint">Google Analytics counts key events but never sees a booking. This reads the website form itself: the tags it carried, '
+      + "and whether Moveboard booked that lead. (no utm) is a visitor who came without tags: Google search, a bookmark, or a link that carried none. "
+      + "The forms arrive with the weekly CMS export.</p></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Sessions by channel</span>'
       + '<span class="mko-sub">GA4 default channel grouping</span></div>'
       + (ch.length ? ptable([
@@ -5300,14 +5398,8 @@
         : '<div class="mko-empty">No sessions in this period.</div>') + "</div>"
       + '<div class="mko-g2e">'
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Source / medium</span>'
-      + '<span class="mko-sub">top 12 by sessions</span></div>'
-      + (sm.length ? ptable([
-        { h: "Source / medium", name: true, cell: x => esc(x.k) },
-        { h: "Sessions", num: true, cell: x => fmtN(x.ses) },
-        { h: "Engaged", num: true, cell: x => pct(ratio(x.eng, x.ses)) },
-        { h: "Avg. session", num: true, cell: x => dur(ratio(x.ssec, x.ses)) },
-        { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], sm.slice(0, 12), null, true)
-        : '<div class="mko-empty">No sessions in this period.</div>') + "</div>"
+      + '<span class="mko-sub">by sessions · spellings of one source added together</span></div>'
+      + (sm.length ? '<div id="mkoSmList"></div>' : '<div class="mko-empty">No sessions in this period.</div>') + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Landing pages</span>'
       + '<span class="mko-sub">by sessions · ' + esc(monthSpan(ms)) + " (monthly)</span></div>"
       + (lp.length ? '<div id="mkoLpList"></div>' : '<div class="mko-empty">No landing pages for these months yet.</div>') + "</div>"
@@ -5333,6 +5425,17 @@
         { h: "Engaged", num: true, cell: x => pct(ratio(x.eng, x.ses)) },
         { h: "Avg. session", num: true, cell: x => dur(ratio(x.ssec, x.ses)) },
         { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], lp, 12, true);
+      if (sm.length) pagedTable(host.querySelector("#mkoSmList"), [
+        { h: "Source / medium", name: true, cell: x => esc(x.k) },
+        { h: "Sessions", num: true, cell: x => fmtN(x.ses) },
+        { h: "Engaged", num: true, cell: x => pct(ratio(x.eng, x.ses)) },
+        { h: "Avg. session", num: true, cell: x => dur(ratio(x.ssec, x.ses)) },
+        { h: "Lead actions", num: true, cell: x => fmtN(x.lead) }], sm, 12, true);
+      if (fs.length) pagedTable(host.querySelector("#mkoFsList"), [
+        { h: "Source / medium on the form", name: true, cell: x => esc(x.k) },
+        { h: "Form leads", num: true, cell: x => fmtN(x.leads) },
+        { h: "Booked", num: true, cell: x => "<b>" + fmtN(x.booked) + "</b>" },
+        { h: "Booking rate", num: true, cell: x => pct(ratio(x.booked, x.leads)) }], fs, 12, true);
       const was = (v, fmt) => pw.cw ? (S.cmp === "prev" ? "previous" : "last year") + ": " + fmt(v) : "";
       RSC.kpis(host.querySelector("#mkoK-web"), [
         kp("Sessions", cur.ses, prev.ses, fmtN, false, "", pw),
@@ -5779,7 +5882,7 @@
         ZTZ.api("/api/_mktmark").then(j => (j && j.marks) || [])
           .catch(e => { P.err.marks = (e && e.message) || String(e); return []; }),
         plat("mkt_gscqd", "gscqd"), plat("mkt_gscpd", "gscpd"), plat("mkt_reddit", "reddit"),
-        plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"), plat("mkt_utmc", "utmc"),
+        plat("mkt_refdom", "refdom"), plat("mkt_anchor", "anchor"), plat("mkt_ctrace", "ctrace"), plat("mkt_utmc", "utmc"), plat("mkt_fsrc", "fsrc"),
         plat("mkt_brans", "brans"), plat("mkt_brmen", "brmen"), plat("mkt_brcit", "brcit"),
         plat("mkt_ahuse", "ahuse"), plat("mkt_ahquota", "ahquota"),
         plat("mkt_smov", "smov"), plat("mkt_smas", "smas"), plat("mkt_smorg", "smorg"), plat("mkt_smkw", "smkw"),
@@ -5788,7 +5891,7 @@
         plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
-                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc,
+                gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc, fsrc,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
@@ -5802,6 +5905,7 @@
         indexTikTok(tt);
         indexMeta({ mpost, mad, mlife, mpd, msoc });
         indexBatch3({ refdom, anchor, ctrace });
+        P.fsrc = (fsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", med: r.Medium || "", leads: num(r.Leads), booked: num(r.Booked) })).filter(r => r.d);
         P.utmc = (utmc || []).map(r => ({ d: d10(r.Date), plat: r.Platform, camp: normCamp(r["UTM Campaign"]), leads: num(r.Leads), booked: num(r.Booked) }));
         indexBrandRadar({ brans, brmen, brcit });
         indexAhrefsUsage({ ahuse, ahquota });
