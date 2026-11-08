@@ -6,6 +6,11 @@ window.ZTZ = (function () {
   const CLIENT_ID = "32168089642-fkk3rglncf6hl5ikq7pi6jbornug1kbb.apps.googleusercontent.com";
   const TOKEN_KEY = "ztz_tok";
   const VIEW_AS_KEY = "ztz_view_as";
+  /* Did THIS tab ever hold a live session? Arms the "sign in again" card (see
+     sessionLapsed below). A tab that opened signed out has the gate instead. */
+  let hadSession = false;
+  let sessionEmail = "";
+  let sessionWaiters = [];
 
   /* ---------- admin "view as user" ----------
      Which user the portal is currently being previewed AS. sessionStorage, not
@@ -25,23 +30,45 @@ window.ZTZ = (function () {
      silently answers as the admin for some requests is worse than no preview at all. That
      "a gate some paths bypass" shape is exactly the 2026-07-26 access bug. So patch once,
      match on the bridge origin, and add nothing but the header. */
+  /* The same single patch also holds back a bridge request whose session has RUN OUT
+     (2026-11-08). ~75 call sites fetch with ZTZ.getToken() directly; after the 12-hour
+     token expires they send "Bearer null" and each fails in its own way. Here the request
+     waits behind the "sign in again" card instead, and goes out with the fresh token once
+     the person signs in, so whatever they clicked simply finishes. */
   (function patchFetchForViewAs() {
     if (typeof window.fetch !== "function" || window.__ztzViewAsPatched) return;
     window.__ztzViewAsPatched = true;
     const orig = window.fetch;
+    const headersOf = (input, init) => new Headers((init && init.headers) ||
+      (typeof input !== "string" && input && input.headers) || {});
     window.fetch = function (input, init) {
+      const self = this;
+      let lapsed = false;
       try {
-        const as = getViewAs();
         const url = typeof input === "string" ? input : (input && input.url) || "";
-        if (as && url.indexOf(API) === 0) {
-          init = Object.assign({}, init || {});
-          const h = new Headers((init.headers) ||
-            (typeof input !== "string" && input && input.headers) || {});
-          h.set("X-View-As", as);
-          init.headers = h;
+        if (url.indexOf(API) === 0) {
+          const as = getViewAs();
+          if (as) {
+            init = Object.assign({}, init || {});
+            const h = headersOf(input, init);
+            h.set("X-View-As", as);
+            init.headers = h;
+          }
+          // Only a request that CARRIES a dead token: pre-auth routes send none, and
+          // /api/_session carries the fresh Google credential that ends the wait.
+          const auth = headersOf(input, init).get("Authorization") || "";
+          lapsed = hadSession && /^Bearer\s/i.test(auth) && url.indexOf("/api/_session") < 0
+            && !tokenValid(auth.replace(/^Bearer\s+/i, ""));
         }
       } catch (e) { /* never let the preview break a real request */ }
-      return orig.call(this, input, init);
+      if (!lapsed) return orig.call(self, input, init);
+      return whenSignedIn().then(function () {
+        init = Object.assign({}, init || {});
+        const h = headersOf(input, init);
+        h.set("Authorization", "Bearer " + getToken());
+        init.headers = h;
+        return orig.call(self, input, init);
+      });
     };
   })();
 
@@ -55,9 +82,111 @@ window.ZTZ = (function () {
     let t = null; try { t = localStorage.getItem(TOKEN_KEY); } catch (e) {}
     return (t && tokenValid(t)) ? t : null;
   }
-  function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
-  function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function setToken(t) {
+    try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {}
+    // Keep the FIRST account of this page's life: sessionBack() compares against it to
+    // tell "same person signed back in" from "someone else took the seat".
+    hadSession = true; sessionEmail = sessionEmail || decodeJwt(t).email || "";
+  }
+  // A deliberate clear (Sign out, a 401) is followed by a reload to the gate: disarm the
+  // card so it cannot flash up in between.
+  function clearToken() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} hadSession = false; }
   function email() { const t = getToken(); return t ? (decodeJwt(t).email || "") : ""; }
+
+  /* ---------- the session ran out while the page was open ----------
+     Bridge sessions last 12 hours, and a tab easily outlives one. Until 2026-11-08 nothing
+     said so: ZTZ.api threw "Not signed in" and each page printed that where its results go.
+     On Conversations it sat in grey under the Find button and read as "no calls with this
+     customer": a call that the warehouse held all along, with its transcript, looked as if
+     RingCentral had missed it.
+
+     So one place notices instead of every page: when a session THIS tab held runs out, a
+     card covers the page and asks for a sign-in. Signing in there does NOT reload, so filters,
+     a typed search and an open drawer survive, and every request that was waiting (ZTZ.api
+     and the direct fetches alike, see the fetch patch above) goes out with the new token.
+     A different Google account reloads instead, because the menu and grants were the old
+     person's. A sign-in in another tab of the portal closes the card here too. */
+  function sessionCard() { return document.getElementById("ztzSessionCard"); }
+  function releaseWaiters() {
+    const w = sessionWaiters; sessionWaiters = [];
+    w.forEach(function (f) { try { f(); } catch (e) {} });
+  }
+  /* The session is live again: close the card and let the queued requests go. */
+  function sessionBack() {
+    const em = email();
+    if (sessionEmail && em && em.toLowerCase() !== sessionEmail.toLowerCase()) {
+      location.reload(); return;
+    }
+    const c = sessionCard(); if (c) c.remove();
+    releaseWaiters();
+  }
+  function showSessionCard() {
+    if (sessionCard() || !document.body) return;
+    if (!document.getElementById("ztz-session-style")) {
+      const st = document.createElement("style"); st.id = "ztz-session-style";
+      st.textContent =
+        // On <body>, never inside #content: its rsfade transform would capture a fixed child.
+        ".ztzsess{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:16px;" +
+        "background:rgba(6,10,16,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}" +
+        ".ztzsess-card{width:100%;max-width:400px;box-sizing:border-box;text-align:center;" +
+        "background:var(--panel,#fff);color:var(--ink,#16202c);border:1px solid var(--line,#e3e8f0);" +
+        "border-radius:18px;box-shadow:0 24px 64px rgba(0,0,0,.35);padding:30px 28px 26px}" +
+        ".ztzsess-card h2{margin:0 0 8px;font-size:19px;font-weight:800;color:var(--ink,#16202c)}" +
+        ".ztzsess-card p{margin:0 0 18px;font-size:13.5px;line-height:1.55;color:var(--muted,#5b6b7c)}" +
+        ".ztzsess-card .ztzsess-who{margin:14px 0 0;font-size:12px;color:var(--faint,#8a97a6)}" +
+        ".ztzsess-slot{display:flex;justify-content:center;min-height:44px}" +
+        ".ztzsess-err{margin-top:10px;font-size:12.5px;color:#d9534f}";
+      document.head.appendChild(st);
+    }
+    const c = document.createElement("div");
+    c.id = "ztzSessionCard"; c.className = "ztzsess";
+    c.setAttribute("role", "dialog"); c.setAttribute("aria-modal", "true");
+    c.setAttribute("aria-labelledby", "ztzSessTitle");
+    const who = sessionEmail.replace(/[&<>"]/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch];
+    });
+    c.innerHTML =
+      '<div class="ztzsess-card">' +
+      '<h2 id="ztzSessTitle">Sign in again to keep going</h2>' +
+      "<p>Your portal session ran out (sessions last 12 hours). Sign in and this page carries " +
+      "on where you left off.</p>" +
+      '<div class="ztzsess-slot" id="ztzSessSlot"></div>' +
+      '<div class="ztzsess-err" id="ztzSessErr"></div>' +
+      (who ? '<p class="ztzsess-who">Last signed in as <b>' + who + "</b></p>" : "") +
+      "</div>";
+    document.body.appendChild(c);
+    mountSignin(document.getElementById("ztzSessSlot"), { onDone: sessionBack })
+      .catch(function () {
+        const e = document.getElementById("ztzSessErr");
+        if (e) e.textContent = "Google sign-in couldn't load. Check your internet connection " +
+          "and refresh this page.";
+      });
+  }
+  /* Resolves once a live session exists, showing the card if it has to ask for one. */
+  function whenSignedIn() {
+    if (getToken()) return Promise.resolve();
+    showSessionCard();
+    return new Promise(function (res) { sessionWaiters.push(res); });
+  }
+  function checkSession() {
+    if (!hadSession) return;
+    if (getToken()) { if (sessionCard() || sessionWaiters.length) sessionBack(); return; }
+    showSessionCard();
+  }
+  (function watchSession() {
+    hadSession = !!getToken();
+    sessionEmail = email();
+    // 15 s is plenty: getToken() already treats a token as dead 30 s before it expires, and
+    // a tab coming back from the background is checked the moment it is shown.
+    setInterval(checkSession, 15000);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") checkSession();
+    });
+    window.addEventListener("focus", checkSession);
+    window.addEventListener("storage", function (e) {
+      if (!e || e.key === TOKEN_KEY || e.key === null) checkSession();
+    });
+  })();
   /* Exchange a fresh Google ID token for a long-lived bridge session token.
      Returns the session token, or the original credential if the exchange fails
      (e.g. bridge not yet redeployed) so sign-in still works. */
@@ -72,6 +201,8 @@ window.ZTZ = (function () {
 
   /* ---------- bridge API ---------- */
   async function api(path) {
+    // A session that ran out mid-visit waits for the sign-in card rather than failing.
+    if (!getToken() && hadSession) await whenSignedIn();
     const t = getToken();
     if (!t) throw new Error("Not signed in");
     const r = await fetch(API + path, { headers: { Authorization: "Bearer " + t } });
