@@ -210,6 +210,15 @@
     mkt_lipage: { table: "ext_linkedin_page_day", cols: ["Date", "Followers Gained", "Paid Followers Gained",
                                                          "Page Views", "Post Impressions", "Post Clicks",
                                                          "Post Reactions", "Post Comments", "Post Shares", "Followers"] },
+    // 2026-11-09: who follows the Company Page, one lifetime snapshot per pull day (src/linkedin_ads.py)
+    mkt_limix: { table: "ext_linkedin_follower_mix", cols: ["Date", "Dimension", "Key", "Label", "Organic", "Paid"] },
+    // 2026-11-09: TikTok organic, @ziptozipmoving (src/tiktok_organic.py), built ahead of TikTok's approval
+    mkt_ttacc: { table: "ext_tiktok_account_day", cols: ["Date", "Followers", "Video Views", "Profile Views", "Likes", "Comments", "Shares"] },
+    mkt_ttvid: { table: "ext_tiktok_video", cols: ["Video Id", "Published At", "Caption", "Url", "Duration"] },
+    mkt_ttvday: { table: "ext_tiktok_video_day", cols: ["Video Id", "Date", "Views", "Reach", "Likes", "Comments", "Shares",
+                                                         "Avg Watch Seconds", "Full Watch Rate"] },
+    mkt_ttsrc: { table: "ext_tiktok_video_source", cols: ["Video Id", "Date", "Source", "Share"] },
+    mkt_ttaud: { table: "ext_tiktok_audience", cols: ["Date", "Type", "Value", "Share"] },
     // 2026-10-23: the citation map (Ahrefs, weekly) and Google bookings traced to a campaign
     mkt_refdom: { table: "ext_ahrefs_refdomain", cols: ["Domain", "Domain Rating", "Is Spam", "Dofollow Links", "Links",
                                                         "First Seen", "Last Seen"] },
@@ -300,7 +309,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], tt: [], utmc: [], fsrc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], limix: [], tt: [], tto: [], ttvid: {}, ttvday: [], ttsrc: [], ttaud: [], utmc: [], fsrc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -1186,6 +1195,22 @@
       eng: num(r.Likes) + num(r.Comments) + num(r.Shares) }));
     const c = D.conn.find(r => r.Key === "tiktok"), pulled = c && c["Newest Data"] ? d10(c["Newest Data"]) : null;
     if (P.first.tt && pulled && pulled > P.last.tt) P.last.tt = pulled;
+  }
+  // TikTok organic (2026-11-09): the account per day, every video's numbers to date per pull day,
+  // where its views came from, and the audience; empty until TikTok approves the account scopes
+  function indexTikTokOrganic(t) {
+    indexPlat("tto", t.ttacc, r => ({ d: d10(r.Date), fol: r.Followers == null || r.Followers === "" ? null : num(r.Followers),
+      views: num(r["Video Views"]), pv: num(r["Profile Views"]), likes: num(r.Likes), com: num(r.Comments), sh: num(r.Shares),
+      n: num(r["Video Views"]) }));
+    P.ttvid = {};
+    (t.ttvid || []).forEach(r => { P.ttvid[String(r["Video Id"])] = { pub: r["Published At"] ? String(r["Published At"]).slice(0, 10) : "",
+      cap: r.Caption || "", url: r.Url || "", dur: r.Duration == null ? null : num(r.Duration) }; });
+    P.ttvday = (t.ttvday || []).map(r => ({ id: String(r["Video Id"]), d: d10(r.Date), views: num(r.Views), reach: num(r.Reach),
+      likes: num(r.Likes), com: num(r.Comments), sh: num(r.Shares),
+      watch: r["Avg Watch Seconds"] == null ? null : num(r["Avg Watch Seconds"]),
+      full: r["Full Watch Rate"] == null ? null : num(r["Full Watch Rate"]) })).filter(r => r.d);
+    P.ttsrc = (t.ttsrc || []).map(r => ({ id: String(r["Video Id"]), d: d10(r.Date), src: r.Source || "", share: num(r.Share) })).filter(r => r.d);
+    P.ttaud = (t.ttaud || []).map(r => ({ d: d10(r.Date), type: r.Type || "", val: r.Value || "", share: num(r.Share) })).filter(r => r.d);
   }
   // the Page's follower total at the end of day `d`: the newest total a pull saw, less the gains after d
   function followersAt(d) {
@@ -2384,6 +2409,35 @@
       costCard(host.querySelector("#mkoC-tt"), "tt", "Spend", pw, rows, cmp, null);
     } };
   }
+  /* who follows the Company Page (2026-11-09, Elene's "LinkedIn shows only the surface"): LinkedIn's
+     lifetime breakdown, from the newest snapshot on or before the period's end (else the oldest one
+     there is). A breakdown counts only the followers LinkedIn could place, so a list can add up to
+     less than the total. */
+  const LI_MIX_DIMS = [["Area", "Where they are", 6], ["Industry", "Industry", 6], ["Job function", "Job function", 6],
+                       ["Seniority", "Seniority", 10], ["Company size", "Company size", 6]];
+  function liFollowerMix(pw) {
+    const all = P.limix || [];
+    if (!all.length || !pw) return "";
+    const days = Array.from(new Set(all.map(r => r.d))).sort();
+    const snap = days.filter(d => d <= pw.b).pop() || days[0];
+    const rows = all.filter(r => r.d === snap);
+    const total = followersAt(snap) || Math.max(0, ...LI_MIX_DIMS.map(([dim]) => sum(rows.filter(r => r.dim === dim), "n")));
+    const block = ([dim, title, top]) => {
+      const list = rows.filter(r => r.dim === dim && r.n > 0).sort((a, b) => b.n - a.n).slice(0, top);
+      if (!list.length) return "";
+      const max = list[0].n;
+      return '<div><h3 class="mko-h3">' + esc(title) + "</h3>" + list.map(x => '<div class="mko-hbar"><span>' + esc(x.label)
+        + '</span><span class="mko-track"><i style="width:' + Math.max(2, Math.round(100 * x.n / (max || 1))) + '%"></i></span><b>'
+        + fmtN(x.n) + (total ? ' <span class="mko-sub">' + Math.round(100 * x.n / total) + "%</span>" : "") + "</b></div>").join("") + "</div>";
+    };
+    const emp = sum(rows.filter(r => r.dim === "Employees"), "n");
+    return '<div class="panel"><div class="panel-head"><span class="panel-title">Who follows the page</span>'
+      + '<span class="mko-sub">LinkedIn\'s breakdown of all ' + (total ? fmtN(total) + " " : "") + "followers, as of " + esc(day(snap))
+      + "</span></div>" + '<div class="mko-g2e">' + LI_MIX_DIMS.map(block).join("") + "</div>"
+      + (emp ? '<p class="rs-hint">' + fmtN(emp) + " of the followers work at Zip To Zip (the office team included), so the "
+        + "areas and industries above include our own people.</p>" : "")
+      + '<p class="rs-hint">Each list counts only the followers LinkedIn could place, so it can add up to less than the total.</p></div>';
+  }
   /* the Company Page: followers, page views and what its posts reached, for the same period */
   function linkedinPage(w, cw) {
     const pw = platWin("lip", w, cw);
@@ -2398,7 +2452,7 @@
     const rate = x => (x.imp ? (x.clk + x.eng) / x.imp : null);
     const end = followersAt(pw.b);
     return {
-      html: head + '<div class="rs-kpis" id="mkoK-lip"></div>',
+      html: head + '<div class="rs-kpis" id="mkoK-lip"></div>' + liFollowerMix(pw),
       wire(host) {
         RSC.kpis(host.querySelector("#mkoK-lip"), [
           { label: "Followers", value: end == null ? "—" : fmtN(end),
@@ -3557,22 +3611,99 @@
     };
   }
 
+  /* TikTok organic (2026-11-09, Elene's TikTok plan): the account's KPIs for the period, every video
+     with its numbers to date, where the views came from and who watches. Until TikTok approves the
+     account scopes there is no row, and the card says what it waits for. Engagement rate = (likes +
+     comments + shares) / views, her definition. */
+  const TT_SRC_NAME = { For_You: "For You", FOR_YOU: "For You", Follow: "Following", FOLLOW: "Following",
+    Personal_Profile: "Profile", PERSONAL_PROFILE: "Profile", Search: "Search", SEARCH: "Search",
+    Hashtag: "Hashtag", HASHTAG: "Hashtag", Sound: "Sound", SOUND: "Sound" };
+  const ttEng = x => ratio(x.likes + x.com + x.sh, x.views);
+  function tiktokOrganic(w, cw) {
+    if (!P.tto.length && !P.err.tto) return null;
+    const pw = platWin("tto", w, cw);
+    const head = platHead("tto", "TikTok", "@ziptozipmoving · organic, from TikTok's own account figures", pw);
+    const rows = pw ? inRange(P.tto, pw.a, pw.b) : [];
+    const gate = platGate("TikTok", "tto", pw, rows);
+    if (gate) return { html: head + gate, wire: null };
+    const cmp = pw.cw ? inRange(P.tto, pw.cw.a, pw.cw.b) : null;
+    const tot = rs => ({ views: sum(rs, "views"), pv: sum(rs, "pv"), likes: sum(rs, "likes"), com: sum(rs, "com"), sh: sum(rs, "sh") });
+    const folAt = (rs, last) => { const x = rs.filter(r => r.fol != null).sort((a, b) => (a.d < b.d ? -1 : 1)); return x.length ? x[last ? x.length - 1 : 0].fol : null; };
+    const cur = tot(rows), prev = cmp ? tot(cmp) : {};
+    const fEnd = folAt(rows, true), fStart = folAt(rows, false);
+    // videos: the newest snapshot on or before the period's end, every video published by then
+    const snaps = Array.from(new Set(P.ttvday.map(r => r.d))).sort();
+    const snap = snaps.filter(d => d <= pw.b).pop() || snaps[0];
+    const vids = P.ttvday.filter(r => r.d === snap).map(r => Object.assign({}, r, P.ttvid[r.id] || {}, { eng: ttEng(r) }))
+      .sort((a, b) => b.views - a.views);
+    const srcAgg = {};
+    P.ttsrc.filter(r => r.d === snap).forEach(r => {
+      const v = vids.find(x => x.id === r.id), name = TT_SRC_NAME[r.src] || r.src.replace(/_/g, " ");
+      srcAgg[name] = (srcAgg[name] || 0) + (v ? v.views : 0) * r.share;
+    });
+    const srcList = Object.entries(srcAgg).map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v);
+    const srcTot = srcList.reduce((s, x) => s + x.v, 0);
+    const audSnap = Array.from(new Set(P.ttaud.map(r => r.d))).sort().filter(d => d <= pw.b).pop()
+      || Array.from(new Set(P.ttaud.map(r => r.d))).sort()[0];
+    const aud = type => P.ttaud.filter(r => r.d === audSnap && r.type === type).sort((a, b) => b.share - a.share).slice(0, 6);
+    const bars = list => list.map(x => '<div class="mko-hbar"><span>' + esc(x.k) + '</span><span class="mko-track"><i style="width:'
+      + Math.max(2, Math.round(100 * x.v / ((list[0] && list[0].v) || 1))) + '%"></i></span><b>' + Math.round(100 * x.s) + "%</b></div>").join("");
+    const audHtml = [["country", "Country"], ["gender", "Gender"], ["age", "Age"]].map(([t, title]) => {
+      const l = aud(t).map(x => ({ k: x.val, v: x.share, s: x.share }));
+      return l.length ? '<div><h3 class="mko-h3">' + title + "</h3>" + bars(l) + "</div>" : "";
+    }).join("");
+    const vidCols = [
+      { h: "Video", name: true, cell: r => (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' : "")
+          + "<b>" + esc((r.cap || "(no caption)").slice(0, 80)) + "</b>" + (r.url ? "</a>" : "")
+          + '<div class="mko-sub">' + esc(r.pub ? day(r.pub) : "") + (r.dur ? " · " + r.dur + " s" : "") + "</div>" },
+      { h: "Views", num: true, cell: r => fmtN(r.views) },
+      { h: "Reach", num: true, tip: "people who saw it", cell: r => (r.reach ? fmtN(r.reach) : "—") },
+      { h: "Likes", num: true, cell: r => fmtN(r.likes) },
+      { h: "Comments", num: true, cell: r => fmtN(r.com) },
+      { h: "Shares", num: true, cell: r => fmtN(r.sh) },
+      { h: "Eng. rate", num: true, tip: "(likes + comments + shares) ÷ views", cell: r => pct2(r.eng) },
+      { h: "Avg watch", num: true, cell: r => (r.watch == null ? "—" : r.watch.toFixed(1) + " s") },
+      { h: "Watched fully", num: true, cell: r => (r.full == null ? "—" : pct(r.full)) },
+    ];
+    const html = head + '<div class="rs-kpis" id="mkoK-tto"></div>' + noCmpHint("TikTok", pw)
+      + (vids.length ? '<div class="panel"><div class="panel-head"><span class="panel-title">Videos</span>'
+        + '<span class="mko-sub">every video with its numbers to ' + esc(day(snap)) + ", most viewed first</span></div>"
+        + ptable(vidCols, vids.slice(0, 25), null) + (vids.length > 25 ? '<p class="rs-hint">The 25 most viewed of ' + fmtN(vids.length) + ".</p>" : "")
+        + "</div>" : "")
+      + (srcList.length || audHtml ? '<div class="panel"><div class="panel-head"><span class="panel-title">Where the views came from, and who watches</span>'
+        + '<span class="mko-sub">as of ' + esc(day(snap || audSnap)) + "</span></div><div class=\"mko-g2e\">"
+        + (srcList.length ? '<div><h3 class="mko-h3">Traffic source</h3>' + bars(srcList.slice(0, 6).map(x => ({ k: x.k, v: x.v, s: srcTot ? x.v / srcTot : 0 }))) + "</div>" : "")
+        + audHtml + "</div></div>" : "");
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-tto"), [
+        { label: "Followers", value: fEnd == null ? "—" : fmtN(fEnd),
+          sub: "at " + day(pw.b) + (fEnd != null && fStart != null ? " · " + (fEnd - fStart >= 0 ? "+" : "") + fmtN(fEnd - fStart) + " in the period" : "") },
+        kp("Video views", cur.views, prev.views, fmtN, false, "", pw),
+        kp("Profile views", cur.pv, prev.pv, fmtN, false, "", pw),
+        kp("Engagement rate", ttEng(cur), cmp ? ttEng(prev) : undefined, pct2, false, "(likes + comments + shares) ÷ views", pw),
+      ]);
+    } };
+  }
   function socialTab(w, cw) {
     const li = linkedinPage(w, cw);
+    const tt = tiktokOrganic(w, cw);
     const card = (name, chip, body) => '<article class="mkd-plat off"><div class="hd"><div><div class="nm"><h3>' + esc(name)
       + '</h3><span class="mkd-chip">' + esc(chip) + "</span></div></div></div><p>" + body + "</p></article>";
     const html = '<section class="mkd-sec" id="mkoMeta" aria-label="Facebook and Instagram"></section>'
       + '<section class="mkd-sec" aria-label="LinkedIn Company Page">' + li.html + "</section>"
-      + '<section class="mkd-sec" aria-labelledby="mkdSocH"><div class="mkd-h"><h2 id="mkdSocH">Coming next</h2>'
-      + "<span>fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
-      + card("TikTok", "later", "Organic video stats need TikTok's account scope, which the reporting app does not "
-          + "ask for yet. The ads are on the Paid ads tab.")
-      + "</div></section>";
+      + (tt ? '<section class="mkd-sec" aria-label="TikTok">' + tt.html + "</section>"
+        : '<section class="mkd-sec" aria-labelledby="mkdSocH"><div class="mkd-h"><h2 id="mkdSocH">Coming next</h2>'
+        + "<span>fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
+        + card("TikTok", "waiting for TikTok", "The account is connected and the page is built: followers, views, every video "
+            + "with its watch time, where the views came from and who watches. It fills in once TikTok approves the "
+            + "reporting app's account access. The ads are on the Paid ads tab.")
+        + "</div></section>");
     return { html, wire(host) {
       const box = host.querySelector("#mkoMeta");
       if (S.co === "Tuji") box.innerHTML = '<p class="mkd-note">The Facebook Page and Instagram account are Zip to Zip\'s, so they are not shown for Tuji.</p>';
       else metaPaint(box, w, cw);
       if (li.wire) li.wire(host);
+      if (tt && tt.wire) tt.wire(host);
     } };
   }
 
@@ -5889,10 +6020,13 @@
         plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
         plat("mkt_li", "li"), plat("mkt_lipage", "lip"), plat("mkt_tt", "tt"),
         plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
+        plat("mkt_limix", "limix"),
+        plat("mkt_ttacc", "tto"), plat("mkt_ttvid", "tto"), plat("mkt_ttvday", "tto"), plat("mkt_ttsrc", "tto"), plat("mkt_ttaud", "tto"),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc, fsrc,
-                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc]) => {
+                brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc,
+                limix, ttacc, ttvid, ttvday, ttsrc, ttaud]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -5902,7 +6036,10 @@
         indexMarks(marks);
         indexReddit(reddit);
         indexLinkedIn(li, lip);
+        P.limix = (limix || []).map(r => ({ d: d10(r.Date), dim: r.Dimension || "", key: r.Key || "", label: r.Label || r.Key || "",
+          n: num(r.Organic) + num(r.Paid) })).filter(r => r.d && r.dim);
         indexTikTok(tt);
+        indexTikTokOrganic({ ttacc, ttvid, ttvday, ttsrc, ttaud });
         indexMeta({ mpost, mad, mlife, mpd, msoc });
         indexBatch3({ refdom, anchor, ctrace });
         P.fsrc = (fsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", med: r.Medium || "", leads: num(r.Leads), booked: num(r.Booked) })).filter(r => r.d);
