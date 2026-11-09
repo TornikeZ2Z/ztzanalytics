@@ -231,7 +231,7 @@
         const steps = [["Sent", n, C.ink], ["Delivered", delivered, C.ink2], ["Opened", opened, C.blue], ["Clicked", clicked, C.lime], ["Answered", answered, C.s5]];
         const funnel = steps.map(s => '<div class="svy-br"><span>' + s[0] + "</span>" + meter(s[1], n, s[2])
           + "<b>" + num(s[1]) + "<small>" + pct(s[1], n) + "</small></b></div>").join("")
-          + (S.tracking ? "" : '<p class="svy-note" style="margin:10px 0 0">Delivered, opened and clicked fill in once Resend\'s webhook is connected. Answered is always exact: every emailed link is personal.</p>');
+          + (S.tracking ? "" : '<p class="svy-note" style="margin:10px 0 0">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always exact: every emailed link is personal.</p>');
         const scores = QUESTIONS.map(([k, label]) => {
           const v = rs.map(r => +r[k]).filter(x => x > 0);
           const c = [v.filter(x => x <= 2).length, v.filter(x => x === 3).length, v.filter(x => x === 4).length, v.filter(x => x === 5).length];
@@ -276,7 +276,7 @@
             + "<td>" + esc(String(b.who || "—").split("@")[0]) + "</td><td>" + b.n + "</td>"
             + "<td>" + (S.tracking ? b.del + ' <span class="svy-sub">' + pct(b.del, b.n) + "</span>" : "—") + "</td>"
             + "<td>" + (S.tracking ? b.op + ' <span class="svy-sub">' + pct(b.op, b.n) + "</span>" : "—") + "</td>"
-            + "<td>" + (S.tracking ? b.cl + ' <span class="svy-sub">' + pct(b.cl, b.n) + "</span>" : "—") + "</td>"
+            + "<td>" + b.cl + ' <span class="svy-sub">' + pct(b.cl, b.n) + "</span></td>"
             + "<td><b>" + b.an + '</b> <span class="svy-sub">' + pct(b.an, b.n) + "</span></td>"
             + "<td>" + (b.ov.length ? (b.ov.reduce((a, c) => a + c, 0) / b.ov.length).toFixed(1) + "/5" : "—") + "</td>"
             + "<td>" + (b.fl ? '<span class="svy-flag svy-bad">' + b.fl + "</span>" : "0") + "</td></tr>").join("")
@@ -328,7 +328,7 @@
               : f[0] === "opened" ? ["opened", "clicked"].includes(s.state_now) : f[0] === "answered" ? s.state_now === "answered"
               : ["bounced", "complained", "failed"].includes(s.state_now))).length + "</div>").join("")
           + '<label class="rs-fld" style="margin-left:auto"><span>Find</span><input class="rs-inp" id="svySQ" placeholder="Customer, email, foreman…" value="' + esc(S.sQ) + '"></label></div>';
-        if (!S.tracking) h += '<p class="svy-note">Delivered, opened and clicked fill in once Resend\'s webhook is connected. Until then a send shows Sent, then Answered.</p>';
+        if (!S.tracking) h += '<p class="svy-note">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always tracked.</p>';
         const tl = s => [["Delivered", s.delivered_at], ["Opened", s.opened_at], ["Clicked", s.clicked_at], ["Answered", s.answered_at], ["Bounced", s.bounced_at]]
           .filter(x => x[1]).map(x => x[0] + " " + dt(x[1]).slice(5)).join(" · ");
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
