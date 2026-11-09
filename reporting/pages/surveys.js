@@ -228,9 +228,12 @@
           + kpi(pct(rec, rs.length), "Would recommend", "answered 4 or 5 of 5")
           + kpi(flagged.length, "Flagged", "an issue or a low mark", flagged.length ? "warn" : "") + "</div>";
         // funnel + scores
-        const steps = [["Sent", n, C.ink], ["Delivered", delivered, C.ink2], ["Opened", opened, C.blue], ["Clicked", clicked, C.lime], ["Answered", answered, C.s5]];
-        const funnel = steps.map(s => '<div class="svy-br"><span>' + s[0] + "</span>" + meter(s[1], n, s[2])
-          + "<b>" + num(s[1]) + "<small>" + pct(s[1], n) + "</small></b></div>").join("")
+        // without Resend's webhook, delivered/opened would only be inferred from clicks (10 clicks of 100
+        // sends would read "10% delivered"), so they show as not tracked instead of a wrong number
+        const steps = [["Sent", n, C.ink], ["Delivered", S.tracking ? delivered : null, C.ink2], ["Opened", S.tracking ? opened : null, C.blue],
+                       ["Clicked", clicked, C.lime], ["Answered", answered, C.s5]];
+        const funnel = steps.map(s => '<div class="svy-br"><span>' + s[0] + "</span>" + meter(s[1] || 0, n, s[2])
+          + "<b>" + (s[1] == null ? '<small style="margin:0">not tracked yet</small>' : num(s[1]) + "<small>" + pct(s[1], n) + "</small>") + "</b></div>").join("")
           + (S.tracking ? "" : '<p class="svy-note" style="margin:10px 0 0">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always exact: every emailed link is personal.</p>');
         const scores = QUESTIONS.map(([k, label]) => {
           const v = rs.map(r => +r[k]).filter(x => x > 0);
