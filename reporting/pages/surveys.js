@@ -175,10 +175,12 @@
       function loadTemplate() {
         return api("/api/_surveyadmin?view=template").then(j => {
           S.tpl = j.template; S.draft = Object.assign({}, j.template); S.from = j.from; S.address = j.address;
+          S.kit = j.kit || {}; S.designDirty = false;
+          S.design = JSON.parse(JSON.stringify(j.template.design || j.template.design_default || { subject: "", blocks: [] }));
+          delete S.draft.design; delete S.draft.design_default;
           S.resend = !!j.resend; S.tracking = !!j.tracking; S.tplErr = "";
           if (!S.testTo) S.testTo = (window.ME && ME.email) || "";
           if (alive()) paint();
-          return preview();
         }).catch(e => { S.tplErr = e.message || String(e); if (alive()) paint(); });
       }
       function preview() {
@@ -599,34 +601,32 @@
 
       // ---- EMAIL -------------------------------------------------------------------------------
       function emailView() {
-        if (!S.draft) return S.tplErr ? '<div class="panel">Could not load the email: ' + esc(S.tplErr)
+        if (!S.design) return S.tplErr ? '<div class="panel">Could not load the email: ' + esc(S.tplErr)
           + ' <button class="rs-btn" data-retry="email" style="margin-left:10px">Try again</button></div>'
           : '<div class="panel">Loading the email…</div>';
-        const d = S.draft;
-        return '<div class="svy-grid"><div class="panel svy-ed">'
-          + '<p class="svy-note" style="margin-top:0">A short letter from customer care with one button to the customer\'s own survey. '
-          + "From <b>" + esc(S.from) + "</b>, a no-reply address; the footer carries the company address and an unsubscribe link. "
-          + "In the text, <b>{first}</b> is the customer's first name and <b>{move_date}</b> their move day. A blank line starts a new paragraph.</p>"
-          + '<label for="svySubj">Subject</label><input id="svySubj" maxlength="160" value="' + esc(d.subject) + '">'
-          + '<label for="svyIntro">Text (after "Hi {first},")</label><textarea id="svyIntro" maxlength="2000">' + esc(d.intro) + "</textarea>"
-          + '<label for="svyBtn">Button</label><input id="svyBtn" maxlength="60" value="' + esc(d.button) + '">'
-          + '<div class="svy-two"><div><label for="svySignN">Signed by</label><input id="svySignN" maxlength="60" value="' + esc(d.sign_name) + '"></div>'
-          + '<div><label for="svySignT">Their title</label><input id="svySignT" maxlength="120" value="' + esc(d.sign_title) + '"></div></div>'
-          + '<div class="rs-bar" style="margin-top:16px"><button class="rs-btn pri" id="svySave"' + (S.busy ? " disabled" : "") + ">Save the email</button></div>"
-          + '<label for="svyTestTo">Send a test to</label>'
-          + '<div class="rs-bar" style="margin:0"><input id="svyTestTo" class="rs-inp" style="flex:1;min-width:200px" value="' + esc(S.testTo) + '">'
-          + '<button class="rs-btn" id="svyTest"' + (S.resend && !S.busy ? "" : " disabled") + ">Send test</button></div>"
-          + '<p class="svy-note">The test carries a real personal link, so you can open the survey and answer it like a customer. '
-          + "It goes to you or a company inbox only, and stays out of every count (switch on Include tests to see it).</p>"
-          + (S.resend ? "" : '<p class="svy-note">The test and the send open once the bridge has the Resend key.</p>')
-          + (S.tpl && S.tpl.updated_by ? '<p class="svy-note">Last saved by ' + esc(S.tpl.updated_by) + " · " + esc(dt(S.tpl.updated_at)) + "</p>" : "")
+        // THE DESIGNER (11 Nov, ZTZ-60, his pick): the survey's email is built from the same blocks as every
+        // Email Automation, in the green design Tako's team sent. Sending, personal links and tracking are
+        // unchanged: a button set to "the customer's own survey" carries the personal link.
+        return '<div class="rs-bar" style="margin:0 0 12px;flex-wrap:wrap;gap:8px"><button class="rs-btn pri" id="svySave"' + (S.busy || !S.designDirty ? " disabled" : "") + ">Save the email</button>"
+          + '<span class="svy-note" style="margin:0" role="status">' + (S.designDirty ? "Unsaved changes: the next send uses the last saved email." : S.tpl && S.tpl.updated_by
+            ? "Saved by " + esc(S.tpl.updated_by) + " · " + esc(dt(S.tpl.updated_at)) : "") + "</span><span class=\"rs-spacer\" style=\"flex:1\"></span>"
+          + '<label class="svy-note" for="svyTestTo" style="margin:0">Send a test to</label><input id="svyTestTo" class="rs-inp" style="width:240px" value="' + esc(S.testTo) + '">'
+          + '<button class="rs-btn" id="svyTest"' + (S.resend && !S.busy ? "" : " disabled") + ">Send a test</button></div>"
           + (S.msg ? '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>" : "")
-          + "</div><div>"
-          + '<div class="rs-bar"><b style="font-size:13px">Subject:</b><span id="svyPvSubj" style="font-size:13px">' + esc(S.pvSubject || "") + '</span><span class="rs-spacer"></span>'
-          + '<div class="rs-tog' + (S.pv === "desk" ? " on" : "") + '" data-pv="desk"><i></i>Desktop</div>'
-          + '<div class="rs-tog' + (S.pv === "mob" ? " on" : "") + '" data-pv="mob"><i></i>Phone</div></div>'
-          + '<div class="svy-pv ' + (S.pv === "mob" ? "mob" : "") + '"><iframe id="svyPv" title="Email preview" sandbox=""></iframe></div>'
-          + '<p class="svy-note">The preview uses a sample customer, Jordan, who moved on October 24.</p></div></div>';
+          + '<p class="svy-note">A test carries a real personal link, so you can open the survey and answer it like a customer. It goes to you or a company inbox only, and stays out of every count.</p>'
+          + '<div id="svyDesigner"></div>';
+      }
+      function mountDesigner() {
+        const el = host.querySelector("#svyDesigner");
+        if (!el || !window.EMAILDESIGNER || !S.design) return;
+        const adminPost = body => api("/api/_emailadmin", { method: "POST", body: JSON.stringify(body) });
+        EMAILDESIGNER.mount(el, {
+          template: S.design, kit: S.kit || {}, survey: true, category: "survey", designs: false,
+          preview: t => post({ action: "preview", template: Object.assign({}, S.draft, { design: t }) }),
+          upload: EMAILDESIGNER.uploader(adminPost),
+          onChange: () => { if (!S.designDirty) { S.designDirty = true; const b = host.querySelector("#svySave"); if (b) b.disabled = false;
+            const n = b && b.nextElementSibling; if (n) n.textContent = "Unsaved changes: the next send uses the last saved email."; } },
+        });
       }
 
       // ---- paint + wire ------------------------------------------------------------------------
@@ -645,9 +645,8 @@
         S.tab = tab; say("");
         if ((tab === "over" || tab === "sends" || tab === "ans") && (S.sends === null || S.ans === null)) loadPeriod();
         else if (tab === "list" && (S.rows === null || S.err)) loadList();
-        else if (tab === "email" && !S.draft) loadTemplate();
+        else if (tab === "email" && !S.design) loadTemplate();
         else paint();
-        if (tab === "email" && S.draft) preview();
       }
 
       function wire() {
@@ -677,7 +676,7 @@
           const all = visible(S.rows).filter(sendable);
           if (!all.length) return;
           const list = all.slice(0, MAX_PER_SEND);
-          const unsaved = S.draft && S.tpl && ["subject", "intro", "button", "sign_name", "sign_title"].some(k => (S.draft[k] || "") !== (S.tpl[k] || ""));
+          const unsaved = !!S.designDirty;
           if (!confirm("Send the survey to " + list.length + " customer" + (list.length === 1 ? "" : "s") + " now? Each move can get it only once."
             + (all.length > list.length ? "\n\nOne press sends at most " + MAX_PER_SEND + "; the other " + (all.length - list.length) + " stay on the list for the next press." : "")
             + (unsaved ? "\n\nYour email edits are NOT saved: this send uses the last saved email." : ""))) return;
@@ -689,23 +688,20 @@
             loadList();
           }).catch(e => { S.busy = false; say(e.message || String(e), true); loadList(); });   // the list shows what really went
         };
-        // email
-        host.querySelectorAll("[data-pv]").forEach(b => { b.onclick = () => { S.pv = b.dataset.pv; paint(); preview(); }; });
-        let t = null;
-        [["#svySubj", "subject"], ["#svyIntro", "intro"], ["#svyBtn", "button"], ["#svySignN", "sign_name"], ["#svySignT", "sign_title"]].forEach(([sel, k]) => {
-          const el = host.querySelector(sel);
-          if (el) el.oninput = function () { S.draft[k] = this.value; clearTimeout(t); t = setTimeout(preview, 500); };
-        });
+        // email (the designer mounts after the paint)
         const tto = host.querySelector("#svyTestTo"); if (tto) tto.oninput = function () { S.testTo = this.value; };
+        const full = () => Object.assign({}, S.draft, { design: S.design });
         const sv = host.querySelector("#svySave");
         if (sv) sv.onclick = () => { S.busy = true; paint();
-          post({ action: "template", template: S.draft }).then(j => { S.busy = false; S.tpl = j.template; say("Saved. The next send uses this email."); paint(); preview(); })
+          post({ action: "template", template: full() }).then(j => { S.busy = false; S.tpl = j.template; S.designDirty = false;
+            if (j.template.design) S.design = JSON.parse(JSON.stringify(j.template.design));
+            say("Saved. The next send uses this email."); paint(); })
             .catch(e => { S.busy = false; say(e.message || String(e), true); paint(); }); };
         const ts = host.querySelector("#svyTest");
         if (ts) ts.onclick = () => { S.busy = true; paint();
-          post({ action: "test", template: S.draft, to: S.testTo }).then(j => { S.busy = false; S.sends = null; S.ans = null; say("Test sent to " + j.to + ". Its link is personal: open it and answer like a customer."); paint(); preview(); })
-            .catch(e => { S.busy = false; say(e.message || String(e), true); paint(); preview(); }); };
-        const f = host.querySelector("#svyPv"); if (f && S.pvHtml) f.srcdoc = S.pvHtml;
+          post({ action: "test", template: full(), to: S.testTo }).then(j => { S.busy = false; S.sends = null; S.ans = null; say("Test sent to " + j.to + ". Its link is personal: open it and answer like a customer."); paint(); })
+            .catch(e => { S.busy = false; say(e.message || String(e), true); paint(); }); };
+        if (S.tab === "email") mountDesigner();
       }
 
       function csv(which) {
@@ -724,6 +720,8 @@
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
 
+      // Email Automations' survey card opens a tab directly ("Review and send" = Audience, "Edit the email")
+      if (window.__SVY_OPEN_TAB) { S.tab = window.__SVY_OPEN_TAB; window.__SVY_OPEN_TAB = null; }
       go(S.tab);
       if (S.tab !== "email") api("/api/_surveyadmin?view=template").then(j => { S.resend = !!j.resend; S.tracking = !!j.tracking || S.tracking; }).catch(() => {});
     },
