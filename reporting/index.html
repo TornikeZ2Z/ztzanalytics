@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="4d9192fbf5f0ef8ccc216e1b661f6f46fe3f1ff0">
+<meta name="ztz-ref" content="96320cb0e8f46d79bd830f68bdf18e6e2053b8d9">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -203,7 +203,7 @@ const GROUPS = [
   { key: "logistics", title: "Logistics" },
   // Calendar Cleanup lives here, not under Logistics: every recommendation it makes is a
   // conversation with a customer (ring them to move to the afternoon, or to another day).
-  { key: "customer-service", title: "Customer Service" },
+  { key: "customer-service", title: "Support Team" },
   { key: "financial", title: "Financial" },
   // Human Resources (2026-08-17): the questionnaire pair. The group auto-hides for anyone
   // who can see neither page, like every other group.
@@ -211,7 +211,7 @@ const GROUPS = [
   // Different Analysis (2026-08-19): one-off questions the standing reports cannot answer --
   // each page decides a specific operational trade-off rather than monitoring a metric.
   { key: "different", title: "Different Analysis" },
-  { key: "reviews",   title: "Reviews" },
+  { key: "reviews",   title: "Quality Team" },
   // Support was deleted 2026-09-23: every page it held was a retired slice, so it was empty.
   // Tech Team (2026-09-10): the ERP work and the website plumbing. IT Requests was removed
   // 2026-09-23. The group is ADMIN-ONLY until somebody is given the "tech" tile, and that
@@ -257,8 +257,10 @@ const GROUP_OVERRIDE = {
   "organic-search": "marketing",
   // Marketing Automations (2026-09-23)
   "angi-funnel": "marketing-automations",
-  "promised-reviews": "marketing-automations",
-  "birdeye-sends": "marketing-automations",
+  // Promised Reviews and Birdeye Send-outs live in BOTH groups (10 Nov): Marketing Automations as
+  // before, and Quality Team (Promised as a tab of Reviews, Birdeye as its own entry)
+  "promised-reviews": ["marketing-automations", "reviews"],
+  "birdeye-sends": ["marketing-automations", "reviews"],
   "photoshoot": "marketing-automations",
   "referral-candidates": "marketing-automations",
   // Company Overview
@@ -286,14 +288,14 @@ const GROUP_OVERRIDE = {
   "foreman-assessment": "logistics",
   // (My Survey, hr-my-questionnaire, removed 2026-09-23: surveys are answered by emailed link)
   "hr-questionnaire": "hr", "hr-directory": "hr",
-  // Customer Service -- claims-analysis lives here (his call 2026-09-03): the support
-  // team owns the claims board and writes every thread on it. Since 2026-09-23 a group
-  // grants exactly the pages placed in it, so the page is placed under Reviews as well,
-  // which keeps the Reviews grant. buildNav shows it only under the group(s) the user holds.
-  "cleanup": "customer-service", "claims-analysis": ["customer-service", "reviews"],
-  // Reviews
+  // SUPPORT TEAM (group key customer-service; renamed 10 Nov, his pick): the claims pages moved
+  // here from Reviews -- Claims Analysis (here since 2026-09-03) and Claims & Negative Reviews.
+  // Tako (quality@) holds this group too.
+  "cleanup": "customer-service", "claims-analysis": "customer-service", "reviews-cases": "customer-service",
+  // QUALITY TEAM (group key reviews; renamed 10 Nov): Reviews (one page, tabs), Customer Survey,
+  // Birdeye Send-outs
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
-  "response-analysis": "reviews", "review-settings": "reviews", "reviews-cases": "reviews", "surveys": "reviews",
+  "response-analysis": "reviews", "review-settings": "reviews", "surveys": "reviews",
 };
 const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
   return Array.isArray(g) ? g : [g]; };
@@ -309,7 +311,7 @@ const NAV_ORDER = {
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "job-pnl": 5, "flat-rate": 5.2, "salaries": 5.5, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "subscriptions": 6.8, "postcard-expenditure": 9.5,
-  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6,
+  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "quality-reviews": 1.5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
@@ -407,9 +409,20 @@ const MERGED = [
   { id: "job-control", group: "logistics", title: "Job Control", icon: "clipboard", subnav: false,
     tabs: [["fuel-control", "Fuel Control"], ["truck-control", "Truck Control"],
            ["packing-control", "Packing Control"], ["foreman-late", "Late Arrivals"]] },
+  /* REVIEWS (Quality Team, 10 Nov 2026, his pick from the usage-based proposal): the review pages
+     as one sidebar entry. Promised Reviews ALSO stays its own entry in Marketing Automations: a
+     tab whose page belongs to another group too is shown there as itself (buildNav), and opening
+     it from there renders it alone unless the user holds it through Quality Team (navigate). */
+  { id: "quality-reviews", group: "reviews", title: "Reviews", icon: "star", subnav: false,
+    tabs: [["review-performance", "Performance"], ["response-analysis", "Reasons"],
+           ["reviews-reminders", "Reminders"], ["promised-reviews", "Promised"], ["review-settings", "Settings"]] },
 ];
 const MERGED_BY_TAB = {};
 MERGED.forEach(m => m.tabs.forEach(([tid]) => MERGED_BY_TAB[tid] = m));
+/* a hub view clicked in ANOTHER group's sidebar (Promised Reviews under Marketing Automations)
+   opens there on its own, for everyone -- admins too -- instead of jumping to the hub's group.
+   Set by that nav item's click, used up by the next navigate(). */
+let SOLO_VIEW = null;
 const mergedActiveTab = {};
 
 /* Retired pages (2026-07-09 restructure): code + <script> registrations stay (harmless),
@@ -1192,7 +1205,10 @@ function navigate(id, push) {
   // its views, so a packing-only user following a Fuel Control link is refused here instead of
   // being handed the page (2026-10-27).
   const hub = id && MERGED_BY_TAB[id];
-  if (hub && canSee(id)) { mergedActiveTab[hub.id] = id; id = hub.id; }
+  // ... but a view held only through ANOTHER group (a marketing user opening Promised Reviews)
+  // opens on its own: the hub belongs to a group that user does not hold
+  const solo = SOLO_VIEW === id; SOLO_VIEW = null;
+  if (hub && !solo && canSee(id) && (ME.admin || canSeeIn(id, hub.group))) { mergedActiveTab[hub.id] = id; id = hub.id; }
   // An id with no page behind it (a mistyped hash, or a removed page such as IT Requests,
   // 2026-09-23) goes to the first allowed page as well. Before, an admin fell through to
   // PAGES[0] instead.
@@ -1420,6 +1436,7 @@ const SEARCH_ALIASES = {
   // Human Resources
   "hr-questionnaire": "team surveys hr human resources questionnaire survey company wide feedback poll questions results",
   "hr-directory": "team directory people staff back office crew org employees roster emails",
+  "quality-reviews": "reviews quality team foreman performance reasons why no review reminders promised settings links",
   "job-control": "job control fuel control truck control packing control late arrivals wex fleet card swipes gas diesel rental card queue",
   // Company Overview
   "monthly-report": "monthly report month review presentation ppt slides jobs done vs hours worked jobs vs hours job hour efficiency all in one",
@@ -1511,9 +1528,13 @@ function buildNav() {
     const display = [];
     const seenMerged = new Set();
     PAGES.filter(p => groupsOf(p).indexOf(g.key) >= 0 && !RETIRED.has(p.id) && !navHidden(p.id)).forEach(p => {
-      const m = MERGED_BY_TAB[p.id];
+      let m = MERGED_BY_TAB[p.id], solo = false;
+      // a view that also belongs to ANOTHER group (Promised Reviews: Marketing Automations) is
+      // listed there as itself; the hub only ever appears in its own group, and only for someone
+      // who holds one of its views THROUGH that group
+      if (m && g.key !== m.group) { m = null; solo = true; }
       if (m) {
-        if (!seenMerged.has(m.id) && canSeeIn(m.id, g.key)) {
+        if (!seenMerged.has(m.id) && hubTabs(m).some(([t]) => canSeeIn(t, g.key))) {
           seenMerged.add(m.id);
           // found by any view's name or alias it shows him ("packing" finds Job Control)
           const vis = hubTabs(m);
@@ -1523,7 +1544,7 @@ function buildNav() {
             children: m.subnav === false ? [] : vis.map(([tid, label]) => ({ tid, label })) });
         }
       } else if (canSeeIn(p.id, g.key)) {
-        display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id],
+        display.push({ id: p.id, title: NAV_TITLES[p.id] || p.title, iconKey: PAGE_ICONS[p.id], solo,
           search: p.title + " " + (NAV_TITLES[p.id] || "") + " " + (SEARCH_ALIASES[p.id] || "") });
       }
     });
@@ -1556,7 +1577,7 @@ function buildNav() {
       const a = RSC.el("div", "rs-nav-item" + (CURRENT && CURRENT.id === p.id ? " active" : ""),
         icon(p.iconKey) + RSC.esc(p.title));
       a.dataset.id = p.id;
-      a.onclick = () => navigate(p.id);
+      a.onclick = () => { SOLO_VIEW = p.solo ? p.id : null; navigate(p.id); };
       box.appendChild(a);
       // merged hubs list their tabs as indented sub-items (e.g. Angi under Lead Source Analysis)
       (p.children || []).forEach(ch => {
@@ -2106,9 +2127,9 @@ const ACL_DEPTS = [
   // MUST mirror DEPT_REPORTS["hr"] in bridge/app.py. Employees answering the questionnaire
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
-  { id: "customer-service", label: "Customer Service", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis"] },
+  { id: "customer-service", label: "Support Team", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis", "reviews-cases"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "branch-owner", "cl-analysis", "postcard-purchases", "subscriptions"] },
-  { id: "reviews",   label: "Reviews",          icon: "star",      reports: ["review-performance", "reviews-cases", "claims-analysis", "reviews-reminders", "response-analysis", "review-settings", "surveys"] },
+  { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
