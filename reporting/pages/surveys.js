@@ -115,7 +115,7 @@
         sends: null, sErr: "", tracking: false, sFilter: "all", sQ: "", sPage: 0,
         ans: null, aErr: "", aOpen: null, aFlag: "all", aQ: "",
         lo: "", hi: "", rows: null, resend: false, err: "", msg: "", msgErr: false, page: 0,
-        score: "rule", states: null, review: "all", claim: "none", newOnly: false, q: "", show: "will",
+        af: null, q: "",
         tpl: null, draft: null, from: "", address: "", testTo: "", pv: "desk", pvHtml: "", pvSubject: "", busy: false,
       });
 
@@ -168,9 +168,6 @@
         const q = (S.lo ? "&lo=" + S.lo : "") + (S.hi ? "&hi=" + S.hi : "");
         return api("/api/_surveyadmin?view=list" + q).then(j => {
           S.rows = j.rows || []; S.lo = j.lo; S.hi = j.hi; S.resend = !!j.resend; S.err = "";
-          // a picked state with no moves in the new window has no chip, so it could never be cleared
-          const have = new Set(S.rows.map(r => r.state));
-          S.states = (S.states || []).filter(x => have.has(x));
           if (alive()) paint();
         }).catch(e => { S.err = e.message || String(e); S.rows = []; if (alive()) paint(); });
       }
@@ -423,26 +420,55 @@
       }
       const ans = (k, v) => "<div><b>" + esc(k) + "</b>" + esc(v == null || v === "" ? "—" : v) + "</div>";
 
-      // ---- AUDIENCE (the send list): Tako's rule is the default ------------------------------
+      // ---- AUDIENCE (the send list) ----------------------------------------------------------
+      // THE PORTAL'S FILTER LOOK (his rule, 10 Nov: "i thought we have defined how the filters should
+      // look like"): one bar -- Move dates (RSC.dateRange), Find, and the Filters button at its right end
+      // opening the side panel (RSC.filterPanel) -- and the "Filtered by" chips under it
+      // (RSC.filterChips). The panel holds the filters he listed on 9 Nov: foreman's 1-10 rating, area
+      // (state), claim / complaint, move type, review written, surveyed before, plus the send status.
+      // TAKO'S RULE IS THE DEFAULT SELECTION (rating 9-10, no claim, will get it), so it shows as chips
+      // and every part of it can be removed or put back.
+      const RULE = () => ({ rating: new Set(["10", "9"]), claim: new Set(["None"]), status: new Set(["Will get it"]) });
+      const AF = ["rating", "claim", "state", "mtype", "review", "surveyed", "status"];
+      if (!S.af) S.af = RULE();
+      const mtypeOf = r => (String(r.move_type_code || "").toUpperCase() === "LD" ? "Long-Distance Moving" : (r.form_move_type || "Local Moving"));
+      const statusOf = r => (r.invite_status === "sent" ? "Already sent" : r.invite_status === "sending" ? "Sending"
+        : r.hard.length ? "Can't be sent" : r.off ? "Switched off" : "Will get it");
+      const KEYS = {
+        rating: r => (r.score == null || r.score === "" ? "No score" : String(+r.score)),
+        claim: r => (r.complaints ? "Has a claim or complaint" : "None"),
+        state: r => r.state || "Unknown",
+        mtype: mtypeOf,
+        review: r => (r.review ? "Review written" : "No review"),
+        surveyed: r => (r.surveyed_before ? "Surveyed before" : "Not surveyed before"),
+        status: statusOf,
+      };
+      const LABELS = { rating: "Foreman's rating", claim: "Claim / complaint", state: "State", mtype: "Move type",
+                       review: "Review", surveyed: "Surveyed before", status: "Status" };
+      const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"],
+                      status: ["Will get it", "Switched off", "Already sent", "Sending", "Can't be sent"] };
+      const rank = (ord, v) => { const i = ord.indexOf(v); return i < 0 ? 999 : i; };
+      function afFields(rows) {
+        return AF.map(k => {
+          const n = {};
+          rows.forEach(r => { const v = KEYS[k](r); n[v] = (n[v] || 0) + 1; });
+          (S.af[k] || new Set()).forEach(v => { if (!(v in n)) n[v] = 0; });     // a picked value never vanishes
+          const ord = ORDER[k];
+          const vals = Object.keys(n).sort((a, b) => (ord ? rank(ord, a) - rank(ord, b) : 0) || (n[b] - n[a]) || a.localeCompare(b));
+          return { key: k, label: LABELS[k], values: vals.map(v => ({ v, l: k === "rating" && v !== "No score" ? v + " / 10" : v, n: n[v] })) };
+        });
+      }
+      const setKey = st => [...(st || [])].sort().join("|");
+      const isRule = () => AF.every(k => setKey(S.af[k]) === setKey(RULE()[k]));
       function visible(rows) {
         const q = S.q.trim().toLowerCase();
         return rows.filter(r => {
-          const sc = +r.score || 0;
-          if (S.score === "rule" && !(sc >= 9)) return false;
-          if (S.score === "8" && !(sc >= 8)) return false;
-          if (S.states && S.states.length && S.states.indexOf(r.state) < 0) return false;
-          if (S.review === "yes" && !r.review) return false;
-          if (S.review === "no" && r.review) return false;
-          if (S.claim === "none" && r.complaints) return false;
-          if (S.claim === "has" && !r.complaints) return false;
-          if (S.newOnly && r.surveyed_before) return false;
+          for (const k of AF) { const set = S.af[k]; if (set && set.size && !set.has(KEYS[k](r))) return false; }
           if (q && ![r.customer, r.email, r.foreman, r.job_no, r.state].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
-          if (S.show === "will" && !(sendable(r))) return false;
-          if (S.show === "sent" && r.invite_status !== "sent") return false;
           return true;
         });
       }
-      const sendable = r => !r.hard.length && !r.off;
+      const sendable = r => !r.hard.length && !r.off && r.invite_status !== "sent" && r.invite_status !== "sending";
       function statusCell(r) {
         if (r.invite_status === "sent") return '<span class="svy-flag svy-ok">Sent ' + esc(d10(r.sent_at)) + "</span>";
         if (r.invite_status === "sending") return '<span class="svy-flag">Sending…</span>';
@@ -452,60 +478,42 @@
           + (r.invite_status === "failed" ? '<span class="svy-sub">last send failed, will retry</span>' : "");
       }
       function listView() {
-        if (S.rows === null) return '<div class="panel">Loading the moves…</div>';
-        if (S.err) return '<div class="panel">Could not load the list: ' + esc(S.err)
+        if (S.rows === null) return '<div class="rs-bar" id="svyABar"></div><div class="panel">Loading the moves…</div>';
+        if (S.err) return '<div class="rs-bar" id="svyABar"></div><div class="panel">Could not load the list: ' + esc(S.err)
           + ' <button class="rs-btn" data-retry="list" style="margin-left:10px">Try again</button></div>';
         const rows = S.rows;
         const shown = visible(rows);
         const willSend = shown.filter(sendable);
-        const states = Array.from(new Set(rows.map(r => r.state).filter(Boolean))).sort();
         const pages = Math.max(1, Math.ceil(shown.length / PAGE));
         if (S.page >= pages) S.page = pages - 1;
         const slice = shown.slice(S.page * PAGE, S.page * PAGE + PAGE);
-        const tog = (key, val, label) => '<div class="rs-tog' + (S[key] === val ? " on" : "") + '" data-f="' + key + '" data-v="'
-          + esc(val) + '"><i></i>' + esc(label) + "</div>";
-        let h = '<p class="svy-note">Completed Zip to Zip moves between <b>' + esc(S.lo) + "</b> and <b>" + esc(S.hi)
-          + "</b> (14 days after the move at the latest). <b>Tako's rule</b> is the default: foreman's score 9–10, local "
-          + "move, nothing on the Claims / Complaints board. Calls or texts with the support line only show a flag. "
-          + "Long-distance moves, no email, unsubscribed and already surveyed can never be sent.</p>";
-        h += '<div class="rs-bar">'
-          + '<label class="rs-fld"><span>Moves from</span><input type="date" class="rs-inp" id="svyLo" value="' + esc(S.lo) + '"></label>'
-          + '<label class="rs-fld"><span>to</span><input type="date" class="rs-inp" id="svyHi" value="' + esc(S.hi) + '"></label>'
-          + '<button class="rs-btn" id="svyReload">Show</button>'
-          + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="svyQ" placeholder="Customer, email, foreman…" value="' + esc(S.q) + '"></label>'
-          + "</div>";
-        h += '<div class="rs-bar">'
-          + "<b class=\"svy-sub\" style=\"margin:0 4px 0 0\">Foreman's score</b>" + tog("score", "rule", "9–10 (rule)") + tog("score", "8", "8+") + tog("score", "any", "Any")
-          + "<b class=\"svy-sub\" style=\"margin:0 4px 0 12px\">Claim / complaint</b>" + tog("claim", "none", "None (rule)") + tog("claim", "has", "Has one") + tog("claim", "any", "Any")
-          + "<b class=\"svy-sub\" style=\"margin:0 4px 0 12px\">Review written</b>" + tog("review", "all", "Any") + tog("review", "yes", "Yes") + tog("review", "no", "No")
-          + "</div>";
-        h += '<div class="rs-bar">'
-          + "<b class=\"svy-sub\" style=\"margin:0 4px 0 0\">State</b>"
-          + states.map(s => '<div class="rs-tog' + (S.states.indexOf(s) >= 0 ? " on" : "") + '" data-state="' + esc(s) + '"><i></i>' + esc(s) + "</div>").join("")
-          + '<div class="rs-tog' + (S.newOnly ? " on" : "") + '" id="svyNew" style="margin-left:12px"><i></i>Not surveyed before</div>'
-          + "<b class=\"svy-sub\" style=\"margin:0 4px 0 12px\">Show</b>" + tog("show", "will", "Will get it") + tog("show", "sent", "Sent") + tog("show", "all", "Everyone")
-          + "</div>";
-        const off = rows.filter(r => r.off && !r.hard.length).length;
+        let h = '<div class="rs-bar" id="svyABar"></div><div id="svyAChips"></div>';
+        h += '<p class="svy-note">Completed Zip to Zip moves, 14 days after the move at the latest. '
+          + (isRule() ? "Showing <b>Tako's rule</b>: foreman's rating 9–10, nothing on the Claims / Complaints board, not sent yet."
+            : "Filters changed from Tako's rule. <span class=\"svy-link\" id=\"svyRule\">Back to Tako's rule</span>")
+          + " Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever the filters.</p>";
+        const off = rows.filter(r => r.off && !r.hard.length && r.invite_status !== "sent").length;
         h += '<div class="rs-kpis" style="--kpi-cols:4">'
           + kpi(willSend.length, "Will get the survey", "with these filters, switched on")
-          + kpi(rows.filter(r => r.rule).length, "Pass Tako's rule", "in this window")
+          + kpi(rows.length, "Completed moves", rows.filter(r => r.rule).length + " pass Tako's rule")
           + kpi(off, "Switched off", "by hand")
-          + kpi(rows.filter(r => r.invite_status === "sent").length, "Already sent", "in this window") + "</div>";
-        h += '<div class="rs-bar" style="margin-top:12px"><span class="rs-spacer"></span>'
+          + kpi(rows.filter(r => r.invite_status === "sent").length, "Already sent", "moves in these dates") + "</div>";
+        h += '<div class="rs-bar" style="margin-top:12px"><span class="svy-sub">' + shown.length + " move" + (shown.length === 1 ? "" : "s") + " shown</span>"
+          + '<span class="rs-spacer"></span>'
           + (S.resend ? "" : '<span class="svy-sub" style="margin-right:10px">Sending opens once the bridge has the Resend key.</span>')
           + '<button class="rs-btn pri" id="svySend"' + (willSend.length && S.resend && !S.busy ? "" : " disabled") + ">Send to "
           + Math.min(willSend.length, MAX_PER_SEND) + " customer" + (willSend.length === 1 ? "" : "s")
           + (willSend.length > MAX_PER_SEND ? " (of " + willSend.length + ")" : "") + "</button></div>";
         if (S.msg) h += '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th>On</th><th>Customer</th><th>Move</th><th>Foreman · score</th><th>Review</th><th>Flags</th><th>Status</th></tr></thead><tbody>"
+          + "<th>On</th><th>Customer</th><th>Move</th><th>Foreman · rating</th><th>Review</th><th>Flags</th><th>Status</th></tr></thead><tbody>"
           + (slice.length ? slice.map(r => {
             const can = !r.hard.length && r.invite_status !== "sent";
             return '<tr class="' + (sendable(r) ? "" : "svy-dim") + '"><td><input type="checkbox" class="svy-sw" data-off="' + esc(r.job_key) + '"'
               + (r.off ? "" : " checked") + (can ? "" : " disabled") + ' aria-label="Include ' + esc(r.customer) + '"></td>'
               + "<td><b>" + esc(r.customer || "—") + '</b><span class="svy-sub">' + esc(r.email || "no email") + "</span></td>"
-              + "<td>" + esc(d10(r.move_date)) + '<span class="svy-sub">' + esc([r.state, r.moving_type].filter(Boolean).join(" · ")) + "</span></td>"
-              + "<td>" + esc(r.foreman || "—") + '<span class="svy-sub">score ' + esc(r.score == null ? "—" : r.score) + "/10</span></td>"
+              + "<td>" + esc(d10(r.move_date)) + '<span class="svy-sub">' + esc([r.state, mtypeOf(r)].filter(Boolean).join(" · ")) + "</span></td>"
+              + "<td>" + esc(r.foreman || "—") + '<span class="svy-sub">rating ' + esc(r.score == null ? "—" : r.score) + "/10</span></td>"
               + "<td>" + (r.review ? "Yes" : "No") + "</td>"
               + "<td>" + (r.complaints ? '<span class="svy-flag svy-bad">claim / complaint' + (r.complaint_status ? ": " + esc(r.complaint_status) : "") + "</span>" : "")
               + (r.flags || []).map(f => '<span class="svy-flag">' + esc(f) + "</span>").join("")
@@ -518,6 +526,31 @@
             + '<button class="rs-btn" data-pg="1"' + (S.page >= pages - 1 ? " disabled" : "") + ">Next</button></div>" : "")
           + "</div>";
         return h;
+      }
+      // the bar is built from the kit's own components once the HTML is in place
+      function mountAudienceBar() {
+        const bar = host.querySelector("#svyABar");
+        if (!bar || !window.RSC) return;
+        const fld = label => { const w = document.createElement("div"); w.className = "rs-fld"; w.innerHTML = "<span>" + label + "</span>"; bar.appendChild(w); return w; };
+        if (RSC.dateRange) RSC.dateRange(fld("Move dates"), {
+          get: () => ({ from: S.lo, to: S.hi }), set: (f, t) => { S.lo = f || ""; S.hi = t || ""; },
+          onChange: () => { S.page = 0; loadList(); } });
+        const q = document.createElement("input");
+        q.className = "rs-inp"; q.id = "svyQ"; q.placeholder = "Find a customer, email, foreman…"; q.value = S.q; q.style.flex = "0 1 260px";
+        let qt = null;
+        q.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { S.q = q.value; S.page = 0; S._focusQ = 1; paint(); }, 300); };
+        bar.appendChild(q);
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        if (S.rows && RSC.filterPanel) {
+          const fields = afFields(S.rows);
+          const apply = next => { AF.forEach(k => { S.af[k] = new Set(next[k] || []); }); S.page = 0; paint(); };
+          RSC.filterPanel(bar, { fields, selected: S.af, onApply: apply,
+            note: "<b>Tako's rule</b> is the starting point: rating 9–10, no claim or complaint, will get it. "
+              + "Change any of it here. Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever you pick." });
+          const chips = host.querySelector("#svyAChips");
+          if (chips && RSC.filterChips) RSC.filterChips(chips, { fields, selected: S.af, onChange: apply });
+        }
+        if (S._focusQ) { S._focusQ = 0; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
       }
 
       // ---- EMAIL -------------------------------------------------------------------------------
@@ -597,15 +630,9 @@
         if (aq) { aq.oninput = function () { S.aQ = this.value; }; aq.onchange = paint; aq.onkeyup = e => { if (e.key === "Enter") paint(); }; }
         const ac = host.querySelector("#svyACsv"); if (ac) ac.onclick = () => csv("ans");
         // audience
-        host.querySelectorAll("[data-f]").forEach(b => { b.onclick = () => { S[b.dataset.f] = b.dataset.v; S.page = 0; paint(); }; });
-        host.querySelectorAll("[data-state]").forEach(b => { b.onclick = () => {
-          const s = b.dataset.state, i = S.states.indexOf(s); if (i >= 0) S.states.splice(i, 1); else S.states.push(s); S.page = 0; paint(); }; });
-        const nw = host.querySelector("#svyNew"); if (nw) nw.onclick = () => { S.newOnly = !S.newOnly; S.page = 0; paint(); };
+        if (S.tab === "list") mountAudienceBar();
+        const rb = host.querySelector("#svyRule"); if (rb) rb.onclick = () => { S.af = RULE(); S.page = 0; paint(); };
         host.querySelectorAll("[data-pg]").forEach(b => { b.onclick = () => { S.page += +b.dataset.pg; paint(); }; });
-        const q = host.querySelector("#svyQ");
-        if (q) { q.oninput = function () { S.q = this.value; S.page = 0; }; q.onchange = paint; q.onkeyup = e => { if (e.key === "Enter") paint(); }; }
-        const rl = host.querySelector("#svyReload");
-        if (rl) rl.onclick = () => { S.lo = host.querySelector("#svyLo").value; S.hi = host.querySelector("#svyHi").value; loadList(); };
         host.querySelectorAll("[data-off]").forEach(cb => { cb.onchange = () => {
           const k = cb.dataset.off, off = !cb.checked;
           post({ action: "off", job_key: k, off }).then(() => {
