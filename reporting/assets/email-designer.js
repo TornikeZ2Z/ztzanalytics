@@ -100,7 +100,7 @@
       + ".emd-pv iframe{display:block;border:0;width:100%;height:calc(100vh - 210px);min-height:560px;background:#f2f1ec;margin:0 auto}"
       + ".emd-pv.mob iframe{width:390px;max-width:100%}"
       + ".emd-prob{margin-top:8px}.emd-prob div{font-size:12.5px;color:var(--neg);margin:3px 0}"
-      + ".emd-code{font:12.5px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace!important;min-height:420px;white-space:pre;tab-size:2}"
+      + ".emd textarea.emd-code{font:12.5px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace!important;min-height:420px;white-space:pre;tab-size:2}"
       + ".emd-meter{font-size:12.5px;color:var(--muted);margin-top:6px}.emd-meter.bad{color:var(--neg);font-weight:600}"
       + ".emd-thumb{display:flex;align-items:center;gap:10px;margin-top:6px}.emd-thumb img{max-width:120px;max-height:60px;border-radius:6px;border:1px solid var(--line);background:#fff}";
     document.head.appendChild(st);
