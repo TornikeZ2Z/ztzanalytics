@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="eb33c05c93dc36883fc01aa98ecfc0168f13d6c5">
+<meta name="ztz-ref" content="6c3fc26419a357f1a9773205d17c5dc98286c0d7">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -261,6 +261,10 @@ const GROUP_OVERRIDE = {
   // before, and Quality Team (Promised as a tab of Reviews, Birdeye as its own entry)
   "promised-reviews": ["marketing-automations", "reviews"],
   "birdeye-sends": ["marketing-automations", "reviews"],
+  // EMAIL AUTOMATIONS (10 Nov, ZTZ-60, his pick): one page listed in both groups, open to both
+  // departments. The Customer Survey is automation #1 on it and opens from there, so it is held by
+  // both groups too, and kept out of the sidebar (INSIDE_PAGE below)
+  "email-automations": ["marketing-automations", "reviews"],
   "photoshoot": "marketing-automations",
   "referral-candidates": "marketing-automations",
   // Company Overview
@@ -295,7 +299,7 @@ const GROUP_OVERRIDE = {
   // QUALITY TEAM (group key reviews; renamed 10 Nov): Reviews (one page, tabs), Customer Survey,
   // Birdeye Send-outs
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
-  "response-analysis": "reviews", "review-settings": "reviews", "surveys": "reviews",
+  "response-analysis": "reviews", "review-settings": "reviews", "surveys": ["reviews", "marketing-automations"],
 };
 const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
   return Array.isArray(g) ? g : [g]; };
@@ -311,7 +315,7 @@ const NAV_ORDER = {
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "job-pnl": 5, "flat-rate": 5.2, "salaries": 5.5, "bonus-system": 5.7, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "subscriptions": 6.8, "postcard-expenditure": 9.5,
-  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "quality-reviews": 1.5,
+  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "email-automations": 6, "quality-reviews": 1.5,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
@@ -387,7 +391,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "email-automations": "megaphone", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -476,7 +480,11 @@ const TAB_HOSTED = new Set(["day-closing", "organic-search"]);
    Closings was switched off on 27 Sep when Day Closing took over its job (his "dont we already
    have it?"); its 435 statements (16 Apr - 24 Sep) are linked from the Day Closing tab. */
 const ARCHIVED = new Set(["foreman-closings"]);
-function navHidden(id) { return TAB_HOSTED.has(id) || ARCHIVED.has(id); }
+/* OPENED FROM ANOTHER PAGE (2026-11-10): out of the sidebar, the nav search and the landing pick, still
+   granted and reachable by its own link. The Customer Survey opens from its card on Email Automations
+   (his pick: "the Customer Survey moves in as automation #1, unchanged for Tako"). */
+const INSIDE_PAGE = new Set(["surveys"]);
+function navHidden(id) { return TAB_HOSTED.has(id) || ARCHIVED.has(id) || INSIDE_PAGE.has(id); }
 const REDIRECTS = {
   // 2026-10-08: Day Closing is a tab of Money Flow; old links land on #page=money-flow&tab=day-closing
   "day-closing": "money-flow",
@@ -944,7 +952,7 @@ const PAGE_DATASETS = {
   "calendar-coverage": [],
   "request-consistency": [],
   "review-performance": [],
-  "response-analysis": [], "review-settings": [], "surveys": [],
+  "response-analysis": [], "review-settings": [], "surveys": [], "email-automations": [],
   "area-plan": [],           // Seasonal Planning: its own period picker and state focus, no global bar
   "target-map": [],          // Target Map: the market switch is its only control
   "reviews-cases": [],       // both boards load whole (307+888 rows); From-To filter is local
@@ -1253,7 +1261,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "surveys", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "surveys", "email-automations", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Marketing Overview (2026-10-15): its source list has no date to slice
@@ -1434,6 +1442,7 @@ const NAV_TITLES = {
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
   "surveys": "Customer Survey",
+  "email-automations": "Email Automations",
   "general-settings": "General Translators",
   "general-tables": "General Tables",
   "rev-production": "Actual Reviews",
@@ -1494,6 +1503,7 @@ const SEARCH_ALIASES = {
   "response-analysis": "response analysis missed review reasons why no review foreman explanation waiting for reason response rate accountability",
   "review-settings": "review settings link control google trustpilot facebook kearny shafto qr code delivery state reasons why no review platform config",
   "surveys": "customer survey feedback form email send list answers tako satisfaction recommend resend unsubscribe",
+  "email-automations": "email automations automation single sends one-off newsletter customer survey review request resend campaign template audience unsubscribe opened clicked bounced tako sophie",
   "sup-claims": "claim claims damage damages",
   "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
   "sup-phone": "phone response callrail call rail call tracking calls answer rate",
@@ -2080,6 +2090,7 @@ const REPORT_LABELS = {
   "response-analysis": "Response Analysis",
   "review-settings": "Review URLs and Reasons",
   "surveys": "Customer Survey",
+  "email-automations": "Email Automations",
   "general-settings": "General Translators",
   "general-tables": "General Tables",
   // Support
@@ -2130,7 +2141,7 @@ const ACL_DEPTS = [
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
-  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot"] },
+  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot", "email-automations", "surveys"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
   { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary", "crew-pay-compare"] },
@@ -2139,7 +2150,7 @@ const ACL_DEPTS = [
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Support Team", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis", "reviews-cases"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "branch-owner", "cl-analysis", "postcard-purchases", "subscriptions"] },
-  { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends"] },
+  { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
@@ -2458,7 +2469,8 @@ registerPage({
 <script src="pages/admin-activity.js?v=5"></script>
 <script src="pages/review-performance.js?v=33"></script>
 <script src="pages/reminders.js?v=54"></script>
-<script src="pages/surveys.js?v=7"></script>
+<script src="pages/surveys.js?v=8"></script>
+<script src="pages/email-automations.js?v=1"></script>
 <script src="pages/reviews-cases.js?v=19"></script>
 <script src="pages/claims-analysis.js?v=33"></script>
 <script src="pages/sales-of-the-month.js?v=8"></script>

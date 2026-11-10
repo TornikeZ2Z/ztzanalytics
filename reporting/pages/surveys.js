@@ -24,6 +24,7 @@
     st.textContent = ""
       + ".svy{font-variant-numeric:tabular-nums}"
       + ".svy-tabs{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap;align-items:center}"
+      + ".svy-back{display:inline-block;font-size:12.5px;margin:0 0 8px;text-decoration:none}"
       + ".svy-note{font-size:12.5px;color:var(--muted);margin:6px 2px 10px;line-height:1.5}"
       + ".svy-sub{display:block;font-size:12px;color:var(--faint);margin-top:2px}"
       + ".svy-flag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;"
@@ -635,7 +636,9 @@
         const tab = t => '<button class="rs-btn' + (S.tab === t[0] ? " pri" : "") + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
         const v = S.tab === "over" ? overView() : S.tab === "list" ? listView() : S.tab === "sends" ? sendsView()
           : S.tab === "ans" ? answersView() : emailView();
-        host.innerHTML = '<div class="svy"><div class="svy-tabs">' + TABS.map(tab).join("") + "</div>" + v + "</div>";
+        // the survey is automation #1 on Email Automations (10 Nov, ZTZ-60) and opens from its card there
+        host.innerHTML = '<div class="svy"><a class="svy-link svy-back" href="#page=email-automations">&larr; Email Automations</a>'
+          + '<div class="svy-tabs">' + TABS.map(tab).join("") + "</div>" + v + "</div>";
         wire();
       }
       function go(tab) {

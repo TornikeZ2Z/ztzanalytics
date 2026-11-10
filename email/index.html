@@ -1,0 +1,106 @@
+<!doctype html>
+<!-- PUBLIC page for Email Automations (Zip To Zip Moving), served by GitHub Pages at ziptozip.systems/email/
+     (analytics/_root/email/index.html; tracker ZTZ-60). Two ways in, both from an email:
+       /email/?c=TOKEN&l=N   a tracked link: the bridge records the click and answers where it goes,
+                             then this page opens it (first-party clicks: Resend's click tracking stays off)
+       /email/?u=TOKEN       the unsubscribe card: stop this type of email, or every email from us
+     POSTs use text/plain so the browser sends no CORS preflight; the bridge reads the body as JSON.
+     No customer data lives in this file: the masked address comes from the bridge. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<!-- the personal token rides in the URL: never hand the full URL on as a Referer -->
+<meta name="referrer" content="no-referrer">
+<title>Zip To Zip Moving</title>
+<style>
+  :root{--lime:#9bba2a;--lime-dark:#6f8a12;--ink:#1e1f04;--muted:#5f6355;--line:#e3e6dc;--bg:#f6f7f3;--card:#fff;--err:#c0392b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:40px 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 26px}
+  .bar{height:5px;background:var(--lime);border-radius:14px 14px 0 0;margin:-28px -26px 22px}
+  img.logo{display:block;width:150px;height:auto;margin-bottom:18px}
+  h1{font-size:22px;margin:0 0 10px}
+  p{margin:0 0 14px;color:var(--muted)}
+  .btn{display:inline-block;font:inherit;font-weight:700;font-size:15px;padding:13px 20px;border-radius:10px;border:0;cursor:pointer;
+       background:var(--ink);color:#fff;text-decoration:none;margin:4px 8px 4px 0}
+  .btn.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .err{color:var(--err);font-size:14px;min-height:20px}
+  .foot{font-size:12px;color:var(--muted);text-align:center;margin-top:18px}
+  .foot a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="bar"></div>
+    <img class="logo" src="/survey/logo.png" alt="Zip To Zip Moving">
+    <div id="go" style="display:none">
+      <h1>Opening&hellip;</h1>
+      <p id="goText">One moment, we're taking you there.</p>
+    </div>
+    <div id="unsub" style="display:none">
+      <h1>Unsubscribe</h1>
+      <p id="uText" role="status">Loading&hellip;</p>
+      <div id="uBtns" style="display:none">
+        <button type="button" class="btn" id="uOne">Stop these emails</button>
+        <button type="button" class="btn alt" id="uAll">Stop every email from Zip To Zip</button>
+      </div>
+    </div>
+    <div class="err" id="err" role="alert"></div>
+  </div>
+  <div class="foot">Zip To Zip Moving · 3212 Shafto Rd Unit 3, Tinton Falls, NJ 07753 · <a href="https://ziptozipmoving.com">ziptozipmoving.com</a></div>
+</div>
+<script>
+(function () {
+  var API = "https://ztz-bridge-32168089642.us-east4.run.app/api/_eml";
+  var q = new URLSearchParams(location.search);
+  var $ = function (id) { return document.getElementById(id); };
+  function call(method, query, body) {
+    var opts = { method: method, headers: {} };
+    if (body) { opts.body = JSON.stringify(body); opts.headers["Content-Type"] = "text/plain;charset=utf-8"; }
+    return fetch(API + query, opts).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ("Error " + r.status)); return j; });
+    });
+  }
+  var c = q.get("c"), u = q.get("u");
+  if (c) {
+    $("go").style.display = "block";
+    call("GET", "?c=" + encodeURIComponent(c) + "&l=" + encodeURIComponent(q.get("l") || "0")).then(function (j) {
+      location.replace(j.url);
+    }).catch(function (e) {
+      $("goText").textContent = "This link didn't work.";
+      $("err").innerHTML = 'You can find us at <a href="https://ziptozipmoving.com">ziptozipmoving.com</a>.';
+    });
+    return;
+  }
+  $("unsub").style.display = "block";
+  if (!u) { $("uText").textContent = "This link is not valid."; return; }
+  call("GET", "?u=" + encodeURIComponent(u)).then(function (j) {
+    if (j.all) { $("uText").textContent = "You're unsubscribed from every email from us (" + j.email + ")."; return; }
+    if (j.done) {
+      $("uText").textContent = "You're already unsubscribed from " + j.what + " (" + j.email + ").";
+      $("uBtns").style.display = "block"; $("uOne").style.display = "none";
+      return;
+    }
+    $("uText").textContent = "Stop " + j.what + " to " + j.email + "?";
+    $("uBtns").style.display = "block";
+    function stop(scope) {
+      $("uOne").disabled = $("uAll").disabled = true; $("err").textContent = "";
+      call("POST", "", { u: u, scope: scope }).then(function () {
+        $("uBtns").style.display = "none";
+        $("uText").textContent = scope === "all" ? "Done. You won't get any more emails from us." : "Done. You won't get " + j.what + " from us again.";
+      }).catch(function (e) {
+        $("uOne").disabled = $("uAll").disabled = false; $("err").textContent = e.message;
+      });
+    }
+    $("uOne").onclick = function () { stop("one"); };
+    $("uAll").onclick = function () { stop("all"); };
+  }).catch(function (e) { $("uText").textContent = e.message; });
+})();
+</script>
+</body>
+</html>
