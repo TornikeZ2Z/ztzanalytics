@@ -249,13 +249,19 @@
                                                       "Org Keywords", "Org Traffic"] },
     // 2026-10-30 Facebook + Instagram per post, organic against paid (src/meta_page.py)
     mkt_mpost: { table: "ext_meta_post", cols: ["Post Id", "Platform", "Date", "Format", "Text", "Link", "Views", "Organic Views", "Paid Views",
-                                                "Reach", "Clicks", "Reactions", "Comments", "Shares", "Saves", "Profile Visits"] },
+                                                "Reach", "Clicks", "Link Clicks", "Reactions", "Comments", "Shares", "Saves", "Profile Visits"] },
     mkt_mad: { table: "ext_meta_ad", cols: ["Ad Id", "Ad Name", "Campaign", "Story Id", "Media Id", "Text"] },
     mkt_mlife: { table: "ext_meta_ad_life", cols: ["Ad Id", "Platform", "Reach"] },
     mkt_mpd: { table: "ext_meta_ad_post_day", cols: ["Date", "Ad Id", "Platform", "Spend", "Impressions", "Reach", "Clicks", "Reactions", "Comments",
                                                      "Shares", "Saves", "Leads"] },
     mkt_msoc: { table: "ext_meta_social_day", cols: ["Platform", "Date", "Views", "Organic Views", "Paid Views", "Organic Reach", "Paid Reach",
                                                      "New Followers", "Followers", "Page Views"] },
+    // 2026-11-10 YouTube organic (src/youtube_organic.py): the channel by day and source, every video by month
+    mkt_ytday: { table: "ext_yt_channel_day", cols: ["Date", "Views", "Minutes", "Subs Gained", "Subs Lost", "Likes", "Comments", "Shares"] },
+    mkt_ytsrc: { table: "ext_yt_source_day", cols: ["Date", "Source", "Views", "Minutes"] },
+    mkt_ytvid: { table: "ext_yt_video", cols: ["Video Id", "Title", "Published At", "Duration Seconds"] },
+    mkt_ytvmon: { table: "ext_yt_video_month", cols: ["Video Id", "Month", "Views", "Ad Views", "Minutes", "Avg View Pct", "Likes",
+                                                     "Comments", "Shares", "Subs Gained"] },
     mkt_smuse: { table: "ext_semrush_usage", cols: ["Run At", "Step", "Ran", "Reason", "Cadence Days", "Calls", "Units",
                                                    "Est Units"] },
   };
@@ -757,6 +763,30 @@
       + ".mkd .mkd-tstats .mkd-nb b{display:flex;align-items:center;gap:8px;flex-wrap:wrap}"
       + ".mkd #mkoMeta{display:flex;flex-direction:column;gap:14px}.mkd #mkoMeta .panel,.mkd #mkoMeta .mkd-teams{margin:0}"
       + ".mkd #mkoMeta .panel-head{gap:10px;flex-wrap:wrap}"
+      // audience segments (Elene's brief) and YouTube
+      + ".mkd #mkoSeg{display:flex;flex-direction:column;gap:14px}.mkd #mkoSeg .panel{margin:0}"
+      + ".mkd .mkd-segh{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}"
+      + ".mkd .mkd-segk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:10px 0 14px}"
+      + ".mkd .mkd-sk{background:var(--panel-2);border-radius:12px;padding:10px 12px;border-left:4px solid var(--line-2);min-width:0}"
+      + ".mkd .mkd-sk.ok{border-left-color:var(--pos)}.mkd .mkd-sk.warn{border-left-color:var(--warn,#D97706)}.mkd .mkd-sk.bad{border-left-color:var(--neg)}"
+      + ".mkd .mkd-sk span{display:block;font-size:12px;color:var(--muted)}.mkd .mkd-sk b{display:block;font-size:18px;color:var(--ink);margin-top:2px}"
+      + ".mkd .mkd-sk em{display:block;font-style:normal;font-size:12px;color:var(--muted);margin-top:2px}"
+      + ".mkd .mkd-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}.mkd .mkd-bar i{display:block;height:100%;background:#3F7D20}"
+      + ".mkd .mkd-why{margin:0;font-size:13px;color:var(--muted)}"
+      + ".mkd .mkd-segp .panel-head{gap:8px;flex-wrap:wrap;align-items:baseline}"
+      + ".mkd .mkd-segok{margin:4px 0 0;font-size:13px;color:var(--ink)}"
+      + ".mkd .mkd-g2s{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:8px}"
+      + ".mkd .mkd-h4{margin:6px 0 6px;font-size:13px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-find{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}"
+      + ".mkd .mkd-find li{display:grid;grid-template-columns:120px minmax(0,1fr);gap:2px 10px;font-size:13px}"
+      + ".mkd .mkd-find li span{color:var(--muted)}.mkd .mkd-find li em{grid-column:2;font-style:normal;font-size:12px;color:var(--muted)}"
+      + ".mkd .mkd-grow{margin-top:12px;background:var(--panel-2);border-radius:12px;padding:12px 14px;font-size:13px}"
+      + ".mkd .mkd-grow ul{margin:4px 0 8px;padding-left:18px}.mkd .mkd-grow p{margin:0}"
+      + ".mkd .mkd-gl{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:6px 0 0}"
+      + ".mkd .mkd-tagp summary{display:flex;gap:10px;align-items:baseline;cursor:pointer;flex-wrap:wrap}"
+      + ".mkd .mkd-tagp .rs-tablewrap{margin-top:10px;max-height:520px}"
+      + ".mkd .mkd-tagsel{font:inherit;font-size:12.5px;max-width:230px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}"
+      + "@media (max-width:900px){.mkd .mkd-segh,.mkd .mkd-segk{grid-template-columns:repeat(2,minmax(0,1fr))}.mkd .mkd-g2s{grid-template-columns:1fr}}"
       + ".mkd .mkd-mt th.grp{text-align:center}.mkd .mkd-mt .sep{border-left:1px solid var(--line-2)}"
       + ".mkd .mkd-mt thead tr:nth-child(2) th{top:36px}"
       + ".mkd .mkd-mt .mkd-post{min-width:300px;max-width:400px;white-space:normal}"
@@ -3351,7 +3381,7 @@
   function indexMeta(t) {
     P.mpost = (t.mpost || []).map(r => ({ id: r["Post Id"], net: r.Platform, d: d10(r.Date), fmt: r.Format || "", text: r.Text || "",
       link: r.Link || "", views: num(r.Views), orgV: num(r["Organic Views"]), paidV: num(r["Paid Views"]), reach: num(r.Reach),
-      clk: num(r.Clicks), pv: num(r["Profile Visits"]),
+      clk: num(r.Clicks), lclk: num(r["Link Clicks"]), pv: num(r["Profile Visits"]),
       eng: num(r.Reactions) + num(r.Comments) + num(r.Shares) + num(r.Saves) })).filter(r => r.d);
     P.mad = {};
     (t.mad || []).forEach(r => { P.mad[r["Ad Id"]] = { name: r["Ad Name"] || "", camp: r.Campaign || "", story: r["Story Id"] || "",
@@ -3684,13 +3714,448 @@
       ]);
     } };
   }
+  /* === YOUTUBE (2026-11-10, tracker ZTZ-23) ===
+     The 'ZIP TO ZIP MOVING Inc' channel from YouTube Analytics (src/youtube_organic.py). Almost every
+     view on it is paid: the Google Ads video campaigns show up as YouTube's ADVERTISING traffic source,
+     so organic = all views less that source, and the videos table puts each video's organic views
+     beside its ad views. Video numbers come whole calendar months at a time (the API's own grain). */
+  const YT_SRC = { ADVERTISING: "Ads", YT_SEARCH: "YouTube search", SUBSCRIBER: "Subscriber feeds", YT_CHANNEL: "Channel page",
+    RELATED_VIDEO: "Suggested videos", EXT_URL: "Other websites", NO_LINK_OTHER: "Direct or unknown", YT_OTHER_PAGE: "Other YouTube pages",
+    PLAYLIST: "Playlists", YT_PLAYLIST_PAGE: "Playlist pages", SHORTS: "Shorts feed", NOTIFICATION: "Notifications",
+    END_SCREEN: "End screens", HASHTAGS: "Hashtags", CAMPAIGN_CARD: "Campaign cards", ANNOTATION: "Cards and annotations",
+    SOUND_PAGE: "Sound pages", LIVE_REDIRECT: "Live redirects", PRODUCT_PAGE: "Product pages", VIDEO_REMIXES: "Remixes" };
+  const YT_AD = "ADVERTISING";
+  function indexYouTube(t) {
+    indexPlat("yt", t.ytday, r => ({ d: d10(r.Date), views: num(r.Views), min: num(r.Minutes), subG: num(r["Subs Gained"]),
+      subL: num(r["Subs Lost"]), likes: num(r.Likes), com: num(r.Comments), sh: num(r.Shares), n: num(r.Views) }));
+    P.ytsrc = (t.ytsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", views: num(r.Views), min: num(r.Minutes) })).filter(r => r.d);
+    P.ytvid = {};
+    (t.ytvid || []).forEach(r => { P.ytvid[r["Video Id"]] = { title: r.Title || "", pub: r["Published At"] ? String(r["Published At"]).slice(0, 10) : "",
+      dur: r["Duration Seconds"] == null ? null : num(r["Duration Seconds"]) }; });
+    P.ytvmon = (t.ytvmon || []).map(r => ({ id: r["Video Id"], m: d10(r.Month).slice(0, 7), views: num(r.Views), ad: num(r["Ad Views"]),
+      min: num(r.Minutes), pct: r["Avg View Pct"] == null ? null : num(r["Avg View Pct"]), likes: num(r.Likes), com: num(r.Comments),
+      sh: num(r.Shares), subs: num(r["Subs Gained"]) })).filter(r => r.id && r.m);
+  }
+  // organic = the sources other than Ads, so it adds up with the sources table (YouTube's day totals
+  // run about 0.1% above the sum of its sources)
+  function ytTotals(days, srcs) {
+    const ad = srcs.filter(r => r.src === YT_AD), org = srcs.filter(r => r.src !== YT_AD);
+    return { all: sum(days, "views"), ad: sum(ad, "views"), org: sum(org, "views"), orgH: sum(org, "min") / 60,
+             subs: sum(days, "subG") - sum(days, "subL"), eng: sum(days, "likes") + sum(days, "com") + sum(days, "sh") };
+  }
+  function youtubeOrganic(w, cw) {
+    const pw = platWin("yt", w, cw);
+    const head = platHead("yt", "YouTube", "ZIP TO ZIP MOVING Inc · organic against the ads, from YouTube Analytics", pw);
+    const rows = pw ? inRange(P.yt, pw.a, pw.b) : [];
+    const gate = platGate("YouTube", "yt", pw, rows);
+    if (gate) return { html: head + gate, wire: null };
+    const srcs = inRange(P.ytsrc, pw.a, pw.b), cur = ytTotals(rows, srcs);
+    const prev = pw.cw ? ytTotals(inRange(P.yt, pw.cw.a, pw.cw.b), inRange(P.ytsrc, pw.cw.a, pw.cw.b)) : {};
+    const org = groupBy(srcs.filter(r => r.src !== YT_AD), r => r.src)
+      .map(g => ({ k: YT_SRC[g.k] || prettyCode(g.k), v: sum(g.rows, "views"), h: sum(g.rows, "min") / 60 }))
+      .filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    const m0 = pw.a.slice(0, 7), m1 = pw.b.slice(0, 7);
+    const vids = groupBy(P.ytvmon.filter(r => r.m >= m0 && r.m <= m1), r => r.id).map(g => {
+      const x = g.rows, all = sum(x, "views"), info = P.ytvid[g.k] || {};
+      return { id: g.k, title: info.title || g.k, pub: info.pub, dur: info.dur, all, ad: sum(x, "ad"), org: Math.max(0, all - sum(x, "ad")),
+               h: sum(x, "min") / 60, pct: all ? x.reduce((s, r) => s + (r.pct || 0) * r.views, 0) / all : null,
+               likes: sum(x, "likes"), com: sum(x, "com"), sh: sum(x, "sh"), subs: sum(x, "subs") };
+    }).filter(v => v.all > 0).sort((a, b) => b.org - a.org || b.all - a.all);
+    const len = s => (s == null ? "" : s >= 3600 ? Math.floor(s / 3600) + " h " + Math.round((s % 3600) / 60) + " min"
+      : s >= 60 ? Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") : s + " s");
+    const months = m0 === m1 ? monShort(m0) : monShort(m0) + " to " + monShort(m1);
+    const html = head + '<div class="rs-kpis" id="mkoK-yt"></div>' + noCmpHint("YouTube", pw)
+      + '<p class="rs-hint">' + pct(ratio(cur.ad, cur.all)) + " of the channel's views in the period came from ads (YouTube's "
+      + "Ads traffic source: the Google Ads video campaigns, on the Paid ads tab). Everything below is the organic rest unless a column says ads.</p>"
+      + '<div class="mko-g2e"><div class="panel"><div class="panel-head"><span class="panel-title">Where organic views came from</span>'
+      + '<span class="mko-sub">the period, ads left out</span></div>'
+      + (org.length ? ptable([
+          { h: "Source", name: true, cell: x => esc(x.k) },
+          { h: "Views", num: true, cell: x => fmtN(x.v) },
+          { h: "Share", num: true, cell: x => pct(ratio(x.v, cur.org)) },
+          { h: "Watch hours", num: true, cell: x => fmtN(x.h) },
+        ], org.slice(0, 10), null, true) : '<div class="mko-empty">No organic views in this period.</div>') + "</div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Videos</span><span class="mko-sub">'
+      + esc(months) + " (whole months), most organic views first</span></div>"
+      + (vids.length ? ptable([
+          { h: "Video", name: true, cell: v => '<a href="https://youtu.be/' + esc(v.id) + '" target="_blank" rel="noopener"><b>'
+              + esc(v.title.length > 70 ? v.title.slice(0, 68) + "…" : v.title) + "</b></a>"
+              + '<div class="mko-sub">' + esc([v.pub ? day(v.pub) : "", len(v.dur)].filter(Boolean).join(" · ")) + "</div>" },
+          { h: "Organic views", num: true, cell: v => fmtN(v.org) },
+          { h: "Ad views", num: true, cell: v => (v.ad ? fmtN(v.ad) : "—") },
+          { h: "Avg viewed", num: true, tip: "average share of the video watched, all views; a Short loops, so it can pass 100%",
+            cell: v => (v.pct == null ? "—" : Math.round(v.pct) + "%") },
+          { h: "Likes", num: true, cell: v => fmtN(v.likes) },
+          { h: "Subs", num: true, tip: "subscribers gained from this video", cell: v => fmtN(v.subs) },
+        ], vids.slice(0, 12), null, true) + (vids.length > 12 ? '<p class="rs-hint">The 12 with the most organic views of '
+          + fmtN(vids.length) + " videos watched in " + esc(months) + ".</p>" : "")
+        : '<div class="mko-empty">No video was watched in ' + esc(months) + ".</div>") + "</div></div>";
+    return { html, wire(host) {
+      RSC.kpis(host.querySelector("#mkoK-yt"), [
+        kp("Organic views", cur.org, prev.org, fmtN, false, pct(ratio(cur.org, cur.all)) + " of all views", pw),
+        kp("Views from ads", cur.ad, prev.ad, fmtN, null, "the Google Ads video campaigns", pw),
+        kp("Organic watch hours", cur.orgH, prev.orgH, fmtN, false, "", pw),
+        kp("Subscribers, net", cur.subs, prev.subs, fmtN, false, "gained less lost", pw),
+        kp("Likes, comments, shares", cur.eng, prev.eng, fmtN, false, "on every view, ads included", pw),
+      ]);
+    } };
+  }
+
+  /* === AUDIENCE SEGMENTS (2026-11-10, Elene's "Final Social Media Report Brief", tracker ZTZ-51) ===
+     Every organic post is tied to the audience it was MADE for (a segment) and a content pillar. No
+     platform reports either, so the marketing team tags each post here (/api/_mktposttag ->
+     mkt_post_tag, read back through the bridge so a tag shows at once). Per channel: her per-post
+     targets and the cumulative post reach against the month's target, then one card per PRIMARY
+     segment (KPIs against target, top and bottom 3 by score, what worked and what didn't by format,
+     pillar and both, how to grow it), the secondary segments in one table, and the posts to tag.
+     Numbers are each post's organic side (a boosted post keeps its organic share, as on the Organic
+     team list); channels are never compared with each other. Her targets, the segment map, the post
+     mix and the score weights all live in SEG_CFG.
+     Score (her section 4): reach ÷ the per-post target, engagement rate ÷ the benchmark and, for a post
+     with a link, CTR ÷ the channel's median CTR; each capped at 3; weighted 0.4 / 0.4 / 0.2, or 0.5 /
+     0.5 without a link. 1.00 = exactly on target. Instagram captions carry no clickable link, so an
+     Instagram post is always scored without one. */
+  const SEG_CFG = {
+    postsPerMonth: 13,                     // 3 a week
+    weights: { reach: 0.4, er: 0.4, ctr: 0.2, noLinkReach: 0.5, noLinkEr: 0.5, cap: 3 },
+    minGroup: 2,                           // a finding needs at least this many posts
+    fewPosts: 6,                           // under this the rankings are indicative
+    channels: {
+      Instagram: { followers: 8800, reachRate: 0.094, reachPost: 827.2, intPost: 16, er: 0.0194, monthReach: 10754,
+        ints: "likes, comments, saves and shares",
+        why: "Visual, younger, consumer-led. Homeowners and students or faculty discover movers here; realtors and apartment "
+          + "communities run their brands here and reshare useful visuals." },
+      Facebook: { followers: 10000, reachRate: 0.042, reachPost: 420, intPost: 3, er: 0.0071, monthReach: 5460,
+        ints: "reactions, comments and shares",
+        tip: "Meta restricts business-page reach; 3 or more interactions a post tells the algorithm to keep serving our next posts.",
+        why: "Local and community-led, an older audience, groups and recommendations. Strongest for homeowners, seniors and "
+          + "downsizers, local trades and community groups." },
+      LinkedIn: { followers: 300, reachRate: 0.078, reachPost: 23, intPost: 0.5, er: 0.022, monthReach: 304,
+        ints: "reactions, comments and reposts",
+        why: "B2B decision-makers: the people who send us moves (brokers, property managers, university offices, HR and "
+          + "relocation, lenders, builders). A small follower base, so every interaction counts." },
+    },
+    // tier order: Homeowners, then tiers 1, 2, 3 (the partner priority map)
+    segments: [
+      { k: "home", name: "Homeowners", tier: "Core", brings: "People planning a move themselves" },
+      { k: "realtor", name: "Realtors & brokerages", tier: "Tier 1", brings: "Buyer and seller referrals at contract and closing" },
+      { k: "pm", name: "Property managers & apartments", tier: "Tier 1", brings: "Repeat move-in and move-out volume, 2BR+ units" },
+      { k: "uni", name: "Universities", tier: "Tier 1", brings: "Larger household moves: graduate students, faculty, international families" },
+      { k: "builder", name: "New-construction builders", tier: "Tier 2", brings: "Buyers closing on new homes" },
+      { k: "mortgage", name: "Mortgage, title & closing", tier: "Tier 2", brings: "Buyers at the moment a move becomes certain" },
+      { k: "hr", name: "Corporate relocation & HR", tier: "Tier 2", brings: "Employees relocating across the Northeast" },
+      { k: "trades", name: "Home-service trades", tier: "Tier 2", brings: "Homeowners preparing a house for sale" },
+      { k: "senior", name: "Senior living & downsizing", tier: "Tier 2", brings: "Seniors and downsizers" },
+      { k: "media", name: "Student & community media", tier: "Tier 3", brings: "Reach to students, parents, faculty" },
+      { k: "storage", name: "Storage, cleaning & junk removal", tier: "Tier 3", brings: "Move-adjacent customers" },
+      { k: "inspect", name: "Home inspectors & stagers", tier: "Tier 3", brings: "Sellers early in the listing process" },
+      { k: "community", name: "Community groups & chambers", tier: "Tier 3", brings: "Local trust and word of mouth" },
+    ],
+    // P = primary (its own card), S = secondary (the compact table); a segment missing is not targeted there
+    role: {
+      Instagram: { home: "P", realtor: "P", pm: "P", uni: "P", builder: "S", media: "S", storage: "S", inspect: "S" },
+      Facebook: { home: "P", realtor: "S", pm: "S", uni: "S", builder: "S", trades: "P", senior: "P", storage: "S", community: "P" },
+      LinkedIn: { realtor: "P", pm: "P", uni: "P", builder: "P", mortgage: "P", hr: "P", trades: "S", senior: "S", inspect: "S", community: "S" },
+    },
+    // the planned monthly posts of each primary segment (13 a channel)
+    mix: {
+      Instagram: { home: 5, realtor: 3, uni: 3, pm: 2 },
+      Facebook: { home: 5, senior: 3, community: 3, trades: 2 },
+      LinkedIn: { realtor: 3, pm: 2, hr: 2, uni: 2, builder: 2, mortgage: 2 },
+    },
+    success: {
+      Instagram: {
+        home: "Locals planning a move save and share our posts, and DMs or link clicks turn into quote requests.",
+        realtor: "Agents reshare or tag us, and at least one asks about co-branded guides each month.",
+        uni: "Students, faculty and international families save our move guides, and university accounts reshare them.",
+        pm: "Apartment community accounts reshare our content or ask about the partner kit." },
+      Facebook: {
+        home: "Our posts hit 3+ interactions and get shared into local feeds and groups.",
+        senior: "Adult children and advisors comment, share or message about downsizing moves.",
+        community: "We're tagged or recommended in local groups, and chambers share our events or tips.",
+        trades: "Local trades engage or share, opening two-way referral conversations." },
+      LinkedIn: {
+        realtor: "Brokers and agents comment or connect, leading to referral or co-branded guide talks.",
+        pm: "Managers engage with partner-kit content and start partner conversations.",
+        uni: "Housing, international or HR office staff engage and offer orientation or newsletter access.",
+        hr: "HR and relocation leads engage and ask about the preferred-vendor program.",
+        builder: "Builder sales teams engage and discuss closing-gift move offers.",
+        mortgage: "Lenders and attorneys engage and agree to include our checklist in closing packets." },
+    },
+    // her starting points, used where the data is thin: [reach more of them, grow how many follow us]
+    start: {
+      Instagram: {
+        home: ["Reels with real move moments, local neighbourhood hooks, seasonal timing (peak moving months).",
+               "Saveable checklists and packing carousels, story polls, a quote CTA in the bio and stories."],
+        realtor: ["Tag partner agents and brokerages; co-branded \"new home\" posts.",
+                  "Content agents can repost to their clients: moving-day checklists, neighbourhood guides."],
+        uni: ["Time posts around semester start and end and orientation; international-family move guides.",
+              "Collaborate with student and community media; university hashtags and location tags."],
+        pm: ["Apartment move-in and move-out tips; building-friendly moving etiquette.",
+             "Tag communities; offer resident-facing graphics they can share."] },
+      Facebook: {
+        home: ["Local, practical posts and customer stories; reply to questions fast.",
+               "Shares into local groups, reviews and recommendations, event posts."],
+        senior: ["Calm, reassuring stories for adult children and seniors; downsizing checklists.",
+                 "Advisor partnerships, shareable guides."],
+        community: ["Local sponsorships, event recaps, helpful replies in groups.", "Tag chambers and groups; co-hosted events."],
+        trades: ["\"Getting your house ready to sell\" content made with trades.", "Tag partner trades; two-way referral posts."] },
+      LinkedIn: {
+        realtor: ["Market and relocation insights, co-branded relocation guides.", "Comment on broker posts; our team's own profiles reshare."],
+        pm: ["Turnover-season content, partner-kit and referral-reward posts.", "Targeted connection outreach to managers."],
+        uni: ["Relocation support for faculty and international hires.", "Connect with housing and international offices; document posts (free move guide)."],
+        hr: ["Northeast relocation case studies, a preferred-vendor program explainer.", "HR-focused document carousels; team profiles in HR conversations."],
+        builder: ["Closing-gift move offer, new-community spotlights.", "Tag builders; co-announcements."],
+        mortgage: ["\"From closing to move-in\" checklist content.", "Co-branded checklist offer; tag lender partners."] },
+    },
+    // content pillars to pick from (her brief's examples); "Other" is always offered too
+    pillars: ["Moving advice", "Trust & proof", "Partner resources", "Local knowledge", "Costs"],
+  };
+  const SG = { net: lsGet("mkoSegNet") || "Instagram", open: {} };
+  const segOf = k => SEG_CFG.segments.find(s => s.k === k) || null;
+  function indexTags(list) {
+    P.tags = {};
+    (list || []).forEach(t => { P.tags[t.Platform + "|" + t["Post Id"]] = { seg: t.Segment || "", pil: t.Pillar || "", by: t["Entered By"] || "", at: t["Entered At"] || "" }; });
+  }
+  function saveTag(body) {
+    return fetch(ZTZ.API + "/api/_mktposttag", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(r => r.json().catch(() => ({})).then(j => {
+      if (!r.ok || j.error) {
+        if (j && j.code === "view_as_readonly") throw new Error("preview mode — tags are not saved while viewing as someone else");
+        throw new Error(j.error || ("HTTP " + r.status));
+      }
+      indexTags(j.tags || []);
+    }));
+  }
+  function segMedian(xs) {
+    const s = xs.filter(v => v != null).slice().sort((a, b) => a - b), n = s.length;
+    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+  }
+  // the channel's posts published in [a, b], each with its organic side and its tags
+  function segPosts(net, a, b) {
+    return P.mpost.filter(p => p.net === net && p.d >= a && p.d <= b).map(p => {
+      const share = p.paidV > 0 && p.views ? p.orgV / p.views : 1, t = P.tags[net + "|" + p.id] || {};
+      const hasLink = net !== "Instagram" && (p.lclk > 0 || /https?:\/\/|www\.|ziptozipmoving\.com/i.test(p.text));
+      const reach = p.reach * share, eng = p.eng * share, lclk = p.lclk * share;
+      return { id: p.id, net, d: p.d, fmt: p.fmt, text: p.text, link: p.link, boosted: p.paidV > 0, reach, eng, views: p.orgV,
+               hasLink, lclk: hasLink ? lclk : null, er: reach > 0 ? eng / reach : 0,
+               ctr: hasLink ? (p.orgV > 0 ? lclk / p.orgV : 0) : null, seg: t.seg || "", pil: t.pil || "" };
+    });
+  }
+  function segScore(p, ch, med) {
+    const W = SEG_CFG.weights, cap = v => Math.min(W.cap, Math.max(0, v || 0));
+    const ri = cap(p.reach / ch.reachPost), ei = cap(p.er / ch.er);
+    if (!p.hasLink || !med) return W.noLinkReach * ri + W.noLinkEr * ei;
+    return W.reach * ri + W.er * ei + W.ctr * cap(p.ctr / med);
+  }
+  // every post in the period scored; the median CTR is the period's linked posts, or every one on file
+  // when the period has fewer than three
+  function segScored(net, a, b) {
+    const ch = SEG_CFG.channels[net], posts = segPosts(net, a, b);
+    let ctrs = posts.filter(p => p.hasLink).map(p => p.ctr);
+    if (ctrs.length < 3) ctrs = segPosts(net, "0000-01-01", "9999-12-31").filter(p => p.hasLink).map(p => p.ctr);
+    const med = segMedian(ctrs);
+    posts.forEach(p => { p.score = segScore(p, ch, med); });
+    return { posts, med };
+  }
+  const segByScore = (a, b) => b.score - a.score || b.reach - a.reach;
+  // top 3 and bottom 3, never the same post twice; a post younger than `settled` is never bottom
+  function segTopBottom(posts, settled) {
+    const s = posts.slice().sort(segByScore), top = s.slice(0, Math.min(3, s.length));
+    const rest = s.slice(top.length).filter(p => p.d <= settled);
+    return { top, bottom: rest.slice(-Math.min(3, rest.length)).reverse() };
+  }
+  // what worked / what didn't: groups of at least minGroup posts against the segment's average score
+  function segFindings(posts) {
+    const avg = posts.length ? posts.reduce((s, p) => s + p.score, 0) / posts.length : null;
+    const dims = [["Format", p => p.fmt], ["Pillar", p => p.pil], ["Format × pillar", p => (p.fmt && p.pil ? p.fmt + " × " + p.pil : "")]];
+    return { avg, rows: dims.map(([label, f]) => {
+      const groups = groupBy(posts.filter(p => f(p)), f).filter(g => g.rows.length >= SEG_CFG.minGroup)
+        .map(g => ({ k: g.k, n: g.rows.length, v: g.rows.reduce((s, p) => s + p.score, 0) / g.rows.length }));
+      return { label, up: groups.filter(g => g.v > avg).sort((a, b) => b.v - a.v)[0] || null,
+               dn: groups.filter(g => g.v < avg).sort((a, b) => a.v - b.v)[0] || null };
+    }) };
+  }
+  function segStats(posts) {
+    const n = posts.length, reach = sum(posts, "reach"), eng = sum(posts, "eng"), lk = posts.filter(p => p.hasLink);
+    const lv = sum(lk, "views"), lc = sum(lk, "lclk");
+    return { n, reach, eng, avgReach: n ? reach / n : null, avgInt: n ? eng / n : null, er: reach > 0 ? eng / reach : null,
+             ctr: lv > 0 ? lc / lv : null, links: lk.length, avgScore: n ? posts.reduce((s, p) => s + p.score, 0) / n : null };
+  }
+  const segBand = r => (r == null || isNaN(r) ? "" : r >= 1 ? "ok" : r >= 0.7 ? "warn" : "bad");
+  const segTimes = v => (v == null || isNaN(v) ? "—" : v.toFixed(2) + "× target");
+  // data first, then her starting points (her section 5.B.6)
+  function segGrow(net, k, st, f, planned) {
+    const ch = SEG_CFG.channels[net], mix = (SEG_CFG.mix[net] || {})[k] || 0, out = [];
+    const [fm, pl, fp] = f.rows, best = fp.up || fm.up || pl.up;
+    if (best) out.push(best.k + " is " + segTimes(best.v) + " over " + best.n + " posts: make it "
+      + Math.max(1, Math.round(mix * 0.4)) + " of the " + mix + " monthly posts.");
+    const worst = fp.dn || fm.dn || pl.dn;
+    if (worst && worst.v < 1) out.push(worst.k + " is " + segTimes(worst.v) + " over " + worst.n + " posts: rework it before posting more of it.");
+    if (planned >= 1 && st.n < planned * 0.7) out.push("Only " + st.n + " of about " + Math.round(planned) + " planned posts went out for this segment.");
+    if (st.avgReach != null && st.avgReach < ch.reachPost * 0.7) out.push("Reach is " + Math.round(100 * st.avgReach / ch.reachPost)
+      + "% of target a post: tag partners and post at the segment's busy times.");
+    if (st.er != null && st.er < ch.er * 0.7) out.push("Engagement is " + Math.round(100 * st.er / ch.er)
+      + "% of the benchmark: end with a question or make it worth saving.");
+    return { data: out, best };
+  }
+  const segLine = p => { const t = String(p.text || "").split("\n")[0].trim() || "(no caption)"; return t.length > 70 ? t.slice(0, 68) + "…" : t; };
+  function segPostTable(list, med) {
+    return ptable([
+      { h: "Post", name: true, cell: p => (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + esc(segLine(p)) + "</a>" : esc(segLine(p)))
+          + '<div class="mko-sub">' + esc([day(p.d), p.fmt, p.pil || "no pillar"].filter(Boolean).join(" · ")) + (p.boosted ? " · boosted" : "") + "</div>" },
+      { h: "Reach", num: true, cell: p => (p.boosted ? "≈ " : "") + fmtN(p.reach) },
+      { h: "Interactions", num: true, cell: p => fmtN(p.eng) },
+      { h: "ER", num: true, tip: "interactions ÷ reach", cell: p => pct2(p.er) },
+      { h: "CTR", num: true, tip: "link clicks ÷ views", cell: p => (p.hasLink ? pct2(p.ctr) : "—") },
+      { h: "Score", num: true, cell: p => "<b>" + segTimes(p.score) + "</b>" },
+    ], list, null, true);
+  }
+  function segOptions(net, cur) {
+    const role = SEG_CFG.role[net] || {}, all = SEG_CFG.segments;
+    const grp = (label, list) => (list.length ? '<optgroup label="' + esc(label) + '">' + list.map(s => '<option value="' + s.k + '"'
+      + (s.k === cur ? " selected" : "") + ">" + esc(s.name) + "</option>").join("") + "</optgroup>" : "");
+    return '<option value="">Segment…</option>' + grp("Primary on " + net, all.filter(s => role[s.k] === "P"))
+      + grp("Secondary on " + net, all.filter(s => role[s.k] === "S")) + grp("Not targeted on " + net, all.filter(s => !role[s.k]));
+  }
+  function pillarOptions(cur) {
+    const list = SEG_CFG.pillars.concat(["Other"]).concat(cur && !SEG_CFG.pillars.includes(cur) && cur !== "Other" ? [cur] : []);
+    return '<option value="">Pillar…</option>' + list.map(v => '<option' + (v === cur ? " selected" : "") + ">" + esc(v) + "</option>").join("");
+  }
+  function segCard(net, s, posts, planned, settled, med) {
+    const ch = SEG_CFG.channels[net], st = segStats(posts), f = segFindings(posts), g = segGrow(net, s.k, st, f, planned);
+    const tb = segTopBottom(posts, settled), start = ((SEG_CFG.start[net] || {})[s.k]) || ["", ""];
+    const box = (label, v, sub, band) => '<div class="mkd-sk ' + (band || "") + '"><span>' + esc(label) + "</span><b>" + v + "</b><em>" + esc(sub) + "</em></div>";
+    const kpis = '<div class="mkd-segk">'
+      + box("Posts", fmtN(st.n), "of about " + Math.round(planned) + " planned", segBand(planned >= 1 ? st.n / planned : null))
+      + box("Avg reach a post", st.n ? fmtN(st.avgReach) : "—", "target " + fmtN(ch.reachPost), segBand(st.n ? st.avgReach / ch.reachPost : null))
+      + box("Avg interactions a post", st.n ? (st.avgInt >= 10 ? fmtN(st.avgInt) : st.avgInt.toFixed(1)) : "—", "target " + ch.intPost, segBand(st.n ? st.avgInt / ch.intPost : null))
+      + box("Engagement rate", st.er == null ? "—" : pct2(st.er), "benchmark " + pct2(ch.er), segBand(st.er == null ? null : st.er / ch.er))
+      + box("CTR", st.ctr == null ? "—" : pct2(st.ctr), st.links ? st.links + " posts with a link" : "no post with a link", "")
+      + "</div>";
+    const find = side => '<ul class="mkd-find">' + f.rows.map(r => {
+      const x = r[side];
+      return "<li><span>" + esc(r.label) + "</span>" + (x ? "<b>" + esc(x.k) + "</b><em>" + segTimes(x.v) + ", " + x.n + " posts</em>"
+        : '<em class="mko-thin">no group of ' + SEG_CFG.minGroup + "+ posts " + (side === "up" ? "above" : "below") + " the average</em>") + "</li>";
+    }).join("") + "</ul>";
+    const few = st.n && st.n < SEG_CFG.fewPosts ? '<p class="rs-hint">Only ' + st.n + " post" + (st.n === 1 ? "" : "s") + ": rankings are indicative.</p>" : "";
+    const body = !st.n ? '<div class="mko-empty">Not enough data yet: no post tagged for this segment in the period.</div>'
+      : '<div class="mkd-g2s"><div><h4 class="mkd-h4">Top ' + tb.top.length + "</h4>" + segPostTable(tb.top, med) + "</div><div><h4 class=\"mkd-h4\">Bottom "
+        + tb.bottom.length + "</h4>" + (tb.bottom.length ? segPostTable(tb.bottom, med) : '<div class="mko-empty">No other settled post.</div>') + "</div></div>" + few
+        + '<div class="mkd-g2s"><div><h4 class="mkd-h4">What worked</h4>' + find("up") + '</div><div><h4 class="mkd-h4">What didn\'t</h4>' + find("dn") + "</div></div>"
+        + '<p class="rs-hint">Against this segment\'s average post (' + segTimes(f.avg) + "); a group needs " + SEG_CFG.minGroup + " posts or more.</p>";
+    const prio = g.best ? g.best.k : start[0] ? "her starting point: " + start[0] : "—";
+    const grow = '<div class="mkd-grow"><h4 class="mkd-h4">How to grow this segment</h4>'
+      + (g.data.length ? '<p class="mkd-gl">From the data</p><ul>' + g.data.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "")
+      + '<p class="mkd-gl">Starting points' + (g.data.length ? " (the data above wins where they disagree)" : "") + "</p><ul>"
+      + (start[0] ? "<li><b>Reach more of them:</b> " + esc(start[0]) + "</li>" : "")
+      + (start[1] ? "<li><b>Grow how many of them follow us:</b> " + esc(start[1]) + "</li>" : "") + "</ul>"
+      + '<p class="mkd-gl">Prioritise next month</p><p>' + esc(prio) + "</p></div>";
+    return '<article class="panel mkd-segp"><div class="panel-head"><span class="panel-title">' + esc(s.name) + "</span>"
+      + '<span class="rs-pill mute">' + esc(s.tier) + '</span><span class="mko-sub">' + esc(s.brings) + "</span></div>"
+      + '<p class="mkd-segok"><b>Success:</b> ' + esc(((SEG_CFG.success[net] || {})[s.k]) || "") + "</p>" + kpis + body + grow + "</article>";
+  }
+  function segTagPanel(net, posts) {
+    const list = posts.slice().sort((a, b) => (a.seg ? 1 : 0) - (b.seg ? 1 : 0) || (a.d < b.d ? 1 : a.d > b.d ? -1 : 0));
+    const untagged = posts.filter(p => !p.seg).length;
+    return '<details class="panel mkd-tagp"' + (SG.open[net] ? " open" : "") + ' data-net="' + esc(net) + '"><summary><span class="panel-title">Tag posts</span>'
+      + '<span class="mko-sub">' + fmtN(untagged) + " of " + fmtN(posts.length) + " posts in the period untagged · untagged first</span></summary>"
+      + (posts.length ? '<div class="rs-tablewrap mkd-scroll"><table class="rs-table mko-pt mko-tight"><thead><tr><th>Post</th><th class="mko-num">Reach</th>'
+        + "<th>Segment</th><th>Pillar</th><th></th></tr></thead><tbody>" + list.map(p => '<tr data-post="' + esc(p.id) + '"><td class="mko-name">'
+          + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + esc(segLine(p)) + "</a>" : esc(segLine(p)))
+          + '<div class="mko-sub">' + esc([day(p.d), p.fmt].filter(Boolean).join(" · ")) + "</div></td>"
+          + '<td class="mko-num">' + fmtN(p.reach) + '</td><td><select class="mkd-tagsel" data-f="seg">' + segOptions(net, p.seg) + "</select></td>"
+          + '<td><select class="mkd-tagsel" data-f="pil">' + pillarOptions(p.pil) + '</select></td><td class="mko-sub mkd-tagst"></td></tr>').join("")
+        + "</tbody></table></div>" : '<div class="mko-empty">No post in this period.</div>') + "</details>";
+  }
+  function segPaint(box, w, cw) {
+    const net = SEG_CFG.channels[SG.net] ? SG.net : "Instagram", ch = SEG_CFG.channels[net];
+    const pw = platWin("msoc", w, cw) || { a: w.a, b: w.bEff };
+    const role = SEG_CFG.role[net] || {}, prim = SEG_CFG.segments.filter(s => role[s.k] === "P");
+    const months = dayCount(pw.a, pw.b) / (365.25 / 12), settled = addDays(today(), -META_SETTLE);
+    const tabs = '<div class="mko-topics" id="mkoSegNet">' + Object.keys(SEG_CFG.channels).map(k => '<button type="button" data-net="' + k + '" class="'
+      + (k === net ? "on" : "") + '">' + k + "</button>").join("") + "</div>";
+    const head = '<div class="mko-ph"><h3>Audience segments</h3><span class="mko-sub">organic posts by the audience each was made for · '
+      + esc(day(pw.a)) + " to " + esc(day(pw.b)) + "</span></div>" + tabs;
+    const foot = '<p class="rs-hint">Platforms do not report reach by our segments: a post\'s segment is the audience it was made for, set by our tag. '
+      + "Targets, the segment map, the post mix and the score weights are Elene's brief (Nov 2026).</p>";
+    const fol = net === "LinkedIn" ? followersAt(pw.b)
+      : ((P.msoc || []).filter(r => r.net === net && r.fol != null && r.d <= pw.b).reduce((a, r) => (!a || r.d > a.d ? r : a), null) || {}).fol;
+    const sc = net === "LinkedIn" ? { posts: [], med: null } : segScored(net, pw.a, pw.b);
+    const reachSum = sum(sc.posts, "reach"), target = ch.monthReach * months;
+    const hdr = '<div class="mkd-segh">'
+      + '<div class="mkd-sk"><span>Followers</span><b>' + fmtN(fol == null ? ch.followers : fol) + "</b><em>"
+        + (fol == null ? "her figure" : "brief: " + fmtN(ch.followers)) + " · reach rate " + pct(ch.reachRate) + "</em></div>"
+      + '<div class="mkd-sk"><span>Target a post</span><b>' + fmtN(ch.reachPost) + " reach</b><em>" + ch.intPost + " interactions (" + esc(ch.ints) + ")</em></div>"
+      + '<div class="mkd-sk"' + (ch.tip ? ' title="' + esc(ch.tip) + '"' : "") + "><span>Engagement benchmark</span><b>" + pct2(ch.er) + "</b><em>interactions ÷ reach"
+        + (ch.tip ? " · why ⓘ" : "") + "</em></div>"
+      + '<div class="mkd-sk ' + segBand(net === "LinkedIn" ? null : reachSum / target) + '"><span>Cumulative post reach</span><b>' + (net === "LinkedIn" ? "—" : fmtN(reachSum))
+        + "</b><em>target " + fmtN(target) + " for the period</em>"
+        + (net === "LinkedIn" ? "" : '<div class="mkd-bar"><i style="width:' + Math.min(100, Math.round(100 * reachSum / (target || 1))) + '%"></i></div>') + "</div>"
+      + '</div><p class="mkd-why">' + esc(ch.why) + "</p>";
+    if (net === "LinkedIn") {
+      box.innerHTML = head + hdr + '<div class="mko-empty">LinkedIn per-post numbers are not on file yet: they arrive once the LinkedIn Page app\'s '
+        + "per-post statistics are signed in (Tornike, once). The targets, the segments and the planned mix (" + prim.map(s => s.name + " "
+        + SEG_CFG.mix.LinkedIn[s.k]).join(" · ") + ") are ready.</div>" + foot;
+      wireNet();
+      return;
+    }
+    const tagErr = P.err.tags ? '<p class="rs-hint">Tags could not be read: ' + esc(P.err.tags) + "</p>" : "";
+    const bySeg = k => sc.posts.filter(p => p.seg === k);
+    const cards = prim.map(s => segCard(net, s, bySeg(s.k), ((SEG_CFG.mix[net] || {})[s.k] || 0) * months, settled, sc.med)).join("");
+    const sec = SEG_CFG.segments.filter(s => role[s.k] !== "P" && (role[s.k] === "S" || bySeg(s.k).length)).map(s => {
+      const ps = bySeg(s.k).sort(segByScore), st = segStats(ps);
+      return { s, n: ps.length, avg: st.avgScore, best: ps[0] || null, role: role[s.k] || "" };
+    });
+    const secHtml = '<div class="panel"><div class="panel-head"><span class="panel-title">Secondary segments</span><span class="mko-sub">tagged and reported, no growth plan</span></div>'
+      + ptable([
+        { h: "Segment", name: true, cell: x => esc(x.s.name) + ' <span class="rs-pill mute">' + esc(x.s.tier) + "</span>"
+            + (x.role ? "" : ' <span class="rs-pill warn">not targeted on ' + esc(net) + "</span>") },
+        { h: "Posts", num: true, cell: x => fmtN(x.n) },
+        { h: "Avg score", num: true, cell: x => segTimes(x.avg) },
+        { h: "Best post", cell: x => (x.best ? (x.best.link ? '<a href="' + esc(x.best.link) + '" target="_blank" rel="noopener">' + esc(segLine(x.best)) + "</a>"
+            : esc(segLine(x.best))) + ' <span class="mko-sub">' + segTimes(x.best.score) + "</span>" : '<span class="mko-thin">Not enough data yet</span>') },
+      ], sec, null, true) + "</div>";
+    const untagged = sc.posts.filter(p => !p.seg).length;
+    box.innerHTML = head + hdr + tagErr
+      + (sc.posts.length && untagged === sc.posts.length ? '<p class="mkd-note">None of the ' + fmtN(sc.posts.length) + " " + esc(net)
+        + " posts in this period is tagged yet: tag them in <b>Tag posts</b> at the bottom and the segment cards fill in.</p>" : "")
+      + cards + secHtml + segTagPanel(net, sc.posts) + foot;
+    wireNet();
+    const tp = box.querySelector(".mkd-tagp");
+    if (tp) tp.addEventListener("toggle", () => { SG.open[net] = tp.open; });
+    box.querySelectorAll(".mkd-tagp tr[data-post]").forEach(tr => {
+      const sels = tr.querySelectorAll("select"), stEl = tr.querySelector(".mkd-tagst");
+      sels.forEach(sel => {
+        sel.onchange = () => {
+          const v = f => tr.querySelector('select[data-f="' + f + '"]').value;
+          sels.forEach(x => { x.disabled = true; });
+          stEl.textContent = "saving…";
+          saveTag({ post: tr.dataset.post, platform: net, segment: v("seg"), pillar: v("pil") })
+            .then(() => { stEl.textContent = "saved"; delete P.err.tags; setTimeout(() => segPaint(box, w, cw), 400); })
+            .catch(e => { stEl.textContent = (e && e.message) || "not saved"; sels.forEach(x => { x.disabled = false; }); });
+        };
+      });
+    });
+    function wireNet() {
+      box.querySelectorAll("#mkoSegNet [data-net]").forEach(b => {
+        b.onclick = () => { SG.net = b.dataset.net; lsSet("mkoSegNet", SG.net); segPaint(box, w, cw); };
+      });
+    }
+  }
   function socialTab(w, cw) {
     const li = linkedinPage(w, cw);
     const tt = tiktokOrganic(w, cw);
+    const yt = youtubeOrganic(w, cw);
     const card = (name, chip, body) => '<article class="mkd-plat off"><div class="hd"><div><div class="nm"><h3>' + esc(name)
       + '</h3><span class="mkd-chip">' + esc(chip) + "</span></div></div></div><p>" + body + "</p></article>";
     const html = '<section class="mkd-sec" id="mkoMeta" aria-label="Facebook and Instagram"></section>'
+      + '<section class="mkd-sec" id="mkoSeg" aria-label="Audience segments"></section>'
       + '<section class="mkd-sec" aria-label="LinkedIn Company Page">' + li.html + "</section>"
+      + '<section class="mkd-sec" aria-label="YouTube">' + yt.html + "</section>"
       + (tt ? '<section class="mkd-sec" aria-label="TikTok">' + tt.html + "</section>"
         : '<section class="mkd-sec" aria-labelledby="mkdSocH"><div class="mkd-h"><h2 id="mkdSocH">Coming next</h2>'
         + "<span>fills in the day its access comes through</span></div><div class=\"mkd-plats\">"
@@ -3702,7 +4167,11 @@
       const box = host.querySelector("#mkoMeta");
       if (S.co === "Tuji") box.innerHTML = '<p class="mkd-note">The Facebook Page and Instagram account are Zip to Zip\'s, so they are not shown for Tuji.</p>';
       else metaPaint(box, w, cw);
+      const seg = host.querySelector("#mkoSeg");
+      if (S.co === "Tuji") seg.innerHTML = "";
+      else segPaint(seg, w, cw);
       if (li.wire) li.wire(host);
+      if (yt.wire) yt.wire(host);
       if (tt && tt.wire) tt.wire(host);
     } };
   }
@@ -6022,11 +6491,14 @@
         plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
         plat("mkt_limix", "limix"),
         plat("mkt_ttacc", "tto"), plat("mkt_ttvid", "tto"), plat("mkt_ttvday", "tto"), plat("mkt_ttsrc", "tto"), plat("mkt_ttaud", "tto"),
+        plat("mkt_ytday", "yt"), plat("mkt_ytsrc", "yt"), plat("mkt_ytvid", "yt"), plat("mkt_ytvmon", "yt"),
+        ZTZ.api("/api/_mktposttag").then(j => (j && j.tags) || [])
+          .catch(e => { P.err.tags = (e && e.message) || String(e); return []; }),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc, fsrc,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc,
-                limix, ttacc, ttvid, ttvday, ttsrc, ttaud]) => {
+                limix, ttacc, ttvid, ttvday, ttsrc, ttaud, ytday, ytsrc, ytvid, ytvmon, tags]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -6041,6 +6513,8 @@
         indexTikTok(tt);
         indexTikTokOrganic({ ttacc, ttvid, ttvday, ttsrc, ttaud });
         indexMeta({ mpost, mad, mlife, mpd, msoc });
+        indexYouTube({ ytday, ytsrc, ytvid, ytvmon });
+        indexTags(tags);
         indexBatch3({ refdom, anchor, ctrace });
         P.fsrc = (fsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", med: r.Medium || "", leads: num(r.Leads), booked: num(r.Booked) })).filter(r => r.d);
         P.utmc = (utmc || []).map(r => ({ d: d10(r.Date), plat: r.Platform, camp: normCamp(r["UTM Campaign"]), leads: num(r.Leads), booked: num(r.Booked) }));

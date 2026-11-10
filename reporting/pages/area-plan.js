@@ -132,6 +132,15 @@
              "State Lead Share", "State Job Share"],
     };
   }
+  /* BY DELIVERY LOCATION (2026-11-10, tracker ZTZ-48): the same tiers counted off where each move is
+     delivered (mart_area_tier_delivery, the same SQL as mart_area_tier -- see curated.py), and the lead
+     directions, pickup state to delivery state, for route campaigns (mart_lead_route) */
+  if (window.RS && RS.DATASETS && RS.DATASETS.area_tier && !RS.DATASETS.area_tier_delivery) {
+    RS.DATASETS.area_tier_delivery = Object.assign({}, RS.DATASETS.area_tier, { table: "mart_area_tier_delivery" });
+    RS.DATASETS.lead_route = { table: "mart_lead_route",
+      cols: ["Company", "Pickup State", "Delivery State", "Leads 12m", "Booked 12m", "Jobs 12m", "Revenue 12m", "Long Distance Leads 12m"],
+      dateCols: {}, defaultDate: null };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.tuji_area) {
     /* THE TUJI TAB (his ask 2026-10-09): every county and zip within 100 miles of Tuji's base in
        Newark, DE -- Tuji's own leads and jobs, a tier, and the three "needs attention" flags with
@@ -648,6 +657,11 @@ html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
 .ap3-list .lh b{font-size:14px;color:var(--ink)}
 .ap3-list .lh span{flex:1;color:var(--muted);font-size:12.5px}
 .ap3-list .lh .rs-btn{padding:3px 9px;font-size:11.5px}
+.ap3-routes{margin-top:14px;border:1px solid var(--ap-rule);border-radius:12px;padding:10px 12px;background:var(--panel)}
+.ap3-routes .lh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.ap3-routes .lh b{font-size:14px;color:var(--ink)}.ap3-routes .lh span{flex:1;color:var(--muted);font-size:12.5px}
+.ap3-routes .rs-tablewrap{max-height:460px}.ap3-rtin{font-size:11px;color:var(--muted)}
+.ap3-basisnote{margin:6px 0 0}
 .ap3-list .tt{display:flex;gap:4px;padding:0 10px 8px;flex-wrap:wrap}
 .ap3-list .tt button{font:inherit;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;
   border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
@@ -1601,6 +1615,11 @@ const AREA_PLAN_PAGE = {
     const ymLabel = ym => MONTH_NAMES[+ym.slice(5, 7)] + " " + ym.slice(0, 4);
 
     injectStyle();
+    /* THE TARGET MAP COUNTS BY PICKUP OR BY DELIVERY (2026-11-10): remembered with the plan and market;
+       the switch re-renders the page on the other tier table, so nothing else on it changes */
+    const BASIS = !LOCK ? "pickup" : LOCK.basis ? LOCK.basis : (() => {
+      try { return (JSON.parse(localStorage.getItem(TM_KEY) || "{}") || {}).basis === "delivery" ? "delivery" : "pickup"; }
+      catch (e) { return "pickup"; } })();
     host.innerHTML = '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + '</h1></div>' +
       '<div class="rs-loading" style="padding:22px">Reading the plan, the model and every city…</div>';
 
@@ -1613,11 +1632,12 @@ const AREA_PLAN_PAGE = {
       RS.load("area_county").catch(() => null),
       RS.load("area_master_season").catch(() => null),
       ZTZ.api("/api/mart_postcard_month?limit=20000").then(j => j.rows || []).catch(() => []),
-      RS.load("area_tier").catch(() => null),
+      RS.load(BASIS === "delivery" ? "area_tier_delivery" : "area_tier").catch(() => null),
       RS.load("area_year").catch(() => null),
       RS.load("base_fleet").catch(() => null),
       RS.load("storage_plan").catch(() => null),
-    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows, yearRows, fleetRows, storeRows]) => {
+      LOCK ? RS.load("lead_route").catch(() => null) : Promise.resolve(null),
+    ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows, yearRows, fleetRows, storeRows, routeRows]) => {
       /* a year's results per area: level -> area key -> year -> row */
       const AY = { County: {}, City: {}, Zip: {} };
       (Array.isArray(yearRows) ? yearRows : []).forEach(r => { const L = AY[r.Level]; if (!L || r.Year == null) return;
@@ -5740,7 +5760,11 @@ const AREA_PLAN_PAGE = {
             Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") +
               '" title="Today\'s bases plus the ' + esc(PLANS[k].label) + ' plan\'s new ones">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
           "<label>Market</label>" +
-          seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") + "</div>";
+          seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
+          "<label>Counted by</label>" + seg("basis", [["pickup", "Pickup"], ["delivery", "Delivery"]], BASIS) + "</div>" +
+          (BASIS === "delivery" ? '<div class="ap2-note ap3-basisnote">By delivery: a zip counts the leads, bookings and jobs <b>delivered</b> ' +
+            "there (the lead's Moving To). Distance to a base, the market score and the tier rules are the pickup map's. " +
+            "Leads with no delivery address (labor help, storage, blank) are not counted.</div>" : "");
         /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
            of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
         return '<div class="ap3-bar">' +
@@ -5849,7 +5873,7 @@ const AREA_PLAN_PAGE = {
         if (LOCK) { const T = shown.filter(r => r.tier >= 1 && r.tier <= 3);
           return '<div class="ap3-list ap3-lock">' +
             '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3 · " +
-              (PLAN ? esc(PLAN.label) + " plan" : "current bases") + "</span>" +
+              (PLAN ? esc(PLAN.label) + " plan" : "current bases") + " · by " + BASIS + "</span>" +
               '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code in our ' + SERVICE_AREAS.length + " states under the " +
                 (PLAN ? esc(PLAN.label) + " plan" : "current bases") + ' — zip, state and tier — as one CSV for Google Ads, Meta and the other tools">Download all</button></div>' +
             '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span></div>' +
@@ -5951,7 +5975,7 @@ const AREA_PLAN_PAGE = {
         const lines = [T.head.map(q).join(",")].concat(T.rows.map(r => r.map(q).join(",")));
         const blob = new Blob(["\ufeff" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "Target Map - " + T.plan + " - all zip codes - " + new Date().toISOString().slice(0, 10) + ".csv";
+        a.download = "Target Map - " + T.plan + " - all zip codes by " + BASIS + " - " + new Date().toISOString().slice(0, 10) + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
       function areaCsv(N) {
@@ -6020,6 +6044,47 @@ const AREA_PLAN_PAGE = {
           "</details>";
       }
 
+      /* LEAD ROUTES (2026-11-10, Giga, tracker ZTZ-48): which way our leads move -- pickup state to
+         delivery state, leads created in the trailing twelve months (mart_lead_route) -- so a route with a
+         decent share can get its own campaign. The market switch narrows it to routes that start or end
+         in that state; "Between states" (the default) hides the moves that stay inside one state. */
+      const RT = { cross: true };
+      const ROUTES = (Array.isArray(routeRows) ? routeRows : []).map(r => ({ from: r["Pickup State"] || "Unknown",
+        to: r["Delivery State"] || "Unknown", leads: num(r["Leads 12m"]), booked: num(r["Booked 12m"]), ld: num(r["Long Distance Leads 12m"]) }));
+      function routesHtml() {
+        if (!LOCK) return "";
+        if (!ROUTES.length) return '<div class="ap2-note">The lead routes (mart_lead_route) build with the next hourly refresh.</div>';
+        const st = mapStOf(), agg = {};
+        ROUTES.forEach(r => { const a = agg[r.from + ">" + r.to] = agg[r.from + ">" + r.to] || { from: r.from, to: r.to, leads: 0, booked: 0, ld: 0 };
+          a.leads += r.leads; a.booked += r.booked; a.ld += r.ld; });
+        const all = Object.values(agg), known = a => a.from !== "Unknown" && a.to !== "Unknown";
+        const mine = all.filter(a => known(a) && (!st || a.from === st || a.to === st));
+        const base = mine.reduce((t, a) => t + a.leads, 0);
+        const unknown = all.filter(a => !known(a) && (!st || a.from === st || a.to === st)).reduce((t, a) => t + a.leads, 0);
+        const list = mine.filter(a => !RT.cross || a.from !== a.to).sort((x, y) => y.leads - x.leads);
+        const rows = list.slice(0, 30).map(a => "<tr><td><b>" + esc(a.from) + " → " + esc(a.to) + "</b>" +
+            (a.from === a.to ? ' <span class="ap3-rtin">in-state</span>' : "") + "</td>" +
+          '<td class="num">' + fmtN(a.leads) + '</td><td class="num">' + pct(base ? a.leads / base : null) + '</td><td class="num">' + fmtN(a.booked) +
+          '</td><td class="num">' + pct(a.leads ? a.booked / a.leads : null) + '</td><td class="num">' + pct(a.leads ? a.ld / a.leads : null) + "</td></tr>").join("");
+        return '<div class="ap3-routes"><div class="lh"><b>Lead routes</b><span>pickup state → delivery state · leads created in the last 12 months · ' +
+            (st ? "routes that start or end in " + esc(st) : "whole market") + "</span>" +
+          '<div class="ap3-seg"><button type="button" data-rtcross="1" class="' + (RT.cross ? "on" : "") + '">Between states</button>' +
+            '<button type="button" data-rtcross="0" class="' + (RT.cross ? "" : "on") + '">All routes</button></div></div>' +
+          '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Route</th><th class="num">Leads</th>' +
+            '<th class="num" title="the route\'s leads ÷ every lead with a known pickup and delivery state in this view">Share</th>' +
+            '<th class="num">Booked</th><th class="num">Booking rate</th><th class="num" title="leads quoted as Long Distance">Long distance</th></tr></thead><tbody>' +
+            (rows || '<tr><td colspan="6">No route in this view.</td></tr>') + "</tbody></table></div>" +
+          '<div class="ap2-note">Share is of every lead with a known pickup and delivery state' + (st ? " that starts or ends in " + esc(st) : "") +
+            " (" + fmtN(base) + " leads)" + (list.length > 30 ? "; the 30 biggest routes of " + fmtN(list.length) : "") + ". " + fmtN(unknown) +
+            " more have no pickup or delivery state (labor help, storage, a blank address) and are left out.</div></div>";
+      }
+      function wireRoutes() {
+        host.querySelectorAll("#apRoutes [data-rtcross]").forEach(b => { b.onclick = () => {
+          const v = b.dataset.rtcross === "1"; if (RT.cross === v) return; RT.cross = v;
+          const el = host.querySelector("#apRoutes"); if (el) el.innerHTML = routesHtml();
+          wireRoutes(); }; });
+      }
+
       function mapHtml() {
         if (!COUNTY.length && !AREA.length) return '<div class="panel">The county marts (mart_area_county, mart_area_tier) are not ' +
           'built yet — run <b>sources=mart_area_county</b> and reload.</div>';
@@ -6037,6 +6102,7 @@ const AREA_PLAN_PAGE = {
           '<div id="apMapKeyWrap">' + mapKeyHtml(N) + "</div>" +
           '<div class="ap3-mapgrid"><div id="apMapBox" class="ap2-mapbox"></div>' +
             '<div id="apAreaList" class="ap3-side">' + sideHtml(N) + "</div></div>" +
+          (LOCK ? '<div id="apRoutes">' + routesHtml() + "</div>" : "") +
           msec("apMsPlan", "Plan by base — foremen, trucks and storage", '<div id="apScn">' + scHtml(N, N0) + "</div>", true) +
           msec("apMsNew", "New bases to try", '<div id="apNewBases">' + nbHtml(N) + "</div>") +
           msec("apMsTodo", "What to do next", '<div id="apTodos">' + todoHtml(N) + "</div>") +
@@ -6057,6 +6123,7 @@ const AREA_PLAN_PAGE = {
         put("#apMapBar", mapBarHtml());
         put("#apMapKeyWrap", mapKeyHtml(N));
         put("#apAreaList", sideHtml(N));
+        put("#apRoutes", routesHtml());
         wireMapColor();
         const bx = host.querySelector("#apMapBox"); if (bx && bx._flags) bx._flags();
       }
@@ -6070,6 +6137,13 @@ const AREA_PLAN_PAGE = {
       function wireNewBases() { wireMapColor(); }
       function wireMapColor() {
         const box = host.querySelector("#apMapBox");
+        host.querySelectorAll("#apMapBar [data-basis]").forEach(b => { b.onclick = () => {
+          if (b.dataset.basis === BASIS) return;
+          save();
+          try { const t = JSON.parse(localStorage.getItem(TM_KEY) || "{}") || {}; t.basis = b.dataset.basis; localStorage.setItem(TM_KEY, JSON.stringify(t)); } catch (e) {}
+          AREA_PLAN_PAGE.render(host, Object.assign({}, LOCK, { basis: b.dataset.basis }));
+        }; });
+        wireRoutes();
         host.querySelectorAll("[data-mapst]").forEach(b => { b.onclick = () => {
           if ((inputs.mapSt || "") === b.dataset.mapst) return;
           inputs.mapSt = b.dataset.mapst; inputs.listTiers = []; SIDE = null;
@@ -8310,7 +8384,7 @@ const AREA_PLAN_PAGE = {
         if (host.querySelector("#apKpis")) repaintMapTab();
       }
       function save() { try {
-        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "", plan: PLAN ? PLAN.key : "" }));
+        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "", plan: PLAN ? PLAN.key : "", basis: BASIS }));
         else localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
       /* the Target Map opens on the plan it was left on ("" = Current), else LOCK.plan (MAX) -- applied
