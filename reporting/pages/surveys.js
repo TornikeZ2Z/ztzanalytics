@@ -112,8 +112,8 @@
       const iso = d => d.toISOString().slice(0, 10);
       const S = window.__SVY2 || (window.__SVY2 = {
         tab: "over", plo: iso(new Date(Date.now() - 90 * 864e5)), phi: iso(new Date()), phiAuto: true, tests: false,
-        sends: null, sErr: "", tracking: false, sFilter: "all", sQ: "", sPage: 0,
-        ans: null, aErr: "", aOpen: null, aFlag: "all", aQ: "",
+        sends: null, sErr: "", tracking: false, sQ: "", sPage: 0, pf: null,
+        ans: null, aErr: "", aOpen: null, aQ: "",
         lo: "", hi: "", rows: null, resend: false, err: "", msg: "", msgErr: false, page: 0,
         af: null, q: "",
         tpl: null, draft: null, from: "", address: "", testTo: "", pv: "desk", pvHtml: "", pvSubject: "", busy: false,
@@ -204,22 +204,79 @@
       const legend = items => '<div class="svy-leg">' + items.map(i => '<span style="--c:' + i[1] + '">' + esc(i[0]) + "</span>").join("") + "</div>";
       const card = (title, sub, body) => '<div class="svy-card"><p class="svy-h">' + esc(title) + "</p>"
         + (sub ? '<p class="svy-hs">' + esc(sub) + "</p>" : '<div style="height:10px"></div>') + body + "</div>";
-      function periodBar(extra) {
-        return '<div class="rs-bar">'
-          + '<label class="rs-fld"><span>From</span><input type="date" class="rs-inp" id="svyPLo" value="' + esc(S.plo) + '"></label>'
-          + '<label class="rs-fld"><span>to</span><input type="date" class="rs-inp" id="svyPHi" value="' + esc(S.phi) + '"></label>'
-          + '<button class="rs-btn" id="svyPGo">Show</button>'
-          + '<div class="rs-tog' + (S.tests ? " on" : "") + '" id="svyTests"><i></i>Include tests</div>'
-          + '<span class="rs-spacer"></span>' + (extra || "") + "</div>";
+      // THE PORTAL'S FILTER LOOK on Overview / Sends / Responses too (his rule, 10 Nov): one bar --
+      // the dates (RSC.dateRange), Find, the Filters button opening the side panel -- and the
+      // "Filtered by" chips under it. The panel: State, Foreman, Send, Test sends on every tab; Status
+      // on Sends; Flag, Answer came from and Overall rating on Responses.
+      function periodBar(kind) { return '<div class="rs-bar" id="svyPBar" data-kind="' + kind + '"></div><div id="svyPChips"></div>'; }
+      if (!S.pf) S.pf = {};
+      const srcOf = r => (r.source === "email" ? "Emailed link" : /qr/i.test(r.source || "") ? "QR code"
+        : /site|web/i.test(r.source || "") ? "Website" : "Public link");
+      const sendLabel = c => String(c || "—").replace(/^survey-/, "").replace(/-(\d\d)(\d\d)$/, " $1:$2 UTC");
+      const PF = {
+        state: { label: "State", of: x => x.state || "Unknown", kinds: ["over", "sends", "ans"] },
+        foreman: { label: "Foreman", of: x => x.foreman || "—", kinds: ["over", "sends", "ans"] },
+        campaign: { label: "Send", of: x => x.campaign || "—", lab: sendLabel, kinds: ["over", "sends", "ans"] },
+        status: { label: "Status", of: x => (STATE[x.state_now] || [x.state_now])[0], kinds: ["sends"] },
+        flag: { label: "Flag", of: x => (+x.flagged === 1 ? "Flagged" : "Not flagged"), kinds: ["ans"] },
+        source: { label: "Answer came from", of: srcOf, kinds: ["ans"] },
+        overall: { label: "Overall rating", of: x => (x.overall ? String(x.overall) + " / 5" : "—"), kinds: ["ans"] },
+      };
+      const pfKeys = kind => Object.keys(PF).filter(k => PF[k].kinds.indexOf(kind) >= 0);
+      const pfOk = (x, kind) => pfKeys(kind).every(k => { const set = S.pf[k]; return !set || !set.size || set.has(PF[k].of(x)); });
+      function mountPeriodBar() {
+        const bar = host.querySelector("#svyPBar");
+        if (!bar || !window.RSC) return;
+        const kind = bar.dataset.kind;
+        const fld = label => { const w = document.createElement("div"); w.className = "rs-fld"; w.innerHTML = "<span>" + label + "</span>"; bar.appendChild(w); return w; };
+        if (RSC.dateRange) RSC.dateRange(fld(kind === "ans" ? "Answered" : "Sent"), {
+          get: () => ({ from: S.plo, to: S.phi }),
+          set: (f, t) => { S.plo = f || ""; S.phi = t || ""; S.phiAuto = !t || t === iso(new Date()); },
+          onChange: () => { S.sPage = 0; loadPeriod(); } });
+        if (kind !== "over") {
+          const key = kind === "sends" ? "sQ" : "aQ";
+          const q = document.createElement("input");
+          q.className = "rs-inp"; q.placeholder = kind === "sends" ? "Find a customer, email, foreman…" : "Find a name, foreman, words…";
+          q.value = S[key]; q.style.flex = "0 1 260px";
+          let qt = null;
+          q.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { S[key] = q.value; S.sPage = 0; S._focusP = 1; paint(); }, 300); };
+          bar.appendChild(q);
+          if (S._focusP) { S._focusP = 0; setTimeout(() => { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 0); }
+        }
+        const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
+        if (kind !== "over") {
+          const b = document.createElement("button"); b.className = "rs-btn"; b.type = "button"; b.textContent = "Download CSV";
+          b.onclick = () => csv(kind); bar.appendChild(b);
+        }
+        if (!RSC.filterPanel) return;
+        const data = kind === "ans" ? (S.ans || []) : (S.sends || []);
+        const fields = pfKeys(kind).map(k => {
+          const n = {}; data.forEach(x => { const v = PF[k].of(x); n[v] = (n[v] || 0) + 1; });
+          (S.pf[k] || new Set()).forEach(v => { if (!(v in n)) n[v] = 0; });
+          return { key: k, label: PF[k].label, values: Object.keys(n).sort((a, b) => (n[b] - n[a]) || a.localeCompare(b))
+            .map(v => ({ v, l: PF[k].lab ? PF[k].lab(v) : v, n: n[v] })) };
+        });
+        fields.push({ key: "tests", label: "Test sends", values: [{ v: "Include test sends", l: "Include test sends" }] });
+        const selected = Object.assign({}, S.pf, { tests: new Set(S.tests ? ["Include test sends"] : []) });
+        const apply = next => {
+          const tests = !!(next.tests && next.tests.size);
+          pfKeys(kind).forEach(k => { S.pf[k] = new Set(next[k] || []); });
+          S.sPage = 0;
+          if (tests !== !!S.tests) { S.tests = tests; loadPeriod(); } else paint();
+        };
+        RSC.filterPanel(bar, { fields, selected, onApply: apply,
+          note: "Test sends (to you or a company inbox) stay out of every count unless switched on here." });
+        const chips = host.querySelector("#svyPChips");
+        if (chips && RSC.filterChips) RSC.filterChips(chips, { fields, selected, onChange: apply });
       }
 
       // ---- OVERVIEW ----------------------------------------------------------------------------
       function overView() {
-        if (S.sends === null || S.ans === null) return periodBar() + '<div class="panel">Loading the results…</div>';
-        if (S.sErr || S.aErr) return periodBar() + '<div class="panel">Could not load the results: ' + esc(S.sErr || S.aErr) + "</div>";
-        const sends = S.sends.filter(s => s.status === "sent");
-        const rs = S.ans;
-        let h = periodBar();
+        if (S.sends === null || S.ans === null) return periodBar("over") + '<div class="panel">Loading the results…</div>';
+        if (S.sErr || S.aErr) return periodBar("over") + '<div class="panel">Could not load the results: ' + esc(S.sErr || S.aErr) + "</div>";
+        const sends = S.sends.filter(s => s.status === "sent" && pfOk(s, "over"));
+        const rs = S.ans.filter(r => pfOk(r, "over"));
+        let h = periodBar("over");
         if (!sends.length && !rs.length) {
           return h + '<div class="panel svy-empty"><b>No surveys in this period yet</b>'
             + '<span class="svy-note">Build the audience on the <span class="svy-link" data-go="list">Audience</span> tab and press Send. '
@@ -283,7 +340,7 @@
           + card("Where answers came from", "", rs.length ? sources : '<p class="svy-note">No answers yet.</p>') + "</div>";
         // per send
         const by = {};
-        S.sends.forEach(s => {
+        S.sends.filter(s => pfOk(s, "over")).forEach(s => {
           const k = s.campaign || "—"; const b = by[k] || (by[k] = { k, at: s.sent_at || s.created_at, who: s.sent_by, n: 0, del: 0, op: 0, cl: 0, an: 0, ov: [], fl: 0, test: s.test });
           if (s.status !== "sent") return;
           b.n++; if (s.delivered_at || s.opened_at || s.clicked_at || s.answered_at) b.del++; if (s.opened_at || s.clicked_at || s.answered_at) b.op++;
@@ -324,32 +381,23 @@
       }
 
       // ---- SENDS -------------------------------------------------------------------------------
-      const SFILTERS = [["all", "All"], ["waiting", "No reaction yet"], ["opened", "Opened or clicked, no answer"], ["answered", "Answered"], ["problem", "Bounced or failed"]];
       function sendsVisible() {
         const q = S.sQ.trim().toLowerCase();
         return (S.sends || []).filter(s => {
-          const st = s.state_now;
-          if (S.sFilter === "waiting" && !["sent", "delivered"].includes(st)) return false;
-          if (S.sFilter === "opened" && !["opened", "clicked"].includes(st)) return false;
-          if (S.sFilter === "answered" && st !== "answered") return false;
-          if (S.sFilter === "problem" && !["bounced", "complained", "failed"].includes(st)) return false;
+          if (!pfOk(s, "sends")) return false;
           if (q && ![s.customer, s.email, s.foreman, s.state, s.campaign].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
           return true;
         });
       }
       function sendsView() {
-        let h = periodBar('<button class="rs-btn" id="svySCsv">Download CSV</button>');
+        let h = periodBar("sends");
         if (S.sends === null) return h + '<div class="panel">Loading the sends…</div>';
         if (S.sErr) return h + '<div class="panel">Could not load the sends: ' + esc(S.sErr) + "</div>";
         const list = sendsVisible();
         const pages = Math.max(1, Math.ceil(list.length / PAGE));
         if (S.sPage >= pages) S.sPage = pages - 1;
         const slice = list.slice(S.sPage * PAGE, S.sPage * PAGE + PAGE);
-        h += '<div class="rs-bar">' + SFILTERS.map(f => '<div class="rs-tog' + (S.sFilter === f[0] ? " on" : "") + '" data-sf="' + f[0] + '"><i></i>' + f[1]
-            + " · " + (S.sends || []).filter(s => f[0] === "all" || (f[0] === "waiting" ? ["sent", "delivered"].includes(s.state_now)
-              : f[0] === "opened" ? ["opened", "clicked"].includes(s.state_now) : f[0] === "answered" ? s.state_now === "answered"
-              : ["bounced", "complained", "failed"].includes(s.state_now))).length + "</div>").join("")
-          + '<label class="rs-fld" style="margin-left:auto"><span>Find</span><input class="rs-inp" id="svySQ" placeholder="Customer, email, foreman…" value="' + esc(S.sQ) + '"></label></div>';
+        h += '<p class="svy-note">' + list.length + " of " + (S.sends || []).length + " send" + ((S.sends || []).length === 1 ? "" : "s") + " shown.</p>";
         if (!S.tracking) h += '<p class="svy-note">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always tracked.</p>';
         else if (!(S.sends || []).some(s => s.opened_at)) h += '<p class="svy-note">Email opens show once open tracking is switched on in Resend. Delivered, clicked (they opened their link) and answered are tracked now.</p>';
         const tl = s => [["Delivered", s.delivered_at], ["Opened", s.opened_at], ["Clicked", s.clicked_at], ["Answered", s.answered_at], ["Bounced", s.bounced_at]]
@@ -380,23 +428,18 @@
       function ansVisible() {
         const q = S.aQ.trim().toLowerCase();
         return (S.ans || []).filter(r => {
-          if (S.aFlag === "flagged" && +r.flagged !== 1) return false;
-          if (S.aFlag === "email" && r.source !== "email") return false;
-          if (S.aFlag === "public" && r.source === "email") return false;
+          if (!pfOk(r, "ans")) return false;
           if (q && ![r.name, r.email, r.foreman, r.state, r.change_text, r.issue_text].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
           return true;
         });
       }
       function answersView() {
-        let h = periodBar('<button class="rs-btn" id="svyACsv">Download CSV</button>');
+        let h = periodBar("ans");
         if (S.ans === null) return h + '<div class="panel">Loading the answers…</div>';
         if (S.aErr) return h + '<div class="panel">Could not load the answers: ' + esc(S.aErr) + "</div>";
         const list = ansVisible();
         const all = S.ans;
-        h += '<div class="rs-bar">' + [["all", "All · " + all.length], ["flagged", "Flagged · " + all.filter(r => +r.flagged === 1).length],
-          ["email", "From emails · " + all.filter(r => r.source === "email").length], ["public", "Public link · " + all.filter(r => r.source !== "email").length]]
-          .map(f => '<div class="rs-tog' + (S.aFlag === f[0] ? " on" : "") + '" data-af="' + f[0] + '"><i></i>' + esc(f[1]) + "</div>").join("")
-          + '<label class="rs-fld" style="margin-left:auto"><span>Find</span><input class="rs-inp" id="svyAQ" placeholder="Name, foreman, words…" value="' + esc(S.aQ) + '"></label></div>';
+        h += '<p class="svy-note">' + list.length + " of " + all.length + " answer" + (all.length === 1 ? "" : "s") + " shown.</p>";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Answered</th><th>Customer</th><th>Move</th><th>Overall</th><th>Recommend</th><th>Booking · crew · transit</th><th>Worth it</th><th>Flag</th></tr></thead><tbody>"
           + (list.length ? list.map(r => {
@@ -443,7 +486,7 @@
         surveyed: r => (r.surveyed_before ? "Surveyed before" : "Not surveyed before"),
         status: statusOf,
       };
-      const LABELS = { rating: "Foreman's rating", claim: "Claim / complaint", state: "State", mtype: "Move type",
+      const LABELS = { rating: "Foreman's rating (1–10)", claim: "Claim / complaint", state: "State", mtype: "Move type",
                        review: "Review", surveyed: "Surveyed before", status: "Status" };
       const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"],
                       status: ["Will get it", "Switched off", "Already sent", "Sending", "Can't be sent"] };
@@ -455,7 +498,7 @@
           (S.af[k] || new Set()).forEach(v => { if (!(v in n)) n[v] = 0; });     // a picked value never vanishes
           const ord = ORDER[k];
           const vals = Object.keys(n).sort((a, b) => (ord ? rank(ord, a) - rank(ord, b) : 0) || (n[b] - n[a]) || a.localeCompare(b));
-          return { key: k, label: LABELS[k], values: vals.map(v => ({ v, l: k === "rating" && v !== "No score" ? v + " / 10" : v, n: n[v] })) };
+          return { key: k, label: LABELS[k], values: vals.map(v => ({ v, l: v, n: n[v] })) };
         });
       }
       const setKey = st => [...(st || [])].sort().join("|");
@@ -610,25 +653,12 @@
         host.querySelectorAll("[data-retry]").forEach(b => { b.onclick = () => {
           if (b.dataset.retry === "list") loadList(); else { S.tplErr = ""; paint(); loadTemplate(); } }; });
         // the shared period (overview, sends, responses)
-        const pg = host.querySelector("#svyPGo");
-        if (pg) pg.onclick = () => {
-          const hi = host.querySelector("#svyPHi").value;
-          S.plo = host.querySelector("#svyPLo").value || S.plo;
-          S.phiAuto = !hi || hi === iso(new Date()); S.phi = hi || S.phi; loadPeriod(); };
-        const tt = host.querySelector("#svyTests"); if (tt) tt.onclick = () => { S.tests = !S.tests; loadPeriod(); };
-        host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.aOpen = +b.dataset.openans; S.aFlag = "all"; S.aQ = ""; go("ans"); }; });
+        if (S.tab === "over" || S.tab === "sends" || S.tab === "ans") mountPeriodBar();
+        host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.aOpen = +b.dataset.openans; ["flag", "source", "overall"].forEach(k => { S.pf[k] = new Set(); }); S.aQ = ""; go("ans"); }; });
         // sends
-        host.querySelectorAll("[data-sf]").forEach(b => { b.onclick = () => { S.sFilter = b.dataset.sf; S.sPage = 0; paint(); }; });
         host.querySelectorAll("[data-spg]").forEach(b => { b.onclick = () => { S.sPage += +b.dataset.spg; paint(); }; });
-        const sq = host.querySelector("#svySQ");
-        if (sq) { sq.oninput = function () { S.sQ = this.value; S.sPage = 0; }; sq.onchange = paint; sq.onkeyup = e => { if (e.key === "Enter") paint(); }; }
-        const sc = host.querySelector("#svySCsv"); if (sc) sc.onclick = () => csv("sends");
         // responses
-        host.querySelectorAll("[data-af]").forEach(b => { b.onclick = () => { S.aFlag = b.dataset.af; paint(); }; });
         host.querySelectorAll("[data-open]").forEach(tr => { tr.onclick = () => { const id = +tr.dataset.open; S.aOpen = S.aOpen === id ? null : id; paint(); }; });
-        const aq = host.querySelector("#svyAQ");
-        if (aq) { aq.oninput = function () { S.aQ = this.value; }; aq.onchange = paint; aq.onkeyup = e => { if (e.key === "Enter") paint(); }; }
-        const ac = host.querySelector("#svyACsv"); if (ac) ac.onclick = () => csv("ans");
         // audience
         if (S.tab === "list") mountAudienceBar();
         const rb = host.querySelector("#svyRule"); if (rb) rb.onclick = () => { S.af = RULE(); S.page = 0; paint(); };
