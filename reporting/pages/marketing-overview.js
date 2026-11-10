@@ -771,7 +771,7 @@
       + ".mkd .mkd-sk.ok{border-left-color:var(--pos)}.mkd .mkd-sk.warn{border-left-color:var(--warn,#D97706)}.mkd .mkd-sk.bad{border-left-color:var(--neg)}"
       + ".mkd .mkd-sk span{display:block;font-size:12px;color:var(--muted)}.mkd .mkd-sk b{display:block;font-size:18px;color:var(--ink);margin-top:2px}"
       + ".mkd .mkd-sk em{display:block;font-style:normal;font-size:12px;color:var(--muted);margin-top:2px}"
-      + ".mkd .mkd-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}.mkd .mkd-bar i{display:block;height:100%;background:#3F7D20}"
+      + ".mkd .mkd-pbar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}.mkd .mkd-pbar i{display:block;height:100%;background:#3F7D20}"
       + ".mkd .mkd-why{margin:0;font-size:13px;color:var(--muted)}"
       + ".mkd .mkd-segp .panel-head{gap:8px;flex-wrap:wrap;align-items:baseline}"
       + ".mkd .mkd-segok{margin:4px 0 0;font-size:13px;color:var(--ink)}"
@@ -4094,7 +4094,7 @@
         + (ch.tip ? " · why ⓘ" : "") + "</em></div>"
       + '<div class="mkd-sk ' + segBand(net === "LinkedIn" ? null : reachSum / target) + '"><span>Cumulative post reach</span><b>' + (net === "LinkedIn" ? "—" : fmtN(reachSum))
         + "</b><em>target " + fmtN(target) + " for the period</em>"
-        + (net === "LinkedIn" ? "" : '<div class="mkd-bar"><i style="width:' + Math.min(100, Math.round(100 * reachSum / (target || 1))) + '%"></i></div>') + "</div>"
+        + (net === "LinkedIn" ? "" : '<div class="mkd-pbar"><i style="width:' + Math.min(100, Math.round(100 * reachSum / (target || 1))) + '%"></i></div>') + "</div>"
       + '</div><p class="mkd-why">' + esc(ch.why) + "</p>";
     if (net === "LinkedIn") {
       box.innerHTML = head + hdr + '<div class="mko-empty">LinkedIn per-post numbers are not on file yet: they arrive once the LinkedIn Page app\'s '
