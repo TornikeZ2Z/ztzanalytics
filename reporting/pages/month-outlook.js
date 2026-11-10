@@ -11,13 +11,19 @@
      ly / pm   the same month last year / the month before, as billed (reference only)
    Page-local filters (month, company, city on the bar; state, local / long distance, source and
    salesperson in the Filters panel): the global bar's date logic would only confuse a page about
-   the future. */
+   the future.
+
+   BOOKING RATE BY MOVE DATE (ZTZ-50, Ruso's ask, built 2026-11-10): the strip under the cards.
+   Lead rows (Phase leads*) are counts per company x state x city x Local / Long distance, so the
+   strip and its same-point comparisons follow Company, State, City and Local / Long distance.
+   Source and Sales person do not reach it: Moveboard and the calendar name them differently. */
 if (window.RS && RS.DATASETS && !RS.DATASETS.month_outlook) {
   RS.DATASETS.month_outlook = {
     table: "mart_month_outlook",
     cols: ["Month", "Day", "Weekday", "Phase", "Is Estimate", "Company", "Request #", "Request Joinkey",
            "Customer", "Job Type", "State", "City", "Source", "Sales Person", "Booked Date", "Lead Days",
-           "Lead Bucket", "Calendar Total", "Uplift", "Revenue", "Margin", "Profit", "Built At"],
+           "Lead Bucket", "Calendar Total", "Uplift", "Revenue", "Margin", "Profit", "Built At",
+           "Move Type", "Leads", "Qualified", "Booked Leads", "Cancelled", "As Of"],
     dateCols: {}, defaultDate: null,
   };
 }
@@ -90,7 +96,17 @@ registerPage({
       .mo-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
       .mo-tbl .r{text-align:right;font-variant-numeric:tabular-nums}
       .mo-note{font-size:12px;color:var(--faint);line-height:1.55;margin-top:8px}
+      .mo-br{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:center}
+      .mo-br-main{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+      .mo-br-cmp{border-left:1px solid var(--line);padding-left:20px}
+      .mo-br-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 86px 92px;gap:8px;align-items:baseline;font-size:12.5px;color:var(--muted);padding:3px 0}
+      .mo-br-row>b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+      .mo-br-row>span:nth-child(3),.mo-br-row>span:nth-child(4){text-align:right;font-variant-numeric:tabular-nums}
+      .mo-br-n{color:var(--faint)}
+      /* side by side only where the comparison labels fit on one line; below that the numbers sit on top */
+      @media(max-width:1280px){.mo-br{grid-template-columns:1fr;gap:14px}.mo-br-cmp{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:10px}}
       @media(max-width:900px){.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}}
+      @media(max-width:600px){.mo-br-main{grid-template-columns:1fr}.mo-br-row{grid-template-columns:minmax(0,1fr) 54px 76px}.mo-br-row>span:nth-child(4){display:none}}
       /* DESIGN V2 ("Calm finance", 2026-10-06) -- MonthOutlook.dc.html: white cards, sentence-case
          labels, pill month toggle, the blue total card, one delta format. Dark is untouched. */
       body.rs-app.light.v2 .mo-bar{gap:8px;margin:4px 0 18px}
@@ -121,6 +137,8 @@ registerPage({
       body.rs-app.light.v2 .mo-tbl td{border-bottom-color:#F1F5F9}
       body.rs-app.light.v2 .mo-tbl tbody tr:hover td{background:#F8FAFC}
       body.rs-app.light.v2 .mo-note{font-size:12.5px;color:var(--faint)}
+      body.rs-app.light.v2 .mo-br-row{font-size:13.5px;padding:4px 0}
+      body.rs-app.light.v2 .mo-br-row>b{font-weight:600}
     </style>`;
     // bar colours: v2 = navy done / light blue still on the calendar (the canvas spec); read at render
     // time so the theme button, which re-renders the page, switches them
@@ -128,6 +146,7 @@ registerPage({
       : { done: "var(--brand-d, #6a8f12)", est: "color-mix(in srgb,var(--brand) 55%,transparent)", ahead: "color-mix(in srgb,var(--blue) 55%,transparent)" };
 
     const isJob = r => ["done", "done_est", "ahead"].indexOf(r["Phase"]) >= 0;
+    const LEAD_PH = ["leads", "leads_ly", "leads_ly_sp", "leads_pm", "leads_pm_sp"];   // ZTZ-50, src/month_outlook.py
     const paint = () => {
       // the picks as Sets (empty = all); a blank value is "—", so it never passes a pick
       const PF = {};
@@ -201,6 +220,64 @@ registerPage({
       const mg = ahead.length ? (sum(ahead, "Margin") / ahead.length) : null;
       const label = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
 
+      /* BOOKING RATE BY MOVE DATE (ZTZ-50). Each phase is summed over the lead rows that pass the
+         filters; a phase the builder did not write (the month before, while it is still running)
+         is left out, and one that is written but has no lead under the filters reads "no leads". */
+      const leadAll = all.filter(r => r["Month"] === S.month && LEAD_PH.indexOf(r["Phase"]) >= 0);
+      const leadType = S.pf.job.length && S.pf.job.length < Object.keys(PF_JOB).length ? new Set(S.pf.job) : null;
+      const leadOk = r => (!S.co || r["Company"] === S.co) && pfHas("state", r["State"]) && (!S.city || r["City"] === S.city)
+        && (!leadType || leadType.has(r["Move Type"] || "—"));
+      const leadPh = ph => {
+        const raw = leadAll.filter(r => r["Phase"] === ph);
+        if (!raw.length) return null;
+        const rs = raw.filter(leadOk);
+        const o = { leads: sum(rs, "Leads"), q: sum(rs, "Qualified"), b: sum(rs, "Booked Leads"), cx: sum(rs, "Cancelled"),
+                    mo: String(raw[0]["Day"] || "").slice(0, 7), asOf: raw[0]["As Of"] };
+        // RS.bookingRate's rule: more booked than qualified caps at 100%, nothing at all is blank
+        o.rate = o.b > o.q ? 1 : (!o.q && !o.b ? null : (o.q ? o.b / o.q : 0));
+        return o;
+      };
+      const leadStrip = () => {
+        const cur = leadPh("leads");
+        if (!cur) return "";                                    // the mart has not been rebuilt with leads yet
+        const pct = v => v == null ? "—" : (v * 100).toFixed(1) + "%";
+        const moName = (mo, long) => mo ? new Date(+mo.slice(0, 4), +mo.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: long ? "long" : "short", year: "numeric" }) : "";
+        const asOfDay = v => { const s = String(v || ""); return s ? new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)).toLocaleString("en-US", { day: "numeric", month: "short" }) : ""; };
+        const delta = ref => {
+          if (cur.rate == null || !ref || ref.rate == null) return "<span></span>";
+          const d = (cur.rate - ref.rate) * 100;
+          return `<span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)} pts</span>`;
+        };
+        const line = (lab, ref, withDelta) => !ref ? "" : `<div class="mo-br-row"><span>${lab}</span>
+          <b>${ref.q || ref.b ? pct(ref.rate) : "no leads"}</b>${withDelta ? delta(ref) : "<span></span>"}
+          <span class="mo-br-n">${fmtN(ref.b)} of ${fmtN(ref.q)}</span></div>`;
+        const ly = leadPh("leads_ly"), lysp = leadPh("leads_ly_sp"), pm = leadPh("leads_pm"), pmsp = leadPh("leads_pm_sp");
+        const short = moName(S.month, true).split(" ")[0];
+        const offFilters = [S.pf.source.length ? "source" : "", S.pf.sales.length ? "salesperson" : ""].filter(Boolean);
+        return `<div class="mo-sec">Booking rate by move date</div>
+        <div class="mo-card mo-br">
+          <div class="mo-br-main">
+            <div><div class="k">Leads moving in ${esc(short)}</div><div class="v">${fmtN(cur.q)}</div>
+              <div class="s">${fmtN(cur.leads)} with bad leads</div></div>
+            <div><div class="k">Booked</div><div class="v">${fmtN(cur.b)}</div>
+              <div class="s">confirmed in Moveboard</div></div>
+            <div><div class="k">Booking rate so far</div><div class="v">${pct(cur.rate)}</div>
+              <div class="s">booked &divide; leads</div></div>
+          </div>
+          <div class="mo-br-cmp">
+            ${line(`${esc(moName(lysp && lysp.mo))} <span class="mo-br-n">by ${esc(asOfDay(lysp && lysp.asOf))}</span>`, lysp, true)}
+            ${line(`${esc(moName(ly && ly.mo))} <span class="mo-br-n">final</span>`, ly, false)}
+            ${line(`${esc(moName(pmsp && pmsp.mo))} <span class="mo-br-n">by ${esc(asOfDay(pmsp && pmsp.asOf))}</span>`, pmsp, true)}
+            ${line(`${esc(moName(pm && pm.mo))} <span class="mo-br-n">final</span>`, pm, false)}
+          </div>
+        </div>
+        <div class="mo-note">Leads = Moveboard requests whose requested move date is in ${esc(moName(S.month, true))}, without bad leads
+          (dead, archive, spam, video estimate); booked = Confirmed${cur.cx ? `, so the ${fmtN(cur.cx)} cancelled after booking count as not booked` : ""}.
+          "By" a date = the same point a year or a month earlier: only the leads that existed, and the ones confirmed, by that
+          moment (a booking cancelled since then is missed there).
+          ${offFilters.length ? `<b>Not filtered by ${offFilters.join(" or ")}:</b> Moveboard and the calendar name them differently. ` : ""}Moveboard as of ${esc(asOfDay(cur.asOf))}, ${esc(String(cur.asOf || "").slice(11, 16))} NY.</div>`;
+      };
+
       host.innerHTML = style + `<div class="mo-wrap">
         <div class="rs-page-head"><h1>Month Outlook</h1>
           <p>How ${esc(label)} ends <b>if nothing more is booked</b>: the days already worked (closing sheets), plus every job
@@ -223,6 +300,7 @@ registerPage({
               : "comparisons hidden while a location filter is on"}</div>` : cmp(totRev, ly.rev, "Same month last year (" + fmtN(ly.jobs) + " jobs)") + cmp(totRev, pm.rev, "Last month (" + fmtN(pm.jobs) + " jobs)")}</div>
         </div>
         ${untyped ? `<div class="mo-note"><b>${fmtN(untyped)} job${untyped === 1 ? "" : "s"} left out by Local / Long distance:</b> an in-home estimate or no job type on the calendar, so neither local nor long distance.</div>` : ""}
+        ${leadStrip()}
         <div class="mo-sec">Day by day</div>
         <div class="mo-card"><div class="mo-days">${dayCols.join("")}</div><div class="mo-dlab">${dayLabs.join("")}</div>
           <div class="mo-leg"><span><i style="background:${C.done}"></i>Done, closing filed</span><span><i style="background:${C.est}"></i>Done, closing not filed (estimate)</span>
