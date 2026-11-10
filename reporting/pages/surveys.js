@@ -77,6 +77,7 @@
   }
 
   const PAGE = 50;
+  const MAX_PER_SEND = 300;                   // bridge/survey.py MAX_SEND: one press mails at most this many
   const SCALE5 = { booking: ["Very challenging", "Challenging", "Neutral", "Smooth", "Very smooth"],
                    crew: ["Very poor", "Poor", "Neutral", "Good", "Very good"],
                    transit: ["Very poor", "Poor", "Neutral", "Good", "Very good"] };
@@ -102,10 +103,15 @@
       const esc = RSC.esc || (s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
       const mine = host;
-      const alive = () => document.body.contains(mine);
+      // `host` is the portal's shared content box, so "still in the page" is not enough: a late answer
+      // after the reader moved on would paint the survey over the other page. A render token plus the
+      // hash decide (10 Nov review).
+      const myRender = (window.__SVY_RENDER = (window.__SVY_RENDER || 0) + 1);
+      const alive = () => document.body.contains(mine) && window.__SVY_RENDER === myRender
+        && /(^|[#&])page=surveys(&|$)/.test(location.hash);
       const iso = d => d.toISOString().slice(0, 10);
       const S = window.__SVY2 || (window.__SVY2 = {
-        tab: "over", plo: iso(new Date(Date.now() - 90 * 864e5)), phi: iso(new Date()), tests: false,
+        tab: "over", plo: iso(new Date(Date.now() - 90 * 864e5)), phi: iso(new Date()), phiAuto: true, tests: false,
         sends: null, sErr: "", tracking: false, sFilter: "all", sQ: "", sPage: 0,
         ans: null, aErr: "", aOpen: null, aFlag: "all", aQ: "",
         lo: "", hi: "", rows: null, resend: false, err: "", msg: "", msgErr: false, page: 0,
@@ -124,7 +130,13 @@
       }
       const post = body => api("/api/_surveyadmin", { method: "POST", body: JSON.stringify(body) });
       const d10 = v => (v ? String(v).slice(0, 10) : "—");
-      const dt = v => (v ? String(v).replace("T", " ").slice(0, 16) : "");
+      // the bridge stores UTC; the business runs on New Jersey time
+      const dt = v => {
+        if (!v) return "";
+        const d = new Date(String(v).replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(v)) ? "" : "Z"));
+        if (isNaN(d)) return String(v).replace("T", " ").slice(0, 16);
+        return d.toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " NJ";
+      };
       const say = (m, bad) => { S.msg = m; S.msgErr = !!bad; };
       const num = v => (typeof v === "number" ? v.toLocaleString() : v);
       const pct = (a, b) => (b ? Math.round(100 * a / b) + "%" : "—");
@@ -147,24 +159,29 @@
           S.ans = j.responses || []; S.aErr = ""; if (alive()) paint();
         }).catch(e => { S.ans = []; S.aErr = e.message || String(e); if (alive()) paint(); });
       }
-      function loadPeriod() { paint(); return Promise.all([loadSends(), loadAnswers()]); }
+      function loadPeriod() {
+        if (S.phiAuto) S.phi = iso(new Date());           // sends made after the page opened stay in the period
+        paint(); return Promise.all([loadSends(), loadAnswers()]);
+      }
       function loadList() {
         S.rows = null; paint();
         const q = (S.lo ? "&lo=" + S.lo : "") + (S.hi ? "&hi=" + S.hi : "");
         return api("/api/_surveyadmin?view=list" + q).then(j => {
           S.rows = j.rows || []; S.lo = j.lo; S.hi = j.hi; S.resend = !!j.resend; S.err = "";
-          if (!S.states) S.states = [];
+          // a picked state with no moves in the new window has no chip, so it could never be cleared
+          const have = new Set(S.rows.map(r => r.state));
+          S.states = (S.states || []).filter(x => have.has(x));
           if (alive()) paint();
         }).catch(e => { S.err = e.message || String(e); S.rows = []; if (alive()) paint(); });
       }
       function loadTemplate() {
         return api("/api/_surveyadmin?view=template").then(j => {
           S.tpl = j.template; S.draft = Object.assign({}, j.template); S.from = j.from; S.address = j.address;
-          S.resend = !!j.resend; S.tracking = !!j.tracking;
+          S.resend = !!j.resend; S.tracking = !!j.tracking; S.tplErr = "";
           if (!S.testTo) S.testTo = (window.ME && ME.email) || "";
           if (alive()) paint();
           return preview();
-        }).catch(e => { say(e.message || String(e), true); if (alive()) paint(); });
+        }).catch(e => { S.tplErr = e.message || String(e); if (alive()) paint(); });
       }
       function preview() {
         return post({ action: "preview", template: S.draft }).then(j => {
@@ -203,7 +220,7 @@
       function overView() {
         if (S.sends === null || S.ans === null) return periodBar() + '<div class="panel">Loading the results…</div>';
         if (S.sErr || S.aErr) return periodBar() + '<div class="panel">Could not load the results: ' + esc(S.sErr || S.aErr) + "</div>";
-        const sends = S.sends.filter(s => s.status === "sent" || s.status === "sending");
+        const sends = S.sends.filter(s => s.status === "sent");
         const rs = S.ans;
         let h = periodBar();
         if (!sends.length && !rs.length) {
@@ -214,6 +231,9 @@
         const n = sends.length;
         const delivered = sends.filter(s => s.delivered_at || s.opened_at || s.clicked_at || s.answered_at).length;
         const opened = sends.filter(s => s.opened_at || s.clicked_at || s.answered_at).length;
+        // "opened" needs Resend's open tracking ON, which is separate from the webhook: until an opened
+        // event has actually arrived, the opens column would only be clicks + answers in disguise
+        const opensOn = S.opensOn = (S.sends || []).some(s => s.opened_at);
         const clicked = sends.filter(s => s.clicked_at || s.answered_at).length;
         const answered = sends.filter(s => s.answered_at).length;
         const bounced = sends.filter(s => s.bounced_at || s.complained_at).length;
@@ -222,7 +242,8 @@
         const fromEmail = rs.filter(r => r.source === "email").length;
         h += '<div class="rs-kpis" style="--kpi-cols:6">'
           + kpi(n, "Surveys sent", bounced ? bounced + " bounced or marked spam" : "in this period")
-          + kpi(S.tracking ? pct(opened, delivered) : "—", "Opened", S.tracking ? opened + " of " + delivered + " delivered" : "tracking not connected yet")
+          + (opensOn ? kpi(pct(opened, delivered || n), "Opened", opened + " of " + (delivered || n) + (delivered ? " delivered" : " sent"))
+            : kpi(pct(clicked, n), "Opened their link", clicked + " of " + n + " · email opens not tracked yet"))
           + kpi(pct(answered, n), "Answered", answered + " of " + n + " emailed")
           + kpi(f1(avgOf(rs, "overall")), "Overall satisfaction", "out of 5 · " + rs.length + " answer" + (rs.length === 1 ? "" : "s"))
           + kpi(pct(rec, rs.length), "Would recommend", "answered 4 or 5 of 5")
@@ -230,11 +251,12 @@
         // funnel + scores
         // without Resend's webhook, delivered/opened would only be inferred from clicks (10 clicks of 100
         // sends would read "10% delivered"), so they show as not tracked instead of a wrong number
-        const steps = [["Sent", n, C.ink], ["Delivered", S.tracking ? delivered : null, C.ink2], ["Opened", S.tracking ? opened : null, C.blue],
+        const steps = [["Sent", n, C.ink], ["Delivered", S.tracking ? delivered : null, C.ink2], ["Opened", opensOn ? opened : null, C.blue],
                        ["Clicked", clicked, C.lime], ["Answered", answered, C.s5]];
         const funnel = steps.map(s => '<div class="svy-br"><span>' + s[0] + "</span>" + meter(s[1] || 0, n, s[2])
           + "<b>" + (s[1] == null ? '<small style="margin:0">not tracked yet</small>' : num(s[1]) + "<small>" + pct(s[1], n) + "</small>") + "</b></div>").join("")
-          + (S.tracking ? "" : '<p class="svy-note" style="margin:10px 0 0">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always exact: every emailed link is personal.</p>');
+          + (!S.tracking ? '<p class="svy-note" style="margin:10px 0 0">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always exact: every emailed link is personal.</p>'
+            : !opensOn ? '<p class="svy-note" style="margin:10px 0 0">Email opens show once open tracking is switched on in Resend (mail.ziptozip.app). Delivered, clicked and answered are tracked now.</p>' : "");
         const scores = QUESTIONS.map(([k, label]) => {
           const v = rs.map(r => +r[k]).filter(x => x > 0);
           const c = [v.filter(x => x <= 2).length, v.filter(x => x === 3).length, v.filter(x => x === 4).length, v.filter(x => x === 5).length];
@@ -278,7 +300,7 @@
           + (sendsRows.length ? sendsRows.map(b => "<tr><td><b>" + esc(dt(b.at)) + '</b><span class="svy-sub">' + esc(b.k) + (b.test ? " · test" : "") + "</span></td>"
             + "<td>" + esc(String(b.who || "—").split("@")[0]) + "</td><td>" + b.n + "</td>"
             + "<td>" + (S.tracking ? b.del + ' <span class="svy-sub">' + pct(b.del, b.n) + "</span>" : "—") + "</td>"
-            + "<td>" + (S.tracking ? b.op + ' <span class="svy-sub">' + pct(b.op, b.n) + "</span>" : "—") + "</td>"
+            + "<td>" + (opensOn ? b.op + ' <span class="svy-sub">' + pct(b.op, b.n) + "</span>" : "—") + "</td>"
             + "<td>" + b.cl + ' <span class="svy-sub">' + pct(b.cl, b.n) + "</span></td>"
             + "<td><b>" + b.an + '</b> <span class="svy-sub">' + pct(b.an, b.n) + "</span></td>"
             + "<td>" + (b.ov.length ? (b.ov.reduce((a, c) => a + c, 0) / b.ov.length).toFixed(1) + "/5" : "—") + "</td>"
@@ -305,7 +327,7 @@
       }
 
       // ---- SENDS -------------------------------------------------------------------------------
-      const SFILTERS = [["all", "All"], ["waiting", "Not opened"], ["opened", "Opened, no answer"], ["answered", "Answered"], ["problem", "Bounced or failed"]];
+      const SFILTERS = [["all", "All"], ["waiting", "No reaction yet"], ["opened", "Opened or clicked, no answer"], ["answered", "Answered"], ["problem", "Bounced or failed"]];
       function sendsVisible() {
         const q = S.sQ.trim().toLowerCase();
         return (S.sends || []).filter(s => {
@@ -332,8 +354,9 @@
               : ["bounced", "complained", "failed"].includes(s.state_now))).length + "</div>").join("")
           + '<label class="rs-fld" style="margin-left:auto"><span>Find</span><input class="rs-inp" id="svySQ" placeholder="Customer, email, foreman…" value="' + esc(S.sQ) + '"></label></div>';
         if (!S.tracking) h += '<p class="svy-note">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always tracked.</p>';
+        else if (!(S.sends || []).some(s => s.opened_at)) h += '<p class="svy-note">Email opens show once open tracking is switched on in Resend. Delivered, clicked (they opened their link) and answered are tracked now.</p>';
         const tl = s => [["Delivered", s.delivered_at], ["Opened", s.opened_at], ["Clicked", s.clicked_at], ["Answered", s.answered_at], ["Bounced", s.bounced_at]]
-          .filter(x => x[1]).map(x => x[0] + " " + dt(x[1]).slice(5)).join(" · ");
+          .filter(x => x[1]).map(x => x[0] + " " + dt(x[1]).replace(" NJ", "")).join(" · ");
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Customer</th><th>Move</th><th>Foreman · score</th><th>Sent</th><th>Status</th><th>Answer</th></tr></thead><tbody>"
           + (slice.length ? slice.map(s => {
@@ -430,7 +453,8 @@
       }
       function listView() {
         if (S.rows === null) return '<div class="panel">Loading the moves…</div>';
-        if (S.err) return '<div class="panel">Could not load the list: ' + esc(S.err) + "</div>";
+        if (S.err) return '<div class="panel">Could not load the list: ' + esc(S.err)
+          + ' <button class="rs-btn" data-retry="list" style="margin-left:10px">Try again</button></div>';
         const rows = S.rows;
         const shown = visible(rows);
         const willSend = shown.filter(sendable);
@@ -470,7 +494,8 @@
         h += '<div class="rs-bar" style="margin-top:12px"><span class="rs-spacer"></span>'
           + (S.resend ? "" : '<span class="svy-sub" style="margin-right:10px">Sending opens once the bridge has the Resend key.</span>')
           + '<button class="rs-btn pri" id="svySend"' + (willSend.length && S.resend && !S.busy ? "" : " disabled") + ">Send to "
-          + willSend.length + " customer" + (willSend.length === 1 ? "" : "s") + "</button></div>";
+          + Math.min(willSend.length, MAX_PER_SEND) + " customer" + (willSend.length === 1 ? "" : "s")
+          + (willSend.length > MAX_PER_SEND ? " (of " + willSend.length + ")" : "") + "</button></div>";
         if (S.msg) h += '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>On</th><th>Customer</th><th>Move</th><th>Foreman · score</th><th>Review</th><th>Flags</th><th>Status</th></tr></thead><tbody>"
@@ -497,7 +522,9 @@
 
       // ---- EMAIL -------------------------------------------------------------------------------
       function emailView() {
-        if (!S.draft) return '<div class="panel">Loading the email…</div>';
+        if (!S.draft) return S.tplErr ? '<div class="panel">Could not load the email: ' + esc(S.tplErr)
+          + ' <button class="rs-btn" data-retry="email" style="margin-left:10px">Try again</button></div>'
+          : '<div class="panel">Loading the email…</div>';
         const d = S.draft;
         return '<div class="svy-grid"><div class="panel svy-ed">'
           + '<p class="svy-note" style="margin-top:0">A short letter from customer care with one button to the customer\'s own survey. '
@@ -515,7 +542,7 @@
           + '<p class="svy-note">The test carries a real personal link, so you can open the survey and answer it like a customer. '
           + "It goes to you or a company inbox only, and stays out of every count (switch on Include tests to see it).</p>"
           + (S.resend ? "" : '<p class="svy-note">The test and the send open once the bridge has the Resend key.</p>')
-          + (S.tpl && S.tpl.updated_by ? '<p class="svy-note">Last saved by ' + esc(S.tpl.updated_by) + " · " + esc(dt(S.tpl.updated_at)) + " UTC</p>" : "")
+          + (S.tpl && S.tpl.updated_by ? '<p class="svy-note">Last saved by ' + esc(S.tpl.updated_by) + " · " + esc(dt(S.tpl.updated_at)) + "</p>" : "")
           + (S.msg ? '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>" : "")
           + "</div><div>"
           + '<div class="rs-bar"><b style="font-size:13px">Subject:</b><span id="svyPvSubj" style="font-size:13px">' + esc(S.pvSubject || "") + '</span><span class="rs-spacer"></span>'
@@ -538,7 +565,7 @@
       function go(tab) {
         S.tab = tab; say("");
         if ((tab === "over" || tab === "sends" || tab === "ans") && (S.sends === null || S.ans === null)) loadPeriod();
-        else if (tab === "list" && S.rows === null) loadList();
+        else if (tab === "list" && (S.rows === null || S.err)) loadList();
         else if (tab === "email" && !S.draft) loadTemplate();
         else paint();
         if (tab === "email" && S.draft) preview();
@@ -547,9 +574,14 @@
       function wire() {
         host.querySelectorAll("[data-tab]").forEach(b => { b.onclick = () => go(b.dataset.tab); });
         host.querySelectorAll("[data-go]").forEach(b => { b.onclick = () => go(b.dataset.go); });
+        host.querySelectorAll("[data-retry]").forEach(b => { b.onclick = () => {
+          if (b.dataset.retry === "list") loadList(); else { S.tplErr = ""; paint(); loadTemplate(); } }; });
         // the shared period (overview, sends, responses)
         const pg = host.querySelector("#svyPGo");
-        if (pg) pg.onclick = () => { S.plo = host.querySelector("#svyPLo").value || S.plo; S.phi = host.querySelector("#svyPHi").value || S.phi; loadPeriod(); };
+        if (pg) pg.onclick = () => {
+          const hi = host.querySelector("#svyPHi").value;
+          S.plo = host.querySelector("#svyPLo").value || S.plo;
+          S.phiAuto = !hi || hi === iso(new Date()); S.phi = hi || S.phi; loadPeriod(); };
         const tt = host.querySelector("#svyTests"); if (tt) tt.onclick = () => { S.tests = !S.tests; loadPeriod(); };
         host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.aOpen = +b.dataset.openans; S.aFlag = "all"; S.aQ = ""; go("ans"); }; });
         // sends
@@ -582,15 +614,20 @@
         }; });
         const sb = host.querySelector("#svySend");
         if (sb) sb.onclick = () => {
-          const list = visible(S.rows).filter(sendable);
-          if (!list.length) return;
-          if (!confirm("Send the survey to " + list.length + " customer" + (list.length === 1 ? "" : "s") + " now? Each move can get it only once.")) return;
+          const all = visible(S.rows).filter(sendable);
+          if (!all.length) return;
+          const list = all.slice(0, MAX_PER_SEND);
+          const unsaved = S.draft && S.tpl && ["subject", "intro", "button", "sign_name", "sign_title"].some(k => (S.draft[k] || "") !== (S.tpl[k] || ""));
+          if (!confirm("Send the survey to " + list.length + " customer" + (list.length === 1 ? "" : "s") + " now? Each move can get it only once."
+            + (all.length > list.length ? "\n\nOne press sends at most " + MAX_PER_SEND + "; the other " + (all.length - list.length) + " stay on the list for the next press." : "")
+            + (unsaved ? "\n\nYour email edits are NOT saved: this send uses the last saved email." : ""))) return;
           S.busy = true; say("Sending…"); paint();
           post({ action: "send", job_keys: list.map(r => r.job_key) }).then(j => {
             S.busy = false; S.sends = null; S.ans = null;
-            say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + (j.skipped && j.skipped.length ? ", " + j.skipped.length + " skipped" : "") + " · send " + j.campaign, !!j.failed);
+            say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + (j.skipped && j.skipped.length ? ", " + j.skipped.length + " skipped" : "")
+              + (all.length > list.length ? " · " + (all.length - list.length) + " still to send: press Send again" : "") + " · send " + j.campaign, !!j.failed);
             loadList();
-          }).catch(e => { S.busy = false; say(e.message || String(e), true); paint(); });
+          }).catch(e => { S.busy = false; say(e.message || String(e), true); loadList(); });   // the list shows what really went
         };
         // email
         host.querySelectorAll("[data-pv]").forEach(b => { b.onclick = () => { S.pv = b.dataset.pv; paint(); preview(); }; });

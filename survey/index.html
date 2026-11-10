@@ -622,7 +622,7 @@
     call('POST', '', body, 20000).then(function(res){
       if (res.status === 200 && res.j.ok){ showThanks(false, true); return; }
       if (res.status === 409){ showThanks(true, true); return; }
-      if (res.status === 400){ failed(res.j.error ? String(res.j.error) : MSG_WRONG); return; }
+      if ((res.status === 400 || res.status === 429) && res.j && res.j.error){ failed(String(res.j.error)); return; }
       if (res.status === 404 && token){ failed(MSG_LINK_GONE, true); return; }
       failed(MSG_WRONG);
     }, function(){ failed(MSG_WRONG); });
