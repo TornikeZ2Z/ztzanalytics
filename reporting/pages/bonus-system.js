@@ -9,9 +9,11 @@
      Support), each with its own weights.
    - Each PERSON: up to two salary periods in the year (a raise mid-year), their scores, the index
      (weighted score / max score), the level the index reaches, and the bonus: the level's months of
-     salary, pro-rated by months worked. Nobody under the minimum months is paid. An adjustment can
-     move the paid amount (never below $0); a raise for next year and training are budgeted against
-     the department too.
+     salary, pro-rated by months worked. Nobody under the minimum months is paid. A FINAL amount, when
+     typed, is what is paid instead of the calculated bonus (his pick, 11 Nov: "not adjust by X but the
+     final number that was decided"; the stored key stays `adj`, so the saved plans keep their values --
+     Gvantsa was already typing final amounts there); a raise for next year and training are budgeted
+     against the department too.
 
    His decisions (10 Nov): salaries and scores are TYPED here, and so is GROSS PROFIT ("the gross profit
    we calculate is not proper gross profit as we don't account for most in house expenses - it should be
@@ -72,7 +74,8 @@ function bnsCompute(doc, ctx) {
       if (idx != null) levels.forEach(l => { if (idx >= l.min - 1e-9) lvl = l; });
       const eligible = months >= z(st.minMonths);
       const bonus = lvl && eligible ? lvl.months * avg * (st.prorate === false ? 1 : months / 12) * growth : 0;
-      const paid = Math.max(0, bonus + z(p.adj));
+      const fin = n(p.adj);                       // the FINAL amount decided (11 Nov); empty = the calculated bonus
+      const paid = fin == null ? bonus : Math.max(0, fin);
       const raiseCost = z(p.raise) * z(p.raiseMonths), training = z(p.training);
       D.people.push({ rid: p.rid, name: p.name, months, avg, idx, missing, level: lvl ? lvl.n : null,
                       eligible, bonus, paid, raiseCost, training });
@@ -89,7 +92,7 @@ function bnsCompute(doc, ctx) {
   });
   T.committed = T.budget + T.raises + T.training;
   // HEADROOM counts what is really paid out (Gvantsa, 10 Nov: "headroom left - minda mitvlides actual bonus
-  // paid + trainings + raising"): the target less the bonuses paid after adjustments, the raises and the
+  // paid + trainings + raising"): the target less the bonuses paid (final amounts where typed), the raises and the
   // training -- not less the 2-month budget, which is only a cap
   T.used = T.spend + T.raises + T.training;
   T.headroom = target - T.used;
@@ -102,7 +105,7 @@ function bnsCompute(doc, ctx) {
    blank while the box still showed them: Save said Saved, a refresh showed them empty. Now spaces, a
    currency sign at either end and the Georgian decimal comma are read; anything still not a number is
    {ok:false} and the page keeps it red and refuses to save until it is fixed.
-   money: a dollar box (salaries, adjustments, raises, training, gross profit), where "1,500" and
+   money: a dollar box (salaries, final amounts, raises, training, gross profit), where "1,500" and
    "1.500" are thousands (no amount here has three decimals). Elsewhere (scores, months, weights,
    percentages) a comma is always the decimal point: "1,500" is 1.5. */
 const BNS_MONEY = new Set(["s1", "s2", "adj", "raise", "training", "estGP", "baselineGP"]);
@@ -180,7 +183,7 @@ function bnsMerge(base, mine, theirs) {
   const CHEV = '<svg class="bns-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
   const LABEL = { s1: "salary", m1: "months at that salary", s2: "raised salary", m2: "months at the raised salary",
-    kpi: "KPI score", mgr: "manager score", peer: "peer score", hr: "HR score", adj: "adjustment",
+    kpi: "KPI score", mgr: "manager score", peer: "peer score", hr: "HR score", adj: "final amount",
     raise: "raise per month next year", raiseMonths: "months of the raise", training: "training" };
 
   function injectStyle() {
@@ -659,7 +662,8 @@ function bnsMerge(base, mine, theirs) {
           <button type="button" class="bns-link" data-act="how" aria-expanded="${!!S.how}" style="margin-top:10px">${S.how ? "Hide" : "How bonuses are calculated"}</button>
           ${S.how ? `<div class="bns-how"><b>Bonus:</b> the weighted score (KPI, manager and HR, plus peer where it is switched on), as a share
             of the rating scale, picks the level. The level pays its months of the person's average monthly salary, pro-rated by
-            months worked. Nobody under the minimum months is paid. An adjustment moves the paid amount, never below $0.<br>
+            months worked. Nobody under the minimum months is paid. A <b>final amount</b>, when typed, is what is paid instead of
+            the calculated bonus; leave it empty to pay the calculated bonus.<br>
             <b>Department budget:</b> ${BNS_BUDGET_MONTHS} months' salary per person: a cap to compare against, not a pot to spend.<br>
             <b>Gross profit</b> is typed here, because the portal's own gross profit leaves out most in-house costs. In the first year
             in the system it only sets the target budget and the headroom. From the next year, every bonus and budget moves by
@@ -714,7 +718,7 @@ function bnsMerge(base, mine, theirs) {
             <div class="bns-g hd" role="row"><div class="l" role="columnheader">Person</div>
               <div role="columnheader">Salary</div><div role="columnheader">Months</div><div role="columnheader">Raised to</div><div role="columnheader">Months</div><div role="columnheader">Average</div>
               <div role="columnheader">KPI</div><div role="columnheader">Manager</div><div role="columnheader">Peer</div><div role="columnheader">HR</div><div role="columnheader">Index</div><div role="columnheader">Level</div>
-              <div role="columnheader">Earned</div><div role="columnheader">Adjust</div><div role="columnheader">Paid</div>
+              <div role="columnheader">Earned</div><div role="columnheader" title="The amount decided. Empty = the calculated bonus">Final</div><div role="columnheader">Paid</div>
               <div role="columnheader">Raise / mo</div><div role="columnheader">Months</div><div role="columnheader">Training</div><div></div></div>
             ${rows || `<div class="bns-g row"><div class="l" style="grid-column:1 / -1"><span class="bns-na">Nobody in ${nm} yet.</span></div></div>`}
           </div></div>
@@ -804,7 +808,7 @@ function bnsMerge(base, mine, theirs) {
         if (a === "add-year") {
           const ys = yearsList(), last = ys[ys.length - 1], src = S.years[last].doc, y = last + 1;
           // AN EXACT COPY of the year before (Gvantsa, 10 Nov: "next years rom vacvebi minda cina celi
-          // kopirdebodes zustad"): every setting, department, person, salary, score, adjustment, raise,
+          // kopirdebodes zustad"): every setting, department, person, salary, score, final amount, raise,
           // training and note, as they are. She changes what is different for the new year herself.
           const nd = normalize(clone(src));
           S.years[y] = { version: 0, doc: nd, orig: null, updated_by: null, updated_at: null };
