@@ -138,7 +138,8 @@
             now: known ? +known["Count"] : null,
             /* a page the check cannot read needs a typed count only once its last known count is older
                than STALE_DAYS -- otherwise Tako would retype two thirds of the list every week */
-            needs: !last || (last["Status"] !== "ok" && last["Status"] !== "manual"
+            /* "skipped": the site shows Google's reviews, never counted (Tako's rule) -- nothing to type */
+            needs: !last || (last["Status"] !== "ok" && last["Status"] !== "manual" && last["Status"] !== "skipped"
               && (!known || String(known["Checked At"]).slice(0, 10) < STALE_FROM)) });
         });
         pages.forEach(pg => {
@@ -281,7 +282,9 @@
         const rows = M.pages.filter(pg => pg.needs).sort((a, b) =>
           ((M.plats[a["Platform Key"]] || {})["Platform"] || "").localeCompare((M.plats[b["Platform Key"]] || {})["Platform"] || ""));
         const why = pg => !pg.last ? "not checked yet" : pg.last["Status"] === "blocked" ? "the site refuses automated visits"
-          : pg.last["Status"] === "unreadable" ? "no count found on the page" : "the page did not open";
+          : pg.last["Status"] === "unreadable" ? "no count found on the page"
+          : pg.last["Status"] === "suspect" || pg.last["Status"] === "rejected" ? "the number on the page looked wrong: " + (pg.last["Note"] || "")
+          : "the page did not open";
         return '<p class="rvm-note">The weekly check could not read these pages, and their last count is more than '
           + STALE_DAYS + " days old (or there is none). Open the page, count the reviews and type the number: it stands "
           + "until the check reads one, or for " + STALE_DAYS + " days.</p>"
