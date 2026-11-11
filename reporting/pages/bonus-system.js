@@ -21,7 +21,10 @@
    the page reads no portal dataset at all. People come from the TEAM DIRECTORY (hrq_roster), each with
    a bonus department that may differ from the directory's; and the page is open to NAMED PEOPLE ONLY --
    the bridge decides (bridge/bonus.py) and tells the shell through /api/_me `named`; an admin does not
-   bypass it. Nothing about who is named lives in this public file. */
+   bypass it. Nothing about who is named lives in this public file.
+
+   Gvantsa's fixes (11 Nov, ZTZ-63): "Add next year" copies the year before EXACTLY (scores, salaries,
+   raises, training, notes, settings); "Headroom left" = target less (bonuses paid + raises + training). */
 
 /* BNS-ENGINE-START -- pure: no DOM, no RS. tests/test_bonus_system.py runs this block in node. */
 const BNS_BUDGET_MONTHS = 2;   // "every department's budget is 2 months' salary per current employee"
@@ -70,7 +73,11 @@ function bnsCompute(doc) {
     out.depts.push(D);
   });
   T.committed = T.budget + T.raises + T.training;
-  T.headroom = target - T.committed;
+  // HEADROOM counts what is really paid out (Gvantsa, 10 Nov: "headroom left - minda mitvlides actual bonus
+  // paid + trainings + raising"): the target less the bonuses paid after adjustments, the raises and the
+  // training -- not less the 2-month budget, which is only a cap
+  T.used = T.spend + T.raises + T.training;
+  T.headroom = target - T.used;
   T.budgetPct = est > 0 ? T.budget / est : null;
   out.totals = T;
   return out;
@@ -338,7 +345,8 @@ function bnsCompute(doc) {
           { label: "Total budget", value: money(T.budget), sub: pct2(T.budgetPct) + " of GP · " + T.people + " people" },
           { label: "Actual spend", value: money(T.spend), sub: "bonuses paid, after adjustments" },
           { label: "Committed", value: money(T.committed), sub: "budget + raises " + money(T.raises) + " + training " + money(T.training) },
-          { label: "Headroom left", value: money(T.headroom), sub: "target less committed", tone: T.headroom < 0 ? "bad" : "" },
+          { label: "Headroom left", value: money(T.headroom), sub: "target less bonuses paid " + money(T.spend) + ", raises and training",
+            tone: T.headroom < 0 ? "bad" : "" },
         ]);
       }
 
@@ -503,24 +511,14 @@ function bnsCompute(doc) {
         if (a === "year") { S.cur = +el.dataset.y; say(""); paint(); return; }
         if (a === "add-year") {
           const ys = yearsList(), last = ys[ys.length - 1], src = S.years[last].doc, y = last + 1;
+          // AN EXACT COPY of the year before (Gvantsa, 10 Nov: "next years rom vacvebi minda cina celi
+          // kopirdebodes zustad"): every setting, department, person, salary, score, adjustment, raise,
+          // training and note, as they are. She changes what is different for the new year herself.
           const nd = normalize(clone(src));
-          // each person starts the year on their latest salary; a raise budgeted last year (per month,
-          // for N months) becomes the second salary period, so its cost carries over as planned
-          nd.depts.forEach(d => d.people.forEach(p => {
-            const latest = n(p.m2) ? n(p.s2) : n(p.s1), raise = n(p.raise) || 0;
-            const rm = Math.min(12, Math.max(0, Math.round(n(p.raiseMonths) || 0)));
-            Object.keys(p).forEach(k => { if (k !== "rid" && k !== "name") p[k] = null; });
-            p.note = "";
-            if (latest == null) { p.m1 = 12; return; }
-            if (raise && rm >= 12) { p.s1 = latest + raise; p.m1 = 12; }
-            else if (raise && rm > 0) { p.s1 = latest; p.m1 = 12 - rm; p.s2 = latest + raise; p.m2 = rm; }
-            else { p.s1 = latest; p.m1 = 12; }
-          }));
-          nd.settings.estGP = null;
           S.years[y] = { version: 0, doc: nd, updated_by: null, updated_at: null };
           S.cur = y; S.dirty.add(y);
-          say(y + " starts from " + last + ": the same settings, departments and people, each on their latest salary "
-            + "(plus the raise budgeted for them). Scores start empty. Nothing is saved until you press Save.");
+          say(y + " is an exact copy of " + last + ": every setting, person, salary and score. Change what is "
+            + "different for " + y + ". Nothing is saved until you press Save.");
           paint(); return;
         }
         if (a === "del-year") {
