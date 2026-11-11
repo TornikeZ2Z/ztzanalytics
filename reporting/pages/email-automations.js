@@ -99,6 +99,17 @@
       + ".eam-link{color:var(--brand-d,var(--brand));cursor:pointer;font-weight:600;text-decoration:underline;background:none;border:0;font:inherit;padding:0}"
       + ".eam-empty{text-align:center;padding:42px 20px}.eam-empty b{display:block;font-size:16px;margin-bottom:6px}"
       + ".eam-msg{font-size:13px;margin:0 0 10px}.eam-msg.err{color:var(--neg)}.eam-msg.ok{color:var(--pos)}"
+      // the queue's tabs and the Undo note (11 Nov, ZTZ-69)
+      + ".eam-qtabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}"
+      + ".eam-qtab{font:inherit;font-size:13.5px;font-weight:600;padding:8px 14px;border-radius:10px;border:1px solid var(--line);"
+      + "background:var(--panel);color:var(--ink);cursor:pointer;min-height:40px}"
+      + ".eam-qtab .n{display:inline-block;min-width:20px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px;"
+      + "background:var(--panel-2);color:var(--muted);margin-left:4px;text-align:center}"
+      + ".eam-qtab.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}.eam-qtab.on .n{background:rgba(255,255,255,.18);color:inherit}"
+      + ".eam-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;"
+      + "background:#0f172a;color:#fff;border-radius:12px;padding:9px 10px 9px 16px;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:14px;max-width:calc(100vw - 32px)}"
+      + ".eam-toast .u{font:inherit;font-size:13.5px;font-weight:700;border:0;border-radius:8px;background:#b7e23b;color:#14200a;padding:7px 14px;cursor:pointer}"
+      + ".eam-toast .x{font:inherit;font-size:15px;border:0;background:none;color:#fff;padding:6px 8px;cursor:pointer}"
       // keyboard focus is always visible (the portal resets outlines)
       + ".eam button:focus-visible,.eam input:focus-visible,.eam select:focus-visible{outline:2px solid var(--brand-d,#5f7c20);outline-offset:2px}"
       // the dark theme (body.rs-app without .light): the status colours above are too dark there (2.2:1)
@@ -497,29 +508,68 @@
           + "</div></div>";
         return h;
       }
+      // THE QUEUE IN THREE TABS (11 Nov, ZTZ-69): nobody switched off disappears -- they sit under Switched off
+      // with who did it and when, and Put back returns them; Undo follows every switch.
+      const QTABS = [["will", "Will get it"], ["off", "Switched off"], ["cant", "Can't get it"]];
+      const qtabOf = r => ((r.hard || []).length ? "cant" : r.off ? "off" : "will");
+      const whoWhen = (by, at) => [by ? "by " + String(by).split("@")[0] : "", at ? dt(at) : ""].filter(Boolean).join(", ");
       function queueHtml() {
         if (!S.id) return '<div class="eam-card">Name it first (step 1).</div>';
         if (S.qErr) return '<div class="eam-card">Could not load: ' + esc(S.qErr) + "</div>";
         if (!S.queue) return '<div class="eam-card">Reading who gets it…</div>';
         const it = S.item || {}, d = S.draft || {}, rows = S.queue.rows || [];
-        const ready = rows.filter(r => !(r.hard || []).length && !r.off);
+        if (!S.qtab) S.qtab = "will";
+        const n = { will: 0, off: 0, cant: 0 };
+        rows.forEach(r => { n[qtabOf(r)] += 1; });
+        const ready = rows.filter(r => qtabOf(r) === "will");
+        const shown = rows.filter(r => qtabOf(r) === S.qtab);
         let h = msgLine() + '<div class="eam-card"><div class="eam-lc"><div><span class="eam-big">' + num(ready.length) + '</span><span class="eam-sub">can get it now, of '
-          + num(rows.length) + " who match (" + esc(S.queue.lo) + " to " + esc(S.queue.hi) + "). Switch someone off to keep them out.</span></div><div class=\"eam-act\">";
+          + num(rows.length) + " who match (" + esc(S.queue.lo) + " to " + esc(S.queue.hi) + "). Switch someone off to keep them out; they wait under Switched off.</span></div><div class=\"eam-act\">";
         if (it.status === "live" && d.mode !== "auto") h += '<button class="rs-btn pri" id="eamSend"' + (ready.length && !S.busy ? "" : " disabled") + ">Send to " + Math.min(ready.length, MAX_PER_SEND) + " now</button>"
           + (ready.length > MAX_PER_SEND ? '<div class="eam-help">One press sends up to ' + MAX_PER_SEND + "; the rest stay for the next press.</div>" : "");
         else if (it.status === "live") h += '<div class="eam-help">Goes out by itself at ' + esc(hourLab(d.schedule.run_hour)) + ".</div>";
         else h += '<div class="eam-help">After launch, these people get it.</div>';
         h += "</div></div></div>";
+        h += '<div class="eam-qtabs" role="tablist" aria-label="Who gets it">' + QTABS.map(([k, l]) => '<button type="button" role="tab" class="eam-qtab'
+          + (S.qtab === k ? " on" : "") + '" aria-selected="' + (S.qtab === k) + '" data-qtab="' + k + '">' + esc(l) + ' <span class="n">' + n[k] + "</span></button>").join("") + "</div>";
+        const who = (d.audience || {}).source === "promised" ? "Promised" : "Moved";
         return h + '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th>On</th><th>Customer</th><th>" + ((d.audience || {}).source === "promised" ? "Promised" : "Moved") + "</th><th>Foreman</th><th>Held back / notes</th></tr></thead><tbody>"
-          + (rows.length ? rows.slice(0, 500).map(r => {
+          + "<th></th><th>Customer</th><th>" + who + "</th><th>Foreman</th><th>"
+          + ({ will: "Notes", off: "Switched off", cant: "Why they can't get it" }[S.qtab]) + "</th></tr></thead><tbody>"
+          + (shown.length ? shown.slice(0, 500).map(r => {
             const hard = r.hard || [];
-            return '<tr class="' + (hard.length || r.off ? "eam-dim" : "") + '"><td><input type="checkbox" class="eam-sw" data-off="' + esc(r.key) + '" aria-label="Include ' + esc(r.customer || "this customer") + '"'
-              + (r.off ? "" : " checked") + (hard.length ? " disabled" : "") + "></td><td><b>" + esc(r.customer || "—") + '</b><span class="eam-sub">' + esc(r.email || "no email") + "</span></td>"
+            const act = S.qtab === "will" ? '<input type="checkbox" class="eam-sw" data-off="' + esc(r.key) + '" checked aria-label="Switch off ' + esc(r.customer || "this customer") + '">'
+              : S.qtab === "off" ? '<button type="button" class="rs-btn" data-back="' + esc(r.key) + '">Put back</button>' : "";
+            const note = S.qtab === "off" ? "<b>Switched off</b>" + '<span class="eam-sub">' + esc(whoWhen(r.off_by, r.off_at)) + "</span>"
+              : hard.map(x => pill(x, "eam-bad")).join(" ") + (r.flags || []).map(x => pill(x, "eam-warn")).join(" ");
+            return '<tr class="' + (S.qtab === "cant" ? "eam-dim" : "") + '"><td style="white-space:nowrap;width:1%">' + act + "</td><td><b>" + esc(r.customer || "—") + '</b><span class="eam-sub">' + esc(r.email || "no email") + "</span></td>"
               + "<td>" + esc(d10(r.when)) + '<span class="eam-sub">' + esc(r.state || "") + "</span></td><td>" + esc(r.foreman || "—")
-              + (r.score != null ? '<span class="eam-sub">score ' + esc(r.score) + "/10</span>" : "") + "</td><td>"
-              + hard.map(x => pill(x, "eam-bad")).join(" ") + (r.flags || []).map(x => pill(x, "eam-warn")).join(" ") + "</td></tr>";
-          }).join("") : '<tr><td colspan="5" class="dim">Nobody matches right now.</td></tr>') + "</tbody></table></div></div>";
+              + (r.score != null ? '<span class="eam-sub">score ' + esc(r.score) + "/10</span>" : "") + "</td><td>" + note + "</td></tr>";
+          }).join("") : '<tr><td colspan="5" class="dim">' + ({ will: "Nobody can get it right now.", off: "Nobody is switched off.", cant: "Nobody is held back." }[S.qtab]) + "</td></tr>")
+          + "</tbody></table></div></div>";
+      }
+      // a small "done, Undo" note at the bottom of the screen (outside the page's box, so a repaint keeps it)
+      function toast(text, undo) {
+        const old = document.getElementById("eamToast"); if (old) old.remove();
+        const t = document.createElement("div");
+        t.id = "eamToast"; t.className = "eam-toast"; t.setAttribute("role", "status");
+        t.innerHTML = "<span>" + esc(text) + "</span>" + (undo ? '<button type="button" class="u">Undo</button>' : "")
+          + '<button type="button" class="x" aria-label="Close">✕</button>';
+        document.body.appendChild(t);
+        const close = () => { clearTimeout(t._t); t.remove(); };
+        t.querySelector(".x").onclick = close;
+        if (undo) t.querySelector(".u").onclick = () => { close(); undo(); };
+        t._t = setTimeout(close, 10000);
+      }
+      function setOff(k, off, quiet) {
+        const r = ((S.queue || {}).rows || []).find(x => x.key === k); if (!r) return;
+        post({ action: "off", what: "auto", id: S.id, key: k, off }).then(() => {
+          r.off = off; r.off_by = off ? (ZTZ.email() || "") : null; r.off_at = off ? new Date().toISOString() : null;
+          S.queue.waiting = (S.queue.rows || []).filter(x => qtabOf(x) === "will").length;      // the rail's count follows
+          paintMain(); paintRail();
+          if (!quiet) toast(off ? (r.customer || "They") + " is switched off: find them under Switched off." : (r.customer || "They") + " can get it again.",
+                            () => setOff(k, !off, true));
+        }).catch(e => { say(e.message, true); paintMain(); });
       }
       function sendsHtml() {
         if (!S.id) return "";
@@ -686,6 +736,7 @@
           sender: S.draft.sender, onSender: v => { S.draft.sender = v; paintHead(); }, category: S.draft.category, designs: true,
           preview: t => post({ action: "preview", template: t, category: S.draft.category, sender: S.draft.sender }),
           upload: EMAILDESIGNER.uploader(post), onChange: () => { dirty(); paintRail(); },
+          pictures: EMAILDESIGNER.picturesApi(path => api(path), post),
         });
       }
       function wireIn(root) {
@@ -744,11 +795,9 @@
         const hr = $("#eamHour"); if (hr) hr.onchange = () => { S.draft.schedule.run_hour = +hr.value; dirty(); };
         const cap = $("#eamCap"); if (cap) cap.oninput = () => { S.draft.schedule.daily_cap = Math.max(1, Math.min(300, +cap.value || 1)); dirty(); };
         // queue
-        $$("[data-off]").forEach(cb => { cb.onchange = () => {
-          const k = cb.dataset.off, off = !cb.checked;
-          post({ action: "off", what: "auto", id: S.id, key: k, off }).then(() => { const r = (S.queue.rows || []).find(x => x.key === k); if (r) r.off = off; paintMain(); })
-            .catch(e => { say(e.message, true); cb.checked = !cb.checked; paintMain(); });
-        }; });
+        $$("[data-qtab]").forEach(b => { b.onclick = () => { S.qtab = b.dataset.qtab; say(""); paintMain(); }; });
+        $$("[data-off]").forEach(cb => { cb.onchange = () => { cb.disabled = true; setOff(cb.dataset.off, !cb.checked); }; });
+        $$("[data-back]").forEach(b => { b.onclick = () => { b.disabled = true; setOff(b.dataset.back, false); }; });
         const sendB = $("#eamSend");
         if (sendB) sendB.onclick = () => {
           const ready = (S.queue.rows || []).filter(r => !(r.hard || []).length && !r.off).slice(0, MAX_PER_SEND);

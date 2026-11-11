@@ -3,10 +3,11 @@
  *   OVERVIEW   the numbers: sent > delivered > opened > clicked > answered, scores by question,
  *              worth the price, what they enjoyed, where answers came from, results per send and
  *              per foreman, the latest flagged answers.
- *   AUDIENCE   every completed Zip to Zip move 14+ days old, with Tako's rule as the default filter
- *              (foreman's score 9-10, local, nothing on the Claims / Complaints board). Her filters
- *              widen or narrow it, a switch takes one person off, and ONE button sends to everyone
- *              shown. Nothing sends by itself.
+ *   AUDIENCE   every completed Zip to Zip move 14+ days old in five tabs (11 Nov, ZTZ-69): Will get
+ *              it, Switched off (who and when; Put back), Left out by the rule (Add anyway), Can't be
+ *              sent, Already sent. Tako's rule (foreman's score 9-10, nothing on the Claims /
+ *              Complaints board) sorts moves into the tabs; a switch moves one person to Switched off
+ *              with an Undo, and ONE button sends to everyone in Will get it. Nothing sends by itself.
  *   SENDS      every email, one row each, with how far it got (Resend's webhook) and its answer.
  *   RESPONSES  every filled survey; bad answers flagged here only (an issue, or a low mark).
  *   EMAIL      the letter from Tako: subject, text, button, signature; desktop/phone preview; a test
@@ -73,7 +74,22 @@
       + ".svy-ans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;padding:12px 16px;"
       + "background:var(--panel-2);font-size:13px}"
       + ".svy-ans b{display:block;font-size:11.5px;color:var(--faint);font-weight:600}"
-      + ".svy-link{color:var(--brand);cursor:pointer;font-weight:600;text-decoration:underline}";
+      + ".svy-link{color:var(--brand);cursor:pointer;font-weight:600;text-decoration:underline}"
+      // the Audience's five tabs and its Undo note (11 Nov, ZTZ-69)
+      + ".svy-atabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0 4px}"
+      + ".svy-atab{font:inherit;font-size:13.5px;font-weight:600;padding:8px 14px;border-radius:10px;border:1px solid var(--line);"
+      + "background:var(--panel);color:var(--ink);cursor:pointer;min-height:40px}"
+      + ".svy-atab .n{display:inline-block;min-width:20px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px;"
+      + "background:var(--panel-2);color:var(--muted);margin-left:4px;text-align:center}"
+      + ".svy-atab.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}.svy-atab.on .n{background:rgba(255,255,255,.18);color:inherit}"
+      + ".svy-atab:focus-visible,.svy-mini:focus-visible{outline:2px solid var(--brand-d,#5f7c20);outline-offset:2px}"
+      + ".svy-act{white-space:nowrap;width:1%}"
+      + ".svy-mini{font:inherit;font-size:12px;font-weight:600;color:var(--muted);background:none;border:0;padding:4px 6px;"
+      + "margin-left:6px;cursor:pointer;text-decoration:underline;min-height:28px}"
+      + ".svy-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;"
+      + "background:#0f172a;color:#fff;border-radius:12px;padding:9px 10px 9px 16px;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:14px;max-width:calc(100vw - 32px)}"
+      + ".svy-toast .u{font:inherit;font-size:13.5px;font-weight:700;border:0;border-radius:8px;background:#b7e23b;color:#14200a;padding:7px 14px;cursor:pointer}"
+      + ".svy-toast .x{font:inherit;font-size:15px;border:0;background:none;color:#fff;padding:6px 8px;cursor:pointer}";
     document.head.appendChild(st);
   }
 
@@ -471,19 +487,25 @@
       const ans = (k, v) => "<div><b>" + esc(k) + "</b>" + esc(v == null || v === "" ? "—" : v) + "</div>";
 
       // ---- AUDIENCE (the send list) ----------------------------------------------------------
-      // THE PORTAL'S FILTER LOOK (his rule, 10 Nov: "i thought we have defined how the filters should
-      // look like"): one bar -- Move dates (RSC.dateRange), Find, and the Filters button at its right end
-      // opening the side panel (RSC.filterPanel) -- and the "Filtered by" chips under it
-      // (RSC.filterChips). The panel holds the filters he listed on 9 Nov: foreman's 1-10 rating, area
-      // (state), claim / complaint, move type, review written, surveyed before, plus the send status.
-      // TAKO'S RULE IS THE DEFAULT SELECTION (rating 9-10, no claim, will get it), so it shows as chips
-      // and every part of it can be removed or put back.
-      const RULE = () => ({ rating: new Set(["10", "9"]), claim: new Set(["None"]), status: new Set(["Will get it"]) });
-      const AF = ["rating", "claim", "state", "mtype", "review", "surveyed", "status"];
-      if (!S.af) S.af = RULE();
+      // THE PORTAL'S FILTER LOOK (his rule, 10 Nov): one bar -- Move dates (RSC.dateRange), Find, and the
+      // Filters button at its right end opening the side panel (RSC.filterPanel) -- with the "Filtered by"
+      // chips under it (RSC.filterChips).
+      // FIVE TABS (11 Nov, ZTZ-69, his "once someone is filtered out we need a separate list to see who is
+      // filtered out, so maybe they accidentally clicked it and want to return it"): every move sits in
+      // exactly one tab --
+      //   Will get it           passes Tako's rule (or was added by hand), switched on
+      //   Switched off          someone switched it off: who and when, and Put back
+      //   Left out by the rule  rating or claim outside Tako's rule: Add anyway
+      //   Can't be sent         a hard limit the server enforces whatever the page sends
+      //   Already sent          one survey per move
+      // TAKO'S RULE = the rating and claim choices in the panel (default 9-10, no claim): a move outside them
+      // moves to "Left out by the rule" instead of vanishing. The other filters narrow every tab.
+      const RULE = () => ({ rating: new Set(["10", "9"]), claim: new Set(["None"]) });
+      const RULE_KEYS = ["rating", "claim"];
+      const AF = ["rating", "claim", "state", "mtype", "review", "surveyed"];
+      if (!S.af || S.af.status) S.af = RULE();          // a tab opened before 11 Nov kept the old status filter
+      if (!S.atab) S.atab = "will";
       const mtypeOf = r => (String(r.move_type_code || "").toUpperCase() === "LD" ? "Long-Distance Moving" : (r.form_move_type || "Local Moving"));
-      const statusOf = r => (r.invite_status === "sent" ? "Already sent" : r.invite_status === "sending" ? "Sending"
-        : r.hard.length ? "Can't be sent" : r.off ? "Switched off" : "Will get it");
       const KEYS = {
         rating: r => (r.score == null || r.score === "" ? "No score" : String(+r.score)),
         claim: r => (r.complaints ? "Has a claim or complaint" : "None"),
@@ -491,13 +513,20 @@
         mtype: mtypeOf,
         review: r => (r.review ? "Review written" : "No review"),
         surveyed: r => (r.surveyed_before ? "Surveyed before" : "Not surveyed before"),
-        status: statusOf,
       };
-      const LABELS = { rating: "Foreman's rating (1–10)", claim: "Claim / complaint", state: "State", mtype: "Move type",
-                       review: "Review", surveyed: "Surveyed before", status: "Status" };
-      const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"],
-                      status: ["Will get it", "Switched off", "Already sent", "Sending", "Can't be sent"] };
+      const LABELS = { rating: "Tako's rule: foreman's rating (1–10)", claim: "Tako's rule: claim / complaint", state: "State",
+                       mtype: "Move type", review: "Review", surveyed: "Surveyed before" };
+      const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"] };
       const rank = (ord, v) => { const i = ord.indexOf(v); return i < 0 ? 999 : i; };
+      const ATABS = [["will", "Will get it"], ["off", "Switched off"], ["rule", "Left out by the rule"],
+                     ["cant", "Can't be sent"], ["sent", "Already sent"]];
+      const ATAB_NOTE = {
+        will: "These get the survey when you press Send. Switch someone off and they move to Switched off, where you can put them back.",
+        off: "Switched off by hand, with who did it and when. Put them back any time before the send.",
+        rule: "Tako's rule leaves these out (the rating or a claim). Add one by hand to ask them anyway.",
+        cant: "These can never get it, whatever anyone picks: long distance, no email, unsubscribed, or under 14 days since the move.",
+        sent: "One survey per move: these already got theirs. Each send's results are on the Sends tab.",
+      };
       function afFields(rows) {
         return AF.map(k => {
           const n = {};
@@ -509,73 +538,122 @@
         });
       }
       const setKey = st => [...(st || [])].sort().join("|");
-      const isRule = () => AF.every(k => setKey(S.af[k]) === setKey(RULE()[k]));
+      const isRule = () => RULE_KEYS.every(k => setKey(S.af[k]) === setKey(RULE()[k]));
+      const passRule = r => RULE_KEYS.every(k => { const set = S.af[k]; return !set || !set.size || set.has(KEYS[k](r)); });
+      const isSent = r => r.invite_status === "sent" || r.invite_status === "sending";
+      const tabOf = r => (isSent(r) ? "sent" : r.hard.length ? "cant" : r.off ? "off" : (r.added || passRule(r)) ? "will" : "rule");
       function visible(rows) {
         const q = S.q.trim().toLowerCase();
         return rows.filter(r => {
-          for (const k of AF) { const set = S.af[k]; if (set && set.size && !set.has(KEYS[k](r))) return false; }
+          for (const k of AF) {
+            if (RULE_KEYS.indexOf(k) >= 0) continue;          // the rule sorts into tabs, it hides nobody
+            const set = S.af[k]; if (set && set.size && !set.has(KEYS[k](r))) return false;
+          }
           if (q && ![r.customer, r.email, r.foreman, r.job_no, r.state].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
           return true;
         });
       }
-      const sendable = r => !r.hard.length && !r.off && r.invite_status !== "sent" && r.invite_status !== "sending";
-      function statusCell(r) {
-        if (r.invite_status === "sent") return '<span class="svy-flag svy-ok">Sent ' + esc(d10(r.sent_at)) + "</span>";
-        if (r.invite_status === "sending") return '<span class="svy-flag">Sending…</span>';
-        if (r.hard.length) return '<span class="svy-flag svy-bad">' + esc(r.hard.join(", ")) + "</span>";
-        if (r.off) return '<span class="svy-flag">Switched off</span>';
-        return '<span class="svy-flag svy-ok">Will get it</span>'
-          + (r.invite_status === "failed" ? '<span class="svy-sub">last send failed, will retry</span>' : "");
+      const sendable = r => tabOf(r) === "will";
+      const me = () => (window.ME && ME.email) || "";
+      const whoWhen = (by, at) => [by ? "by " + String(by).split("@")[0] : "", at ? dt(at) : ""].filter(Boolean).join(", ");
+      function ruleWhy(r) {
+        const out = [];
+        if (S.af.rating && S.af.rating.size && !S.af.rating.has(KEYS.rating(r))) out.push(r.score == null ? "no rating" : "rating " + r.score);
+        if (S.af.claim && S.af.claim.size && !S.af.claim.has(KEYS.claim(r))) out.push("claim / complaint" + (r.complaint_status ? ": " + r.complaint_status : ""));
+        return out.join(" · ");
+      }
+      const flagsHtml = (r, noClaim) => (r.complaints && !noClaim ? '<span class="svy-flag svy-bad">claim / complaint' + (r.complaint_status ? ": " + esc(r.complaint_status) : "") + "</span>" : "")
+        + (r.flags || []).map(f => '<span class="svy-flag">' + esc(f) + "</span>").join("")
+        + (r.surveyed_before ? '<span class="svy-flag">surveyed before</span>' : "");
+      function noteCell(r, tab) {
+        if (tab === "sent") return r.invite_status === "sent" ? '<span class="svy-flag svy-ok">Sent ' + esc(d10(r.sent_at)) + "</span>" : '<span class="svy-flag">Sending…</span>';
+        if (tab === "cant") return '<span class="svy-flag svy-bad">' + esc(r.hard.join(", ")) + "</span>" + flagsHtml(r);
+        if (tab === "off") return "<b>Switched off</b>" + '<span class="svy-sub">' + esc(whoWhen(r.off_by, r.off_at)) + "</span>";
+        if (tab === "rule") return '<span class="svy-flag svy-mute">' + esc(ruleWhy(r)) + "</span>" + flagsHtml(r, true);   // the claim is already the reason
+        return (r.added ? '<span class="svy-flag svy-blue">added by hand' + (r.added_by ? " " + esc(whoWhen(r.added_by, r.added_at)) : "") + "</span>" : "")
+          + flagsHtml(r) + (r.invite_status === "failed" ? '<span class="svy-sub">last send failed, will retry</span>' : "");
+      }
+      function actCell(r, tab) {
+        const nm = esc(r.customer || "this customer");
+        if (tab === "will") return '<input type="checkbox" class="svy-sw" data-off="' + esc(r.job_key) + '" checked aria-label="Switch off ' + nm + '">'
+          + (r.added && !passRule(r) ? '<button type="button" class="svy-mini" data-add="0" data-key="' + esc(r.job_key) + '">Take out</button>' : "");
+        if (tab === "off") return '<button type="button" class="rs-btn" data-back="' + esc(r.job_key) + '">Put back</button>';
+        if (tab === "rule") return '<button type="button" class="rs-btn" data-add="1" data-key="' + esc(r.job_key) + '">Add anyway</button>';
+        return "";
       }
       function listView() {
         if (S.rows === null) return '<div class="rs-bar" id="svyABar"></div><div class="panel">Loading the moves…</div>';
         if (S.err) return '<div class="rs-bar" id="svyABar"></div><div class="panel">Could not load the list: ' + esc(S.err)
           + ' <button class="rs-btn" data-retry="list" style="margin-left:10px">Try again</button></div>';
-        const rows = S.rows;
-        const shown = visible(rows);
+        const shown = visible(S.rows);
+        const count = {}; ATABS.forEach(([k]) => { count[k] = 0; });
+        shown.forEach(r => { count[tabOf(r)] += 1; });
         const willSend = shown.filter(sendable);
-        const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+        const inTab = shown.filter(r => tabOf(r) === S.atab);
+        const pages = Math.max(1, Math.ceil(inTab.length / PAGE));
         if (S.page >= pages) S.page = pages - 1;
-        const slice = shown.slice(S.page * PAGE, S.page * PAGE + PAGE);
+        const slice = inTab.slice(S.page * PAGE, S.page * PAGE + PAGE);
         let h = '<div class="rs-bar" id="svyABar"></div><div id="svyAChips"></div>';
-        h += '<p class="svy-note">Completed Zip to Zip moves, 14 days after the move at the latest. '
-          + (isRule() ? "Showing <b>Tako's rule</b>: foreman's rating 9–10, nothing on the Claims / Complaints board, not sent yet."
-            : "Filters changed from Tako's rule. <span class=\"svy-link\" id=\"svyRule\">Back to Tako's rule</span>")
-          + " Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever the filters.</p>";
-        const off = rows.filter(r => r.off && !r.hard.length && r.invite_status !== "sent").length;
-        h += '<div class="rs-kpis" style="--kpi-cols:4">'
-          + kpi(willSend.length, "Will get the survey", "with these filters, switched on")
-          + kpi(rows.length, "Completed moves", rows.filter(r => r.rule).length + " pass Tako's rule")
-          + kpi(off, "Switched off", "by hand")
-          + kpi(rows.filter(r => r.invite_status === "sent").length, "Already sent", "moves in these dates") + "</div>";
-        h += '<div class="rs-bar" style="margin-top:12px"><span class="svy-sub">' + shown.length + " move" + (shown.length === 1 ? "" : "s") + " shown</span>"
+        h += '<div class="svy-atabs" role="tablist" aria-label="Who gets the survey">' + ATABS.map(([k, l]) =>
+          '<button type="button" role="tab" class="svy-atab' + (S.atab === k ? " on" : "") + '" aria-selected="' + (S.atab === k) + '" data-atab="' + k + '">'
+          + esc(l) + ' <span class="n">' + count[k] + "</span></button>").join("")
           + '<span class="rs-spacer"></span>'
           + (S.resend ? "" : '<span class="svy-sub" style="margin-right:10px">Sending opens once the bridge has the Resend key.</span>')
           + '<button class="rs-btn pri" id="svySend"' + (willSend.length && S.resend && !S.busy ? "" : " disabled") + ">Send to "
           + Math.min(willSend.length, MAX_PER_SEND) + " customer" + (willSend.length === 1 ? "" : "s")
           + (willSend.length > MAX_PER_SEND ? " (of " + willSend.length + ")" : "") + "</button></div>";
-        if (S.msg) h += '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>";
+        h += '<p class="svy-note">' + esc(ATAB_NOTE[S.atab]) + " "
+          + (isRule() ? "Tako's rule: rating 9–10, nothing on the Claims / Complaints board."
+            : "The rule is changed from Tako's. <span class=\"svy-link\" id=\"svyRule\">Back to Tako's rule</span>")
+          + "</p>";
+        if (S.msg) h += '<p class="svy-note" role="status" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>";
+        const sentTab = S.atab === "sent";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th>On</th><th>Customer</th><th>Move</th><th>Foreman · rating</th><th>Review</th><th>Flags</th><th>Status</th></tr></thead><tbody>"
-          + (slice.length ? slice.map(r => {
-            const can = !r.hard.length && r.invite_status !== "sent";
-            return '<tr class="' + (sendable(r) ? "" : "svy-dim") + '"><td><input type="checkbox" class="svy-sw" data-off="' + esc(r.job_key) + '"'
-              + (r.off ? "" : " checked") + (can ? "" : " disabled") + ' aria-label="Include ' + esc(r.customer) + '"></td>'
+          + "<th></th><th>Customer</th><th>Move</th><th>Foreman · rating</th><th>Review</th><th>"
+          + ({ will: "Notes", off: "Switched off", rule: "Why it's left out", cant: "Why it can't go", sent: "Status" }[S.atab]) + "</th></tr></thead><tbody>"
+          + (slice.length ? slice.map(r => '<tr class="' + (S.atab === "cant" || sentTab ? "svy-dim" : "") + '">'
+              + '<td class="svy-act">' + actCell(r, S.atab) + "</td>"
               + "<td><b>" + esc(r.customer || "—") + '</b><span class="svy-sub">' + esc(r.email || "no email") + "</span></td>"
               + "<td>" + esc(d10(r.move_date)) + '<span class="svy-sub">' + esc([r.state, mtypeOf(r)].filter(Boolean).join(" · ")) + "</span></td>"
               + "<td>" + esc(r.foreman || "—") + '<span class="svy-sub">rating ' + esc(r.score == null ? "—" : r.score) + "/10</span></td>"
               + "<td>" + (r.review ? "Yes" : "No") + "</td>"
-              + "<td>" + (r.complaints ? '<span class="svy-flag svy-bad">claim / complaint' + (r.complaint_status ? ": " + esc(r.complaint_status) : "") + "</span>" : "")
-              + (r.flags || []).map(f => '<span class="svy-flag">' + esc(f) + "</span>").join("")
-              + (r.surveyed_before ? '<span class="svy-flag">surveyed before</span>' : "") + "</td>"
-              + "<td>" + statusCell(r) + "</td></tr>";
-          }).join("") : '<tr><td colspan="7" class="dim">No moves match these filters.</td></tr>')
+              + "<td>" + noteCell(r, S.atab) + "</td></tr>").join("")
+            : '<tr><td colspan="6" class="dim">' + ({ off: "Nobody is switched off.", rule: "Nobody is left out by the rule.", sent: "Nothing sent in these dates yet." }[S.atab] || "Nobody here.") + "</td></tr>")
           + "</tbody></table></div>"
-          + (pages > 1 ? '<div class="rs-bar" style="padding:10px 14px"><span class="svy-sub">' + shown.length + " moves</span><span class=\"rs-spacer\"></span>"
+          + (pages > 1 ? '<div class="rs-bar" style="padding:10px 14px"><span class="svy-sub">' + inTab.length + " moves</span><span class=\"rs-spacer\"></span>"
             + '<button class="rs-btn" data-pg="-1"' + (S.page ? "" : " disabled") + ">Previous</button><span class=\"svy-sub\">Page " + (S.page + 1) + " of " + pages + "</span>"
             + '<button class="rs-btn" data-pg="1"' + (S.page >= pages - 1 ? " disabled" : "") + ">Next</button></div>" : "")
           + "</div>";
         return h;
+      }
+      // a small "done, Undo" note at the bottom of the screen (outside the page's box, so a repaint keeps it)
+      function toast(text, undo) {
+        const old = document.getElementById("svyToast"); if (old) old.remove();
+        const t = document.createElement("div");
+        t.id = "svyToast"; t.className = "svy-toast"; t.setAttribute("role", "status");
+        t.innerHTML = "<span>" + esc(text) + "</span>" + (undo ? '<button type="button" class="u">Undo</button>' : "")
+          + '<button type="button" class="x" aria-label="Close">✕</button>';
+        document.body.appendChild(t);
+        const close = () => { clearTimeout(t._t); t.remove(); };
+        t.querySelector(".x").onclick = close;
+        if (undo) t.querySelector(".u").onclick = () => { close(); undo(); };
+        t._t = setTimeout(close, 10000);
+      }
+      function setOff(k, off, quiet) {
+        const r = S.rows.find(x => x.job_key === k); if (!r) return Promise.resolve();
+        return post({ action: "off", job_key: k, off }).then(() => {
+          r.off = off; r.off_by = off ? me() : null; r.off_at = off ? new Date().toISOString() : null; paint();
+          if (!quiet) toast(off ? (r.customer || "They") + " is switched off: find them under Switched off." : (r.customer || "They") + " will get it again.",
+                            () => setOff(k, !off, true));
+        }).catch(e => { say("Could not switch it " + (off ? "off" : "on") + ": " + (e.message || String(e)), true); paint(); });
+      }
+      function setAdd(k, add, quiet) {
+        const r = S.rows.find(x => x.job_key === k); if (!r) return Promise.resolve();
+        return post({ action: "add", job_key: k, add }).then(() => {
+          r.added = add; r.added_by = add ? me() : null; r.added_at = add ? new Date().toISOString() : null; paint();
+          if (!quiet) toast(add ? (r.customer || "They") + " is added: they're under Will get it." : (r.customer || "They") + " is back under Left out by the rule.",
+                            () => setAdd(k, !add, true));
+        }).catch(e => { say("Could not " + (add ? "add" : "take out") + " the move: " + (e.message || String(e)), true); paint(); });
       }
       // the bar is built from the kit's own components once the HTML is in place
       function mountAudienceBar() {
@@ -587,6 +665,7 @@
           onChange: () => { S.page = 0; loadList(); } });
         const q = document.createElement("input");
         q.className = "rs-inp"; q.id = "svyQ"; q.placeholder = "Find a customer, email, foreman…"; q.value = S.q; q.style.flex = "0 1 260px";
+        q.setAttribute("aria-label", "Find a customer, email or foreman");
         let qt = null;
         q.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { S.q = q.value; S.page = 0; S._focusQ = 1; paint(); }, 300); };
         bar.appendChild(q);
@@ -595,8 +674,9 @@
           const fields = afFields(S.rows);
           const apply = next => { AF.forEach(k => { S.af[k] = new Set(next[k] || []); }); S.page = 0; paint(); };
           RSC.filterPanel(bar, { fields, selected: S.af, onApply: apply,
-            note: "<b>Tako's rule</b> is the starting point: rating 9–10, no claim or complaint, will get it. "
-              + "Change any of it here. Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever you pick." });
+            note: "<b>Tako's rule</b> is the rating and the claim choice (9–10, no claim). A move outside it moves to "
+              + "<b>Left out by the rule</b>, where you can add it by hand. The other filters narrow every tab. "
+              + "Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever you pick." });
           const chips = host.querySelector("#svyAChips");
           if (chips && RSC.filterChips) RSC.filterChips(chips, { fields, selected: S.af, onChange: apply });
         }
@@ -628,6 +708,7 @@
           template: S.design, kit: S.kit || {}, survey: true, category: "survey", designs: false,
           preview: t => post({ action: "preview", template: Object.assign({}, S.draft, { design: t }) }),
           upload: EMAILDESIGNER.uploader(adminPost),
+          pictures: EMAILDESIGNER.picturesApi(path => api(path), adminPost),
           onChange: () => { if (!S.designDirty) { S.designDirty = true; const b = host.querySelector("#svySave"); if (b) b.disabled = false;
             const n = b && b.nextElementSibling; if (n) n.textContent = "Unsaved changes: the next send uses the last saved email."; } },
         });
@@ -670,16 +751,10 @@
         if (S.tab === "list") mountAudienceBar();
         const rb = host.querySelector("#svyRule"); if (rb) rb.onclick = () => { S.af = RULE(); S.page = 0; paint(); };
         host.querySelectorAll("[data-pg]").forEach(b => { b.onclick = () => { S.page += +b.dataset.pg; paint(); }; });
-        host.querySelectorAll("[data-off]").forEach(cb => { cb.onchange = () => {
-          const k = cb.dataset.off, off = !cb.checked;
-          post({ action: "off", job_key: k, off }).then(() => {
-            const r = S.rows.find(x => x.job_key === k); if (r) r.off = off;
-            // a switched-off move leaves the default list (Status: Will get it), so say where it went
-            say(off ? (r && r.customer ? r.customer : "The move") + " is switched off and won't get the survey. "
-              + "It's under Filters › Status › Switched off; tick it there to switch it back on." : "");
-            paint();
-          }).catch(e => { say("Could not switch it " + (off ? "off" : "on") + ": " + (e.message || String(e)), true); cb.checked = !cb.checked; paint(); });
-        }; });
+        host.querySelectorAll("[data-atab]").forEach(b => { b.onclick = () => { S.atab = b.dataset.atab; S.page = 0; say(""); paint(); }; });
+        host.querySelectorAll("[data-off]").forEach(cb => { cb.onchange = () => { cb.disabled = true; setOff(cb.dataset.off, !cb.checked); }; });
+        host.querySelectorAll("[data-back]").forEach(b => { b.onclick = () => { b.disabled = true; setOff(b.dataset.back, false); }; });
+        host.querySelectorAll("[data-add]").forEach(b => { b.onclick = () => { b.disabled = true; setAdd(b.dataset.key, b.dataset.add === "1"); }; });
         const sb = host.querySelector("#svySend");
         if (sb) sb.onclick = () => {
           const all = visible(S.rows).filter(sendable);
