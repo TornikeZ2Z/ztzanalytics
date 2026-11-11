@@ -82,6 +82,25 @@ function bnsCompute(doc) {
   out.totals = T;
   return out;
 }
+/* What a typed box holds -> {ok, v}. Before 11 Nov every box went through isNaN(+v), so "1,500",
+   "1 500", "$1500" or a decimal comma "3,94" (Gvantsa and Sopho's first entries) were stored as
+   blank while the box still showed them: Save said Saved, a refresh showed them empty. Now spaces, a
+   currency sign at either end and the Georgian decimal comma are read; anything still not a number is
+   {ok:false} and the page keeps it red and refuses to save until it is fixed.
+   money: a dollar box (salaries, adjustments, raises, training, gross profit), where "1,500" and
+   "1.500" are thousands (no amount here has three decimals). Elsewhere (scores, months, weights,
+   percentages) a comma is always the decimal point: "1,500" is 1.5. */
+const BNS_MONEY = new Set(["s1", "s2", "adj", "raise", "training", "estGP", "baselineGP"]);
+function bnsParseNum(raw, money) {
+  let s = String(raw == null ? "" : raw).replace(/[\s  ]/g, "").replace(/−/g, "-");
+  if (s === "") return { ok: true, v: null };
+  s = s.replace(/^(-?)[$₾]/, "$1").replace(/[$₾]$/, "");
+  if (money && /^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, "");                  // 1,500 / 12,500.50
+  else if (money && /^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, "").replace(",", "."); // 1.500 / 1.500,50
+  else if (/^-?\d*,\d+$/.test(s)) s = s.replace(",", ".");                                          // 3,94
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(s)) return { ok: false, v: null };
+  return { ok: true, v: +s };
+}
 /* BNS-ENGINE-END */
 
 (function () {
@@ -134,6 +153,7 @@ function bnsCompute(doc) {
       + ".bns-in{font:inherit;font-size:13px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;"
       + "background:var(--panel);color:var(--ink);box-sizing:border-box;font-variant-numeric:tabular-nums}"
       + ".bns-in:focus{outline:none;border-color:var(--brand)}"
+      + ".bns-in.bns-unread,.bns-in.bns-unread:focus{border-color:#dc2626;background:rgba(220,38,38,.10);box-shadow:inset 0 0 0 1px #dc2626}"
       + ".bns-in.bns-n{width:64px;text-align:right}"
       + ".bns-in.bns-s{width:52px;text-align:right}"
       + ".bns-in.bns-name{width:200px;font-weight:700;font-size:14.5px}"
@@ -216,8 +236,9 @@ function bnsCompute(doc) {
       // edits survive leaving the page inside the portal; a reload or a closed tab asks first
       const S = window.__BNS || (window.__BNS = {
         loaded: false, err: "", years: {}, cur: null, roster: [], me: "", dirty: new Set(), saving: false,
-        msg: "", bad: false,
+        msg: "", bad: false, unread: new Map(),
       });
+      if (!S.unread) S.unread = new Map();   // boxes whose text is not a number: key -> the text, kept red
       if (!window.__BNS_UNLOAD) {
         window.__BNS_UNLOAD = true;
         window.addEventListener("beforeunload", e => {
@@ -259,6 +280,33 @@ function bnsCompute(doc) {
       const say = (m, bad) => { S.msg = m || ""; S.bad = !!bad; };
       const markDirty = () => { S.dirty.add(S.cur); };
 
+      /* typed numbers: a box that cannot be read stays red with its text (kept across repaints by key)
+         and Save refuses until it is fixed, so nothing typed is ever dropped quietly again */
+      const kF = (d, p, f) => "f|" + S.cur + "|" + d.id + "|" + p.rid + "|" + f;
+      const kS = k => "s|" + S.cur + "|" + k;
+      const kW = k => "w|" + S.cur + "|" + k;
+      const kL = k => "l|" + S.cur + "|" + k;
+      const UNREAD_TIP = "This can't be read as a number. Type just the number, like 1500 or 3.5.";
+      const boxVal = (key, v) => { const t = S.unread.get(key); return t != null ? t : fv(v); };
+      const boxCls = key => S.unread.has(key) ? " bns-unread" : "";
+      const boxAttr = key => S.unread.has(key) ? ` aria-invalid="true" title="${UNREAD_TIP}"` : "";
+      function readBox(el, key, money) {
+        const r = bnsParseNum(el.value, money);
+        if (r.ok) S.unread.delete(key); else S.unread.set(key, el.value);
+        el.classList.toggle("bns-unread", !r.ok);
+        if (r.ok) { el.removeAttribute("aria-invalid"); el.removeAttribute("title"); }
+        else { el.setAttribute("aria-invalid", "true"); el.title = UNREAD_TIP; }
+        return r.v;
+      }
+      const unreadYears = () => [...new Set([...S.unread.keys()].map(k => +k.split("|")[1]))].sort((a, b) => a - b);
+      function unreadMsg() {
+        const c = S.unread.size, ys = unreadYears(), other = ys.filter(y => y !== S.cur);
+        return (c === 1 ? "1 box in red can't" : c + " boxes in red can't") + " be read as a number"
+          + (other.length ? " (" + (ys.includes(S.cur) ? "here and in " : "in ") + other.join(", ") + ")" : "")
+          + ". Type just the number, like 1500 or 3.5. Nothing is saved until " + (c === 1 ? "it is" : "they are") + " fixed.";
+      }
+      const dropUnread = prefix => { [...S.unread.keys()].forEach(k => { if (k.startsWith(prefix)) S.unread.delete(k); }); };
+
       function normalize(d) {
         d = d && typeof d === "object" ? d : {};
         const st = Object.assign(clone(DEFAULTS), d.settings || {});
@@ -278,7 +326,7 @@ function bnsCompute(doc) {
           (j.years || []).forEach(y => { S.years[y.year] = { version: y.version, doc: normalize(y.doc),
             updated_by: y.updated_by, updated_at: y.updated_at }; });
           S.roster = j.roster || []; S.me = j.me || "";
-          S.dirty = new Set(); S.loaded = true;
+          S.dirty = new Set(); S.unread = new Map(); S.loaded = true;
           const ys = yearsList();
           if (!ys.length) {
             const y = thisYear();
@@ -321,6 +369,7 @@ function bnsCompute(doc) {
             ${S.dirty.size ? `<span class="bns-dirty">Unsaved changes</span>` : ""}
             <button class="rs-btn pri" data-act="save" ${S.dirty.size && !S.saving ? "" : "disabled"}>${S.saving ? "Saving…" : "Save"}</button></div>
           ${S.msg ? `<div class="bns-msg${S.bad ? " bns-bad" : ""}">${esc(S.msg)}</div>` : ""}
+          <div class="bns-msg bns-bad" id="bns-unread" aria-live="polite"${S.unread.size ? "" : " hidden"}>${S.unread.size ? esc(unreadMsg()) : ""}</div>
           <div class="rs-kpis" id="bns-kpis"></div>
           ${settingsHtml(st, R)}
           <div id="bns-depts">${doc().depts.map((d, i) => deptHtml(d, i, R.depts[i])).join("")}</div>
@@ -351,16 +400,19 @@ function bnsCompute(doc) {
       }
 
       function fld(label, key, val, extra) {
-        return `<div class="bns-f"><label>${esc(label)}</label><input class="bns-in" data-s="${key}" value="${esc(fv(val))}" inputmode="decimal">${extra || ""}</div>`;
+        const b = kS(key);
+        return `<div class="bns-f"><label>${esc(label)}</label><input class="bns-in${boxCls(b)}" data-s="${key}" value="${esc(boxVal(b, val))}" inputmode="decimal"${boxAttr(b)}>${extra || ""}</div>`;
       }
       function settingsHtml(st, R) {
-        const wset = (k, keys, title) => keys.map(([x, l]) => `<div class="bns-wt"><label>${title} — ${l}</label>
-            <input class="bns-in" style="width:100%" data-w="${k}.${x}" value="${esc(fv(st.weights[k][x]))}" inputmode="decimal"></div>`).join("");
+        const wset = (k, keys, title) => keys.map(([x, l]) => { const b = kW(k + "." + x); return `<div class="bns-wt"><label>${title} — ${l}</label>
+            <input class="bns-in${boxCls(b)}" style="width:100%" data-w="${k}.${x}" value="${esc(boxVal(b, st.weights[k][x]))}" inputmode="decimal"${boxAttr(b)}></div>`; }).join("");
         const tot = w => R.warn.find(x => x.set === w);
         const totTxt = w => { const t = tot(w); return `<b class="${t.ok ? "" : "bns-off"}">${(t.total * 100).toFixed(1)}%</b>`; };
+        const lbox = (i, f, v) => { const b = kL(i + "." + f);
+          return `<input class="bns-in bns-n${boxCls(b)}" data-l="${i}.${f}" value="${esc(boxVal(b, v))}" inputmode="decimal"${boxAttr(b)}>`; };
         const lv = st.levels.map((l, i) => `<tr><td>Level ${i + 1}</td>
-            <td><input class="bns-in bns-n" data-l="${i}.min" value="${esc(fv(l.min))}" inputmode="decimal"></td>
-            <td><input class="bns-in bns-n" data-l="${i}.months" value="${esc(fv(l.months))}" inputmode="decimal"></td></tr>`).join("");
+            <td>${lbox(i, "min", l.min)}</td>
+            <td>${lbox(i, "months", l.months)}</td></tr>`).join("");
         return `<details class="panel bns-set"${S.openSet ? " open" : ""}><summary>Settings for ${S.cur}</summary>
           <div class="bns-fields">
             ${fld("Estimated full-year gross profit ($)", "estGP", st.estGP)}
@@ -398,7 +450,8 @@ function bnsCompute(doc) {
           const P = D.people[j], r = ros.get(+p.rid);
           const sub = r ? [r.department, r.title].filter(Boolean).join(" · ") : "";
           const nm = (r && r.name) || p.name || ("#" + p.rid);
-          const inp = (k, cls) => `<input class="bns-in ${cls}" data-f="${k}" data-d="${i}" data-p="${j}" value="${esc(fv(p[k]))}" inputmode="decimal">`;
+          const inp = (k, cls) => { const b = kF(d, p, k);
+            return `<input class="bns-in ${cls}${boxCls(b)}" data-f="${k}" data-d="${i}" data-p="${j}" value="${esc(boxVal(b, p[k]))}" inputmode="decimal"${boxAttr(b)}>`; };
           const sc = k => (k === "peer" && !peerCols) ? `<span class="bns-na">n/a</span>` : inp(k, "bns-s");
           return `<tr>
             <td class="bns-l"><span class="bns-pn">${esc(nm)}</span>${r && !r.active ? `<span class="bns-left">not active in the directory</span>` : ""}
@@ -462,6 +515,8 @@ function bnsCompute(doc) {
           });
         });
         paintKpis(R);
+        const un = host.querySelector("#bns-unread");
+        if (un) { un.hidden = !S.unread.size; un.textContent = S.unread.size ? unreadMsg() : ""; }
         const sv = host.querySelector('[data-act="save"]'); if (sv) sv.disabled = !S.dirty.size || S.saving;
         const tb = host.querySelector(`.rs-tab[data-y="${S.cur}"]`); if (tb) tb.textContent = S.cur + (S.dirty.has(S.cur) ? " •" : "");
         const bar = host.querySelector(".bns-bar");
@@ -477,11 +532,11 @@ function bnsCompute(doc) {
         host.querySelectorAll("[data-s]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
           const k = el.dataset.s;
           if (k === "prorate") set.prorate = el.value === "1";
-          else set[k] = n(el.value);
+          else set[k] = readBox(el, kS(k), BNS_MONEY.has(k));
           markDirty(); refresh();
         }));
         host.querySelectorAll("[data-w]").forEach(el => el.addEventListener("input", () => {
-          const [k, x] = el.dataset.w.split("."); set.weights[k][x] = n(el.value); markDirty();
+          const [k, x] = el.dataset.w.split("."); set.weights[k][x] = readBox(el, kW(el.dataset.w), false); markDirty();
           const tot = host.querySelector(".bns-tot");
           refresh();
           if (tot) { const R = compute(); tot.innerHTML = ["general", "peer"].map(w => { const t = R.warn.find(q => q.set === w);
@@ -489,11 +544,11 @@ function bnsCompute(doc) {
             .join(" · ") + " (each should be 100%)"; }
         }));
         host.querySelectorAll("[data-l]").forEach(el => el.addEventListener("input", () => {
-          const [i, k] = el.dataset.l.split("."); set.levels[+i][k] = n(el.value); markDirty(); refresh();
+          const [i, k] = el.dataset.l.split("."); set.levels[+i][k] = readBox(el, kL(el.dataset.l), false); markDirty(); refresh();
         }));
         host.querySelectorAll("[data-f]").forEach(el => el.addEventListener("input", () => {
-          const p = doc().depts[+el.dataset.d].people[+el.dataset.p];
-          p[el.dataset.f] = n(el.value); markDirty(); refresh();
+          const d = doc().depts[+el.dataset.d], p = d.people[+el.dataset.p], f = el.dataset.f;
+          p[f] = readBox(el, kF(d, p, f), BNS_MONEY.has(f)); markDirty(); refresh();
         }));
         host.querySelectorAll("[data-dn]").forEach(el => el.addEventListener("input", () => {
           doc().depts[+el.dataset.dn].name = el.value; markDirty(); refresh();
@@ -530,6 +585,7 @@ function bnsCompute(doc) {
           try {
             if (Yr.version) await post({ action: "delete", year: y, version: Yr.version });
             delete S.years[y]; S.dirty.delete(y);
+            [...S.unread.keys()].forEach(k => { if (+k.split("|")[1] === y) S.unread.delete(k); });
             const ys = yearsList();
             if (!ys.length) { S.loaded = false; return load(); }
             S.cur = ys[ys.length - 1]; say(y + " removed."); paint();
@@ -550,6 +606,7 @@ function bnsCompute(doc) {
           const ok = !D[i].people.length || await bnsConfirm({ t: "Remove " + D[i].name + "?", danger: true, yes: "Remove",
             b: "Its " + D[i].people.length + " people and their numbers leave " + S.cur + " too (once you save)." });
           if (!ok) return;
+          dropUnread("f|" + S.cur + "|" + D[i].id + "|");
           D.splice(i, 1); markDirty(); paint(); return;
         }
         if (a === "del-person") {
@@ -557,6 +614,7 @@ function bnsCompute(doc) {
           const ok = await bnsConfirm({ t: "Remove " + ((r && r.name) || p.name) + "?", yes: "Remove",
             b: "Their salary and scores leave " + S.cur + " (once you save)." });
           if (!ok) return;
+          dropUnread("f|" + S.cur + "|" + D[i].id + "|" + p.rid + "|");
           D[i].people.splice(+el.dataset.p, 1); markDirty(); paint(); return;
         }
         if (a === "add-person") {
@@ -571,6 +629,16 @@ function bnsCompute(doc) {
 
       async function save() {
         if (S.saving || !S.dirty.size) return;
+        if (S.unread.size) {
+          // never save around a box that can't be read: show the first red one instead
+          const ys = unreadYears();
+          if (!ys.includes(S.cur)) S.cur = ys[0];
+          if ([...S.unread.keys()].some(k => /^[swl]\|/.test(k) && +k.split("|")[1] === S.cur)) S.openSet = true;
+          say(""); paint();
+          const first = host.querySelector("input.bns-unread");
+          if (first) { first.focus(); first.select(); }
+          return;
+        }
         S.saving = true; say(""); paint();
         const ros = rosterById();
         try {
