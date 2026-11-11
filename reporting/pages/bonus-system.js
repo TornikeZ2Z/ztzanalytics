@@ -190,6 +190,7 @@ function bnsMerge(base, mine, theirs) {
     st.id = "bns-style-v3";
     st.textContent = [
       ".bns{font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:14px}",
+      ".bns [hidden]{display:none !important}",   // a chip or row styled inline-flex/grid must still hide
       ".bns .rs-page-head{margin:0}",
       ".bns-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px}",
       ".bns-top .rs-page-head{flex:1 1 480px;min-width:0}",
