@@ -10,6 +10,10 @@
  *                 fills the rest of the screen. Everything saves by itself ("Saved 3:41 PM" in the header).
  *                 Launch is a checklist whose problems each have a Fix button.
  *   SINGLE SENDS  the same page: Overview, Sends; Name, Email, Audience, Test, Send.
+ * v3, 12 Nov 2026 (ZTZ-69 step 3): the Email step is the shared editor (assets/email-designer.js) across the
+ *                 full width, the steps in a row above it. On a LIVE automation, email edits save as a draft
+ *                 (email_automation.template_draft): customers keep getting the live email until someone
+ *                 presses Make changes live; Discard changes drops the draft.
  * The Customer Survey is automation #1 and keeps its own page (unchanged for Tako): its card opens it.
  * THE SERVER OWNS EVERY LIMIT (no email, unsubscribed, once per move, the gap, 300 per press).
  */
@@ -62,6 +66,11 @@
       + ".eam-mk.done{background:rgba(22,163,74,.12);color:#166534}.eam-mk.fix{background:rgba(220,38,38,.12);color:#991b1b}"
       + ".eam-mk.todo{background:var(--panel-2);color:var(--muted)}"
       + ".eam-main{min-width:0}"
+      // the Email step (12 Nov): the editor takes the full width, the steps sit in a row above it
+      + ".eam-wrap.wide{grid-template-columns:minmax(0,1fr)}"
+      + ".eam-wrap.wide .eam-rail{position:static;display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px}"
+      + ".eam-wrap.wide .eam-ri{width:auto;min-height:40px;margin:0;padding:6px 12px}.eam-wrap.wide .eam-ri .r2{display:none}"
+      + ".eam-wrap.wide .eam-ri .r1{gap:8px}.eam-wrap.wide .eam-rh{margin:0 2px 0 10px}"
       + ".eam-2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}"
       + "@media (max-width:1100px){.eam-2{grid-template-columns:minmax(0,1fr)}}"
       + ".eam-h{font-size:14px;font-weight:700;color:var(--ink);margin:0 0 4px}"
@@ -205,14 +214,17 @@
         if (!quiet) { S.item = null; S.itemErr = ""; paint(); }
         return api("/api/_emailadmin?view=" + (S.what === "auto" ? "auto" : "single") + "&id=" + S.id + "&days=" + S.days).then(j => {
           S.item = j.item;
-          if (!quiet || !S.draft) S.draft = draftOf(j.item);
+          if (!quiet || !S.draft) { S.draft = draftOf(j.item); S.loadedJson = JSON.stringify(S.draft.template); }
+          // a live (or paused) automation: its live email, which the editor counts changes against
+          S.liveTpl = S.what === "auto" && (j.item.status === "live" || j.item.status === "paused") && j.item.template ? clone(j.item.template) : null;
           if (quiet) { paintRail(); paintHead(); } else paint();
         }).catch(e => { if (e.page) { location.hash = "#page=" + e.page; return; } S.itemErr = e.message || String(e); paint(); });
       }
       function draftOf(it) {
         it = it || {};
         const designs = kit().designs || {};
-        const tpl = it.template && it.template.blocks ? it.template : clone((designs.banner || designs.letter || {}).template || { subject: "", blocks: [] });
+        const saved = it.template_draft && it.template_draft.blocks ? it.template_draft : it.template;
+        const tpl = saved && saved.blocks ? saved : clone((designs.banner || designs.letter || {}).template || { subject: "", blocks: [] });
         const aud = it.audience && it.audience.source ? it.audience : { source: "moves", scores: [9, 10], states: [], distance: "local", claims: "none", review: "any", support: "any", date_from: "", date_to: "" };
         const sch = it.schedule && "days_after" in it.schedule ? it.schedule : { days_after: 14, look_back: 46, run_hour: 10, daily_cap: 200, gap_days: 7 };
         return { name: it.name || "", purpose: it.purpose || "", owner: it.owner || "", category: it.category || (S.what === "single" ? "news" : "reviews"),
@@ -247,6 +259,7 @@
         if (what === "auto" && it && it.kind === "survey") { location.hash = "#page=surveys"; return; }
         S.view = "item"; S.what = what; S.id = it ? it.id : null; S.item = it || null; S.draft = null;
         S.queue = null; S.sends = null; S.tests = null; S.count = null; S.save = "saved"; S.savedAt = null; say("");
+        S.liveTpl = null; S.emdUi = { testTo: S.testTo || ZTZ.email() || "" }; S.testedJson = null;
         if (!it) { S.part = "s1"; ensureKit().then(() => { S.draft = draftOf(null); paint(); }); return; }
         const live = it.status && it.status !== "draft";
         S.part = part || (live ? "over" : ("s" + Math.min(it.step || 1, STEPS[what].length)));
@@ -414,6 +427,7 @@
           return h + as.map(a => {
             const issues = (a.checks || []).filter(c => c.lvl === "bad" || c.lvl === "warn");
             return '<div class="eam-card"><div class="eam-lc"><div><span class="eam-name">' + esc(a.name) + "</span>" + statusPill(a.status, a.mode)
+              + (a.has_draft ? pill("Email changes not live yet", "eam-warn") : "")
               + '<div class="eam-meta">' + esc((CAT[a.category] || [""])[0]) + " · " + esc(sender(a.sender)) + (a.owner ? " · " + esc(a.owner) : "") + "</div>"
               + '<div class="eam-meta">' + esc(a.summary || "") + "</div>"
               + (a.status !== "draft" ? statsRow(a.stats, goalOf(a), opensOn) : "")
@@ -438,8 +452,10 @@
         if (S.save === "dirty") return S.id ? "Unsaved changes" : "";
         if (S.save === "noname") return "Give it a name to save";
         if (S.save === "error") return "Not saved: " + S.saveErr;
+        if (emailWaiting()) return "Email changes saved, not live yet";
         return S.savedAt ? "Saved " + clock(S.savedAt) : (S.id ? "All changes saved" : "");
       }
+      const emailWaiting = () => !!(S.liveTpl && S.draft && JSON.stringify(S.draft.template) !== JSON.stringify(S.liveTpl));
       function headHtml() {
         const it = S.item || {}, d = S.draft || {};
         const live = it.status === "live", draft = !it.status || it.status === "draft";
@@ -460,7 +476,8 @@
         const back = '<button class="eam-link" data-back="1" style="margin-bottom:8px">&larr; ' + (S.what === "auto" ? "All automations" : "All single sends") + "</button>";
         if (S.itemErr) return back + '<div class="panel">Could not load: ' + esc(S.itemErr) + "</div>";
         if (!S.draft) return back + '<div class="panel">Loading…</div>';
-        return back + '<div class="eam-head" id="eamHead">' + headHtml() + '</div><div class="eam-wrap"><nav class="eam-rail" id="eamRail" aria-label="Parts of this '
+        const wide = (STEPS[S.what].find(x => x[0] === S.part) || [])[1] === "Email";
+        return back + '<div class="eam-head" id="eamHead">' + headHtml() + '</div><div class="eam-wrap' + (wide ? " wide" : "") + '"><nav class="eam-rail" id="eamRail" aria-label="Parts of this '
           + (S.what === "auto" ? "automation" : "email") + '">' + railHtml() + '</nav><div class="eam-main" id="eamMain">' + mainHtml() + "</div></div>";
       }
       function mainHtml() {
@@ -674,7 +691,10 @@
           + '<p class="eam-help" style="margin-top:0">A test is the real email with working links, sent only to you or a company inbox. It never counts in the results.</p>'
           + '<label class="l" for="eamTestTo">Send a test to</label><div class="rs-bar" style="margin:0"><input id="eamTestTo" value="' + esc(S.testTo || ZTZ.email() || "") + '" style="flex:1;min-width:200px">'
           + '<button class="rs-btn pri" id="eamTest"' + (S.busy || !(S.list && S.list.resend) ? " disabled" : "") + ">Send a test</button></div>"
-          + '<div style="margin-top:12px">' + (it.tested ? ckLine({ lvl: "ok", text: "A test of the current email went out " + dt(it.tested_at) }) : ckLine({ lvl: "warn", text: "No test of the current email yet" })) + "</div>"
+          + '<div style="margin-top:12px">' + (emailWaiting()
+            ? (it.draft_tested && S.loadedJson === JSON.stringify(S.draft.template) ? ckLine({ lvl: "ok", text: "A test of your waiting email changes went out " + dt(it.tested_at) })
+              : ckLine({ lvl: "warn", text: "No test of your waiting email changes yet" }))
+            : it.tested ? ckLine({ lvl: "ok", text: "A test of the current email went out " + dt(it.tested_at) }) : ckLine({ lvl: "warn", text: "No test of the current email yet" })) + "</div>"
           + navHtml() + '</div><div class="eam-card"><p class="eam-h">Recent tests</p>'
           + (tests.length ? tests.map(t => '<div class="eam-cl"><span class="tx"><b>' + esc(t.email) + '</b><span class="eam-sub">' + esc(dt(t.sent_at || t.created_at)) + "</span></span>"
             + pill((STATE[t.state_now] || [t.state_now])[0], (STATE[t.state_now] || [])[1]) + "</div>").join("") : '<p class="eam-help">None yet. After you send one, it shows here with Delivered and Clicked.</p>')
@@ -731,9 +751,35 @@
       function mountDesigner() {
         const el = host.querySelector("#eamDesigner");
         if (!el || !window.EMAILDESIGNER || !S.draft) return;
-        EMAILDESIGNER.mount(el, {
-          template: S.draft.template, kit: kit(), survey: false, senders: (S.list && S.list.sender_ids) || ["survey", "reviews", "hello"],
+        const it = S.item || {}, live = !!S.liveTpl;
+        const cur = () => JSON.stringify(S.draft.template);
+        if (!S.emdUi) S.emdUi = { testTo: S.testTo || ZTZ.email() || "" };
+        const fresh = () => { S.draft.template = clone(S.item.template); S.liveTpl = clone(S.item.template); S.loadedJson = cur(); S.emdUi.sel = null; };
+        S.ed = EMAILDESIGNER.mount(el, {
+          template: S.draft.template, live: S.liveTpl, kit: kit(), survey: false, senders: (S.list && S.list.sender_ids) || ["survey", "reviews", "hello"],
           sender: S.draft.sender, onSender: v => { S.draft.sender = v; paintHead(); }, category: S.draft.category, designs: true,
+          ui: S.emdUi,
+          head: {
+            title: "", pills: [], testTo: S.emdUi.testTo,
+            meta: live ? (it.updated_by ? "Last change by " + String(it.updated_by).split("@")[0].replace(/^./, c => c.toUpperCase()) + ", " + dt(it.updated_at) : "")
+              : S.what === "auto" ? "Draft: nothing goes out until it's launched (step 6)" : "Nothing goes out until you press Send (step 5)",
+            onTest: to => {
+              if (!(S.list && S.list.resend)) return Promise.reject(new Error("Sending isn't set up on the server yet (no Resend key)."));
+              S.testTo = to;
+              return save().then(() => post({ action: "test", what: S.what, id: S.id, to })).then(j => loadItem(true).then(() => {
+                S.testedJson = cur(); paintRail(); return "Test sent to " + j.to + ". Open it and press its button."; }));
+            },
+            tested: n => {
+              if (S.testedJson === cur()) return ["ok", "Test of this version sent"];
+              const same = S.loadedJson === cur();
+              if (live && n) return same && it.draft_tested ? ["ok", "Test of these changes sent " + dt(it.tested_at)] : ["warn", "No test of these changes yet"];
+              return same && it.tested ? ["ok", "Test sent " + dt(it.tested_at)] : ["warn", "No test of this email yet"];
+            },
+            onLive: live ? () => save().then(() => post({ action: "make_live", what: "auto", id: S.id })).then(() => loadItem(true)).then(() => {
+              fresh(); say("Live: every email from now on uses this version."); paint(); }) : null,
+            onDiscard: live ? () => save().then(() => post({ action: "discard", what: "auto", id: S.id })).then(() => loadItem(true)).then(() => {
+              fresh(); say("Changes discarded: the email is the live version again."); paint(); }) : null,
+          },
           preview: t => post({ action: "preview", template: t, category: S.draft.category, sender: S.draft.sender }),
           upload: EMAILDESIGNER.uploader(post), onChange: () => { dirty(); paintRail(); },
           pictures: EMAILDESIGNER.picturesApi(path => api(path), post),

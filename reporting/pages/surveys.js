@@ -10,8 +10,11 @@
  *              with an Undo, and ONE button sends to everyone in Will get it. Nothing sends by itself.
  *   SENDS      every email, one row each, with how far it got (Resend's webhook) and its answer.
  *   RESPONSES  every filled survey; bad answers flagged here only (an issue, or a low mark).
- *   EMAIL      the letter from Tako: subject, text, button, signature; desktop/phone preview; a test
- *              that carries a real personal link (kept out of every count).
+ *   EMAIL      the shared email editor (assets/email-designer.js, 12 Nov, ZTZ-69 step 3): a header with
+ *              "N changes not live yet", Discard changes / Send a test… / Make changes live; the parts,
+ *              the email (click a part) and the settings. Edits save by themselves as a DRAFT on the
+ *              server (survey_template.draft): every send uses the live email until Make changes live.
+ *              A test carries a real personal link (kept out of every count).
  *
  * EVERY EMAILED LINK IS PERSONAL (one token per move), so each answer is tied to the exact customer,
  * move and send. THE SERVER OWNS EVERY LIMIT (bridge/survey.py): long-distance moves, no email,
@@ -191,9 +194,12 @@
       function loadTemplate() {
         return api("/api/_surveyadmin?view=template").then(j => {
           S.tpl = j.template; S.draft = Object.assign({}, j.template); S.from = j.from; S.address = j.address;
-          S.kit = j.kit || {}; S.designDirty = false;
-          S.design = JSON.parse(JSON.stringify(j.template.design || j.template.design_default || { subject: "", blocks: [] }));
-          delete S.draft.design; delete S.draft.design_default;
+          S.kit = j.kit || {};
+          // the live email, and the edits waiting on top of it (12 Nov): the editor opens on the waiting ones
+          S.liveDesign = JSON.parse(JSON.stringify(j.template.design || j.template.design_default || { subject: "", blocks: [] }));
+          S.design = JSON.parse(JSON.stringify(j.template.draft || S.liveDesign));
+          S.draftBy = j.template.draft_by || ""; S.draftAt = j.template.draft_at || ""; S.draftSave = "";
+          ["design", "design_default", "draft", "draft_by", "draft_at"].forEach(k => { delete S.draft[k]; });
           S.resend = !!j.resend; S.tracking = !!j.tracking; S.tplErr = "";
           if (!S.testTo) S.testTo = (window.ME && ME.email) || "";
           if (alive()) paint();
@@ -688,29 +694,69 @@
         if (!S.design) return S.tplErr ? '<div class="panel">Could not load the email: ' + esc(S.tplErr)
           + ' <button class="rs-btn" data-retry="email" style="margin-left:10px">Try again</button></div>'
           : '<div class="panel">Loading the email…</div>';
-        // THE DESIGNER (11 Nov, ZTZ-60, his pick): the survey's email is built from the same blocks as every
-        // Email Automation, in the green design Tako's team sent. Sending, personal links and tracking are
-        // unchanged: a button set to "the customer's own survey" carries the personal link.
-        return '<div class="rs-bar" style="margin:0 0 12px;flex-wrap:wrap;gap:8px"><button class="rs-btn pri" id="svySave"' + (S.busy || !S.designDirty ? " disabled" : "") + ">Save the email</button>"
-          + '<span class="svy-note" style="margin:0" role="status">' + (S.designDirty ? "Unsaved changes: the next send uses the last saved email." : S.tpl && S.tpl.updated_by
-            ? "Saved by " + esc(S.tpl.updated_by) + " · " + esc(dt(S.tpl.updated_at)) : "") + "</span><span class=\"rs-spacer\" style=\"flex:1\"></span>"
-          + '<label class="svy-note" for="svyTestTo" style="margin:0">Send a test to</label><input id="svyTestTo" class="rs-inp" style="width:240px" value="' + esc(S.testTo) + '">'
-          + '<button class="rs-btn" id="svyTest"' + (S.resend && !S.busy ? "" : " disabled") + ">Send a test</button></div>"
-          + (S.msg ? '<p class="svy-note" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>" : "")
-          + '<p class="svy-note">A test carries a real personal link, so you can open the survey and answer it like a customer. It goes to you or a company inbox only, and stays out of every count.</p>'
-          + '<div id="svyDesigner"></div>';
+        // THE EDITOR (12 Nov, ZTZ-69 step 3): one editor for the survey and every automation. Sending, personal
+        // links and tracking are unchanged: a link set to "their own survey" carries the personal link.
+        return '<div id="svyDesigner"></div>';
       }
+      const designChanged = () => !!S.design && !!S.liveDesign && JSON.stringify(S.design) !== JSON.stringify(S.liveDesign);
+      const hasDraft = () => designChanged() || !!S.draftAt;
+      const who = e => String(e || "").split("@")[0].replace(/^./, c => c.toUpperCase());
+      function liveMeta() {
+        const t = S.tpl || {};
+        return "From survey@mail.ziptozip.app" + (t.updated_by ? " · Live version saved by " + who(t.updated_by) + ", " + dt(t.updated_at) : "");
+      }
+      function saveNote() {
+        if (S.draftSave === "saving") return "Saving your changes…";
+        if (S.draftSave === "error") return "Your changes are NOT saved: " + (S.draftErr || "try again");
+        return S.draftAt ? "Changes saved " + dt(S.draftAt) + (S.draftBy ? " by " + who(S.draftBy) : "") : "";
+      }
+      // the editor's edits save by themselves as the waiting draft (nothing sends from it)
+      let draftT = null, draftBusy = null;
+      function saveDraft() {
+        clearTimeout(draftT);
+        draftT = setTimeout(() => {
+          if (draftBusy) { saveDraft(); return; }
+          S.draftSave = "saving"; if (S.ed) S.ed.setSave(saveNote());
+          draftBusy = post({ action: "draft", design: S.design }).then(j => {
+            draftBusy = null; S.draftSave = ""; S.draftAt = j.draft_at || ""; S.draftBy = j.draft_by || "";
+            if (S.ed) S.ed.setSave(saveNote());
+          }).catch(e => { draftBusy = null; S.draftSave = "error"; S.draftErr = e.message || String(e); if (S.ed) S.ed.setSave(saveNote()); });
+        }, 1200);
+      }
+      function flushDraft() { clearTimeout(draftT); return draftBusy || Promise.resolve(); }
       function mountDesigner() {
         const el = host.querySelector("#svyDesigner");
         if (!el || !window.EMAILDESIGNER || !S.design) return;
         const adminPost = body => api("/api/_emailadmin", { method: "POST", body: JSON.stringify(body) });
-        EMAILDESIGNER.mount(el, {
-          template: S.design, kit: S.kit || {}, survey: true, category: "survey", designs: false,
+        const full = () => Object.assign({}, S.draft, { design: S.design });
+        if (!S.emdUi) S.emdUi = { testTo: S.testTo };
+        S.ed = EMAILDESIGNER.mount(el, {
+          template: S.design, live: S.tpl && S.tpl.design ? S.liveDesign : {}, kit: S.kit || {}, survey: true, category: "survey", designs: false,
+          ui: S.emdUi,
+          head: {
+            title: "Customer survey email", pills: [["Live · asks first", "ok"]], meta: liveMeta(), save: saveNote(), testTo: S.testTo,
+            msg: S.msg, msgBad: S.msgErr,
+            testNote: "A test carries a real personal link: open the survey and answer it like a customer. It goes to you or a company inbox only, and stays out of every count.",
+            onTest: to => {
+              if (!S.resend) return Promise.reject(new Error("Sending isn't set up on the server yet."));
+              S.testTo = to;
+              return post({ action: "test", template: full(), to }).then(j => { S.sends = null; S.ans = null; S.testedAt = new Date(); S.testedJson = JSON.stringify(S.design);
+                return "Test sent to " + j.to + ". Open it and press its button."; });
+            },
+            tested: () => (S.testedJson && S.testedJson === JSON.stringify(S.design) ? ["ok", "Test of this version sent " + dt(S.testedAt.toISOString())]
+              : designChanged() ? ["warn", "No test of these changes yet"] : null),
+            onDiscard: () => flushDraft().then(() => post({ action: "discard" })).then(() => {
+              S.design = JSON.parse(JSON.stringify(S.liveDesign)); S.draftAt = ""; S.draftBy = ""; S.emdUi.sel = null;
+              say("Changes discarded: the email is the live version again."); paint(); }),
+            onLive: () => flushDraft().then(() => post({ action: "template", template: full() })).then(j => {
+              S.tpl = j.template; S.draftAt = ""; S.draftBy = "";
+              if (j.template.design) { S.liveDesign = JSON.parse(JSON.stringify(j.template.design)); S.design = JSON.parse(JSON.stringify(j.template.design)); }
+              say("Live. The next survey send uses this email."); paint(); }),
+          },
           preview: t => post({ action: "preview", template: Object.assign({}, S.draft, { design: t }) }),
           upload: EMAILDESIGNER.uploader(adminPost),
           pictures: EMAILDESIGNER.picturesApi(path => api(path), adminPost),
-          onChange: () => { if (!S.designDirty) { S.designDirty = true; const b = host.querySelector("#svySave"); if (b) b.disabled = false;
-            const n = b && b.nextElementSibling; if (n) n.textContent = "Unsaved changes: the next send uses the last saved email."; } },
+          onChange: () => { if (S.msg) say(""); saveDraft(); },
         });
       }
 
@@ -760,10 +806,10 @@
           const all = visible(S.rows).filter(sendable);
           if (!all.length) return;
           const list = all.slice(0, MAX_PER_SEND);
-          const unsaved = !!S.designDirty;
+          const unsaved = hasDraft();
           if (!confirm("Send the survey to " + list.length + " customer" + (list.length === 1 ? "" : "s") + " now? Each move can get it only once."
             + (all.length > list.length ? "\n\nOne press sends at most " + MAX_PER_SEND + "; the other " + (all.length - list.length) + " stay on the list for the next press." : "")
-            + (unsaved ? "\n\nYour email edits are NOT saved: this send uses the last saved email." : ""))) return;
+            + (unsaved ? "\n\nYour email changes are not live yet: this send uses the live email." : ""))) return;
           S.busy = true; say("Sending…"); paint();
           post({ action: "send", job_keys: list.map(r => r.job_key) }).then(j => {
             S.busy = false; S.sends = null; S.ans = null;
@@ -772,19 +818,7 @@
             loadList();
           }).catch(e => { S.busy = false; say(e.message || String(e), true); loadList(); });   // the list shows what really went
         };
-        // email (the designer mounts after the paint)
-        const tto = host.querySelector("#svyTestTo"); if (tto) tto.oninput = function () { S.testTo = this.value; };
-        const full = () => Object.assign({}, S.draft, { design: S.design });
-        const sv = host.querySelector("#svySave");
-        if (sv) sv.onclick = () => { S.busy = true; paint();
-          post({ action: "template", template: full() }).then(j => { S.busy = false; S.tpl = j.template; S.designDirty = false;
-            if (j.template.design) S.design = JSON.parse(JSON.stringify(j.template.design));
-            say("Saved. The next send uses this email."); paint(); })
-            .catch(e => { S.busy = false; say(e.message || String(e), true); paint(); }); };
-        const ts = host.querySelector("#svyTest");
-        if (ts) ts.onclick = () => { S.busy = true; paint();
-          post({ action: "test", template: full(), to: S.testTo }).then(j => { S.busy = false; S.sends = null; S.ans = null; say("Test sent to " + j.to + ". Its link is personal: open it and answer like a customer."); paint(); })
-            .catch(e => { S.busy = false; say(e.message || String(e), true); paint(); }); };
+        // email (the editor mounts after the paint)
         if (S.tab === "email") mountDesigner();
       }
 
