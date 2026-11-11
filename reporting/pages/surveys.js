@@ -157,7 +157,7 @@
       function loadAnswers() {
         S.ans = null;
         return api("/api/_surveyadmin?view=responses" + pq()).then(j => {
-          S.ans = j.responses || []; S.aErr = ""; if (alive()) paint();
+          S.ans = j.responses || []; S.aHidden = +j.tests_hidden || 0; S.aErr = ""; if (alive()) paint();
         }).catch(e => { S.ans = []; S.aErr = e.message || String(e); if (alive()) paint(); });
       }
       function loadPeriod() {
@@ -442,7 +442,11 @@
         if (S.aErr) return h + '<div class="panel">Could not load the answers: ' + esc(S.aErr) + "</div>";
         const list = ansVisible();
         const all = S.ans;
-        h += '<p class="svy-note">' + list.length + " of " + all.length + " answer" + (all.length === 1 ? "" : "s") + " shown.</p>";
+        h += '<p class="svy-note">' + list.length + " of " + all.length + " answer" + (all.length === 1 ? "" : "s") + " shown."
+          // answers to test sends stay out unless switched on: say so, so a test answer never looks lost (11 Nov)
+          + (!S.tests && S.aHidden ? " " + S.aHidden + " answer" + (S.aHidden === 1 ? "" : "s") + " to test sends "
+            + (S.aHidden === 1 ? "is" : "are") + ' hidden. <span class="svy-link" id="svyShowTests">Show test sends</span>' : "")
+          + "</p>";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Answered</th><th>Customer</th><th>Move</th><th>Overall</th><th>Recommend</th><th>Booking · crew · transit</th><th>Worth it</th><th>Flag</th></tr></thead><tbody>"
           + (list.length ? list.map(r => {
@@ -661,6 +665,7 @@
         host.querySelectorAll("[data-spg]").forEach(b => { b.onclick = () => { S.sPage += +b.dataset.spg; paint(); }; });
         // responses
         host.querySelectorAll("[data-open]").forEach(tr => { tr.onclick = () => { const id = +tr.dataset.open; S.aOpen = S.aOpen === id ? null : id; paint(); }; });
+        const st = host.querySelector("#svyShowTests"); if (st) st.onclick = () => { S.tests = true; loadPeriod(); };
         // audience
         if (S.tab === "list") mountAudienceBar();
         const rb = host.querySelector("#svyRule"); if (rb) rb.onclick = () => { S.af = RULE(); S.page = 0; paint(); };
@@ -668,8 +673,12 @@
         host.querySelectorAll("[data-off]").forEach(cb => { cb.onchange = () => {
           const k = cb.dataset.off, off = !cb.checked;
           post({ action: "off", job_key: k, off }).then(() => {
-            const r = S.rows.find(x => x.job_key === k); if (r) r.off = off; paint();
-          }).catch(e => { say(e.message || String(e), true); cb.checked = !cb.checked; paint(); });
+            const r = S.rows.find(x => x.job_key === k); if (r) r.off = off;
+            // a switched-off move leaves the default list (Status: Will get it), so say where it went
+            say(off ? (r && r.customer ? r.customer : "The move") + " is switched off and won't get the survey. "
+              + "It's under Filters › Status › Switched off; tick it there to switch it back on." : "");
+            paint();
+          }).catch(e => { say("Could not switch it " + (off ? "off" : "on") + ": " + (e.message || String(e)), true); cb.checked = !cb.checked; paint(); });
         }; });
         const sb = host.querySelector("#svySend");
         if (sb) sb.onclick = () => {
