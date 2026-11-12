@@ -227,6 +227,7 @@
     mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
     mkt_utmc: { table: "mart_mkt_utm_campaign_lead", cols: ["Date", "Platform", "UTM Campaign", "Leads", "Booked"] },
     mkt_fsrc: { table: "mart_mkt_form_source_lead", cols: ["Date", "Source", "Medium", "Leads", "Booked"] },
+    mkt_mform: { table: "mart_mkt_meta_form_lead", cols: ["Date", "Form", "Campaign", "Leads", "In Moveboard", "Booked"] },
     // 2026-10-26 AI visibility: Ahrefs Brand Radar answers to our questions (src/brand_radar.py), monthly
     mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
     mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
@@ -315,7 +316,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], limix: [], tt: [], tto: [], ttvid: {}, ttvday: [], ttsrc: [], ttaud: [], utmc: [], fsrc: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], limix: [], tt: [], tto: [], ttvid: {}, ttvday: [], ttsrc: [], ttaud: [], utmc: [], fsrc: [], mform: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -655,6 +656,28 @@
       + ".mkd .mkd-cpb .tr i{display:block;height:100%;border-radius:999px;background:var(--pos)}"
       + ".mkd .mkd-cpb .tr i.mid{background:var(--amber,#B7791F)}.mkd .mkd-cpb .tr i.hi{background:var(--neg)}"
       + ".mkd .mkd-cpb b{min-width:64px;text-align:right;font-weight:600}"
+      /* booking rate by source (ZTZ-76): ranked bars, the average as a line through every track */
+      + ".mkd .mkd-brh{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin:14px 0 6px}"
+      + ".mkd .mkd-brh h3{margin:0;font-size:14px;font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-brh span{font-size:12.5px;color:var(--muted)}"
+      + ".mkd .mkd-brs{list-style:none;margin:0 0 14px;padding:0}"
+      + ".mkd .mkd-br{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) 150px;align-items:center;gap:12px;"
+      + "padding:5px 0;font-size:13.5px}"
+      + ".mkd .mkd-br .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+      + ".mkd .mkd-br .tr{position:relative;height:12px;background:var(--panel-2);border-radius:0 4px 4px 0}"
+      + ".mkd .mkd-br .tr i{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--pos)}"
+      + ".mkd .mkd-br.dn .tr i{background:var(--neg)}"
+      + ".mkd .mkd-br .tr s{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--ink);opacity:.5}"
+      + ".mkd .mkd-br .v{display:flex;flex-direction:column;align-items:flex-end;font-variant-numeric:tabular-nums;line-height:1.3;white-space:nowrap}"
+      + ".mkd .mkd-br .v b{font-weight:700;color:var(--ink)}"
+      + ".mkd .mkd-br .v em{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap}"
+      + ".mkd .mkd-br .v em.up{color:var(--pos)}.mkd .mkd-br .v em.dn{color:var(--neg)}"
+      + ".mkd .mkd-brk{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:0 0 4px}"
+      + ".mkd .mkd-brk i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}"
+      + ".mkd .mkd-brk i.up{background:var(--pos)}.mkd .mkd-brk i.dn{background:var(--neg)}"
+      + ".mkd .mkd-brk i.avg{width:2px;height:12px;background:var(--ink);opacity:.5;border-radius:0}"
+      + ".mkd .mkd-brsm{font-size:12.5px;color:var(--muted);margin:0 0 16px}"
+      + "@media(max-width:640px){.mkd .mkd-br{grid-template-columns:minmax(0,110px) minmax(0,1fr) 96px;gap:8px}}"
       /* platform cards */
       + ".mkd .mkd-plats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:14px}"
       + ".mkd .mkd-plat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;"
@@ -2039,6 +2062,26 @@
       { h: "Cost per lead", num: true, cell: r => (r.lead ? money0(r.cost / r.lead) : "—") },
     ], list, list.length > 1 ? tot : null);
   }
+  /* Meta's lead forms (Giga, 2026-11-03): src/meta_leads.py matches each lead to Moveboard by phone or
+     email and keeps only the campaign and the match; mart_mkt_meta_form_lead counts them */
+  function metaFormsHtml(pw) {
+    if (P.err.mform) return '<div class="mko-empty">Lead forms could not load — ' + esc(P.err.mform) + "</div>";
+    const from = P.mform.reduce((a, r) => (!a || r.d < a ? r.d : a), "");
+    const list = groupBy(inRange(P.mform, pw.a, pw.b), r => r.form + "" + r.camp).map(x => ({ form: x.rows[0].form, camp: x.rows[0].camp,
+      leads: sum(x.rows, "leads"), found: sum(x.rows, "found"), booked: sum(x.rows, "booked") })).sort((a, b) => b.leads - a.leads || b.booked - a.booked);
+    if (!list.length) return '<div class="mko-empty">' + (P.mform.length ? "No lead-form leads in this period." : "No lead-form leads read yet.") + "</div>";
+    const tot = { tot: true, form: "All forms", camp: "", leads: sum(list, "leads"), found: sum(list, "found"), booked: sum(list, "booked") };
+    return ptable([
+      { h: "Form", name: true, cell: r => (r.tot ? "<b>" + esc(r.form) + "</b>" : esc(r.form)) + (r.camp ? '<div class="mko-sub">' + esc(r.camp) + "</div>" : "") },
+      { h: "Leads", num: true, tip: "leads Meta's form took", cell: r => fmtN(r.leads) },
+      { h: "In Moveboard", num: true, tip: "the same phone or email on a Moveboard lead within 30 days", cell: r => fmtN(r.found) },
+      { h: "Booked", num: true, cell: r => fmtN(r.booked) },
+      { h: "Booking rate", num: true, tip: "booked ÷ leads in Moveboard", cell: r => (r.found ? pct(r.booked / r.found) : "—") },
+    ], list, list.length > 1 ? tot : null)
+      + '<p class="rs-hint">Meta’s instant forms never touch the website, so no UTM names their campaign. Each lead is matched to the Moveboard lead '
+      + "with the same phone or email, created within 30 days; only the campaign and the match are kept, never the answers. "
+      + "Meta hands out a form's leads for 90 days, so this starts on " + esc(day(from)) + ".</p>";
+  }
   function metaSection(w, cw) {
     const pw = platWin("meta", w, cw);
     const head = platHead("meta", "Meta", "Facebook + Instagram · account 276439726601232 · Los Angeles days", pw);
@@ -2067,6 +2110,8 @@
       + '<span class="mko-sub">where Meta showed the ads</span></div>' + metaPlaceHtml(pw)
       + '<p class="rs-hint">A new placement, WhatsApp among them, gets its own row the day ads run there. Leads are Meta\'s own count from its '
       + "forms; our bookings cannot be split by placement.</p></div>"
+      + '<div class="panel"><div class="panel-head"><span class="panel-title">Lead forms</span>'
+      + '<span class="mko-sub">Meta’s instant forms: how many reached Moveboard and booked</span></div>' + metaFormsHtml(pw) + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
       + metaCampTable(rows, cur, pw) + "</div>";
@@ -2148,7 +2193,8 @@
   }
   function utmNote(t, list, fam, pw) {
     const f = famStat(fam, pw.a, pw.b), stray = utmBind(t, list).stray;
-    return '<p class="rs-hint">Leads and bookings by campaign read the UTM on the website form, so only ads whose link carries one can be traced: <b>'
+    return '<p class="rs-hint">Leads and bookings by campaign read the UTM on the website form'
+      + (fam === "Meta" ? " and Meta's own lead forms (below)" : "") + ", so only those leads can be traced: <b>"
       + fmtN(t.leads) + " of " + fmtN(f ? f.leads : 0) + "</b> leads filed under " + esc(fam) + " in this period. New links reach this table with the next website form export."
       + (stray.length ? " " + fmtN(stray.length) + (stray.length === 1 ? " UTM names" : " UTMs name") + " no campaign here: " + esc(stray.slice(0, 3).join(", ")) + "." : "") + "</p>";
   }
@@ -3156,6 +3202,41 @@
       + '<td class="n">' + (paid ? costCell(t.roas, t, perDollar, false) : "—") + "</td><td></td></tr>";
     return h;
   }
+  /* --- booking rate by source (12 Nov 2026, ZTZ-76): Sophie's "which sources are on top by booking rate and
+     which are losing"; his pick, ranked bars with the average as a line. Booked / leads, the table's own
+     numbers. A source needs RANK_MIN leads to be ranked (3 booked of 4 is luck, not a rate); the rest are
+     named under the chart. Green at or above the average, red below, and the gap is written in points. */
+  const RANK_MIN = 20;
+  function bookRateHtml(fams) {
+    const avg = totals(fams).book;
+    const ranked = fams.filter(f => f.leads >= RANK_MIN && f.book != null)
+      .sort((x, y) => (y.book - x.book) || (y.leads - x.leads));
+    if (ranked.length < 2 || avg == null) return "";
+    const small = fams.filter(f => f.leads > 0 && f.leads < RANK_MIN).sort((x, y) => (y.leads - x.leads) || x.fam.localeCompare(y.fam));
+    const max = Math.min(1, Math.ceil(10 * Math.max(avg, ranked[0].book) + 1e-9) / 10) || 1;   // the next 10%
+    const at = v => (100 * Math.max(0, v) / max).toFixed(1) + "%";
+    const pts = d => (Math.abs(d) < 0.0005 ? "at the average" : (d > 0 ? "+" : "−") + Math.abs(100 * d).toFixed(1) + " pts");
+    const row = f => {
+      const d = f.book - avg, cls = d >= 0 ? "up" : "dn";
+      const href = "#page=source-report&src=" + encodeURIComponent(f.fam);
+      return '<li class="mkd-br ' + cls + '" title="' + esc(f.fam + ": " + fmtN(f.booked) + " booked of " + fmtN(f.leads)
+          + " leads = " + pct(f.book) + " (average " + pct(avg) + ")") + '">'
+        + '<span class="nm"><a class="mko-go" href="' + esc(href) + '">' + esc(f.fam) + "</a></span>"
+        + '<span class="tr"><i style="width:' + at(f.book) + '"></i><s style="left:' + at(avg) + '"></s></span>'
+        + '<span class="v"><span><b>' + pct(f.book) + '</b> <em class="' + cls + '">' + esc(pts(d)) + "</em></span>"
+        + "<em>" + fmtN(f.booked) + " of " + fmtN(f.leads) + " leads</em></span></li>";
+    };
+    const SMALL_SHOWN = 8;
+    return '<div class="mkd-brh"><h3>Booking rate by source</h3><span>booked ÷ leads, best first · '
+      + fmtN(ranked.length) + " sources with " + RANK_MIN + "+ leads</span></div>"
+      + '<div class="mkd-brk" aria-hidden="true"><span><i class="up"></i>at or above the average</span>'
+      + '<span><i class="dn"></i>below it</span><span><i class="avg"></i>average ' + esc(pct(avg)) + "</span></div>"
+      + '<ol class="mkd-brs" aria-label="Booking rate by source, best first; the average is ' + esc(pct(avg)) + '">'
+      + ranked.map(row).join("") + "</ol>"
+      + (small.length ? '<p class="mkd-brsm">Not ranked, under ' + RANK_MIN + " leads: "
+        + small.slice(0, SMALL_SHOWN).map(f => esc(f.fam) + " " + fmtN(f.booked) + "/" + fmtN(f.leads)).join(" · ")
+        + (small.length > SMALL_SHOWN ? " · and " + fmtN(small.length - SMALL_SHOWN) + " more" : "") + " (booked/leads).</p>" : "");
+  }
   function sourcesTableHtml(fams, tm) {
     if (!fams.length) return '<div class="mkd-card mkd-quiet">No leads or spend in this period for this company.</div>';
     const isCom = f => COMMUNITY.includes(f.fam);
@@ -3201,6 +3282,7 @@
       + trendCharts(tm, runningMonth(tm, w))
       + '<section class="mkd-card" aria-labelledby="mkdSrcH"><div class="mkd-h"><h2 id="mkdSrcH">Where bookings came from</h2>'
       + "<span>leads created in the period and how many booked · click a source to open it in Source Analysis</span></div>"
+      + bookRateHtml(fams)
       + sourcesTableHtml(fams, tm)
       + '<p class="rs-hint">Spend is live from Google Ads, Local Services, Meta and ChatGPT; every other channel is the bank ledger'
       + (D.ledgerEnd ? ", which runs through " + esc(day(D.ledgerEnd)) : "")
@@ -6492,13 +6574,14 @@
         plat("mkt_limix", "limix"),
         plat("mkt_ttacc", "tto"), plat("mkt_ttvid", "tto"), plat("mkt_ttvday", "tto"), plat("mkt_ttsrc", "tto"), plat("mkt_ttaud", "tto"),
         plat("mkt_ytday", "yt"), plat("mkt_ytsrc", "yt"), plat("mkt_ytvid", "yt"), plat("mkt_ytvmon", "yt"),
+        plat("mkt_mform", "mform"),
         ZTZ.api("/api/_mktposttag").then(j => (j && j.tags) || [])
           .catch(e => { P.err.tags = (e && e.message) || String(e); return []; }),
       ]).then(([conn, ch, ads, lsaC, lsaL, meta, gpt, gsc, gscq, gsca, ahd, ahm, bl, ga4, ga4ch, demo, geo,
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc, fsrc,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc,
-                limix, ttacc, ttvid, ttvday, ttsrc, ttaud, ytday, ytsrc, ytvid, ytvmon, tags]) => {
+                limix, ttacc, ttvid, ttvday, ttsrc, ttaud, ytday, ytsrc, ytvid, ytvmon, mform, tags]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -6516,6 +6599,8 @@
         indexYouTube({ ytday, ytsrc, ytvid, ytvmon });
         indexTags(tags);
         indexBatch3({ refdom, anchor, ctrace });
+        P.mform = (mform || []).map(r => ({ d: d10(r.Date), form: r.Form || "", camp: r.Campaign || "", leads: num(r.Leads),
+          found: num(r["In Moveboard"]), booked: num(r.Booked) })).filter(r => r.d);
         P.fsrc = (fsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", med: r.Medium || "", leads: num(r.Leads), booked: num(r.Booked) })).filter(r => r.d);
         P.utmc = (utmc || []).map(r => ({ d: d10(r.Date), plat: r.Platform, camp: normCamp(r["UTM Campaign"]), leads: num(r.Leads), booked: num(r.Booked) }));
         indexBrandRadar({ brans, brmen, brcit });

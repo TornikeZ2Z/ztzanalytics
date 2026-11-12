@@ -327,7 +327,7 @@
         if (a.source === "promised") return "Customers who promised their foreman a review" + (a.review === "no" ? ", no review yet" : "");
         const sc = a.scores || [];
         return "Customers after their move" + (sc.length ? ", foreman score " + (sc.length > 1 ? Math.min(...sc) + "–" + Math.max(...sc) : sc[0]) : "")
-          + (a.distance === "local" ? ", local" : a.distance === "ld" ? ", long distance" : "") + (a.claims === "none" ? ", no claim" : "");
+          + (a.distance === "local" ? ", local" : a.distance === "ld" ? ", long distance" : "") + (a.claims === "none" ? ", no complaint" : "");
       }
       function railItems() {
         const d = S.draft || {}, it = S.item || {}, steps = STEPS[S.what];
@@ -642,7 +642,7 @@
             + '<label class="l" for="eamStates">States</label><input id="eamStates" placeholder="All states, or e.g. NJ, NY, CT" value="' + esc((a.states || []).join(", ")) + '">';
         }
         // a claim on ANY of the customer's moves counts, found by email or phone (12 Nov, ZTZ-78)
-        h += '<label class="l">Claims</label>' + seg("claims", a.claims, [["none", "Leave out anyone with a claim on any of their moves"], ["any", "Include them"]])
+        h += '<label class="l">Complaints</label>' + seg("claims", a.claims, [["none", "Leave out anyone with a complaint on any of their moves"], ["any", "Include them"]])
           + '<label class="l">Review written</label>' + seg("review", a.review, [["no", "Not yet"], ["yes", "Already reviewed"], ["any", "Either"]])
           + '<p class="eam-help">Always left out: no email address, unsubscribed, bounced, and ' + (S.what === "auto" ? "anyone this automation already emailed for the move." : "repeat addresses.") + "</p>"
           + navHtml() + '</div><div id="eamCount">' + countHtml() + "</div></div>";

@@ -515,13 +515,13 @@
       const mtypeOf = r => (String(r.move_type_code || "").toUpperCase() === "LD" ? "Long-Distance Moving" : (r.form_move_type || "Local Moving"));
       const KEYS = {
         rating: r => (r.score == null || r.score === "" ? "No score" : String(+r.score)),
-        claim: r => (r.complaints || r.other_claims ? "Has a claim or complaint" : "None"),
+        claim: r => (r.complaints || r.other_claims ? "Has a complaint" : "None"),
         state: r => r.state || "Unknown",
         mtype: mtypeOf,
         review: r => (r.review ? "Review written" : "No review"),
         surveyed: r => (r.surveyed_before ? "Surveyed before" : "Not surveyed before"),
       };
-      const LABELS = { rating: "Tako's rule: foreman's rating (1–10)", claim: "Tako's rule: claim / complaint", state: "State",
+      const LABELS = { rating: "Tako's rule: foreman's rating (1–10)", claim: "Tako's rule: complaint", state: "State",
                        mtype: "Move type", review: "Review", surveyed: "Surveyed before" };
       const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"] };
       const rank = (ord, v) => { const i = ord.indexOf(v); return i < 0 ? 999 : i; };
@@ -530,7 +530,7 @@
       const ATAB_NOTE = {
         will: "These get the survey when you press Send. Switch someone off and they move to Switched off, where you can put them back.",
         off: "Switched off by hand, with who did it and when. Put them back any time before the send.",
-        rule: "Tako's rule leaves these out (the rating or a claim). Add one by hand to ask them anyway.",
+        rule: "Tako's rule leaves these out (the rating or a complaint). Add one by hand to ask them anyway.",
         cant: "These can never get it, whatever anyone picks: long distance, no email, unsubscribed, or under 14 days since the move.",
         sent: "One survey per move: these already got theirs. Each send's results are on the Sends tab.",
       };
@@ -569,12 +569,13 @@
         if (S.af.claim && S.af.claim.size && !S.af.claim.has(KEYS.claim(r))) out.push(r.complaints ? claimText(r) : otherClaimText(r));
         return out.join(" · ");
       }
+      // ("complaint", not "claim": his word, 12 Nov)
       // a claim on the customer's OTHER move, found by their email or phone (12 Nov, ZTZ-78: a refunded claim on
       // the first move did not keep the clean second move out, and Tako took him out by hand)
-      const claimText = r => "claim / complaint" + (r.complaint_status ? ": " + r.complaint_status : "");
+      const claimText = r => "complaint" + (r.complaint_status ? ": " + r.complaint_status : "");
       const monthYear = v => { const d = v ? new Date(String(v).slice(0, 10) + "T12:00:00Z") : null;
         return d && !isNaN(d) ? d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) : ""; };
-      const otherClaimText = r => "claim on another move" + (monthYear(r.other_claim_date) ? " (" + monthYear(r.other_claim_date) + ")" : "")
+      const otherClaimText = r => "complaint on another move" + (monthYear(r.other_claim_date) ? " (" + monthYear(r.other_claim_date) + ")" : "")
         + (r.other_claim_status ? ": " + r.other_claim_status : "");
       const flagsHtml = (r, noClaim) => (r.complaints && !noClaim ? '<span class="svy-flag svy-bad">' + esc(claimText(r)) + "</span>" : "")
         + (r.other_claims && !noClaim ? '<span class="svy-flag svy-bad">' + esc(otherClaimText(r)) + "</span>" : "")
@@ -604,7 +605,7 @@
         const a = S.age; if (!a || !a.at) return "";
         const when = a.live ? "List read live just now (the hourly update is late)"
           : "List updated " + dt(a.at) + " · " + (a.due ? "next update any minute" : "next update about " + hmNJ(a.next));
-        return '<p class="svy-note svy-age" title="Moves, ratings, claims and emails update every hour. Sends, switch-offs and answers show at once.">'
+        return '<p class="svy-note svy-age" title="Moves, ratings, complaints and emails update every hour. Sends, switch-offs and answers show at once.">'
           + esc(when) + ". It updates every hour; switch-offs and sends show at once.</p>";
       }
       function listView() {
@@ -701,7 +702,7 @@
           const fields = afFields(S.rows);
           const apply = next => { AF.forEach(k => { S.af[k] = new Set(next[k] || []); }); S.page = 0; paint(); };
           RSC.filterPanel(bar, { fields, selected: S.af, onApply: apply,
-            note: "<b>Tako's rule</b> is the rating and the claim choice (9–10, no claim). A move outside it moves to "
+            note: "<b>Tako's rule</b> is the rating and the complaint choice (9–10, no complaint). A move outside it moves to "
               + "<b>Left out by the rule</b>, where you can add it by hand. The other filters narrow every tab. "
               + "Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever you pick." });
           const chips = host.querySelector("#svyAChips");
