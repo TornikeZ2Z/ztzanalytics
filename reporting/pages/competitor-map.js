@@ -19,6 +19,9 @@
  *                extras"): the state alone, its top 5 only, a county pane with "Open gap", her profile.
  *                Who works in a county = office county + the counties of the cities she says they serve
  *                (the bridge places each city in its county: /api/_competitors "places").
+ *   CONTENT GAPS 12 Nov, ZTZ-68: Sophie's competitor analysis (her 25 competitors in five states, ten
+ *                layers) as a tab, drawn by pages/ecosystem.js from a snapshot of her page. The page is
+ *                listed under Marketing too (his pick), so her team opens it from there.
  */
 (function () {
   if (window.RS && RS.DATASETS) {
@@ -244,22 +247,29 @@
         if (!alive()) return;
         const M = model();
         let h = '<div class="cmpm">';
-        h += '<div class="cmpm-states">' + STATES.map(s => '<div class="rs-tog' + (S.st === s ? " on" : "") + '" data-cst="' + s + '"><i></i>'
-          + s + "</div>").join("") + '<span class="rs-spacer"></span>'
-          + [["map", "Map"], ["google", "Top on Google"], ["playbook", "Social playbook"], ["edit", "Edit"]].map(([k, l]) =>
+        // CONTENT GAPS (ZTZ-68, 12 Nov, his pick): Sophie's competitor analysis as a tab; it has its own five-state
+        // filter, so the map's eight state toggles step aside there (pages/ecosystem.js draws it)
+        const gapsTab = S.tab === "gaps";
+        h += '<div class="cmpm-states">' + (gapsTab ? "" : STATES.map(s => '<div class="rs-tog' + (S.st === s ? " on" : "") + '" data-cst="' + s + '"><i></i>'
+          + s + "</div>").join("")) + '<span class="rs-spacer"></span>'
+          + [["map", "Map"], ["google", "Top on Google"], ["gaps", "Content gaps"], ["playbook", "Social playbook"], ["edit", "Edit"]].map(([k, l]) =>
             '<div class="rs-tog' + (S.tab === k ? " on" : "") + '" data-ctab="' + k + '"><i></i>' + l + "</div>").join("") + "</div>";
         if (S.err) h += '<div class="cmpm-err">' + esc(S.err) + "</div>";
         if (S.msg) h += '<div class="cmpm-ok">' + esc(S.msg) + "</div>";
         if (S.tab === "map") h += mapView(M);
         else if (S.tab === "google") h += googleView(M);
+        else if (gapsTab) h += '<div id="cmpmGaps"></div>';
         else if (S.tab === "playbook") h += playbookView(M);
         else h += editView(M);
         const used = (M.calls.details || 0) + (M.calls.find || 0) + (M.calls.scan || 0);
-        h += '<p class="cmpm-note">Google lookups this month: ' + fmt(M.calls.details || 0) + " office checks, "
+        if (!gapsTab) h += '<p class="cmpm-note">Google lookups this month: ' + fmt(M.calls.details || 0) + " office checks, "
           + fmt((M.calls.scan || 0) + (M.calls.find || 0)) + " searches (" + FREE.toLocaleString() + " of each are free a month)."
-          + (used ? "" : " Nothing has been looked up yet: the first weekly run fills it in.") + "</p></div>";
+          + (used ? "" : " Nothing has been looked up yet: the first weekly run fills it in.") + "</p>";
+        h += "</div>";
         if (MAP) { try { MAP.remove(); } catch (e) { /* gone with the old DOM */ } MAP = null; }
         host.innerHTML = h;
+        const gh = host.querySelector("#cmpmGaps");
+        if (gh) { if (window.ECO && ECO.renderGaps) ECO.renderGaps(gh, paint); else gh.innerHTML = '<div class="panel">The content gaps did not load.</div>'; }
         wire(M);
       }
 

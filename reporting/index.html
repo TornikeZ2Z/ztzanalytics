@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="e6e528b9b8e77e00bf40f6eeeb5fb499b207353a">
+<meta name="ztz-ref" content="9c331f0fcc488b83ddf7c54cb9062a7b38d9a3d1">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -245,6 +245,8 @@ const GROUP_OVERRIDE = {
   // Marketing Overview (2026-10-15): the one page for marketing; starts with its sources and
   // whether each is up to date
   "marketing-overview": "marketing",
+  // Partnership & Strategy (12 Nov 2026, ZTZ-68): Sophie's 2027 partnership and audience strategy, its own page
+  "partnership-strategy": "marketing",
   // Target Map (2026-10-19): Seasonal Planning's zip tiers under the MAX plan, market switch only
   "target-map": "marketing",
   "source-trace": "marketing", "meta-referrals": "marketing",
@@ -302,7 +304,8 @@ const GROUP_OVERRIDE = {
   "review-performance": "reviews", "rev-production": "reviews", "reviews-reminders": "reviews",
   "response-analysis": "reviews", "review-settings": "reviews", "surveys": ["reviews", "marketing-automations"],
   // Tako's two maps (10 Nov 2026, ZTZ-56 / ZTZ-57)
-  "review-map": "reviews", "competitor-map": "reviews",
+  // the Competitor Map is listed under Marketing too (12 Nov, ZTZ-68, his pick): its Content gaps tab is Sophie's
+  "review-map": "reviews", "competitor-map": ["reviews", "marketing"],
 };
 const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
   return Array.isArray(g) ? g : [g]; };
@@ -318,11 +321,11 @@ const NAV_ORDER = {
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
   "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "job-pnl": 5, "flat-rate": 5.2, "salaries": 5.5, "bonus-system": 5.7, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "subscriptions": 6.8, "postcard-expenditure": 9.5,
-  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "email-automations": 6, "quality-reviews": 1.5, "review-map": 5.5, "competitor-map": 6.5,
+  "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "email-automations": 6, "quality-reviews": 1.5, "review-map": 5.5, "competitor-map": 6.58,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
-  "marketing-overview": 6.5, "target-map": 6.6, "source-report": 7, "marketing-roi": 7.1, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
+  "marketing-overview": 6.5, "partnership-strategy": 6.55, "target-map": 6.6, "source-report": 7, "marketing-roi": 7.1, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
   "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
 
@@ -394,7 +397,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "email-automations": "megaphone", "review-map": "map-pin", "competitor-map": "compass", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "partnership-strategy": "share-2", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "email-automations": "megaphone", "review-map": "map-pin", "competitor-map": "compass", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -938,6 +941,7 @@ const PAGE_DATASETS = {
   "data-migration": [],
   "source-trace": [],
   "marketing-overview": [],    // loads mart_mkt_connector itself; no global slicer applies to a source list
+  "partnership-strategy": [],  // Sophie's strategy pages: a snapshot of her page, no table, no slicer
   "source-report": [],         // loads its three mart_source_* marts itself; source/period/company/state live on the page
   "marketing-roi": [],         // the same marts through roi-core.js; sources/company/period/state live on the page
   "meta-referrals": [],
@@ -1270,6 +1274,8 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   "census-data",
   // Marketing Overview (2026-10-15): its source list has no date to slice
   "marketing-overview",
+  // Partnership & Strategy (12 Nov 2026): Sophie's strategy, nothing to slice
+  "partnership-strategy",
   // Sales team (2026-10-16): a list of people and switches, nothing a slicer could act on
   "sales-roster",
   // Salaries (2026-09-24) brings its own tabs, period, pay-period, company and person bar
@@ -1426,6 +1432,7 @@ const NAV_TITLES = {
   "data-quality": "Data Quality",
   "data-migration": "Data Migration",
   "marketing-overview": "Marketing Dashboard",
+  "partnership-strategy": "Partnership & Strategy",
   "target-map": "Target Map",
   "source-report": "Source Analysis",
   "marketing-roi": "Return on Investment",
@@ -1511,7 +1518,7 @@ const SEARCH_ALIASES = {
   "surveys": "customer survey feedback form email send list answers tako satisfaction recommend resend unsubscribe",
   "email-automations": "email automations automation single sends one-off newsletter customer survey review request resend campaign template audience unsubscribe opened clicked bounced tako sophie",
   "review-map": "review map review sites directories listings citations homeadvisor movers.com manta yellow pages target reviews per location kearny shafto tako",
-  "competitor-map": "competitor map competitors rivals college hunks two men and a truck county tier google rating reviews watchlist social playbook tako",
+  "competitor-map": "competitor map competitors rivals college hunks two men and a truck county tier google rating reviews watchlist social playbook tako content gaps gap score tactics route guides cost guides sophie semrush moveBuddha",
   "sup-claims": "claim claims damage damages",
   "sup-refunds": "refund refunds negative review reviews complaints cx cost of quality customer experience",
   "sup-phone": "phone response callrail call rail call tracking calls answer rate",
@@ -1530,6 +1537,7 @@ const SEARCH_ALIASES = {
   "estimate-accuracy": "estimate accuracy sales vs reality estimated vs actual sold real cf cubic feet inventory items time hours act minimum under over estimate bias foreman sold rep accuracy",
   "source-trace": "source trace lineage attribution callrail google local phone match booked from moveboard corrected final source faithful pbix diagnostic audit",
   "target-map": "target map targeting zip codes zips tiers tier 1 2 3 core good normal current mid max plan where to advertise ads google meta download upload market",
+  "partnership-strategy": "partnership strategy ecosystem partners universities university shortlist personas segments channels audience map decision journey trust campaigns realtors property managers 2027 kpi sophie",
   "marketing-overview": "marketing dashboard overview organic search search console queries brand demand business profile sources connected connectors platforms status up to date fresh late google ads local services lsa analytics ga4 search console facebook instagram meta chatgpt openai tiktok reddit linkedin nextdoor semrush ahrefs brightlocal bank spend ledger callrail leads campaigns performance max pmax search demand gen cpc ctr impressions clicks conversions charged credited results",
   "source-report": "source analysis lead source leads conversion booking rate funnel dead reasons post card yelp google angi thumbtack ad spend cost per lead cost per booked job cash per dollar roi lead list customer phone email marketing channel",
   "marketing-roi": "return on investment roi roas revenue per dollar ad spend by state split spend states placed not placed missing data drill cost per job yelp meta reddit nextdoor google angi post card marketing budget",
@@ -2031,6 +2039,7 @@ const REPORT_LABELS = {
   "support-of-the-month": "Support of the Month",
   // Marketing / Marketing Automations / Tech Team / Different Analysis (tile tooltips)
   "marketing-overview": "Marketing Dashboard",
+  "partnership-strategy": "Partnership & Strategy",
   "target-map": "Target Map",
   "source-report": "Source Analysis",
   "marketing-roi": "Return on Investment",
@@ -2149,7 +2158,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "partnership-strategy", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search", "competitor-map"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot", "email-automations", "surveys"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -2443,7 +2452,11 @@ registerPage({
 <script src="pages/promised-reviews.js?v=15"></script>
 <script src="pages/birdeye-sends.js?v=4"></script>
 <script src="pages/review-map.js?v=3"></script>
-<script src="pages/competitor-map.js?v=3"></script>
+<script src="pages/ecosystem-data.js?v=1"></script>
+<script src="pages/ecosystem-segments.js?v=1"></script>
+<script src="pages/ecosystem-competitors.js?v=1"></script>
+<script src="pages/ecosystem.js?v=1"></script>
+<script src="pages/competitor-map.js?v=4"></script>
 <script src="pages/photoshoot.js?v=2"></script>
 <script src="pages/foreman-late.js?v=16"></script>
 <script src="pages/referral-candidates.js?v=15"></script>
