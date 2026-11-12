@@ -188,6 +188,7 @@
         const q = (S.lo ? "&lo=" + S.lo : "") + (S.hi ? "&hi=" + S.hi : "");
         return api("/api/_surveyadmin?view=list" + q).then(j => {
           S.rows = j.rows || []; S.lo = j.lo; S.hi = j.hi; S.resend = !!j.resend; S.err = "";
+          S.age = { at: j.data_at, live: !!j.data_live, next: j.next_at, due: !!j.next_due };
           if (alive()) paint();
         }).catch(e => { S.err = e.message || String(e); S.rows = []; if (alive()) paint(); });
       }
@@ -514,7 +515,7 @@
       const mtypeOf = r => (String(r.move_type_code || "").toUpperCase() === "LD" ? "Long-Distance Moving" : (r.form_move_type || "Local Moving"));
       const KEYS = {
         rating: r => (r.score == null || r.score === "" ? "No score" : String(+r.score)),
-        claim: r => (r.complaints ? "Has a claim or complaint" : "None"),
+        claim: r => (r.complaints || r.other_claims ? "Has a claim or complaint" : "None"),
         state: r => r.state || "Unknown",
         mtype: mtypeOf,
         review: r => (r.review ? "Review written" : "No review"),
@@ -565,10 +566,18 @@
       function ruleWhy(r) {
         const out = [];
         if (S.af.rating && S.af.rating.size && !S.af.rating.has(KEYS.rating(r))) out.push(r.score == null ? "no rating" : "rating " + r.score);
-        if (S.af.claim && S.af.claim.size && !S.af.claim.has(KEYS.claim(r))) out.push("claim / complaint" + (r.complaint_status ? ": " + r.complaint_status : ""));
+        if (S.af.claim && S.af.claim.size && !S.af.claim.has(KEYS.claim(r))) out.push(r.complaints ? claimText(r) : otherClaimText(r));
         return out.join(" · ");
       }
-      const flagsHtml = (r, noClaim) => (r.complaints && !noClaim ? '<span class="svy-flag svy-bad">claim / complaint' + (r.complaint_status ? ": " + esc(r.complaint_status) : "") + "</span>" : "")
+      // a claim on the customer's OTHER move, found by their email or phone (12 Nov, ZTZ-78: a refunded claim on
+      // the first move did not keep the clean second move out, and Tako took him out by hand)
+      const claimText = r => "claim / complaint" + (r.complaint_status ? ": " + r.complaint_status : "");
+      const monthYear = v => { const d = v ? new Date(String(v).slice(0, 10) + "T12:00:00Z") : null;
+        return d && !isNaN(d) ? d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) : ""; };
+      const otherClaimText = r => "claim on another move" + (monthYear(r.other_claim_date) ? " (" + monthYear(r.other_claim_date) + ")" : "")
+        + (r.other_claim_status ? ": " + r.other_claim_status : "");
+      const flagsHtml = (r, noClaim) => (r.complaints && !noClaim ? '<span class="svy-flag svy-bad">' + esc(claimText(r)) + "</span>" : "")
+        + (r.other_claims && !noClaim ? '<span class="svy-flag svy-bad">' + esc(otherClaimText(r)) + "</span>" : "")
         + (r.flags || []).map(f => '<span class="svy-flag">' + esc(f) + "</span>").join("")
         + (r.surveyed_before ? '<span class="svy-flag">surveyed before</span>' : "");
       function noteCell(r, tab) {
@@ -586,6 +595,17 @@
         if (tab === "off") return '<button type="button" class="rs-btn" data-back="' + esc(r.job_key) + '">Put back</button>';
         if (tab === "rule") return '<button type="button" class="rs-btn" data-add="1" data-key="' + esc(r.job_key) + '">Add anyway</button>';
         return "";
+      }
+      // "List updated Nov 12, 11:33 AM NJ · next update about 12:35 PM NJ": the moves, scores, claims and emails
+      // come from the loader's hourly run; sends, switches and answers below are live.
+      const hmNJ = v => { const d = v ? new Date(v) : null;
+        return d && !isNaN(d) ? d.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) + " NJ" : ""; };
+      function ageHtml() {
+        const a = S.age; if (!a || !a.at) return "";
+        const when = a.live ? "List read live just now (the hourly update is late)"
+          : "List updated " + dt(a.at) + " · " + (a.due ? "next update any minute" : "next update about " + hmNJ(a.next));
+        return '<p class="svy-note svy-age" title="Moves, ratings, claims and emails update every hour. Sends, switch-offs and answers show at once.">'
+          + esc(when) + ". It updates every hour; switch-offs and sends show at once.</p>";
       }
       function listView() {
         if (S.rows === null) return '<div class="rs-bar" id="svyABar"></div><div class="panel">Loading the moves…</div>';
@@ -609,9 +629,10 @@
           + Math.min(willSend.length, MAX_PER_SEND) + " customer" + (willSend.length === 1 ? "" : "s")
           + (willSend.length > MAX_PER_SEND ? " (of " + willSend.length + ")" : "") + "</button></div>";
         h += '<p class="svy-note">' + esc(ATAB_NOTE[S.atab]) + " "
-          + (isRule() ? "Tako's rule: rating 9–10, nothing on the Claims / Complaints board."
+          + (isRule() ? "Tako's rule: rating 9–10, nothing on the Claims / Complaints board for any of the customer's moves."
             : "The rule is changed from Tako's. <span class=\"svy-link\" id=\"svyRule\">Back to Tako's rule</span>")
           + "</p>";
+        h += ageHtml();
         if (S.msg) h += '<p class="svy-note" role="status" style="color:' + (S.msgErr ? "var(--neg)" : "var(--pos)") + '">' + esc(S.msg) + "</p>";
         const sentTab = S.atab === "sent";
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'

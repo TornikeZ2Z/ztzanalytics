@@ -638,11 +638,12 @@
             + [[[9, 10], "9–10"], [[8, 9, 10], "8–10"], [[], "Any"]].map(([v, l]) => '<button type="button" class="eam-chip' + (JSON.stringify(sc) === JSON.stringify(v) ? " on" : "")
               + '" data-scores="' + v.join(",") + '">' + l + "</button>").join("") + '</div><p class="eam-help">From the closing sheet, 1–10. "Any" includes moves with no score.</p>'
             + '<label class="l">Move type</label>' + seg("distance", a.distance, [["local", "Local"], ["ld", "Long distance"], ["any", "Both"]])
-            + '<label class="l">Claims</label>' + seg("claims", a.claims, [["none", "Leave out anyone with a claim"], ["any", "Include them"]])
             + '<label class="l">Called or texted support after the move</label>' + seg("support", a.support, [["any", "Include (shown as a note)"], ["exclude", "Leave them out"]])
             + '<label class="l" for="eamStates">States</label><input id="eamStates" placeholder="All states, or e.g. NJ, NY, CT" value="' + esc((a.states || []).join(", ")) + '">';
         }
-        h += '<label class="l">Review written</label>' + seg("review", a.review, [["no", "Not yet"], ["yes", "Already reviewed"], ["any", "Either"]])
+        // a claim on ANY of the customer's moves counts, found by email or phone (12 Nov, ZTZ-78)
+        h += '<label class="l">Claims</label>' + seg("claims", a.claims, [["none", "Leave out anyone with a claim on any of their moves"], ["any", "Include them"]])
+          + '<label class="l">Review written</label>' + seg("review", a.review, [["no", "Not yet"], ["yes", "Already reviewed"], ["any", "Either"]])
           + '<p class="eam-help">Always left out: no email address, unsubscribed, bounced, and ' + (S.what === "auto" ? "anyone this automation already emailed for the move." : "repeat addresses.") + "</p>"
           + navHtml() + '</div><div id="eamCount">' + countHtml() + "</div></div>";
         return h;
