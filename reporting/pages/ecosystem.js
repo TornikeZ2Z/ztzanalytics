@@ -3,12 +3,14 @@
  * Sophie (marketing head) asked on 11 Nov: her dashboard's competitor page into the competitors dashboard,
  * and its "Partnership & TA ecosystem strategy" as its own page in Marketing. His picks the same day: the
  * competitor page is a tab of the Competitor Map (which is also listed under Marketing now), the rest a
- * Marketing page of its own.
+ * Marketing page of its own. 12 Nov 19:40 (ZTZ-71): the Competitor Map left the portal until Tako has updated
+ * her map, and his pick moved Content gaps here as page 6, as it was on Sophie's own page.
  *
- *   PARTNERSHIP & STRATEGY  her pages 1-5: University partnerships, Partnership map, Personas and screens,
- *                           Channels to explore, Segment strategies (five layers).
+ *   PARTNERSHIP & STRATEGY  her pages 1-6: University partnerships, Partnership map, Personas and screens,
+ *                           Channels to explore, Segment strategies (five layers), Competitor analysis.
  *   CONTENT GAPS            her page 6 (Competitor analysis): a state filter and ten layers. window.ECO.
- *                           renderGaps(host, rerender) draws it inside the Competitor Map.
+ *                           renderGaps(host, rerender) draws it as page 6 here (and drew it inside the
+ *                           Competitor Map's Content gaps tab while that page was on the portal).
  *
  * THE CONTENT IS A SNAPSHOT of her claude.ai page (pages/ecosystem-*.js), not live data: nothing here
  * loads a table. Every text is escaped, then her marks are applied (**bold**, {s:..} place, {z:..} size).
@@ -170,7 +172,7 @@
 
   /* ---- PARTNERSHIP & STRATEGY: her pages 1-5 -------------------------------------------------- */
   const PAGES = [["uni", "1 · University partnerships"], ["map", "2 · Partnership map"], ["personas", "3 · Personas and screens"],
-                 ["channels", "4 · Channels to explore"], ["segments", "5 · Segment strategies"]];
+                 ["channels", "4 · Channels to explore"], ["segments", "5 · Segment strategies"], ["gaps", "6 · Competitor analysis"]];
   function pageUni(E) {
     const U = E.universities, A = U.audience;
     const max = Math.max(...A.groups.flatMap(g => g.rows.map(r => +r[1] || 0)));
@@ -263,7 +265,7 @@
     return h;
   }
 
-  /* ---- CONTENT GAPS: her page 6, drawn inside the Competitor Map ---------------------------------- */
+  /* ---- CONTENT GAPS: her page 6, Partnership & Strategy's last page ------------------------------ */
   function renderGaps(host, repaint) {
     const E = window.ZTZ_ECO, C = E && E.competitors;
     if (!C) { host.innerHTML = '<div class="panel">The content-gap data did not load.</div>'; return; }
@@ -398,11 +400,11 @@
       if (!E || !E.universities || !E.segments) { host.innerHTML = '<div class="panel">The strategy content did not load.</div>'; return; }
       const S = window.__ECO_P || (window.__ECO_P = { page: "uni", seg: "three", aud: "all", node: null });
       const paint = () => {
-        const body = S.page === "uni" ? pageUni(E) : S.page === "map" ? pageMap(E, S) : S.page === "personas" ? pagePersonas(E)
-          : S.page === "channels" ? pageChannels(E) : pageSegments(E, S);
+        const gaps = S.page === "gaps";
+        const body = gaps ? '<div id="ecoGaps"></div>' : S.page === "uni" ? pageUni(E) : S.page === "map" ? pageMap(E, S)
+          : S.page === "personas" ? pagePersonas(E) : S.page === "channels" ? pageChannels(E) : pageSegments(E, S);
         host.innerHTML = '<div class="eco"><div class="eco-eyebrow">' + esc(E.header.eyebrow) + '</div><p class="eco-intro">' + fmt(E.header.intro) + "</p>"
-          + kpis(E.header.kpis) + '<div class="eco-tabs">' + PAGES.map(([k, l]) => '<button class="rs-btn' + (S.page === k ? " pri" : "") + '" data-eco-page="' + k + '">' + esc(l) + "</button>").join("")
-          + '<span class="eco-pill" style="align-self:center;margin-left:6px">6 · Competitor analysis is a tab of the Competitor Map</span></div>'
+          + kpis(E.header.kpis) + '<div class="eco-tabs">' + PAGES.map(([k, l]) => '<button class="rs-btn' + (S.page === k ? " pri" : "") + '" data-eco-page="' + k + '">' + esc(l) + "</button>").join("") + "</div>"
           + '<div class="eco-h2"><i>' + (PAGES.findIndex(p => p[0] === S.page) + 1) + "</i>" + esc(PAGES.find(p => p[0] === S.page)[1].replace(/^\d · /, "")) + "</div>"
           + body + '<p class="eco-src">' + fmt(E.header.footer) + "<br>From Sophie's page \"" + esc(E.source.title) + '" (copied ' + esc(E.source.copied)
           + "). A snapshot: it changes when her page does, not by itself.</p></div>";
@@ -410,6 +412,8 @@
         host.querySelectorAll("[data-eco-seg]").forEach(b => { b.onclick = () => { S.seg = b.dataset.ecoSeg; paint(); }; });
         host.querySelectorAll("[data-eco-aud]").forEach(b => { b.onclick = () => { S.aud = b.dataset.ecoAud; paint(); }; });
         host.querySelectorAll(".eco-node").forEach(n => { n.style.cursor = "pointer"; n.onclick = () => { S.node = S.node === n.dataset.eco ? null : n.dataset.eco; paint(); }; });
+        const gh = gaps && host.querySelector("#ecoGaps");
+        if (gh) renderGaps(gh, paint);
       };
       paint();
     },

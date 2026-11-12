@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="9c331f0fcc488b83ddf7c54cb9062a7b38d9a3d1">
+<meta name="ztz-ref" content="66bbe1a55154b77ac375b35f14446bf83a67fd5c">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -2158,7 +2158,7 @@ const ACL_DEPTS = [
   // check_acl_mirror.py fails when a list differs from the group OR from DEPT_REPORTS.
   { id: "company",   label: "Company Overview", icon: "spark",     reports: ["monthly-report", "seasonal-report", "area-plan", "analysis-by-category"] },
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
-  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "partnership-strategy", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search", "competitor-map"] },
+  { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "partnership-strategy", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
   { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot", "email-automations", "surveys"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
@@ -2169,7 +2169,7 @@ const ACL_DEPTS = [
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Support Team", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis", "reviews-cases"] },
   { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "branch-owner", "cl-analysis", "postcard-purchases", "subscriptions"] },
-  { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations", "review-map", "competitor-map"] },
+  { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations", "review-map"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
@@ -2455,8 +2455,11 @@ registerPage({
 <script src="pages/ecosystem-data.js?v=1"></script>
 <script src="pages/ecosystem-segments.js?v=1"></script>
 <script src="pages/ecosystem-competitors.js?v=1"></script>
-<script src="pages/ecosystem.js?v=1"></script>
-<script src="pages/competitor-map.js?v=4"></script>
+<script src="pages/ecosystem.js?v=2"></script>
+<!-- 12 Nov 2026 (ZTZ-71, his word): the Competitor Map is OFF the portal until Tako has updated her map, then it
+     is rebuilt from her new version. The code (pages/competitor-map.js), its tables and the weekly jobs stay; it has
+     no department grant until it comes back. Its Content gaps tab moved to Partnership & Strategy as page 6.
+<script src="pages/competitor-map.js?v=4"></script> -->
 <script src="pages/photoshoot.js?v=2"></script>
 <script src="pages/foreman-late.js?v=16"></script>
 <script src="pages/referral-candidates.js?v=15"></script>

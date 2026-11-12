@@ -1,5 +1,10 @@
 /* COMPETITOR MAP — who we compete with in each state, where their offices are, and how they do on Google.
  *
+ * OFF THE PORTAL since 12 Nov 2026 19:40 (ZTZ-71, his word): index.html no longer loads this file and no
+ * department lists it, until Tako has updated her map; then the page is rebuilt from her new version. Its
+ * Content gaps tab (Sophie's competitor analysis) is page 6 of Partnership & Strategy now, so drop that tab
+ * here when this page comes back.
+ *
  * 10 Nov 2026, tracker ZTZ-57. Tako Berikashvili built a "Zip To Zip Competitor Map" as a claude.ai page
  * (the top 5 competitors in each of 8 states, profiles, a social media playbook, a monthly watchlist).
  * His picks the same day: its own Quality Team page; the list LIVES IN THE PORTAL (no sheets); her
