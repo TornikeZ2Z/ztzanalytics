@@ -1,11 +1,12 @@
 /* BUGS & REQUESTS (2026-11-13, ZTZ-49) — the board behind the "Submit a bug" button in the top bar
    (assets/bug-report.js). Every portal user files there and sees only their own; this page is the whole
-   board, for admins: the status tabs, every request with its picture, the drawer with the thread, and the
-   Claude Code tokens a chat reads the board with (scripts/zp_requests.py, .claude/commands/requests.md).
+   board, for admins: the status tabs, every request with its picture, and the drawer with the thread.
+   No Claude Code tokens card (13 Nov, his word: "we dont need that claude token for this - just bug reports").
 
    Tornike's picks (13 Nov): statuses New / In progress / Done / Declined (a decline needs a reason the
-   sender reads; Done takes an optional note for them); numbers ZP-12; the sender is emailed when a request
-   is started, done or declined, once per status; a reply is never emailed (the button's badge shows it).
+   sender reads; Done takes an optional note for them); numbers ZP-12. The sender is emailed "we received it,
+   we are working on it" when they file, and again when it is done (or declined, with the reason); he is
+   emailed (and pinged on Slack) for each new one. A reply is never emailed (the button's badge shows it).
    ADMIN-ONLY: the shell's ADMIN_ONLY set hides it and the bridge (bridge/zp_board.py) refuses the whole
    board to anyone else. Tech Team group. Data: /api/_zp. */
 
@@ -20,27 +21,20 @@ registerPage({
     var PILL = { new: "info", in_progress: "warn", done: "ok", declined: "mute" };
     var PRIO = ["urgent", "high", "medium", "low"];
     var PRIO_PILL = { urgent: "bad", high: "warn", medium: "mute", low: "mute" };
-    var S = { rows: null, tab: "open", kind: "all", q: "", open: null, tokens: null, err: null, replyPics: [] };
+    var S = { rows: null, tab: "open", kind: "all", q: "", open: null, err: null, replyPics: [] };
     try { S.tab = localStorage.getItem("zpb-tab") || "open"; } catch (e) { /* private mode */ }
 
     host.innerHTML = '<div class="zpb">'
       + '<div class="rs-page-head"><h1>Bugs &amp; Requests</h1>'
-      + "<p>What people sent with the <b>Submit a bug</b> button in the top bar. Each sender sees only their own and "
-      + "gets an email when you start one, finish it or decline it. Open a row for the picture, the thread and the "
-      + "controls.</p></div>"
+      + "<p>What people sent with the <b>Submit a bug</b> button in the top bar. Each sender sees only their own, "
+      + "gets an email that it arrived, and another when you mark it done (or decline it). Open a row for the "
+      + "picture, the thread and the controls.</p></div>"
       + '<div class="rs-bar zpb-bar"><div class="rs-seg" id="zpbTabs" role="tablist" aria-label="Status"></div>'
       + '<div class="rs-seg" id="zpbKind" role="tablist" aria-label="Kind">'
       + '<button type="button" data-k="all">All</button><button type="button" data-k="bug">Bugs</button>'
       + '<button type="button" data-k="request">Requests</button></div>'
       + '<input class="rs-inp zpb-q" id="zpbQ" type="search" placeholder="Search title, text, sender, ZP-12"></div>'
-      + '<div id="zpbList"><div class="zpb-empty">Loading…</div></div>'
-      + '<div class="panel zpb-tokens"><div class="panel-head"><div class="panel-title">Claude Code tokens</div>'
-      + '<button type="button" class="rs-btn" id="zpbMint">New token</button></div>'
-      + '<p class="rs-hint">A token lets a Claude Code chat read this board (<code>python scripts/zp_requests.py</code>, or '
-      + "<code>/requests</code>) and, when you name an item, start, reply to, finish or decline it. It is shown once: keep it "
-      + "in Secret Manager as <code>zp-requests-token</code> (project contracts-management-3). "
-      + "<b>Fixes ZP-12</b> in a deployed commit closes ZP-12 with it.</p>"
-      + '<div id="zpbTokens"></div></div></div>'
+      + '<div id="zpbList"><div class="zpb-empty">Loading…</div></div></div>'
       + '<div class="zpb-mask" id="zpbMask" hidden></div><aside class="zpb-drawer" id="zpbDrawer" hidden></aside>';
 
     function api(opts, qs) {
@@ -334,59 +328,6 @@ registerPage({
       }).catch(function (e) { toast(e.message); });
     }
 
-    /* ---------------------------------------------------------------- tokens */
-    function loadTokens() {
-      return api(null, "?tokens=1").then(function (j) { S.tokens = j.tokens || []; })
-        .catch(function (e) { S.tokens = { error: e.message }; });
-    }
-    function paintTokens() {
-      var box = host.querySelector("#zpbTokens"), t = S.tokens;
-      if (!t) { box.innerHTML = '<div class="zpb-small">Loading…</div>'; return; }
-      if (t.error) { box.innerHTML = '<div class="zpb-small">' + esc(t.error) + "</div>"; return; }
-      if (!t.length) { box.innerHTML = '<div class="zpb-small">No tokens yet.</div>'; return; }
-      box.innerHTML = '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Name</th><th>Starts with</th><th>Made</th>'
-        + "<th>Expires</th><th>Last used</th><th>State</th><th></th></tr></thead><tbody>" + t.map(function (k) {
-          return "<tr><td class=\"strong\">" + esc(k.name) + '</td><td class="nowrap dim"><code>' + esc(k.prefix) + "…</code></td>"
-            + '<td class="nowrap dim">' + esc(when(k.created_at)) + '</td><td class="nowrap dim">' + esc(when(k.expires_at)) + "</td>"
-            + '<td class="nowrap dim">' + (k.last_used_at ? esc(ago(k.last_used_at)) : "never") + "</td>"
-            + '<td><span class="rs-pill ' + ({ active: "ok", expired: "mute", revoked: "mute" }[k.state] || "mute") + '">' + esc(k.state) + "</span></td>"
-            + "<td>" + (k.state === "active" ? '<button type="button" class="rs-btn" data-rv="' + k.id + '">Revoke</button>' : "") + "</td></tr>";
-        }).join("") + "</tbody></table></div>";
-      box.querySelectorAll("[data-rv]").forEach(function (b) {
-        b.onclick = function () {
-          RSC.confirm({ title: "Revoke this token?", body: "Any chat using it stops reading the board at once.", yes: "Revoke", danger: true })
-            .then(function (ok) {
-              if (!ok) return;
-              return post({ action: "token_revoke", token_id: +b.getAttribute("data-rv") }).then(function () {
-                toast("Revoked."); return loadTokens().then(paintTokens);
-              });
-            }).catch(function (e) { toast(e.message); });
-        };
-      });
-    }
-    host.querySelector("#zpbMint").onclick = function () {
-      RSC.ask({ title: "New Claude Code token", body: "Name it after the chat or the machine it is for. It works for 90 days.",
-        placeholder: "e.g. ZtZ portal chats", yes: "Make the token" }).then(function (name) {
-        if (name == null || !name.trim()) return;
-        return post({ action: "token_mint", name: name.trim(), days: 90 }).then(function (j) {
-          var tok = (j.parts || []).join("");
-          showToken(tok);
-          return loadTokens().then(paintTokens);
-        });
-      }).catch(function (e) { toast(e.message); });
-    };
-    /* the kit's own dialog, with the token in its (selected) field: Copy puts it on the clipboard */
-    function showToken(tok) {
-      RSC.ask({ title: "Your new token", value: tok, yes: "Copy", no: "Close",
-        body: "Copy it now: it is not shown again. Store it as the secret zp-requests-token in project "
-          + "contracts-management-3, or give it to the chat as ZP_REQUESTS_TOKEN." }).then(function (v) {
-        if (v == null) return;
-        (navigator.clipboard ? navigator.clipboard.writeText(tok) : Promise.reject())
-          .then(function () { toast("Copied. It is not shown again."); })
-          .catch(function () { toast("Could not copy: make a new token and copy it by hand."); });
-      });
-    }
-
     /* ---------------------------------------------------------------- wiring */
     host.querySelectorAll("#zpbKind [data-k]").forEach(function (b) {
       b.onclick = function () { S.kind = b.getAttribute("data-k"); paintTabs(); paintList(); };
@@ -395,8 +336,8 @@ registerPage({
     qEl.oninput = function () { S.q = qEl.value; paintList(); };
 
     window.ZPBoard = { open: function (k) { if (k) openDrawer(k); } };
-    await Promise.all([load(), loadTokens()]);
-    paintTabs(); paintList(); paintTokens();
+    await load();
+    paintTabs(); paintList();
     var deep = window.ZPB && ZPB.takeDeep && ZPB.takeDeep();
     if (deep) openDrawer(deep);
   },
@@ -419,9 +360,6 @@ function injectStyle() {
     ".zpb-dot{display:inline-block;width:7px;height:7px;border-radius:4px;background:var(--neg);margin-left:7px;vertical-align:middle}",
     ".zpb-rc{font-weight:500;font-size:11.5px;color:var(--muted);margin-left:8px}",
     "tr.zpb-on td{background:var(--panel-2)}",
-    ".zpb-tokens{margin-top:22px}",
-    ".zpb-tokens .panel-head{display:flex;align-items:center;justify-content:space-between}",
-    ".zpb-tokens code,.zpb-db code{font-size:12px}",
     ".zpb-mask{position:fixed;inset:0;background:rgba(15,23,42,.16);z-index:300}",
     ".zpb-drawer{position:fixed;top:0;right:0;bottom:0;width:min(620px,100vw);z-index:301;background:var(--panel);",
     "border-left:1px solid var(--line);box-shadow:-18px 0 50px rgba(15,23,42,.16);display:flex;flex-direction:column}",

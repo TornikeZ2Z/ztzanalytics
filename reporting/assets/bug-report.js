@@ -1,7 +1,8 @@
 /* SUBMIT A BUG (2026-11-13, ZTZ-49) -- the portal's button for bugs and requests, on every page.
 
    Tornike's picks: everyone signed in files; each person sees only their OWN requests and the replies on
-   them (the "My requests" tab here); admins work the whole board on the page Bugs & Requests
+   them (the "My requests" tab here), with an email that it arrived and another when it is done; admins work
+   the whole board on the page Bugs & Requests
    (pages/bugs-requests.js). The button sits in the top bar; pressing it takes a picture of the screen
    FIRST (so the panel is not in it), then opens a side panel that already knows the page. More pictures
    come by Ctrl+V, drag and drop or a file, up to 5. English only. Numbers are ZP-12.
@@ -449,7 +450,7 @@
       var body = panel && panel.querySelector("#zpBody"), foot = panel && panel.querySelector("#zpFoot");
       if (!body) return;
       body.innerHTML = '<div class="zp-done"><div class="zp-tick">✓</div><h3>Sent as ' + esc(j.key) + "</h3>"
-        + "<p>Thank you. You will get an email when it is picked up, when it is done, or if it will not be done.<br>"
+        + "<p>Thank you. We emailed you that it arrived, and we will email you again when it is done.<br>"
         + "Replies show under <b>My requests</b>.</p></div>";
       foot.innerHTML = '<span class="zp-sp"></span><button type="button" class="rs-btn" data-a="mine">My requests</button>'
         + '<button type="button" class="rs-btn pri" data-a="close">Close</button>';
