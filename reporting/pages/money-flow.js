@@ -2776,7 +2776,9 @@ registerPage({
       pane.innerHTML = monthHtml(mcData(S.mcMonth));
       if (sc) sc.scrollTop = top;
       var sel = $("mfMcMonth");
-      if (sel) sel.onchange = function () { S.mcMonth = sel.value; paintMonth(true); };
+      if (sel) RSC.localSelect(sel, { label: "Month", required: true, value: S.mcMonth,
+        values: mcMonths().map(function (m) { return { v: m, l: mcName(m) }; }),
+        onChange: function (v) { if (v === S.mcMonth) return; S.mcMonth = v; paintMonth(true); } });
       pane.onclick = function (e) {
         var a = e.target.closest("[data-mfm]"); if (!a) return;
         var k = a.getAttribute("data-mfm");
@@ -2792,10 +2794,9 @@ registerPage({
     function monthHtml(D) {
       var c = D.cash, o = D.open, ft = D.ftot;
       var repaidAll = r2(ft.repaid + ft.repaidJobs);
-      var opts = mcMonths().map(function (m) { return '<option value="' + m + '"' + (m === D.m ? " selected" : "") + ">" + esc(mcName(m)) + "</option>"; }).join("");
       var head = '<div class="mf-mchead"><div class="mf-qtitle"><h2>Month close · ' + esc(mcName(D.m)) + "</h2>"
         + "<p>What moved in the month, what the foremen repaid, the jobs’ extra expenses and net cash corrections, and what is still open. All companies.</p></div>"
-        + '<div class="mf-topbtns"><label class="mf-mcsel"><span class="mf-mut">Month</span><select id="mfMcMonth" class="mf-in">' + opts + "</select></label>"
+        + '<div class="mf-topbtns"><div class="mf-mcsel" id="mfMcMonth"></div>'
         + '<button type="button" class="mf-btn" data-mfm="refresh">Refresh</button>'
         + '<button type="button" class="mf-btn" data-mfm="csv">' + ICON.dl + "Download CSV</button></div></div>";
       var kp = '<div class="mf-kpis">'
@@ -3556,7 +3557,7 @@ function mfCss() {
     .mf-grow.mf-open{background:var(--mf-tint)}
     .mf-av{width:34px;height:34px;margin-left:5px;border-radius:50%;background:var(--mf-in-bg);color:var(--mf-in-ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex:none}
     .mf-grow.mf-open .mf-av,.mf-av.mf-av-deep{background:var(--mf-deep);color:var(--mf-av-ink)}
-    .mf-av.mf-av-sm{width:30px;height:30px;margin:0;font-size:11px}
+    .mf-av.mf-av-sm{width:30px;height:30px;margin:0;font-size:12px}
     .mf-av.mf-av-lg{width:40px;height:40px;margin:0;font-size:14px}
     .mf-nm{display:flex;flex-direction:column;min-width:0}
     .mf-b{font-weight:600} .mf-b5{font-weight:500}
@@ -3584,7 +3585,7 @@ function mfCss() {
       .mf-jhd,.mf-jrow{grid-template-columns:44px 64px 100px minmax(130px,1fr) 92px 90px 136px 64px 92px 104px}
       .mf-jlinks{grid-template-columns:1fr;gap:3px}
       .mf-jlinks>span:empty{display:none}
-      .mf-jlink{height:23px;font-size:11.5px;padding:0 6px}
+      .mf-jlink{height:23px;font-size:12px;padding:0 6px}
     }
     .mf-jhd{color:var(--mf-muted);font-size:12px;font-weight:500;border-top-color:var(--mf-line)}
     .mf-jrow{padding:0 20px 0 12px;min-height:54px}
@@ -3718,7 +3719,6 @@ function mfCss() {
     .mf-mchead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 16px}
     .mf-mchead h2{margin:0;font-size:20px;font-weight:600;color:var(--mf-head)}
     .mf-mcsel{display:flex;align-items:center;gap:8px}
-    .mf-mcsel select{height:40px;width:auto;min-width:170px}
     .mf-mcn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-right:10px;border-radius:50%;background:var(--mf-deep);color:var(--mf-deep-ink);font-size:13px;font-weight:600;vertical-align:1px}
     .mf-mcbody{display:flex;flex-direction:column;gap:10px;padding-bottom:4px}
     .mf-mcsub{padding:10px 20px 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
@@ -3881,7 +3881,6 @@ function mfCss() {
       .mf-df{padding:12px 16px 14px}
       .mf-st3,.mf-fk{grid-template-columns:1fr}
       .mf-exprow{grid-template-columns:1fr}
-      .mf-mcsel select{min-width:0}
       .mf-parts{grid-template-columns:repeat(2,minmax(0,1fr))}
       .mf-frow{grid-template-columns:1fr}
       .mf-lhd,.mf-lrow{grid-template-columns:62px minmax(0,1fr) 86px;}

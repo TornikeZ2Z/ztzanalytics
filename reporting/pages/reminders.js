@@ -1513,7 +1513,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           var f = document.createElement("span"); f.className = "rrp-exform";
           f.innerHTML = '<span class="rrp-exr"></span><input class="rrp-exn" placeholder="note (optional)"><button class="rs-btn pri rrp-exgo">Save</button><button class="rs-btn rrp-exno">✕</button>';
           b.replaceWith(f);
-          // kit localSelect in place of the old native <select>: same options (the reason list,
+          // kit localSelect in place of the old native select: same options (the reason list,
           // verbatim), same default (the first reason) — read back via exReason.get() below.
           var exReason = RSC.localSelect(f.querySelector(".rrp-exr"), {
             label: "Reason", values: rm.reasons.slice(), value: rm.reasons[0] || "",
@@ -1970,7 +1970,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
     }
     function mountPvSelect() {
       // the state pick is a kit localSelect mounted into the [data-pvstate] span; values/order/
-      // labels match the old <select> exactly — states in first-seen d.google order.
+      // labels match the old native select exactly — states in first-seen d.google order.
       var pvHost = root.querySelector("[data-pvstate]"); if (!pvHost) return;
       var states = draftStates();
       if (RRP.pvState && states.indexOf(RRP.pvState) < 0) RRP.pvState = states[0] || null;

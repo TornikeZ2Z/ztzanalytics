@@ -24,17 +24,17 @@ registerPage({
       .lvm-ctl option{color:#fff;background:#1b2a3f}
       input.lvm-ctl::placeholder{color:#8fa0b5}
       .lvm-grp{display:flex;align-items:center;gap:5px;background:#eef1f6;border:1px solid #e4e9f0;border-radius:9px;padding:4px 8px}
-      .lvm-lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#5a6775;white-space:nowrap}
+      .lvm-lbl{font-size:12px;font-weight:600;color:#5a6775;white-space:nowrap}
       .lvm-ms{position:relative;display:inline-block}
       .lvm-msb{cursor:pointer}
-      .lvm-msb .n{background:#b7e23b;color:#0e1621;border-radius:999px;padding:0 7px;margin-left:6px;font-size:10.5px;font-weight:800}
+      .lvm-msb .n{background:#b7e23b;color:#0e1621;border-radius:999px;padding:0 7px;margin-left:6px;font-size:12px;font-weight:600}
       .lvm-msp{position:absolute;top:calc(100% + 5px);left:0;z-index:80;background:#1b2a3f;border:1px solid #2c3e57;border-radius:10px;padding:8px;min-width:230px;max-width:320px;max-height:320px;overflow:auto;box-shadow:0 14px 34px rgba(14,22,33,.38)}
       .lvm-msp.hidden{display:none}
       .lvm-msrow{display:flex;align-items:center;gap:8px;color:#fff;font-size:12px;font-weight:600;padding:5px 7px;border-radius:6px;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .lvm-msrow:hover{background:#243550}
       .lvm-msrow input{accent-color:#b7e23b;flex:0 0 auto}
       .lvm-msops{display:flex;gap:12px;margin:0 2px 7px}
-      .lvm-msops .op{font-size:10.5px;font-weight:800;color:#b7e23b;cursor:pointer;text-transform:uppercase;letter-spacing:.07em}
+      .lvm-msops .op{font-size:12px;font-weight:600;color:#b7e23b;cursor:pointer}
       .lvm-msops .op:hover{text-decoration:underline}
       .lvm-mss{width:100%;margin-bottom:7px;background:#0e1621;border:1px solid #2c3e57;color:#fff;border-radius:7px;padding:5px 9px;font-size:12px}
       /* DESIGN V2: the dark-pill controls become the v2 filter pills -- white, hairline,
@@ -173,7 +173,7 @@ registerPage({
     const CHIP_V2 = { "Arrived same day": ["#DCFCE7", "#166534"], "Arrived 1–3 days off": ["#F4FAE6", "#2F6316"], "Never arrived — customer exists from another lead": ["#FEF3C7", "#92400E"], "Matched (Angi file has no date)": ["#F1F5F9", "#475569"], "Never arrived — customer unknown": ["#FEE2E2", "#991B1B"] };
     const chip = s => {
       if (RS.isV2()) { const c = CHIP_V2[s] || CHIP_V2["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap">${esc(s)}</span>`; }
-      const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap">${esc(s)}</span>`; };
+      const c = CHIP[s] || CHIP["Never arrived — customer unknown"]; return `<span style="background:${c[0]};color:${c[1]};padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap">${esc(s)}</span>`; };
 
     /* ---------- page skeleton ---------- */
     const sameDay = rows.filter(r => r.status === "Arrived same day");

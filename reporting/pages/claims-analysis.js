@@ -127,8 +127,8 @@ registerPage({
         ".cln-svg .dot{fill:var(--panel);stroke:var(--warn);stroke-width:2}",
         ".cln-svg .ln.part{stroke-dasharray:4 3;opacity:.6}",
         ".cln-svg .dot.part{stroke-dasharray:2 2;opacity:.7}",
-        ".cln-svg .tk{font-size:9.5px;fill:var(--faint);font-weight:600}",
-        ".cln-svg .vl{font-size:10px;fill:var(--muted);font-weight:700}",
+        ".cln-svg .tk{font-size:9.5px;fill:var(--faint);font-weight:600}",   // std-ok: svg text
+        ".cln-svg .vl{font-size:10px;fill:var(--muted);font-weight:700}",   // std-ok: svg text
         // one pivot table instead of three share cards
         ".cln-dim-seg{display:flex;gap:0;flex-wrap:wrap;border:1px solid var(--line);border-radius:9px;overflow:hidden}",
         ".cln-dim-seg button{font-family:inherit;font-size:12px;font-weight:600;padding:7px 12px;border:0;"
@@ -1331,9 +1331,9 @@ registerPage({
                 <div class="txt" style="margin-top:6px"><b>Words that fired.</b> ${esc(k["Matched Keywords"] || "—")}</div></div>` : ""}
               <details style="margin-top:10px"><summary class="rs-hint" style="cursor:pointer">Correct this claim — family, severity, whose fault</summary>
                 <div class="cln-cells" style="margin-top:8px">
-                  <div class="cln-cell"><div class="l">Family</div><select class="cln-in" id="ovFam"><option value="">— keep —</option>${FAM_LIST.map(f => `<option>${f}</option>`).join("")}</select></div>
-                  <div class="cln-cell"><div class="l">Severity</div><select class="cln-in" id="ovSev"><option value="">— keep —</option>${["Low", "Medium", "High", "Critical"].map(f => `<option>${f}</option>`).join("")}</select></div>
-                  <div class="cln-cell"><div class="l">Whose fault</div><select class="cln-in" id="ovResp"><option value="">— keep —</option><option value="__board__">Use the Monday board's label</option>${RESP_LIST.map(f => `<option>${f}</option>`).join("")}</select></div>
+                  <div class="cln-cell"><div class="l">Family</div><div id="ovFam"></div></div>
+                  <div class="cln-cell"><div class="l">Severity</div><div id="ovSev"></div></div>
+                  <div class="cln-cell"><div class="l">Whose fault</div><div id="ovResp"></div></div>
                 </div>
                 <input class="cln-in" id="ovNote" placeholder="why (optional)" style="width:100%;margin-top:6px">
                 <div style="margin-top:8px"><button class="rs-btn pri" id="ovSave">Save correction</button> <span class="cln-small" id="ovMsg"></span></div>
@@ -1341,9 +1341,19 @@ registerPage({
           <div class="cln-eyebrow">Thread · ${fmtN((j.thread || []).length)} updates</div>
           ${(j.thread || []).map(m => msg(m, false)).join("") || '<div class="rs-hint">no updates on this claim</div>'}
           ${(!url && it.Url) ? `<div class="rs-hint" style="margin-top:14px"><a href="${esc(it.Url)}" target="_blank" rel="noopener">Open in Monday &#8599;</a></div>` : ""}`;
+        // THE PAGE STANDARD (ZTZ-80): the three corrections are the kit's own select (RSC.localSelect), each
+        // with the same "— keep —" empty choice and the same values; Save reads them through get()
+        const ovSel = {};
+        [["ovFam", "Family", FAM_LIST.map(f => ({ v: f, l: f }))],
+         ["ovSev", "Severity", ["Low", "Medium", "High", "Critical"].map(f => ({ v: f, l: f }))],
+         ["ovResp", "Whose fault", [{ v: "__board__", l: "Use the Monday board's label" }].concat(RESP_LIST.map(f => ({ v: f, l: f })))]]
+          .forEach(([id, label, values]) => {
+            const h = body.querySelector("#" + id);
+            if (h) ovSel[id] = RSC.localSelect(h, { label, values, value: "", allLabel: "— keep —", form: true });
+          });
         const save = body.querySelector("#ovSave");
         if (save) save.onclick = async () => {
-          const g = id => (body.querySelector("#" + id) || {}).value || "";
+          const g = id => (ovSel[id] ? ovSel[id].get() : (body.querySelector("#" + id) || {}).value) || "";
           const payload = { item: itemId, family: g("ovFam"), severity: g("ovSev"), responsibility: g("ovResp"), comment: g("ovNote") };
           const msg = body.querySelector("#ovMsg"); msg.textContent = "saving…";
           try {

@@ -1884,7 +1884,7 @@
       value: state.issue,
       onChange: v => { state.issue = v; state.page = 0; paint(); },
     });
-    // the KIT dropdowns, not naked <select>s — same value strings, state stays page-local
+    // the KIT dropdowns, not naked native selects — same value strings, state stays page-local
     RSC.localSelect(host.querySelector("#stCalled"), {
       label: "Calls", allLabel: "Any",
       values: [{ v: "called", l: "Called" }, { v: "incoming", l: "Call received & answered" },

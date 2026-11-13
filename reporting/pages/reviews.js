@@ -306,7 +306,7 @@ registerPage({
         if (!months.length) return emptyTable("No factual reviews or goals for the current filters.");
         const flowFmt = v => v == null ? "—" :
           `<span class="${v >= 0 ? "up" : "down"}">${(v >= 0 ? "+" : "") + RS.fmtN(v)}</span>` +
-          (v < 0 ? ` <span style="color:var(--muted);font-size:11px">platform removed reviews</span>` : "");
+          (v < 0 ? ` <span style="color:var(--muted);font-size:12px">platform removed reviews</span>` : "");
         const data = months.map(k => ({
           m: mLabel(k),
           nw: newByM[k] == null ? null : newByM[k],

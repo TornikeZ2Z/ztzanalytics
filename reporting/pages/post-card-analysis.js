@@ -298,7 +298,7 @@ registerPage({
       `<div class="panel-head"><span class="panel-title">Profit &amp; Loss by Campaign` +
       `<span class="cnt">revenue and costs by Source</span></span></div>` +
       `<div class="pca-scroll">${finTbl}</div>` +
-      `<div style="color:var(--muted);font-size:11px;padding:6px 2px">` +
+      `<div style="color:var(--muted);font-size:12px;padding:6px 2px">` +
       `How it's counted · Profit here excludes two small cost items not yet in the data ` +
       `(trip-linked expenses and salesperson deductions), so per-source profit is slightly overstated.</div>`;
   },

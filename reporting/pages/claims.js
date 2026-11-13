@@ -380,7 +380,7 @@ registerPage({
          Refund shown is for the whole request — it repeats if a request has several claims.
          "—" = no support record; $0 = recorded, nothing refunded.</div>`;
     };
-    /* Kit slicer instead of the native <select>; required (no empty row) because "all" is a
+    /* Kit slicer instead of the native select; required (no empty row) because "all" is a
        real value here, not an empty placeholder. The button carries its own "Show" chip. */
     RSC.localSelect(recent.querySelector("#clmRespF"), {
       label: "Show",

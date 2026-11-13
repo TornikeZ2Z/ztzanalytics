@@ -123,7 +123,7 @@
           ".hd-ovl{position:fixed;inset:0;background:rgba(10,14,20,.55);z-index:130;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow:auto}",
           // overflow:VISIBLE, not hidden — the reports-to pickers are kit localSelects now,
           // and their popover is a DOM child of the pane: hidden would clip it to the strip
-          // above the foot (the native <select> this replaced popped at the OS layer and
+          // above the foot (the native select this replaced popped at the OS layer and
           // never cared). The foot rounds its own bottom corners instead.
           ".hd-pane{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;box-shadow:0 18px 60px rgba(0,0,0,.35);overflow:visible}",
           ".hd-pane .head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}",
@@ -347,7 +347,7 @@
           .filter(function (x) { return x.status === "active" && x.name && x.id !== p.id; })
           .map(function (x) { return x.name; })
           .sort(function (a, b) { return a.localeCompare(b); });
-        // kit form select (no native <select> on the portal): the .rs-fld field keeps its
+        // kit form select (no native select on the portal): the .rs-fld field keeps its
         // label span, the inner div is the localSelect mount, and the handle — not the
         // DOM — carries the value at save time. A DIV wrapper, not a <label>: a label
         // click-forwards to the first labelable descendant, so picking a popover option

@@ -18,24 +18,20 @@ registerPage({
       var st = document.createElement("style"); st.id = "fncCss";
       // values copied verbatim from the Money Flow page so the two look identical
       st.textContent = `
-        .fnc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-        .fnc-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
-        .fnc-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:760px}
-        .fnc-refwrap{display:flex;align-items:center;gap:10px}
-        .fnc-last{font-size:11.5px;color:var(--faint);white-space:nowrap}
+        .fnc-last{font-size:12px;color:var(--faint);white-space:nowrap}
         .fnc-refresh{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:9px 15px;cursor:pointer}
         .fnc-refresh:hover{background:var(--panel)} .fnc-refresh:disabled{opacity:.6;cursor:default}
         .fnc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
         .fnc-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
         .fnc-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-        .fnc-kpi span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
-        .fnc-kpi small{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
+        .fnc-kpi span{display:block;font-size:12px;font-weight:800;color:var(--faint);margin-top:2px}
+        .fnc-kpi small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
         .fnc-kpi.pos b{color:${POS}}
         .fnc-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
         .fnc-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}
         .fnc-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13.5px;font-weight:800;padding:8px 18px;border-radius:8px}
         .fnc-seg button.on{background:var(--brand);color:var(--brand-ink)}
-        .fnc-seg button i{font-style:normal;font-weight:800;font-size:11px;opacity:.75;margin-left:6px}
+        .fnc-seg button i{font-style:normal;font-weight:800;font-size:12px;opacity:.75;margin-left:6px}
         .fnc-dseg button{padding:8px 13px;font-size:12px}
         .fnc-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:260px;flex:1;max-width:480px}
         .fnc-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative}
@@ -43,7 +39,7 @@ registerPage({
            chrome, so collapsing the bar above leaves no dead gap */
         .fnc-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - var(--pg-chrome, 320px))}
         .fnc-tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
-        .fnc-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
+        .fnc-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:12px;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
         .fnc-tbl th.r,.fnc-tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
         .fnc-tbl td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .fnc-tbl tbody tr.fnc-row{cursor:pointer}
@@ -54,22 +50,22 @@ registerPage({
         .fnc-fmrow{cursor:pointer}
         .fnc-fmrow:hover{background:var(--panel-2)}
         .fnc-tbl .fnc-fmrow td{background:var(--panel-2);font-weight:800;font-size:14.5px}
-        .fnc-caret{color:var(--faint);font-size:11px;display:inline-block;width:14px}
+        .fnc-caret{color:var(--faint);font-size:12px;display:inline-block;width:14px}
         .fnc-meta{font-size:12px;font-weight:600;color:var(--faint);margin-left:10px}
         .fnc-neg{color:${NEG};font-weight:700} .fnc-pos{color:${POS};font-weight:700}
         .fnc-doc{font-size:12.5px;font-weight:800;color:${BLUE};text-decoration:none;white-space:nowrap}
         .fnc-doc:hover{text-decoration:underline}
-        .fnc-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--panel-2);color:var(--faint)}
+        .fnc-pill{display:inline-block;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--panel-2);color:var(--faint)}
         .fnc-pill.auto{background:rgba(28,122,74,.12);color:${POS}} .fnc-pill.imp{background:rgba(47,111,208,.12);color:${BLUE}}
         .fnc-pill.conf{background:rgba(28,122,74,.12);color:${POS}}
         .fnc-pill.queued{background:rgba(176,42,55,.10);color:${NEG}}
-        .fnc-note{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
+        .fnc-note{padding:10px 14px;font-size:12px;color:var(--faint);border-top:1px solid var(--line)}
         .fnc-load{padding:40px;text-align:center;color:var(--faint)}
         .fnc-run{font:inherit;font-size:13px;font-weight:800;background:${POS};color:#fff;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;white-space:nowrap}
         .fnc-run:hover{filter:brightness(1.08)} .fnc-run:disabled{opacity:.6;cursor:default}
         .fnc-auto{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;margin-left:auto}
         .fnc-auto b{color:var(--ink);font-variant-numeric:tabular-nums}
-        .fnc-mini{font:inherit;font-size:11.5px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap;margin-left:6px}
+        .fnc-mini{font:inherit;font-size:12px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap;margin-left:6px}
         .fnc-mini:hover{background:var(--panel-2)} .fnc-mini.go{border-color:${POS};color:${POS}} .fnc-mini:disabled{opacity:.5;cursor:default}
         .fnc-act{display:flex;gap:6px;align-items:center} .fnc-act .fnc-mini{margin-left:0}
         .fnc-back{position:fixed;inset:0;z-index:90;background:rgba(14,22,33,.5);display:flex;align-items:center;justify-content:center;padding:20px}
@@ -80,9 +76,9 @@ registerPage({
         .fnc-dh{display:flex;gap:40px;flex-wrap:wrap;margin-bottom:14px}
         .fnc-dh table{border-collapse:collapse;font-size:13px}
         .fnc-dh td{padding:4px 0}.fnc-dh td.l{color:#6e747c;padding-right:22px}.fnc-dh td.v{font-weight:700}.fnc-dh td.v.neg{color:#b02a37}
-        .fnc-dbanner{background:#f4f6f8;color:#6e747c;font-size:11px;font-weight:800;letter-spacing:.05em;padding:6px 10px;margin:6px 0 8px}
+        .fnc-dbanner{background:#f4f6f8;color:#6e747c;font-size:12px;font-weight:800;letter-spacing:.05em;padding:6px 10px;margin:6px 0 8px}
         .fnc-dt{width:100%;border-collapse:collapse;font-size:12.5px}
-        .fnc-dt th{text-align:left;color:#6e747c;font-size:11px;font-weight:800;border-bottom:1px solid #dde2e6;padding:6px 8px;white-space:nowrap}
+        .fnc-dt th{text-align:left;color:#6e747c;font-size:12px;font-weight:800;border-bottom:1px solid #dde2e6;padding:6px 8px;white-space:nowrap}
         .fnc-dt th.r,.fnc-dt td.r{text-align:right;font-variant-numeric:tabular-nums}
         .fnc-dt td{border-bottom:1px solid #eef1f3;padding:6px 8px;white-space:nowrap}
         .fnc-dt td.neg{color:#b02a37}
@@ -90,8 +86,6 @@ registerPage({
            the two tables still read as one system. Light theme only; dark keeps every rule
            above. The Preview modal is left alone on purpose -- it is a replica of the archived
            PDF statement, and the PDF did not change. ---- */
-        body.rs-app.light.v2 .fnc-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
-        body.rs-app.light.v2 .fnc-head p{font-size:14.5px;line-height:1.55;color:#475569;margin-top:6px}
         body.rs-app.light.v2 .fnc-last{font-size:12.5px;color:#64748B}
         body.rs-app.light.v2 .fnc-refresh{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-size:13px;font-weight:600;padding:8px 14px}
         body.rs-app.light.v2 .fnc-refresh:hover{background:#F8FAFC}
@@ -136,12 +130,18 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `
-      <div class="fnc-head"><div>
-        <h1>Foreman Net Cash Closings</h1>
-        <p><b>Replaced by Day Closing on 27 Sep 2026.</b> Closing and emailing statements stopped that day: every day now closes by itself at 8 PM in <a href="#page=money-flow&amp;tab=day-closing">Money Flow &rsaquo; Day Closing</a>, with a PDF per foreman, and where each foreman stands is his balance in Money Flow. This page keeps the statements made before then (16 Apr &ndash; 24 Sep).</p>
-      </div><div class="fnc-refwrap"><span class="fnc-last" id="fncLast"></span><button class="fnc-refresh" id="fncRefresh">↻ Refresh</button></div></div>
-      <div id="fncBody"><div class="fnc-load">Loading closings…</div></div>`;
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head. The one line keeps the replacement
+       date and the way to Day Closing; the rest of the paragraph that sat under the title moved
+       into How, word for word. "Updated …" (#fncLast) and Refresh (#fncRefresh) keep their ids. */
+    host.innerHTML = RSC.pageHeadHtml({ title: "Foreman Net Cash Closings", key: "foreman-closings",
+        subHtml: '<b>Replaced by Day Closing on 27 Sep 2026.</b> This page keeps the statements made before then (16 Apr &ndash; 24 Sep); '
+          + 'every day since closes in <a href="#page=money-flow&amp;tab=day-closing">Money Flow &rsaquo; Day Closing</a>.',
+        actions: [{ html: '<span class="fnc-last" id="fncLast"></span>' }, { html: '<button class="fnc-refresh" id="fncRefresh">↻ Refresh</button>' }],
+        how: "<p><b>Replaced by Day Closing on 27 Sep 2026.</b> Closing and emailing statements stopped that day: every day now closes by itself at 8 PM in "
+          + "<b>Money Flow &rsaquo; Day Closing</b>, with a PDF per foreman, and where each foreman stands is his balance in Money Flow. "
+          + "This page keeps the statements made before then (16 Apr &ndash; 24 Sep).</p>"
+          + "<h3>Reading the list</h3><p>Every closing, grouped by foreman. Click a foreman to see his closings; click a closing to see its jobs, or open its PDF statement.</p>" })
+      + '<div id="fncBody"><div class="fnc-load">Loading closings…</div></div>';
 
     var S = window.__FNC || (window.__FNC = { view: "pending", dense: "details", q: "", open: {}, hopen: {}, copen: {}, _jobs: {} });
     if (!S.dense) S.dense = "details";
@@ -495,7 +495,7 @@ registerPage({
                     + '</td><td class="r neg">' + money2(f.amount) + "</td></tr>";
                 }).join("") + "</tbody></table>"
             : "")
-        + '<div style="margin-top:12px;font-size:11px;color:#9aa0a6">Preview — this is how the archived PDF statement will look. Amounts in USD.</div>'
+        + '<div style="margin-top:12px;font-size:12px;color:#9aa0a6">Preview — this is how the archived PDF statement will look. Amounts in USD.</div>'
         + "</div></div>";
       document.body.appendChild(m);
       m.onclick = function (e) { if (e.target === m) m.remove(); };

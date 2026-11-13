@@ -132,44 +132,46 @@ registerPage({
         } },
     ];
 
-    /* THE PRINTED SHEET'S CSS, ONCE. The overlay writes it into this page's stylesheet and
+    /* THE PRINTED SHEET'S CSS, ONCE. It is the A4 sheet, so its type is at print sizes: the lines
+     * under 12px carry std-ok: print sheet (ZTZ-80 named exception).
+     * The overlay writes it into this page's stylesheet and
      * the print document writes the same string into its own <head>, so what is on screen
      * and what comes out of the printer are the same rules, not two drifting copies. It uses
      * literal ink colours rather than the app's tokens on purpose: a standalone print
      * document defines none of them. */
     const SHEET_CSS =
       ".sm-sheet{width:210mm;min-height:297mm;background:#fff;color:#16181D;padding:14mm;"
-      + "box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;"
+      + "box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;"   // std-ok: print sheet
       + "font-variant-numeric:tabular-nums}"
       + ".sm-sheet h1{font-size:20px;margin:0;letter-spacing:-.4px}"
       + ".sm-sheet .rhd{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #16181D;"
       + "padding-bottom:9px;margin-bottom:13px}"
-      + ".sm-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}"
+      + ".sm-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}"   // std-ok: print sheet
       + ".sm-sheet .rhd .big{margin-left:auto;text-align:right;line-height:1}"
       + ".sm-sheet .rhd .big b{font-size:36px;font-weight:800;letter-spacing:-1.1px}"
-      + ".sm-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;"
+      + ".sm-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;"   // std-ok: print sheet
       + "letter-spacing:.08em;text-transform:uppercase;color:#7A7E88;margin-top:3px}"
       + ".sm-sheet .rstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:13px}"
       + ".sm-sheet .rstrip>div{border:1px solid #DCDEE3;border-radius:5px;padding:8px 9px;"
       + "display:flex;flex-direction:column}"
-      + ".sm-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;"
+      + ".sm-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;"   // std-ok: print sheet
       + "color:#7A7E88;line-height:1.25;flex:1}"
       + ".sm-sheet .rstrip .v{font-size:16px;font-weight:750;margin-top:2px}"
-      + ".sm-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}"
-      + ".sm-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;"
+      + ".sm-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}"   // std-ok: print sheet
+      + ".sm-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;"   // std-ok: print sheet
       + "margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #DCDEE3}"
       + ".sm-sheet table{width:100%;border-collapse:collapse;margin-bottom:13px}"
-      + ".sm-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;"
+      + ".sm-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;"   // std-ok: print sheet
       + "color:#7A7E88;padding:4px 6px;border-bottom:1px solid #DCDEE3;font-weight:700}"
       + ".sm-sheet td{padding:5px 6px;border-bottom:1px solid #EFF0F3;vertical-align:top}"
       + ".sm-sheet td.n{text-align:right;white-space:nowrap}"
-      + ".sm-sheet td.q{color:#7A7E88;font-size:9.5px}"
+      + ".sm-sheet td.q{color:#7A7E88;font-size:9.5px}"   // std-ok: print sheet
       + ".sm-sheet .bar{height:6px;border-radius:3px;background:#EFF0F3;overflow:hidden;margin-top:4px}"
       + ".sm-sheet .bar>i{display:block;height:100%;background:#5F7C20}"
       + ".sm-sheet .up{color:#5F7C20;font-style:normal;font-weight:750}"
       + ".sm-sheet .dn{color:#C0392B;font-style:normal;font-weight:750}"
       + ".sm-sheet .fl{color:#7A7E88;font-style:normal;font-weight:700}"
-      + ".sm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"
+      + ".sm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"   // std-ok: print sheet
       + "padding-top:8px;margin-top:4px}"
       /* design v2: the sheet opens inside the v2 app, so its olive bar and "up" green become
          navy and the v2 good-green -- chosen at render time, the dark look keeps the old ink */
@@ -295,10 +297,8 @@ registerPage({
       /* the monthly summary viewer (Ruso 2026-10-06): the exact email each rep gets on the 1st */
       + ".sm-ms{width:680px;max-width:100%}"
       + ".sm-msbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;color:#fff}"
-      + ".sm-msbar .lbl{font-size:15px;font-weight:800;min-width:150px;text-align:center}"
-      + ".sm-msbar select{font:inherit;font-size:13px;border-radius:9px;padding:7px 10px;border:1px solid rgba(255,255,255,.34);"
-      + "background:rgba(255,255,255,.1);color:#fff}"
-      + ".sm-msbar select option{color:#16181D}"
+      // the month label is the bar's own child: the kit dropdown's caption is a .lbl too
+      + ".sm-msbar>.lbl{font-size:15px;font-weight:800;min-width:150px;text-align:center}"
       + ".sm-mstat{font-size:12px;color:#d8dde3;margin:-4px 0 10px}"
       + ".sm-msf{width:100%;height:calc(100vh - 160px);border:0;border-radius:14px;background:#f4f5f2}"
       + "@media(max-width:1180px){.sm-head{grid-template-columns:44px minmax(0,1fr) auto}"
@@ -345,8 +345,7 @@ registerPage({
       + "body.rs-app.light.v2 .sm-note{font-size:12.5px;color:var(--faint)}"
       + "body.rs-app.light.v2 .sm-rdim{background:var(--scrim)}"
       + "body.rs-app.light.v2 .sm-rbtn{border-radius:8px;font-weight:600}"
-      + "body.rs-app.light.v2 .sm-msbar .lbl{font-weight:600}"
-      + "body.rs-app.light.v2 .sm-msbar select{border-radius:8px}"
+      + "body.rs-app.light.v2 .sm-msbar>.lbl{font-weight:600}"
       + SHEET_CSS
       + "</style><div id='smHead'></div>"
       + "<div class='sm-wrap' id='smWrap'><div class='sm-empty'>Reading the record…</div></div>";
@@ -803,16 +802,20 @@ registerPage({
         bar.innerHTML = "<button class='sm-rbtn' id='smMsPrev'" + (i < months.length - 1 ? "" : " disabled") + ">&larr;</button>"
           + "<span class='lbl'>" + esc(monLab(st.m)) + "</span>"
           + "<button class='sm-rbtn' id='smMsNext'" + (i > 0 ? "" : " disabled") + ">&rarr;</button>"
-          + "<select id='smMsWho'>" + ["__team__"].concat(opts.map(x => x.who).filter(w => w !== "__team__").sort())
-              .map(w => "<option value='" + esc(w) + "'" + (w === who ? " selected" : "") + ">"
-                + (w === "__team__" ? "Whole team (Ruso's copy)" : esc(w)) + "</option>").join("") + "</select>"
+          + "<div id='smMsWho'></div>"
           + "<span class='sp' style='flex:1'></span>"
           + "<button class='sm-rbtn' id='smMsScore'>Scorecard sheet</button>"
           + "<button class='sm-rbtn' id='smRx'>Close</button>";
         bar.querySelector("#smRx").onclick = closeReport;
         bar.querySelector("#smMsPrev").onclick = () => { st.m = months[i + 1]; draw(); };
         bar.querySelector("#smMsNext").onclick = () => { st.m = months[i - 1]; draw(); };
-        bar.querySelector("#smMsWho").onchange = e => { st.who = e.target.value; draw(); };
+        // kit dropdown; no match shows the first choice, as the native select did, and picking
+        // the choice already shown does nothing (a native select fires no change for it)
+        const whoNow = who || "__team__";
+        RSC.localSelect(bar.querySelector("#smMsWho"), { label: "For", required: true, value: whoNow,
+          values: ["__team__"].concat(opts.map(x => x.who).filter(w => w !== "__team__").sort())
+            .map(w => ({ v: w, l: w === "__team__" ? "Whole team (Ruso's copy)" : w })),
+          onChange: v => { if (v === whoNow) return; st.who = v; draw(); } });
         bar.querySelector("#smMsScore").onclick = () => openReport(name);
         if (!who) {
           stat.textContent = "";

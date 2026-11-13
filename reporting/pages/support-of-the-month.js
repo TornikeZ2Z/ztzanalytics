@@ -110,34 +110,34 @@ registerPage({
      * string, with literal ink colours because a standalone print document has no tokens. */
     const SHEET_CSS =
       ".spm-sheet{width:210mm;min-height:297mm;background:#fff;color:#16181D;padding:14mm;"
-      + "box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;"
+      + "box-shadow:0 18px 60px rgba(0,0,0,.4);font-size:10.5px;line-height:1.45;" // std-ok: print sheet
       + "font-variant-numeric:tabular-nums}"
       + ".spm-sheet h1{font-size:20px;margin:0;letter-spacing:-.4px}"
       + ".spm-sheet .rhd{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #16181D;"
       + "padding-bottom:9px;margin-bottom:13px}"
-      + ".spm-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}"
+      + ".spm-sheet .rhd .sub{font-size:11px;color:#5B5F6B;margin-top:3px}" // std-ok: print sheet
       + ".spm-sheet .rhd .big{margin-left:auto;text-align:right;line-height:1}"
       + ".spm-sheet .rhd .big b{font-size:36px;font-weight:800;letter-spacing:-1.1px}"
-      + ".spm-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;"
+      + ".spm-sheet .rhd .big i{display:block;font-style:normal;font-size:9px;font-weight:800;" // std-ok: print sheet
       + "letter-spacing:.08em;text-transform:uppercase;color:#7A7E88;margin-top:3px}"
       + ".spm-sheet .rstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:13px}"
       + ".spm-sheet .rstrip>div{border:1px solid #DCDEE3;border-radius:5px;padding:8px 9px;"
       + "display:flex;flex-direction:column}"
-      + ".spm-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;"
+      + ".spm-sheet .rstrip .l{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;" // std-ok: print sheet
       + "color:#7A7E88;line-height:1.25;flex:1}"
       + ".spm-sheet .rstrip .v{font-size:16px;font-weight:750;margin-top:2px}"
-      + ".spm-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}"
-      + ".spm-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;"
+      + ".spm-sheet .rstrip .s{font-size:9px;color:#7A7E88;margin-top:2px}" // std-ok: print sheet
+      + ".spm-sheet h2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7A7E88;" // std-ok: print sheet
       + "margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #DCDEE3}"
       + ".spm-sheet table{width:100%;border-collapse:collapse;margin-bottom:13px}"
-      + ".spm-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;"
+      + ".spm-sheet th{text-align:left;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;" // std-ok: print sheet
       + "color:#7A7E88;padding:4px 6px;border-bottom:1px solid #DCDEE3;font-weight:700}"
       + ".spm-sheet td{padding:5px 6px;border-bottom:1px solid #EFF0F3;vertical-align:top}"
       + ".spm-sheet td.n{text-align:right;white-space:nowrap}"
-      + ".spm-sheet td.q{color:#7A7E88;font-size:9.5px}"
+      + ".spm-sheet td.q{color:#7A7E88;font-size:9.5px}" // std-ok: print sheet
       + ".spm-sheet .bar{height:6px;border-radius:3px;background:#EFF0F3;overflow:hidden;margin-top:4px}"
       + ".spm-sheet .bar>i{display:block;height:100%;background:#5F7C20}"
-      + ".spm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;"
+      + ".spm-sheet .foot{font-size:9px;color:#7A7E88;line-height:1.55;border-top:1px solid #DCDEE3;" // std-ok: print sheet
       + "padding-top:8px;margin-top:4px}"
       // design v2: the sheet opens inside the v2 app, so its olive bar turns navy (render time)
       + (RS.isV2() ? ".spm-sheet .bar>i{background:#14301F}" : "");

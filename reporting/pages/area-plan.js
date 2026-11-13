@@ -184,7 +184,7 @@
     .ap2-gt-h{font-size:12px;font-weight:600;color:var(--muted);margin:6px 0 6px}
     .ap2-gt-chart{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 4px}
     .ap2-gt-svg{display:block;width:100%;max-width:860px;min-width:520px;height:auto}
-    .ap2-gt-svg text{font-size:11px;font-family:inherit}
+    .ap2-gt-svg text{font-size:11px;font-family:inherit} /* std-ok: svg text */
     .ap2-gt-grid{stroke:var(--gt-grid);stroke-width:1}
     .ap2-gt-ax{fill:var(--gt-axis)}
     .ap2-gt-mark{stroke:var(--gt-mark);stroke-width:1;stroke-dasharray:3 3}
@@ -237,9 +237,9 @@
     .ap2-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
     .ap2-scnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
     .ap2-cname{position:absolute;transform:translate(-50%,-172%);text-align:center;white-space:nowrap;
-      font-size:11.5px;font-weight:800;color:var(--ink);letter-spacing:.01em;pointer-events:none;
+      font-size:11.5px;font-weight:800;color:var(--ink);letter-spacing:.01em;pointer-events:none; /* std-ok: map label */
       text-shadow:0 0 4px var(--bg),0 0 4px var(--bg),0 0 8px var(--bg)}
-    .ap2-cname b{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+    .ap2-cname b{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em} /* std-ok: map label */
     .ap2-stlbl { position:absolute; transform:translate(-50%,-50%); font:800 11px/1 var(--mono, ui-monospace, monospace); letter-spacing:.22em; color:var(--ink); opacity:.5; white-space:nowrap; pointer-events:none; text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); }
     .ap2-svbar { display:inline-block; width:64px; height:6px; margin-left:8px; border-radius:3px; background:var(--line); vertical-align:middle; overflow:hidden; }
     .ap2-svbar i { display:block; height:100%; background:var(--pos); border-radius:3px; }
@@ -497,17 +497,17 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap2-flag.flip b[data-ld]::after{left:auto;right:-14px}
 .ap2-flag b .l1{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink)}
 .ap2-flag.cover b .l1{color:var(--ap-pos-ink)}
-.ap2-flag b .l2{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0}
+.ap2-flag b .l2{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:0} /* std-ok: map label */
 .ap2-mapbox.ap-nomv .leaflet-apNames-pane,.ap2-mapbox.ap-nopl .leaflet-apLabels-pane{display:none}
 .ap3-mapctl .ap3-lblp{display:none;padding:6px 10px 8px;border-top:1px solid var(--ap-rule);background:var(--bg)}
 .ap3-mapctl.open .ap3-lblp{display:block}
 .ap3-mapctl .ap3-lblp label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0;cursor:pointer;white-space:nowrap}
 .ap3-mapctl .ap3-lblp hr{border:0;border-top:1px solid var(--ap-rule);margin:6px 0}
-.ap2-flag em.ap2-new{font-style:normal;font-size:9px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:3px 6px;box-shadow:0 0 0 2px var(--bg)}
+.ap2-flag em.ap2-new{font-style:normal;font-size:9px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:3px 6px;box-shadow:0 0 0 2px var(--bg)} /* std-ok: map label */
 .ap2-flag i.ico,.ap2-flag.cover i.ico{width:17px;height:17px;margin-left:-3px;background:none;border:0;border-radius:0;box-shadow:none;filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 1px rgba(15,23,42,.35))}
 .ap2-flag i.ico svg,.ap2-mk i.ico svg{display:block;width:100%;height:100%}
 .ap2-mk i.ico{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:4px}
-.ap2-flag b{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.ap2-flag b{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.18)} /* std-ok: map label */
 .ap2-flag:hover b{border-color:var(--ink)}
 .leaflet-control a.ap2-mapbtn{width:30px;height:30px;line-height:30px;text-align:center;font-size:15px;
   background:#fff;color:var(--ink);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.25);display:block;margin-top:6px;text-decoration:none}

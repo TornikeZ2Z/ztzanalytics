@@ -15,7 +15,7 @@ registerPage({
     const nn = v => (v == null || v === "" ? "—" : String(v));
     const intNS = v => (v == null ? "—" : RS.fmtN(v));  // null-safe count cells
     const noteHtml = (shown, total, what) =>
-      `<div style="color:var(--muted);font-size:11px;padding:6px 2px">Showing ${RS.fmtN(shown)} of ${RS.fmtN(total)} ${what}.</div>`;
+      `<div style="color:var(--muted);font-size:12px;padding:6px 2px">Showing ${RS.fmtN(shown)} of ${RS.fmtN(total)} ${what}.</div>`;
     // Friendly empty state for a table/chart when no rows pass the current filters.
     const emptyHtml = what =>
       `<div style="color:var(--muted);font-size:12px;padding:24px 2px;text-align:center">No ${what} for the current filters.</div>`;

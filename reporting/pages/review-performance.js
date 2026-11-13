@@ -499,7 +499,7 @@ registerPage({
     bar.appendChild(rangeLbl);
     function paintWinOpts() {
       // the stepper's middle is a kit localSelect now (form mode: value only, no label chip,
-      // no empty row — the old <select> had neither). Remounted per grain because the option
+      // no empty row — the old native select had neither). Remounted per grain because the option
       // list changes with it; value strings are the same digits the old options carried.
       var mount = document.getElementById("rpWin"), unit = RP.grain === "day" ? "days" : RP.grain === "week" ? "weeks" : "months";
       mount.innerHTML = "";
@@ -631,7 +631,7 @@ registerPage({
         b.style.display = "none";
         var f = container.querySelector(`[data-exform="${i}"]`);
         // the reason picker is a kit localSelect in form mode (full-width, value-only
-        // button); like the old <select>, it starts on the first reason and has no
+        // button); like the old native select, it starts on the first reason and has no
         // empty row, so `.get()` always returns a real reason
         var reasons = rpReasons();
         var exSel = RSC.localSelect(f.querySelector("[data-exr]"), {

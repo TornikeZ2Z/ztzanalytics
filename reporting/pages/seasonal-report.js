@@ -1786,4 +1786,5 @@ async function renderSeasonal(host) {
   const pb = cover.querySelector("#srPrint"); if (pb) pb.onclick = () => window.print();
 }
 
+// std-ok: head -- the cover is this page's head, and it is also the printed cover (ZTZ-80)
 registerPage({ id: "seasonal-report", group: "pulse", title: "Seasonal Report", render(host) { return renderSeasonal(host); } });

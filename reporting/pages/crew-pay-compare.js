@@ -979,7 +979,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
               <div class="cpc-hits" id="cpcCjHits"></div></div></div>
           ${S.cjFrom ? `<p class="cpc-note cpc-jobrule">Filled from ${esc(S.cjFrom)} — change anything.</p>` : ""}
           <div class="cpc-cj">
-            <label class="cpc-lv"><span>Move type</span><select data-cj="type">${["Local Moving", "Straight Moving", "Regular Moving"].map(t => `<option ${J.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+            <div class="cpc-lv"><span>Move type</span><div class="cpc-cjsel" id="cpcCjType"></div></div>
             <label class="cpc-lv"><span>Foreman</span><span class="cpc-in"><input type="number" value="1" disabled></span></label>
             ${nf("drivers", "Drivers")}${nf("helpers", "Helpers")}${nf("jobHours", "Job hours", { post: "h" })}${nf("miles", "Base-leg miles", { post: "mi" })}${nf("days", "Trip days", { post: "days" })}
           </div>
@@ -1005,12 +1005,17 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
           </table></div>
           <p class="cpc-note">Today's pay here: foreman ${m2(R.tR.Foreman)}/h, driver ${m2(R.tR.Driver)}/h, helper ${m2(R.tR.Helper)}/h; long distance foreman ${m2(R.tR.ldForeman)}, driver ${m2(R.tR.ldDriver)}, helper ${m2(R.tR.ldHelper)} a day; review ${m2(R.tR.review)} — this year's averages unless Settings sets them. Tips are the crew's in every option and left out.</p>
         </section>`;
-      body.querySelectorAll("[data-cj]").forEach(el => el.onchange = () => {
-        const k = el.dataset.cj;
-        S.custom = Object.assign({}, J, { [k]: el.type === "checkbox" ? (el.checked ? 1 : 0) : el.tagName === "SELECT" ? el.value : Math.max(0, num(el.value)) });
+      const setCj = (k, v) => {
+        S.custom = Object.assign({}, J, { [k]: v });
         if (S.cjFrom && !/ — changed$/.test(S.cjFrom)) S.cjFrom += " — changed";
         paintCustom(body, c, SC);
-      });
+      };
+      body.querySelectorAll("[data-cj]").forEach(el => el.onchange = () =>
+        setCj(el.dataset.cj, el.type === "checkbox" ? (el.checked ? 1 : 0) : Math.max(0, num(el.value))));
+      // THE PAGE STANDARD (ZTZ-80): the move type is the kit's own select, the same three values into S.custom.type
+      const ty = body.querySelector("#cpcCjType");
+      if (ty) RSC.localSelect(ty, { label: "Move type", values: ["Local Moving", "Straight Moving", "Regular Moving"].map(t => ({ v: t, l: t })),
+        value: J.type, form: true, required: true, onChange: v => setCj("type", v) });
       // START FROM A REAL JOB: its crew, hours, miles and bill lines fill the inputs
       const q = body.querySelector("#cpcCjQ"), hits = body.querySelector("#cpcCjHits");
       const fill = uk => {
@@ -1326,7 +1331,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-seat>b{font-size:21px;color:var(--ink);font-variant-numeric:tabular-nums}
         .cpc-seat>em{font-style:normal;font-size:13px;color:var(--muted)}
         .cpc-cj{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:12px}
-        .cpc-cj select{font:inherit;font-size:14px;border:1px solid var(--line-2);border-radius:8px;padding:7px 8px;background:var(--panel);color:var(--ink)}
+        .cpc-cjsel{min-width:170px}
         .cpc-cjck{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:12px;font-size:13px;color:var(--muted)}
         .cpc-ck{display:flex;align-items:center;gap:6px;cursor:pointer}
         .cpc-cjt td{vertical-align:top}

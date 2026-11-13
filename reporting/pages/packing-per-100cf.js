@@ -202,7 +202,7 @@ registerPage({
           { f: "All foremen (" + dispLabel + ")", v: per100(mPack, mCF),
             cf: mCF, pk: mPack, sh: mPack ? 1 : null }) +
           (ranked.length > 50
-            ? `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 50 of ${ranked.length} ranked foremen · totals row covers all</div>`
+            ? `<div style="color:var(--muted);font-size:12px;padding:6px 2px">showing 50 of ${ranked.length} ranked foremen · totals row covers all</div>`
             : "") + assumedNote;
       },
     });

@@ -65,6 +65,7 @@
       + ".rvm-go{font-weight:700}"
       + ".rvm-go.ok{color:#3F7D20}"
       + ".rvm-inp{width:84px}"
+      + ".rvm-pick{min-width:160px}"
       + ".rvm-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin:6px 0 12px}"
       + ".rvm-form .wide{grid-column:span 2}"
       + ".rvm-err{color:#B3261E;font-size:12.5px;margin:6px 2px}"
@@ -250,13 +251,10 @@
         const cols = S.loc === "all" ? ORDER : [S.loc];
         let h = '<div class="rs-bar"><label class="rs-fld"><span>Find</span><input class="rs-inp" id="rvmQ" placeholder="Site, domain or category…" value="'
           + esc(S.q) + '"></label>'
-          + '<label class="rs-fld"><span>Location</span><select class="rs-inp" id="rvmLoc"><option value="all">All locations</option>'
-          + ORDER.map(k => '<option value="' + esc(k) + '"' + (S.loc === k ? " selected" : "") + ">" + esc(LOC[k].label) + "</option>").join("")
-          + "</select></label>"
-          + '<label class="rs-fld"><span>Sort</span><select class="rs-inp" id="rvmSort">'
-          + [["now", "Most reviews"], ["togo", "Most to go"], ["name", "Name"]].map(([k, l]) =>
-            '<option value="' + k + '"' + (S.sort === k ? " selected" : "") + ">" + l + "</option>").join("")
-          + '</select></label><span class="rs-spacer"></span><button class="rs-btn" id="rvmCsv">Download CSV</button></div>';
+          // the two pickers are kit localSelect mounts (wire), in the .rs-fld caption's form variant
+          + '<div class="rs-fld"><span>Location</span><div class="rvm-pick" id="rvmLoc"></div></div>'
+          + '<div class="rs-fld"><span>Sort</span><div class="rvm-pick" id="rvmSort"></div></div>'
+          + '<span class="rs-spacer"></span><button class="rs-btn" id="rvmCsv">Download CSV</button></div>';
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Site</th><th>Now</th><th>Target</th><th>To go</th>"
           + cols.map(k => "<th>" + esc(LOC[k].label) + "</th>").join("") + "</tr></thead><tbody>";
@@ -326,8 +324,7 @@
             + (p.pages.length ? p.pages.map(pg => "<li><b>" + esc((LOC[pg["Location"]] || {}).label || pg["Location"]) + '</b><a href="'
               + esc(pg["URL"]) + '" target="_blank" rel="noopener">' + esc(pg["URL"]) + '</a><button class="rvm-x" data-rvdelpage="'
               + esc(pg["Page Key"]) + '">remove</button></li>').join("") : '<li class="dim">No pages yet.</li>') + "</ul>"
-            + '<div class="rvm-form"><label class="rs-fld"><span>Location</span><select class="rs-inp" id="rvpLoc">'
-            + ORDER.map(k => '<option value="' + esc(k) + '">' + esc(LOC[k].label) + "</option>").join("") + "</select></label>"
+            + '<div class="rvm-form"><div class="rs-fld"><span>Location</span><div id="rvpLoc"></div></div>'
             + '<label class="rs-fld wide"><span>Page address</span><input class="rs-inp" id="rvpUrl" placeholder="https://…"></label>'
             + '<button class="rs-btn" id="rvpAdd">Add the page</button>'
             + '<button class="rs-btn" id="rvfDel">Remove this site</button></div>';
@@ -410,10 +407,20 @@
         if (S.tab === "map") drawMap(M);
         const q = host.querySelector("#rvmQ");
         if (q) { q.oninput = function () { S.q = this.value; }; q.onchange = paint; q.onkeyup = e => { if (e.key === "Enter") paint(); }; }
+        // kit dropdowns: onChange runs on a CHANGE only, as the native selects' change event did
         const lo = host.querySelector("#rvmLoc");
-        if (lo) lo.onchange = function () { S.loc = this.value; paint(); };
+        if (lo) RSC.localSelect(lo, { label: "Location", form: true, required: true, value: S.loc,
+          values: [{ v: "all", l: "All locations" }].concat(ORDER.map(k => ({ v: k, l: LOC[k].label }))),
+          onChange: v => { if (v === S.loc) return; S.loc = v; paint(); } });
         const so = host.querySelector("#rvmSort");
-        if (so) so.onchange = function () { S.sort = this.value; paint(); };
+        if (so) RSC.localSelect(so, { label: "Sort", form: true, required: true, value: S.sort,
+          values: [["now", "Most reviews"], ["togo", "Most to go"], ["name", "Name"]].map(([k, l]) => ({ v: k, l: l })),
+          onChange: v => { if (v === S.sort) return; S.sort = v; paint(); } });
+        // the new page's location starts on the first one each paint, as the native select did
+        let pageLoc = ORDER[0];
+        const pl = host.querySelector("#rvpLoc");
+        if (pl) RSC.localSelect(pl, { label: "Location", form: true, required: true, value: pageLoc,
+          values: ORDER.map(k => ({ v: k, l: LOC[k].label })), onChange: v => { pageLoc = v; } });
         const csv = host.querySelector("#rvmCsv");
         if (csv) csv.onclick = () => download(M);
         host.querySelectorAll("[data-rvsave]").forEach(b => {
@@ -442,7 +449,7 @@
           act({ op: "remove-platform", key: S.edit.plat }, "Site removed.").then(() => { S.edit = null; paint(); });
         };
         const pa = host.querySelector("#rvpAdd");
-        if (pa) pa.onclick = () => act({ op: "page", platform_key: S.edit.plat, location: val("#rvpLoc"), url: val("#rvpUrl") },
+        if (pa) pa.onclick = () => act({ op: "page", platform_key: S.edit.plat, location: pageLoc, url: val("#rvpUrl") },
           "Page added: the next weekly check reads it.");
         host.querySelectorAll("[data-rvdelpage]").forEach(b => {
           b.onclick = () => { if (confirm("Remove this page from the list?")) act({ op: "remove-page", key: b.dataset.rvdelpage }, "Page removed."); };

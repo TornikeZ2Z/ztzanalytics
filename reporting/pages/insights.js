@@ -26,10 +26,10 @@ registerPage({
       st.id = "ins-style";
       st.textContent = ""
         // the quiet note that sits beside a panel title ("dollars going missing right now")
-        + ".ins-sub{font-size:11px;color:var(--faint)}"
+        + ".ins-sub{font-size:12px;color:var(--faint)}"
         // a small heading that opens a second section INSIDE a panel
-        + ".ins-shead{font-size:10px;font-weight:800;text-transform:uppercase;"
-        + "letter-spacing:.09em;color:var(--faint);margin:12px 0 8px}"
+        + ".ins-shead{font-size:12px;font-weight:600;"
+        + "color:var(--muted);margin:12px 0 8px}"
         // a finding stacks its headline over its expander, so the shared .rec row turns column
         + ".rec.ins-f{flex-direction:column;gap:7px}"
         + ".ins-fhead{display:flex;gap:10px;align-items:flex-start;width:100%}"
@@ -37,12 +37,12 @@ registerPage({
         + ".ins-fhead .rs-pill{flex:none;margin-top:2px}"
         // "Why am I seeing this" -- a details/summary the kit does not name
         + ".ins-why{margin:0 0 2px 2px}"
-        + ".ins-why summary{cursor:pointer;font-size:11px;color:var(--faint)}"
+        + ".ins-why summary{cursor:pointer;font-size:12px;color:var(--faint)}"
         // the kit's reason line, given room to breathe as a paragraph inside the expander
         + ".ins-why .rs-why{padding:6px 2px 2px;line-height:1.55}"
         // footnotes: "showing 8 of 14 findings" under a list, the legend under the ad table
-        + ".ins-more{color:var(--muted);font-size:11px;padding:4px 2px}"
-        + ".ins-cap{font-size:11px;color:var(--faint);padding:7px 2px 0}"
+        + ".ins-more{color:var(--muted);font-size:12px;padding:4px 2px}"
+        + ".ins-cap{font-size:12px;color:var(--faint);padding:7px 2px 0}"
         // empty states: a theme with nothing to report, and a table with no rows
         + ".ins-empty{padding:4px 2px 8px;color:var(--muted);font-size:12px}"
         + ".ins-none{padding:16px 14px;color:var(--muted)}"
@@ -60,7 +60,7 @@ registerPage({
         + ".rs-kpis.ins-health .kpi::before{display:none}"
         + ".rs-kpis.ins-health .kpi .l{white-space:normal;overflow:visible;text-overflow:clip}"
         + ".rs-kpis.ins-health .kpi .v{font-size:18px;color:var(--muted)}"
-        + ".rs-kpis.ins-health .kpi .s{display:block;overflow:visible;font-size:11px;line-height:1.45}";
+        + ".rs-kpis.ins-health .kpi .s{display:block;overflow:visible;font-size:12px;line-height:1.45}";
       document.head.appendChild(st);
     }
     // Load each dataset ONCE (RS.load caches); every rule below reuses these arrays.

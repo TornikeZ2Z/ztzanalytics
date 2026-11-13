@@ -1265,7 +1265,7 @@ registerPage({
             var so = item.options || [];
             var lo = parseInt(so[0], 10); if (isNaN(lo)) lo = 1;
             var hi = parseInt(so[1], 10); if (isNaN(hi)) hi = 5;
-            // the kit dropdown instead of a native <select> (nothing native on the portal,
+            // the kit dropdown instead of a native select (nothing native on the portal,
             // 2026-08-28). Unlocked: a mount host the [data-f] wiring below fills with
             // RSC.localSelect. Locked: a static kit-styled button — the wiring loop never
             // runs when locked, so a live mount there would render an empty host.
@@ -1424,7 +1424,7 @@ registerPage({
           };
           // the scale-bounds hosts get the kit dropdown, not a native handler — a mount
           // host fires no input/change of its own, and syncScale keeps reading `.value`
-          // off the host exactly as it read the old <select>
+          // off the host exactly as it read the old native select
           if (inp.classList.contains("hq-scsel")) {
             var scVals = [];
             for (var sn = +inp.dataset.from; sn <= +inp.dataset.to; sn++) scVals.push(String(sn));

@@ -454,7 +454,7 @@
       + ".mko .mko-bands .b2{background:rgba(101,163,13,.18);color:var(--ink)}"
       + ".mko .mko-bands .b3{background:rgba(63,125,32,.36);color:var(--ink)}"
       + ".mko .mko-cmap{width:100%;max-width:620px;display:block;margin:0 auto;color:var(--ink)}"
-      + ".mko .mko-cmap text{font-size:10px;fill:var(--muted)}"
+      + ".mko .mko-cmap text{font-size:10px;fill:var(--muted)}"   // std-ok: svg text
       + ".mko .mko-ctodo{margin:0;padding-left:18px}.mko .mko-ctodo li{margin:0 0 8px;line-height:1.5}"
       // the citation lists scroll inside their panel, header pinned (2026-10-26, the marketing head: "too long")
       + ".mko .mko-scroll .rs-tablewrap{max-height:340px;overscroll-behavior:contain}"
@@ -795,7 +795,10 @@
       + ".mkd .mkd-gl{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:6px 0 0}"
       + ".mkd .mkd-tagp summary{display:flex;gap:10px;align-items:baseline;cursor:pointer;flex-wrap:wrap}"
       + ".mkd .mkd-tagp .rs-tablewrap{margin-top:10px;max-height:520px}"
-      + ".mkd .mkd-tagsel{font:inherit;font-size:12.5px;max-width:230px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}"
+      + ".mkd .mkd-tagsel{min-width:150px;max-width:230px}"
+      + ".mkd .mkd-tagsel .rs-slicer-btn{padding:4px 8px;font-size:12.5px}"
+      + ".mkd .mkd-tagsel .rs-slicer-btn:disabled{opacity:.55;cursor:default}"
+      + ".mkd .mkd-tagsel .rs-slicer-pop{right:auto;width:auto;min-width:240px}"
       + "@media (max-width:900px){.mkd .mkd-segh,.mkd .mkd-segk{grid-template-columns:repeat(2,minmax(0,1fr))}.mkd .mkd-g2s{grid-template-columns:1fr}}"
       + ".mkd .mkd-mt th.grp{text-align:center}.mkd .mkd-mt .sep{border-left:1px solid var(--line-2)}"
       + ".mkd .mkd-mt thead tr:nth-child(2) th{top:36px}"
@@ -4083,16 +4086,17 @@
       { h: "Score", num: true, cell: p => "<b>" + segTimes(p.score) + "</b>" },
     ], list, null, true);
   }
-  function segOptions(net, cur) {
+  // the tag pickers' choices (RSC.localSelect): the empty choice is its allLabel, and a group
+  // heading is a {div} entry, as the native select's optgroups were
+  function segValues(net) {
     const role = SEG_CFG.role[net] || {}, all = SEG_CFG.segments;
-    const grp = (label, list) => (list.length ? '<optgroup label="' + esc(label) + '">' + list.map(s => '<option value="' + s.k + '"'
-      + (s.k === cur ? " selected" : "") + ">" + esc(s.name) + "</option>").join("") + "</optgroup>" : "");
-    return '<option value="">Segment…</option>' + grp("Primary on " + net, all.filter(s => role[s.k] === "P"))
-      + grp("Secondary on " + net, all.filter(s => role[s.k] === "S")) + grp("Not targeted on " + net, all.filter(s => !role[s.k]));
+    const grp = (label, list) => (list.length ? [{ div: label }].concat(list.map(s => ({ v: s.k, l: s.name }))) : []);
+    return grp("Primary on " + net, all.filter(s => role[s.k] === "P"))
+      .concat(grp("Secondary on " + net, all.filter(s => role[s.k] === "S")), grp("Not targeted on " + net, all.filter(s => !role[s.k])));
   }
-  function pillarOptions(cur) {
+  function pillarValues(cur) {
     const list = SEG_CFG.pillars.concat(["Other"]).concat(cur && !SEG_CFG.pillars.includes(cur) && cur !== "Other" ? [cur] : []);
-    return '<option value="">Pillar…</option>' + list.map(v => '<option' + (v === cur ? " selected" : "") + ">" + esc(v) + "</option>").join("");
+    return list.map(v => ({ v: v, l: v }));
   }
   function segCard(net, s, posts, planned, settled, med) {
     const ch = SEG_CFG.channels[net], st = segStats(posts), f = segFindings(posts), g = segGrow(net, s.k, st, f, planned);
@@ -4136,8 +4140,8 @@
         + "<th>Segment</th><th>Pillar</th><th></th></tr></thead><tbody>" + list.map(p => '<tr data-post="' + esc(p.id) + '"><td class="mko-name">'
           + (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + esc(segLine(p)) + "</a>" : esc(segLine(p)))
           + '<div class="mko-sub">' + esc([day(p.d), p.fmt].filter(Boolean).join(" · ")) + "</div></td>"
-          + '<td class="mko-num">' + fmtN(p.reach) + '</td><td><select class="mkd-tagsel" data-f="seg">' + segOptions(net, p.seg) + "</select></td>"
-          + '<td><select class="mkd-tagsel" data-f="pil">' + pillarOptions(p.pil) + '</select></td><td class="mko-sub mkd-tagst"></td></tr>').join("")
+          + '<td class="mko-num">' + fmtN(p.reach) + '</td><td><div class="mkd-tagsel" data-f="seg" data-v="' + esc(segOf(p.seg) ? p.seg : "") + '"></div></td>'
+          + '<td><div class="mkd-tagsel" data-f="pil" data-v="' + esc(p.pil || "") + '"></div></td><td class="mko-sub mkd-tagst"></td></tr>').join("")
         + "</tbody></table></div>" : '<div class="mko-empty">No post in this period.</div>') + "</details>";
   }
   function segPaint(box, w, cw) {
@@ -4197,16 +4201,23 @@
     const tp = box.querySelector(".mkd-tagp");
     if (tp) tp.addEventListener("toggle", () => { SG.open[net] = tp.open; });
     box.querySelectorAll(".mkd-tagp tr[data-post]").forEach(tr => {
-      const sels = tr.querySelectorAll("select"), stEl = tr.querySelector(".mkd-tagst");
-      sels.forEach(sel => {
-        sel.onchange = () => {
-          const v = f => tr.querySelector('select[data-f="' + f + '"]').value;
-          sels.forEach(x => { x.disabled = true; });
-          stEl.textContent = "saving…";
-          saveTag({ post: tr.dataset.post, platform: net, segment: v("seg"), pillar: v("pil") })
-            .then(() => { stEl.textContent = "saved"; delete P.err.tags; setTimeout(() => segPaint(box, w, cw), 400); })
-            .catch(e => { stEl.textContent = (e && e.message) || "not saved"; sels.forEach(x => { x.disabled = false; }); });
-        };
+      const hosts = tr.querySelectorAll(".mkd-tagsel"), stEl = tr.querySelector(".mkd-tagst"), pick = {};
+      const lock = on => hosts.forEach(x => x.querySelectorAll("button").forEach(b => { b.disabled = on; }));
+      const save = () => {
+        lock(true);
+        stEl.textContent = "saving…";
+        saveTag({ post: tr.dataset.post, platform: net, segment: pick.seg.get(), pillar: pick.pil.get() })
+          .then(() => { stEl.textContent = "saved"; delete P.err.tags; setTimeout(() => segPaint(box, w, cw), 400); })
+          .catch(e => { stEl.textContent = (e && e.message) || "not saved"; lock(false); });
+      };
+      hosts.forEach(x => {
+        const f = x.dataset.f, seg = f === "seg";
+        let was = x.dataset.v || "";
+        // saves on a CHANGE only, as the native select's change event did: picking the value
+        // already shown does nothing
+        pick[f] = RSC.localSelect(x, { label: seg ? "Segment" : "Pillar", form: true, value: was,
+          allLabel: seg ? "Segment…" : "Pillar…", values: seg ? segValues(net) : pillarValues(was),
+          onChange: v => { if (v === was) return; was = v; save(); } });
       });
     });
     function wireNet() {

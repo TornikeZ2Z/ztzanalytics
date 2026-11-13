@@ -32,7 +32,7 @@
       .dcl-strip{display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--line-2);border-left:4px solid ${POS};border-radius:12px;padding:10px 14px;margin-bottom:12px}
       .dcl-strip .big{font-size:21px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
       .dcl-strip .unit{font-size:12.5px;font-weight:600;color:var(--muted)}
-      .dcl-strip .lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+      .dcl-strip .lbl{font-size:12px;font-weight:800;color:var(--faint)}
       .dcl-strip .sub{font-size:12.5px;color:var(--muted);line-height:1.5;font-variant-numeric:tabular-nums}
       .dcl-shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .dcl-srow{display:grid;grid-template-columns:minmax(150px,190px) minmax(170px,230px) minmax(250px,1fr) minmax(130px,190px);gap:4px 16px;align-items:baseline}
@@ -43,19 +43,17 @@
       .dcl-btn{font:inherit;font-size:13px;font-weight:800;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:9px;padding:8px 14px;cursor:pointer;white-space:nowrap}
       .dcl-btn:hover{background:var(--panel-2)} .dcl-btn:disabled{opacity:.55;cursor:default}
       .dcl-btn.pri{background:${POS};border-color:${POS};color:#fff} .dcl-btn.pri:hover{filter:brightness(1.08)}
-      .dcl-btn.sm{font-size:11.5px;padding:5px 10px}
+      .dcl-btn.sm{font-size:12px;padding:5px 10px}
       .dcl-link{font-size:12.5px;font-weight:800;color:${BLUE};text-decoration:none;cursor:pointer}
       .dcl-err{background:rgba(176,42,55,.08);color:${NEG};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
       .dcl-ok{background:rgba(28,122,74,.10);color:${POS};border-radius:9px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
-      .dcl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-      .dcl-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
-      .dcl-head h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.3px}
-      .dcl-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted);max-width:780px}
+      /* the kit head (ZTZ-80); embedded in Money Flow's tab its heading steps down to an h2 */
+      .dcl-h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.3px}
       .dcl-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}
       .dcl-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px}
       .dcl-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-      .dcl-kpi span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
-      .dcl-kpi small{display:block;font-size:11px;color:var(--faint);margin-top:2px}
+      .dcl-kpi span{display:block;font-size:12px;font-weight:800;color:var(--faint);margin-top:2px}
+      .dcl-kpi small{display:block;font-size:12px;color:var(--faint);margin-top:2px}
       .dcl-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
       .dcl-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}
       .dcl-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:8px}
@@ -64,7 +62,7 @@
       .dcl-card{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
       .dcl-wrap{overflow:auto;max-height:calc(100vh - var(--pg-chrome, 330px))}
       .dcl-tbl{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed;min-width:1080px}
-      .dcl-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
+      .dcl-tbl th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:12px;color:var(--faint);font-weight:800;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:2}
       .dcl-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .dcl-tbl .r{text-align:right;font-variant-numeric:tabular-nums}
       .dcl-tbl td:last-child{overflow:visible;text-overflow:clip}
@@ -76,13 +74,13 @@
       .dcl-tbl tr.fm{cursor:pointer} .dcl-tbl tr.fm td{font-size:13.5px}
       .dcl-tbl tr.fm td.nm{padding-left:58px;font-weight:700}
       .dcl-tbl tr.ln td{font-size:12.5px;color:var(--muted)} .dcl-tbl tr.ln td.first{padding-left:82px}
-      .dcl-caret{display:inline-block;width:16px;color:var(--faint);font-size:11px}
-      .dcl-pill{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:1px;white-space:nowrap}
+      .dcl-caret{display:inline-block;width:16px;color:var(--faint);font-size:12px}
+      .dcl-pill{display:inline-block;font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:1px;white-space:nowrap}
       .dcl-pill.rec{background:rgba(138,90,0,.12);color:${AMB}} .dcl-pill.lock{background:var(--panel-2);color:var(--faint)}
       .dcl-pill.open{background:rgba(28,122,74,.12);color:${POS}} .dcl-pill.card{background:rgba(47,111,208,.12);color:${BLUE}}
       .dcl-meta{font-weight:600;color:var(--faint);font-size:12px;margin-left:8px}
       .dcl-pos{color:${POS}} .dcl-neg{color:${NEG}}
-      .dcl-note{padding:10px 14px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}
+      .dcl-note{padding:10px 14px;font-size:12px;color:var(--faint);border-top:1px solid var(--line)}
       .dcl-load{padding:40px;text-align:center;color:var(--faint)}
       .dcl-more{display:block;margin:10px auto}
       .dcl-pill.dcl-nc{background:var(--panel-2);color:var(--muted);margin:0 8px 0 0}
@@ -98,7 +96,6 @@
       .dcl-pill.exp{background:rgba(176,42,55,.10);color:${NEG}} .dcl-pill.inc{background:rgba(28,122,74,.12);color:${POS}}
       .dcl-pill.nc{background:var(--panel-2);color:var(--muted)}
       .dcl-ocbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-      .dcl-ocbar select{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:7px 10px}
       .dcl-month{display:inline-flex;align-items:center;gap:4px;font-weight:800;font-size:14px}
       .dcl-month b{min-width:130px;text-align:center}
       .dcl-tbl.oclist{min-width:1100px}
@@ -173,7 +170,7 @@
       .dcl-opt{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border:1px solid var(--dd-line2);border-radius:999px;background:var(--dd-panel);color:var(--dd-ink);cursor:pointer;font-size:13.5px;font-weight:500}
       .dcl-opt:hover{background:var(--dd-panel2)}
       .dcl-opt.on,.dcl-opt.on:hover{background:var(--dd-deep);border-color:var(--dd-deep);color:var(--dd-deep-ink)}
-      .dcl-opt small{font-size:11.5px;opacity:.75}
+      .dcl-opt small{font-size:12px;opacity:.75}
       .dcl-eff{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;font-size:13.5px;line-height:1.45}
       .dcl-eff b.big{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
       .dcl-eff.in{background:var(--dd-tint);color:var(--dd-acc-ink)}
@@ -230,9 +227,7 @@
       body.rs-app.light.v2 .dcl-link:hover{color:#14301F}
       body.rs-app.light.v2 .dcl-err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:8px;font-size:13px}
       body.rs-app.light.v2 .dcl-ok{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;border-radius:8px;font-size:13px}
-      body.rs-app.light.v2 .dcl-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
-      body.rs-app.light.v2 .dcl-head h2{font-size:20px;font-weight:600;letter-spacing:-.2px;color:#14301F}
-      body.rs-app.light.v2 .dcl-head p{font-size:14.5px;line-height:1.55;color:#475569;margin-top:6px}
+      body.rs-app.light.v2 .dcl-h2{font-size:20px;font-weight:600;letter-spacing:-.2px;color:#14301F}
       body.rs-app.light.v2 .dcl-kpis{gap:12px}
       body.rs-app.light.v2 .dcl-kpi{display:flex;flex-direction:column;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;background:#FFFFFF}
       body.rs-app.light.v2 .dcl-kpi span{order:-1;margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:#475569}
@@ -441,22 +436,22 @@
       + "body{margin:0;font:10px/1.42 'Segoe UI','IBM Plex Sans',Arial,sans-serif;color:#0F172A;font-variant-numeric:tabular-nums}"
       + ".dh{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding-bottom:10px;border-bottom:2.5px solid #14301F;margin-bottom:12px}"
       + ".dh .brand{background:#9BBB3B;border-radius:6px;padding:7px 10px}.dh .brand img{height:22px;display:block}"
-      + ".dh .kind{font-size:8.5px;font-weight:700;letter-spacing:.14em;color:#3F7D20}.dh h1{margin:1px 0 2px;font-size:19px;line-height:1.15}"
-      + ".dh .meta{color:#475569;font-size:9.5px}.dh .ref{text-align:right;color:#64748B;font-size:8.5px;line-height:1.5}"
+      + ".dh .kind{font-size:8.5px;font-weight:700;letter-spacing:.14em;color:#3F7D20}.dh h1{margin:1px 0 2px;font-size:19px;line-height:1.15}"   // std-ok: print sheet
+      + ".dh .meta{color:#475569;font-size:9.5px}.dh .ref{text-align:right;color:#64748B;font-size:8.5px;line-height:1.5}"   // std-ok: print sheet
       + ".hero{display:grid;gap:8px;margin:0 0 14px;break-inside:avoid}"
-      + ".hero .big{background:#14301F;color:#fff;border-radius:8px;padding:10px 13px}.hero .big .l{font-size:8.5px;letter-spacing:.1em;font-weight:700;color:#B7E23B}"
-      + ".hero .big .v{font-size:25px;font-weight:700;line-height:1.15;margin-top:2px}.hero .big .s{font-size:8.5px;color:#D7E5C8;margin-top:2px}"
-      + ".hero .t{border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px}.hero .t .l{font-size:8.5px;color:#475569;font-weight:600}"
-      + ".hero .t .v{font-size:16px;font-weight:700;margin-top:3px}.hero .t .s{font-size:8px;color:#64748B;margin-top:1px}"
-      + "h2{font-size:9px;letter-spacing:.12em;color:#3F7D20;margin:14px 0 5px;font-weight:800;break-after:avoid}"
+      + ".hero .big{background:#14301F;color:#fff;border-radius:8px;padding:10px 13px}.hero .big .l{font-size:8.5px;letter-spacing:.1em;font-weight:700;color:#B7E23B}"   // std-ok: print sheet
+      + ".hero .big .v{font-size:25px;font-weight:700;line-height:1.15;margin-top:2px}.hero .big .s{font-size:8.5px;color:#D7E5C8;margin-top:2px}"   // std-ok: print sheet
+      + ".hero .t{border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px}.hero .t .l{font-size:8.5px;color:#475569;font-weight:600}"   // std-ok: print sheet
+      + ".hero .t .v{font-size:16px;font-weight:700;margin-top:3px}.hero .t .s{font-size:8px;color:#64748B;margin-top:1px}"   // std-ok: print sheet
+      + "h2{font-size:9px;letter-spacing:.12em;color:#3F7D20;margin:14px 0 5px;font-weight:800;break-after:avoid}"   // std-ok: print sheet
       + "table{width:100%;border-collapse:collapse;margin-bottom:4px}thead{display:table-header-group}"
-      + "th{text-align:left;font-size:8px;font-weight:700;color:#475569;letter-spacing:.03em;text-transform:uppercase;padding:5px 6px;border-bottom:1.5px solid #0F172A}"
+      + "th{text-align:left;font-size:8px;font-weight:700;color:#475569;letter-spacing:.03em;text-transform:uppercase;padding:5px 6px;border-bottom:1.5px solid #0F172A}"   // std-ok: print sheet
       + "td{padding:4px 6px;border-bottom:1px solid #EEF1F4;vertical-align:top}tr{break-inside:avoid}"
-      + ".r{text-align:right;white-space:nowrap}.neg{color:#B91C1C}.mut{color:#64748B}.code{font-family:Consolas,'Courier New',monospace;font-size:9px}"
+      + ".r{text-align:right;white-space:nowrap}.neg{color:#B91C1C}.mut{color:#64748B}.code{font-family:Consolas,'Courier New',monospace;font-size:9px}"   // std-ok: print sheet
       + "tr.grp td{background:#F4FAE6;border-bottom:1px solid #DCEFB0;padding-top:6px;font-weight:700}tr.grp td .mut{font-weight:500}"
-      + "tr.tot td{border-top:1.5px solid #0F172A;border-bottom:0;font-weight:800;font-size:10.5px;padding-top:6px}"
+      + "tr.tot td{border-top:1.5px solid #0F172A;border-bottom:0;font-weight:800;font-size:10.5px;padding-top:6px}"   // std-ok: print sheet
       + ".sign{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px;break-inside:avoid}"
-      + ".sign div{border-top:1px solid #0F172A;padding-top:4px;font-size:8.5px;color:#475569}.sign div b{display:block;color:#0F172A;font-size:9px}"
+      + ".sign div{border-top:1px solid #0F172A;padding-top:4px;font-size:8.5px;color:#475569}.sign div b{display:block;color:#0F172A;font-size:9px}"   // std-ok: print sheet
       + ".sign div span{display:block;margin-top:16px;border-top:1px dotted #94A3B8;padding-top:3px}";
     w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((head ? head + " · " : "") + (period ? day.title : open ? "Open day" : "Day closing " + day.date))
       + "</title><style>" + css + "</style></head><body>"
@@ -884,11 +879,22 @@ registerPage({
     Z.css();
     var gen = (window.__DCLGEN = (window.__DCLGEN || 0) + 1);
     var mine = function () { return gen === window.__DCLGEN; };
-    var H = opt.embedded ? "h2" : "h1";
-    host.innerHTML = '<div class="dcl-head"><div><' + H + ">Day Closing</" + H + ">"
-      + "<p>The office drawer, closed once a day. Dispatch confirms each job in Money Flow; every day at 8:00 PM New York the day closes by itself and seals what came in and went out before 8 PM (a day with no record doesn't close). "
-      + "Click a day to see who confirmed what, a person to see their foremen, a foreman to see every movement. Days before the first closing are rebuilt from the records and marked so.</p></div>"
-      + '<div><button class="dcl-btn" id="dclRefresh">↻ Refresh</button></div></div><div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head -- the name, one line, and on the
+       right "How it's counted" and Refresh (same id, same handler). The paragraph that sat under
+       the title moved into How, word for word, with the drawer rule from the note under the table. */
+    var how = "<p>The office drawer, closed once a day.</p>"
+      + "<h3>When a day closes</h3><p>Dispatch confirms each job in Money Flow; every day at 8:00 PM New York the day closes by itself and seals what came in and went out before 8 PM (a day with no record doesn't close).</p>"
+      + "<h3>Reading the table</h3><p>Click a day to see who confirmed what, a person to see their foremen, a foreman to see every movement. Days before the first closing are rebuilt from the records and marked so.</p>"
+      + "<h3>What moves the drawer</h3><p>A day moves the drawer by what each record changed: a double click moves nothing, a correction moves only the difference. "
+      + "Pay-outs are covered by the same foreman's cash first, then by the drawer. Only cash moves the drawer: Zelle, card and job-against-job entries are listed under each day as not cash.</p>"
+      + "<p>Other income and expenses are the office's own cash (record them with the − Expense and + Other income buttons); each sits in the drawer of whoever recorded it.</p>";
+    var head = RSC.pageHeadHtml({ title: "Day Closing", key: "day-closing",
+      sub: "The office drawer, closed once a day at 8:00 PM New York.",
+      actions: [{ html: '<button class="dcl-btn" id="dclRefresh">↻ Refresh</button>' }],
+      how: how });
+    // embedded in Money Flow's tab, the heading steps down to an h2 under Money Flow's h1 (as before)
+    if (opt.embedded) head = head.replace("<h1>", '<h2 class="dcl-h2">').replace("</h1>", "</h2>");
+    host.innerHTML = head + '<div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
     var $b = function () { return host.querySelector("#dclBody"); };
     var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, popen: {}, fopen: {}, lines: {}, shown: 30 });
     if (!S.popen) S.popen = {};
@@ -1075,14 +1081,10 @@ registerPage({
       var nonCash = sum(function (l) { return l.method !== "Cash"; });
       var notCost = sum(function (l) { return l.kind === "expense" && !l.is_cost; });
       var label = new Date(OC.month + "-15T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      var cats = {}, people = {};
-      (ocData.lines || []).forEach(function (l) { cats[l.category] = 1; people[String(l.drawer_of || l.by).toLowerCase()] = 1; });
-      var opt = function (v, t, on) { return '<option value="' + esc(v) + '"' + (on ? " selected" : "") + ">" + esc(t) + "</option>"; };
+      // the three filters are kit dropdowns (ZTZ-80), mounted by wireOffice into these holders
       var bar = '<div class="dcl-ocbar"><span class="dcl-month"><button class="dcl-btn sm" data-ocm="-1" aria-label="Previous month">‹</button><b>' + esc(label)
         + '</b><button class="dcl-btn sm" data-ocm="1" aria-label="Next month">›</button></span>'
-        + '<select id="ocKind">' + opt("all", "Expenses and income", OC.kind === "all") + opt("expense", "Expenses", OC.kind === "expense") + opt("income", "Other income", OC.kind === "income") + "</select>"
-        + '<select id="ocCat">' + opt("", "Every category", !OC.cat) + Object.keys(cats).sort().map(function (c) { return opt(c, c, OC.cat === c); }).join("") + "</select>"
-        + '<select id="ocWho">' + opt("", "Everyone", !OC.who) + Object.keys(people).sort().map(function (p) { return opt(p, Z.short(p), OC.who === p); }).join("") + "</select>"
+        + '<div id="ocKind"></div><div id="ocCat"></div><div id="ocWho"></div>'
         + '<input class="dcl-q" id="ocQ" placeholder="Search a reason, a name or a job" value="' + esc(OC.q) + '" style="min-width:200px">'
         + '<span style="margin-left:auto;display:inline-flex;gap:6px"><button class="dcl-btn sm" data-ocnew="expense">− Expense</button><button class="dcl-btn sm" data-ocnew="income">+ Other income</button>'
         + '<button class="dcl-btn sm" id="ocCsv">CSV</button>' + (data.me.manager ? '<button class="dcl-btn sm" id="ocCats">Categories</button>' : "") + "</span></div>";
@@ -1112,8 +1114,21 @@ registerPage({
       var root = $b();
       var again = async function () { await loadOc(); paint(); };
       root.querySelectorAll("[data-ocm]").forEach(function (b) { b.onclick = function () { OC.month = shiftMonth(OC.month, +b.getAttribute("data-ocm")); ocData = null; paint(); again(); }; });
-      var sel = function (id, key) { var s = root.querySelector(id); if (s) s.onchange = function () { OC[key] = s.value; paint(); }; };
-      sel("#ocKind", "kind"); sel("#ocCat", "cat"); sel("#ocWho", "who");
+      /* the kind / category / person filters (ZTZ-80: kit dropdowns in place of the native selects).
+         Same choices, same state (OC.kind "all" | "expense" | "income", OC.cat, OC.who), and a
+         pick repaints the list as the change handler did. */
+      var cats = {}, people = {};
+      ((ocData && ocData.lines) || []).forEach(function (l) { cats[l.category] = 1; people[String(l.drawer_of || l.by).toLowerCase()] = 1; });
+      var pick = function (id, o) { var h = root.querySelector(id); if (h) RSC.localSelect(h, o); };
+      pick("#ocKind", { label: "Show", allLabel: "Expenses and income", value: OC.kind === "all" ? "" : OC.kind,
+        values: [{ v: "expense", l: "Expenses" }, { v: "income", l: "Other income" }],
+        onChange: function (v) { v = v || "all"; if (v !== OC.kind) { OC.kind = v; paint(); } } });
+      pick("#ocCat", { label: "Category", allLabel: "Every category", value: OC.cat,
+        values: Object.keys(cats).sort().map(function (c) { return { v: c, l: c }; }),
+        onChange: function (v) { if (v !== OC.cat) { OC.cat = v; paint(); } } });
+      pick("#ocWho", { label: "Who", allLabel: "Everyone", value: OC.who,
+        values: Object.keys(people).sort().map(function (p) { return { v: p, l: Z.short(p) }; }),
+        onChange: function (v) { if (v !== OC.who) { OC.who = v; paint(); } } });
       var q = root.querySelector("#ocQ");
       if (q) q.oninput = function () { OC.q = q.value; var p = q.selectionStart; paint(); var n = host.querySelector("#ocQ"); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) { /* best effort */ } } };
       var byId = function (id) { return (ocData.lines || []).filter(function (l) { return String(l.id) === String(id); })[0]; };
@@ -1157,8 +1172,8 @@ registerPage({
       var bar = '<div class="dcl-ocbar"><label class="dcl-meta" style="margin:0">From <input type="date" id="rpFrom" value="' + esc(RP.from) + '" class="dcl-q" style="min-width:0;max-width:170px;flex:none"></label>'
         + '<label class="dcl-meta" style="margin:0">to <input type="date" id="rpTo" value="' + esc(RP.to) + '" class="dcl-q" style="min-width:0;max-width:170px;flex:none"></label>'
         + '<button class="dcl-btn sm" data-rpq="month">This month</button><button class="dcl-btn sm" data-rpq="last">Last month</button><button class="dcl-btn sm" data-rpq="week">Last 7 days</button>'
-        + '<select id="rpBasis" title="How a job’s cash is dated"><option value="job"' + (RP.basis === "job" ? " selected" : "") + ">Jobs by the job’s date</option>"
-        + '<option value="cash"' + (RP.basis === "cash" ? " selected" : "") + ">Jobs by the day the cash moved</option></select>"
+        // how a job's cash is dated: a kit dropdown (ZTZ-80), mounted by wireReport
+        + '<div id="rpBasis" title="How a job’s cash is dated"></div>'
         + '<span style="margin-left:auto;display:inline-flex;gap:6px"><button class="dcl-btn sm" id="rpPdf">PDF</button><button class="dcl-btn sm" id="rpCsv">CSV</button></span></div>';
       if (rpErr) return bar + '<div class="dcl-err">' + esc(rpErr) + "</div>";
       if (!rpData) return bar + '<div class="dcl-load">' + (rpBusy ? "Building the report…" : "Pick the dates.") + "</div>";
@@ -1207,7 +1222,9 @@ registerPage({
       var f = root.querySelector("#rpFrom"), t = root.querySelector("#rpTo"), b = root.querySelector("#rpBasis");
       if (f) f.onchange = function () { if (f.value) { RP.from = f.value; run(); } };
       if (t) t.onchange = function () { if (t.value) { RP.to = t.value; run(); } };
-      if (b) b.onchange = function () { RP.basis = b.value; run(); };
+      if (b) RSC.localSelect(b, { label: "", required: true, value: RP.basis,
+        values: [{ v: "job", l: "Jobs by the job’s date" }, { v: "cash", l: "Jobs by the day the cash moved" }],
+        onChange: function (v) { if (v !== RP.basis) { RP.basis = v; run(); } } });
       root.querySelectorAll("[data-rpq]").forEach(function (x) {
         x.onclick = function () {
           var n = new Date(), q = x.getAttribute("data-rpq");

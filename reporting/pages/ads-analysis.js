@@ -201,7 +201,7 @@ registerPage({
           avg: null,
         });
         const note = rest.length ?
-          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 25 of ${RS.fmtN(list.length)} providers (rest aggregated)</div>` : "";
+          `<div style="color:var(--muted);font-size:12px;padding:6px 2px">showing 25 of ${RS.fmtN(list.length)} providers (rest aggregated)</div>` : "";
         return RSC.table(
           [{ key: "r", label: "#" }, { key: "k", label: "Provider" },
            { key: "v", label: "Ad Spend", fmt: RS.money },
@@ -295,10 +295,10 @@ registerPage({
           cv: null, cac: null, rpl: null, roas: null,
         });
         const note = srcList.length > 40 ?
-          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">showing 40 of ${RS.fmtN(srcList.length)} sources by spend</div>` : "";
+          `<div style="color:var(--muted);font-size:12px;padding:6px 2px">showing 40 of ${RS.fmtN(srcList.length)} sources by spend</div>` : "";
         // C11/D8: the one footnote on this page that defines both return metrics
         const roasNote =
-          `<div style="color:var(--muted);font-size:11px;padding:6px 2px">How it's counted · ` +
+          `<div style="color:var(--muted);font-size:12px;padding:6px 2px">How it's counted · ` +
           `ROAS (return on ad spend) = billed revenue ÷ ad spend. ` +
           `Cash ROI = cash actually collected ÷ ad spend.</div>`;
         return RSC.table(

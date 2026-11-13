@@ -132,16 +132,16 @@ registerPage({
           + "letter-spacing:-.01em}",
         ".cla-slide h3{font-family:inherit;font-size:14px;margin:20px 0 6px;color:#1B1A17;"
           + "letter-spacing:-.005em}",
-        ".cla-slide .eyebrow{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;"
+        ".cla-slide .eyebrow{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;" // std-ok: print sheet
           + "color:#A9691B;font-weight:700;margin:0 0 8px}",
         ".cla-slide p{font-size:13px;line-height:1.55;color:#3A3833;margin:0 0 9px;max-width:66ch}",
         ".cla-slide table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}",
-        ".cla-slide th{text-align:left;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;"
+        ".cla-slide th{text-align:left;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;" // std-ok: print sheet
           + "color:#78756B;padding:7px 10px;border-bottom:1px solid #DCDAD1;font-family:inherit}",
         ".cla-slide td{padding:7px 10px;border-bottom:1px solid #EDEBE4;color:#1B1A17}",
         // the second line of a cost row: what the number is MADE OF, so a reader does not
         // have to take "crew" or "materials" on trust
-        ".cla-slide .cla-sub{display:block;font-size:10.5px;color:#78756B;margin-top:2px}",
+        ".cla-slide .cla-sub{display:block;font-size:10.5px;color:#78756B;margin-top:2px}", // std-ok: print sheet
         ".cla-slide td.r,.cla-slide th.r{text-align:right;font-variant-numeric:tabular-nums}",
         ".cla-slide tr.hi td{background:#F6EADA}",
         // ---- redesign 2026-09-04 -------------------------------------------------
@@ -154,7 +154,7 @@ registerPage({
         ".cla-rule{height:3px;width:56px;background:#A9691B;margin:0 0 20px}",
         // SLIDE FOOTER. Numbered, so a printed deck can be talked through on a phone call.
         ".cla-foot{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px;"
-          + "padding-top:10px;border-top:1px solid #EDEBE4;font-size:9.5px;letter-spacing:.1em;"
+          + "padding-top:10px;border-top:1px solid #EDEBE4;font-size:9.5px;letter-spacing:.1em;" // std-ok: print sheet
           + "text-transform:uppercase;color:#A29E92}",
         // COST WATERFALL. Each line drawn to scale against the bill, so the shape of the
         // money is visible before a single number is read.
@@ -164,7 +164,7 @@ registerPage({
         ".cla-wfrow{display:grid;grid-template-columns:minmax(0,1fr) 132px 96px 58px;gap:14px;"
           + "align-items:center;padding:8px 0;border-bottom:1px solid #F1EFE8}",
         ".cla-wfrow .lab{font-size:12.5px;color:#1B1A17;line-height:1.35}",
-        ".cla-wfrow .lab i{font-style:normal;display:block;font-size:10.5px;color:#78756B;margin-top:2px}",
+        ".cla-wfrow .lab i{font-style:normal;display:block;font-size:10.5px;color:#78756B;margin-top:2px}", // std-ok: print sheet
         ".cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}",
         ".cla-wfrow .pc{color:#78756B}",
         ".cla-wfbar{height:9px;background:#F1EFE8;overflow:hidden;border-radius:1px}",
@@ -183,24 +183,24 @@ registerPage({
         ".cla-share{display:flex;height:34px;margin:18px 0 8px;border:1px solid #C9C6BA;"
           + "overflow:hidden;border-radius:2px}",
         ".cla-share i{font-style:normal;display:flex;align-items:center;justify-content:center;"
-          + "font-size:11.5px;font-weight:700;color:#fff;letter-spacing:.02em}",
+          + "font-size:11.5px;font-weight:700;color:#fff;letter-spacing:.02em}", // std-ok: print sheet
         ".cla-share i.c{background:#A9691B}",
         ".cla-share i.y{background:#33566E}",
         ".cla-share i.u{background:#4F7C4A}",
-        ".cla-sharekey{display:flex;gap:18px;font-size:11px;color:#78756B;margin-bottom:4px}",
+        ".cla-sharekey{display:flex;gap:18px;font-size:11px;color:#78756B;margin-bottom:4px}", // std-ok: print sheet
         ".cla-sharekey b{color:#1B1A17}",
         ".cla-figs{display:flex;gap:0;border-block:1px solid #DCDAD1;margin:12px 0 4px}",
         ".cla-fig{flex:1;padding:12px 10px 12px 0}",
         ".cla-fig b{display:block;font-size:22px;color:#A9691B;font-family:Georgia,serif;"
           + "font-variant-numeric:tabular-nums}",
-        ".cla-fig i{font-style:normal;font-size:10.5px;color:#78756B;display:block;margin-top:3px}",
+        ".cla-fig i{font-style:normal;font-size:10.5px;color:#78756B;display:block;margin-top:3px}", // std-ok: print sheet
         ".cla-split{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:9px 0;"
           + "border-top:1px solid #EDEBE4;font-size:12.5px}",
         ".cla-split:first-of-type{border-top:0}",
         ".cla-splitb{display:flex;height:18px;border:1px solid #C9C6BA;overflow:hidden;margin-bottom:5px}",
-        ".cla-splitb i{font-style:normal;font-size:9px;color:#fff;display:grid;place-items:center;"
+        ".cla-splitb i{font-style:normal;font-size:9px;color:#fff;display:grid;place-items:center;" // std-ok: print sheet
           + "font-family:Arial,sans-serif}",
-        ".cla-bar{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:11.5px}",
+        ".cla-bar{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:11.5px}", // std-ok: print sheet
         ".cla-bar span.t{width:150px;color:#3A3833}",
         ".cla-bar span.b{height:15px;background:#A9691B}",
         ".cla-bar span.b.now{background:#33566E}",
@@ -623,7 +623,7 @@ registerPage({
           Calculator number <b>plus 20%</b>. Across these jobs that is ${m0(D.ours)} of our price
           against ${m0(D.bill)} billed. That uplift is why your jobs carry a bigger share for both
           of us than an ordinary Zip to Zip job does.</p>
-        <p style="color:#78756B;font-size:11.5px">For context on the rates: our own sellers earn 9%
+        <p style="color:#78756B;font-size:11.5px">For context on the rates: our own sellers earn 9% <!-- std-ok: print sheet -->
           or 5% of a bill. You have been averaging ${pct1(D.median)}, because you bring the work as
           well as closing it — that difference is deliberate and we are not proposing to remove it.</p>
         ${foot(5)}
@@ -639,7 +639,7 @@ registerPage({
         <p><b>Claims shared in half</b>, as on the previous page.</p>
         <p><b>The same job-level view we have</b> — the bill, what came off it and why, and your
           share, on every job. Nothing in this document is a number you cannot check.</p>
-        <p style="color:#78756B;font-size:11.5px;margin-top:14px">Figures from closed jobs in our
+        <p style="color:#78756B;font-size:11.5px;margin-top:14px">Figures from closed jobs in our <!-- std-ok: print sheet -->
           reporting system: ${fmtN(D.n)} jobs sourced through CL over ${D.months} months, billed
           ${m0(D.bill)}. Crew, materials and the job costs come from the closing sheet for each job.
           Truck, fuel and tolls are our own averages applied per job — the closing sheet records a
@@ -762,28 +762,28 @@ registerPage({
         section > .cla-foot{margin-top:auto}
         h2{font-size:26px;margin:0 0 12px;letter-spacing:-.02em}
         h3{font-size:16px;margin:22px 0 7px;letter-spacing:-.01em}
-        .eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#A9691B;
+        .eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#A9691B; /* std-ok: print sheet */
           font-weight:700;margin:0 0 10px;font-family:Arial,sans-serif}
         p{font-size:13.5px;line-height:1.6;color:#3A3833;margin:0 0 11px;max-width:70ch}
         table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
-        th{text-align:left;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#78756B;
+        th{text-align:left;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#78756B; /* std-ok: print sheet */
           padding:9px 11px;border-bottom:1px solid #DCDAD1;font-family:Arial,sans-serif}
         td{padding:9px 11px;border-bottom:1px solid #EDEBE4}
         td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
         tr.hi td{background:#F6EADA}
-        .cla-sub{display:block;font-size:11px;color:#78756B;margin-top:2px}
+        .cla-sub{display:block;font-size:11px;color:#78756B;margin-top:2px} /* std-ok: print sheet */
         section.cover{padding-top:22mm}
         section.cover h2{font-size:44px;line-height:1.08;letter-spacing:-.025em;max-width:18ch}
         section.cover .lede{font-size:16px;line-height:1.6;max-width:56ch}
         .cla-rule{height:3px;width:60px;background:#A9691B;margin:0 0 22px}
         .cla-foot{display:flex;justify-content:space-between;margin-top:26px;padding-top:11px;
-          border-top:1px solid #EDEBE4;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+          border-top:1px solid #EDEBE4;font-size:10px;letter-spacing:.1em;text-transform:uppercase; /* std-ok: print sheet */
           color:#A29E92;font-family:Arial,sans-serif}
         .cla-wfall{margin:16px 0 6px}
         .cla-wfrow{display:grid;grid-template-columns:minmax(0,1fr) 140px 104px 62px;gap:16px;
           align-items:center;padding:9px 0;border-bottom:1px solid #F1EFE8}
         .cla-wfrow .lab{font-size:13px;line-height:1.35}
-        .cla-wfrow .lab i{font-style:normal;display:block;font-size:11px;color:#78756B;margin-top:2px}
+        .cla-wfrow .lab i{font-style:normal;display:block;font-size:11px;color:#78756B;margin-top:2px} /* std-ok: print sheet */
         .cla-wfrow .amt,.cla-wfrow .pc{text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
         .cla-wfrow .pc{color:#78756B}
         .cla-wfbar{height:9px;background:#F1EFE8}
@@ -799,7 +799,7 @@ registerPage({
         .cla-share i.c{background:#A9691B}
         .cla-share i.y{background:#33566E}
         .cla-share i.u{background:#4F7C4A}
-        .cla-sharekey{display:flex;gap:20px;font-size:11.5px;color:#78756B;margin-bottom:4px}
+        .cla-sharekey{display:flex;gap:20px;font-size:11.5px;color:#78756B;margin-bottom:4px} /* std-ok: print sheet */
         .cla-sharekey b{color:#1B1A17}
         .cla-wfrow.you .cla-wfbar i{background:#33566E}
         .cla-wfrow.us .cla-wfbar i{background:#4F7C4A}
@@ -807,11 +807,11 @@ registerPage({
         .cla-figs{display:flex;border-top:1px solid #DCDAD1;border-bottom:1px solid #DCDAD1;margin:16px 0}
         .cla-fig{flex:1;padding:16px 12px 16px 0}
         .cla-fig b{display:block;font-size:30px;color:#A9691B;font-variant-numeric:tabular-nums}
-        .cla-fig i{font-style:normal;font-size:11px;color:#78756B;display:block;margin-top:5px}
+        .cla-fig i{font-style:normal;font-size:11px;color:#78756B;display:block;margin-top:5px} /* std-ok: print sheet */
         .cla-split{display:grid;grid-template-columns:110px 1fr;gap:14px;padding:11px 0;
           border-top:1px solid #EDEBE4;font-size:13px}
         .cla-splitb{display:flex;height:20px;border:1px solid #C9C6BA;overflow:hidden;margin-bottom:6px}
-        .cla-splitb i{font-style:normal;font-size:9.5px;color:#fff;display:grid;place-items:center;
+        .cla-splitb i{font-style:normal;font-size:9.5px;color:#fff;display:grid;place-items:center; /* std-ok: print sheet */
           font-family:Arial,sans-serif}
         .cla-bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px}
         .cla-bar span.t{width:170px;color:#3A3833}

@@ -27,11 +27,10 @@
     st.id = "svy-style";
     st.textContent = ""
       + ".svy{font-variant-numeric:tabular-nums}"
-      + ".svy-tabs{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap;align-items:center}"
       + ".svy-back{display:inline-block;font-size:12.5px;margin:0 0 8px;text-decoration:none}"
       + ".svy-note{font-size:12.5px;color:var(--muted);margin:6px 2px 10px;line-height:1.5}"
       + ".svy-sub{display:block;font-size:12px;color:var(--faint);margin-top:2px}"
-      + ".svy-flag{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;"
+      + ".svy-flag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;"
       + "background:rgba(217,119,6,.13);color:#b45309;margin:2px 4px 0 0;white-space:nowrap}"
       + ".svy-bad{background:rgba(220,38,38,.12);color:#b91c1c}"
       + ".svy-ok{background:rgba(22,163,74,.12);color:#15803d}"
@@ -57,13 +56,13 @@
       + ".svy-br>b small{font-weight:500;color:var(--faint);margin-left:4px}"
       + ".svy-bar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--panel-2)}"
       + ".svy-bar i{display:block;height:100%}"
-      + ".svy-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);margin-top:10px}"
+      + ".svy-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--faint);margin-top:10px}"
       + ".svy-leg span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;"
       + "vertical-align:-1px;background:var(--c)}"
       + ".svy-big{font-size:30px;font-weight:800;color:var(--ink);line-height:1.1}"
       + ".svy-empty{text-align:center;padding:42px 20px}"
       + ".svy-empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px}"
-      + ".svy-tl{font-size:11.5px;color:var(--faint);margin-top:3px;line-height:1.5}"
+      + ".svy-tl{font-size:12px;color:var(--faint);margin-top:3px;line-height:1.5}"
       + ".svy-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}"
       + "@media (max-width:1000px){.svy-grid{grid-template-columns:minmax(0,1fr)}}"
       + ".svy-ed label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin:12px 0 5px}"
@@ -76,7 +75,7 @@
       + ".svy-pv.mob iframe{width:390px;max-width:100%}"
       + ".svy-ans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;padding:12px 16px;"
       + "background:var(--panel-2);font-size:13px}"
-      + ".svy-ans b{display:block;font-size:11.5px;color:var(--faint);font-weight:600}"
+      + ".svy-ans b{display:block;font-size:12px;color:var(--faint);font-weight:600}"
       + ".svy-link{color:var(--brand);cursor:pointer;font-weight:600;text-decoration:underline}"
       // the Audience's five tabs and its Undo note (11 Nov, ZTZ-69)
       + ".svy-atabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0 4px}"
@@ -803,14 +802,27 @@
 
       // ---- paint + wire ------------------------------------------------------------------------
       const TABS = [["over", "Overview"], ["list", "Audience"], ["sends", "Sends"], ["ans", "Responses"], ["email", "Email"]];
+      // THE PAGE STANDARD (ZTZ-80): the kit head (the page had no title of its own), the explanations in
+      // "How it's counted", and the five views as the kit's underline tabs (same data-tab, same go()).
+      // "Who gets it" reads the Audience's own tab notes, so the left-out wording stays in one place.
+      const howHtml = () => "<h3>From send to answer</h3><p>Each step counts the emails that got at least that far. "
+        + "Delivered and opened fill in once Resend's webhook is connected; email opens show once open tracking is switched on "
+        + "in Resend (mail.ziptozip.app). Clicked (they opened their link) and answered are always exact: every emailed link is personal.</p>"
+        + "<h3>Who gets it</h3><ul>" + ATABS.map(([k, l]) => "<li><b>" + esc(l) + "</b>: " + esc(ATAB_NOTE[k]) + "</li>").join("") + "</ul>"
+        + "<p>Nothing sends by itself: one press of Send mails at most " + MAX_PER_SEND + " customers, and each move can get it only once.</p>"
+        + "<h3>When the list updates</h3><p>Moves, ratings, complaints and emails update every hour. Sends, switch-offs and answers show at once.</p>"
+        + "<h3>Test sends</h3><p>Test sends (to you or a company inbox) stay out of every count unless switched on in Filters. "
+        + "A test carries a real personal link: open the survey and answer it like a customer.</p>"
+        + "<h3>By foreman</h3><p>Answers from personal links carry the move's foreman. Few answers swing an average, so read the count too.</p>";
       function paint() {
         if (!alive()) return;
-        const tab = t => '<button class="rs-btn' + (S.tab === t[0] ? " pri" : "") + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
         const v = S.tab === "over" ? overView() : S.tab === "list" ? listView() : S.tab === "sends" ? sendsView()
           : S.tab === "ans" ? answersView() : emailView();
         // the survey is automation #1 on Email Automations (10 Nov, ZTZ-60) and opens from its card there
         host.innerHTML = '<div class="svy"><a class="svy-link svy-back" href="#page=email-automations">&larr; Email Automations</a>'
-          + '<div class="svy-tabs">' + TABS.map(tab).join("") + "</div>" + v + "</div>";
+          + RSC.pageHeadHtml({ title: "Customer Survey", key: "surveys",
+              sub: "Tako's feedback survey by email: the results, who gets it, every send and answer, and the email itself.", how: howHtml })
+          + RSC.tabsHtml(TABS.map(t => ({ id: t[0], label: t[1] })), S.tab, "tab") + v + "</div>";
         wire();
       }
       function go(tab) {

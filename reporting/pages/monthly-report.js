@@ -692,7 +692,7 @@ async function renderMonthly(host, MRCFG) {
       .mrx-loaderr button{margin-top:0}
       /* overflow:visible (was hidden): the Month/Year/Company pickers are kit localSelects whose
          popover is an absolutely-positioned CHILD of the cover — overflow:hidden clipped it at the
-         cover's bottom edge (the old native <select> dropdown was OS-rendered and immune). The only
+         cover's bottom edge (the old native select dropdown was OS-rendered and immune). The only
          thing the clip protected was the accent strip's square corners, so the accent now rounds
          its own left corners instead. */
       .mrx-cover{position:relative;background:${INK};color:#fff;border-radius:16px;padding:24px 26px;margin-bottom:16px}
@@ -764,8 +764,8 @@ async function renderMonthly(host, MRCFG) {
       .mrx-tocstep button:hover{background:${GRID};color:${INK}}
       .mrx-tocstep button:active{background:${LINE}}
       /* branded topic interstitial — a lime "new topic" band that announces each part */
-      .mrx-parth{position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;background:linear-gradient(118deg, ${LIME}1c 0%, ${LIME}40 100%);border:1px solid ${LIME}7a;border-radius:16px;padding:24px 28px;margin:52px 0 24px;box-shadow:0 6px 20px ${LIME}22}
-      .mrx-parth::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg, ${LIME}, ${LIMED});pointer-events:none}
+      .mrx-parth{position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;background:${LIME}2e;border:1px solid ${LIME}7a;border-radius:16px;padding:24px 28px;margin:52px 0 24px;box-shadow:0 6px 20px ${LIME}22}
+      .mrx-parth::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:${LIME};pointer-events:none}
       .mrx-parth .pl{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
       .mrx-parth .pt{font-size:33px;font-weight:900;letter-spacing:-.9px;line-height:1;color:${INK}}
       .mrx-parth .ps{font-size:13.5px;font-weight:600;color:${INK};opacity:.64;letter-spacing:.1px}
@@ -1946,7 +1946,7 @@ async function renderMonthly(host, MRCFG) {
           if (cur2 == null) return td("—");
           if (prev2 == null || !prev2) return td(f(cur2));
           const d = (cur2 - prev2) / Math.abs(prev2);
-          return td(`${f(cur2)} <span style="color:${d >= 0 ? POS : NEG};font-weight:800;font-size:11px">${d >= 0 ? "▲" : "▼"}${Math.abs(d * 100).toFixed(0)}%</span>`);
+          return td(`${f(cur2)} <span style="color:${d >= 0 ? POS : NEG};font-weight:800;font-size:12px">${d >= 0 ? "▲" : "▼"}${Math.abs(d * 100).toFixed(0)}%</span>`);
         };
         const rowsH = [
           `<tr><td style="font-weight:800">Revenue</td>${cell(locRev, locRevLY, money)}${cell(ldRev, ldRevLY, money)}${td(locRev + ldRev ? pct(ldRev / (locRev + ldRev)) : "—")}</tr>`,
@@ -2755,7 +2755,7 @@ async function renderMonthly(host, MRCFG) {
       segReduce("closing", "Foreman", rs => rs.reduce((a, x) => a + num(x["Tip from Company Part"]) + num(x["Tip From the Customers"]), 0), PMY, PM).forEach(r => tipsPM[r.k] = r.v);
       segReduce("closing", "Foreman", rs => rs.length, PMY, PM).forEach(r => jobsFmPM[r.k] = r.v);
       // tiny MoM arrow: ▲/▼ + % vs previous month, green/red
-      const mArrow = (cur, prev) => { if (prev == null || !prev) return ""; const d2 = (cur - prev) / Math.abs(prev); return ` <span style="color:${d2 >= 0 ? POS : NEG};font-size:10px;font-weight:800">${d2 >= 0 ? "▲" : "▼"}${Math.abs(d2 * 100).toFixed(0)}%</span>`; };
+      const mArrow = (cur, prev) => { if (prev == null || !prev) return ""; const d2 = (cur - prev) / Math.abs(prev); return ` <span style="color:${d2 >= 0 ? POS : NEG};font-size:12px;font-weight:800">${d2 >= 0 ? "▲" : "▼"}${Math.abs(d2 * 100).toFixed(0)}%</span>`; };
       /* COMPANY (2026-09-14). The foreman scorecard mart has no Company column: a foreman's month is scored
          across every book he worked. So each foreman appears only under the company where he ran most of
          that month's jobs (Giorgi Kirvalidze, summer 2026: 48 Tuji jobs, 4 Zip), and the scores, the
@@ -2782,7 +2782,7 @@ async function renderMonthly(host, MRCFG) {
         const smax = Math.max(...sc.map(r => r.score || 0)) || 1;
         // C24/Q5: 'vs Est' is colored BY VALUE — green only when written ≥ estimate (≥1×);
         // under-delivery is red, never a flattering unconditional green.
-        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:10px">not ranked</span>'}</td>
+        const rowsH = sc.map((r, i) => { const arrow = r.prev ? (r.score > r.prev ? `<span style="color:${POS}">▲</span>` : r.score < r.prev ? `<span style="color:${NEG}">▼</span>` : "–") : ""; const up = r.est > 0 ? r.written / r.est : null; return `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:12px">not ranked</span>'}</td>
           ${td(fmtN(r.jobs) + mArrow(r.jobs, jobsFmPM[r.f]))}${td(fmtN(r.cf))}${td(money(payM[r.f] || 0) + mArrow(payM[r.f] || 0, payPM[r.f]))}${td(money(tipsM[r.f] || 0) + mArrow(tipsM[r.f] || 0, tipsPM[r.f]))}${td(money(r.written))}${td(up == null ? "—" : up.toFixed(1) + "×", up == null ? "" : `color:${up >= 1 ? POS : NEG};font-weight:800`)}${td(r.rev ? fmtN(r.rev) : "0", r.rev ? "" : `color:${NEG};font-weight:800`)}${td(fmtN(r.claims), r.claims > 0 ? `color:${NEG};font-weight:800` : "")}${td(refM[r.f] ? money(refM[r.f]) : "—", refM[r.f] ? `color:${NEG};font-weight:800` : "")}
           <td class="bar"><i style="width:${(r.score / smax * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${fmt1(r.score)} ${arrow}</span></td></tr>`; }).join("");
         // ---- FOREMAN OF THE MONTH, on the 2026-07 model ----------------------------
@@ -2847,17 +2847,17 @@ async function renderMonthly(host, MRCFG) {
               }).filter(x => x && x.n);
               if (!parts.length) return "";
               return `<div style="margin-top:15px;padding-top:13px;border-top:1px dashed var(--line)">
-                  <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:800;margin-bottom:8px">
+                  <div style="font-size:12px;color:var(--faint);font-weight:600;margin-bottom:8px">
                     What the assessment said</div>`
                 + parts.map(x => `<div style="margin-bottom:9px">
-                    <div style="font-size:11.5px;font-weight:700;color:var(--muted)">${esc(x.q)}</div>
+                    <div style="font-size:12px;font-weight:700;color:var(--muted)">${esc(x.q)}</div>
                     <div style="font-size:12.5px;line-height:1.5">${esc(x.n)}</div></div>`).join("")
                 + `</div>`;
             };
 
             // the four counted topics as bars, then the six assessed ones as one bar
             const bar = (lab, pts, cap, col, sub) => `<div style="margin-bottom:8px">
-                <div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px">
+                <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px">
                   <span style="color:var(--muted)">${esc(lab)}</span>
                   <span style="font-weight:700;${pts == null ? "color:var(--faint)" : ""}">${
                     pts == null ? sub : fmt1(pts) + " <span style=\'color:var(--faint);font-weight:500\'>/ " + cap + "</span>"}</span></div>
@@ -2882,7 +2882,7 @@ async function renderMonthly(host, MRCFG) {
             tableCard(g, "Foreman of the Month", monLbl,
               `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px;align-items:start">
                  <div>
-                   <div style="font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:800">Leading ${esc(monLbl)}</div>
+                   <div style="font-size:12px;color:var(--faint);font-weight:600">Leading ${esc(monLbl)}</div>
                    <div style="font-size:27px;font-weight:800;letter-spacing:-.6px;margin:1px 0 2px">${esc(win.f)}</div>
                    <div style="font-size:12px;color:var(--muted);margin-bottom:13px">
                      ${fmtN(win.jobs)} job${win.jobs === 1 ? "" : "s"} · ${fmt1(val(win))} of 100${
@@ -2896,7 +2896,7 @@ async function renderMonthly(host, MRCFG) {
                    <table class="mrx-tbl"><thead><tr><th>Foreman</th>
                    <th>Jobs</th><th>Counted /${win.cTot}</th><th>Assessed /${fmt1(win.mTot)}</th><th>Total</th></tr></thead>
                    <tbody>${runners}</tbody></table></div>
-                   ${M.length > Q.length ? `<div style="font-size:11px;color:var(--faint);margin-top:7px">`
+                   ${M.length > Q.length ? `<div style="font-size:12px;color:var(--faint);margin-top:7px">`
                      + `${M.length - Q.length} more ${M.length - Q.length === 1 ? "foreman" : "foremen"} `
                      + `worked this month but ${M.length - Q.length === 1 ? "is" : "are"} not in the `
                      + `running — fewer than five jobs, or less than half the counted score measurable.</div>` : ""}</div>
@@ -2955,7 +2955,7 @@ async function renderMonthly(host, MRCFG) {
           const dcell = d2 => d2 == null ? td("—", "color:var(--faint)")
             : td((d2 > 0 ? "▲" : d2 < 0 ? "▼" : "–") + Math.abs(d2).toFixed(0) + " pp",
                 `font-weight:800;color:${d2 > 0 ? POS : d2 < 0 ? NEG : "var(--faint)"}`);
-          const rowsH = cur.map(r => `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:10px">not ranked</span>'}</td>
+          const rowsH = cur.map(r => `<tr><td>${esc(r.f)}${r.ok ? "" : ' <span style="color:var(--faint);font-size:12px">not ranked</span>'}</td>
             ${td(fmtN(r.jobs))}${td(fmtN(r.rev), r.rev ? "" : `color:${NEG};font-weight:800`)}
             <td class="bar"><i style="width:${((r.rpj || 0) / mx * 100).toFixed(0)}%;background:${LIME_BG}"></i><span>${pct(r.rpj || 0)}</span></td>
             ${td(r.prev == null ? "—" : pct(r.prev), r.prev == null ? "color:var(--faint)" : "")}${dcell(r.d)}
@@ -2986,21 +2986,21 @@ async function renderMonthly(host, MRCFG) {
         const delta = (a, b) => {
           if (a == null || b == null) return "";
           const dv = a - b;
-          if (!dv) return ` <span style="font-size:11px;color:var(--faint);font-weight:600">no change</span>`;
+          if (!dv) return ` <span style="font-size:12px;color:var(--faint);font-weight:600">no change</span>`;
           return ` <span style="font-size:12px;font-weight:800;color:${dv > 0 ? POS : NEG}">${dv > 0 ? "▲" : "▼"}${Math.abs(dv)}</span>`;
         };
         // current number on the left, LAST MONTH on the right -- his ask: the previous period
         // is the comparison worth carrying, not the payroll roster
         const cell = (lab, v, pvv, sub) => `<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
-            <div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)">${esc(lab)}</div>
+            <div style="font-size:12px;font-weight:600;color:var(--faint)">${esc(lab)}</div>
             <div style="display:flex;align-items:baseline;gap:10px;margin-top:3px">
               <div style="font-size:24px;font-weight:750;letter-spacing:-.5px;line-height:1.15">${v == null ? "—" : fmtN(v)}${delta(v, pvv)}</div>
               <div style="margin-left:auto;text-align:right;line-height:1.15">
                 <div style="font-size:15px;font-weight:650;color:var(--muted)">${pvv == null ? "—" : fmtN(pvv)}</div>
-                <div style="font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)">${esc(pmName)}</div>
+                <div style="font-size:12px;font-weight:600;color:var(--faint)">${esc(pmName)}</div>
               </div>
             </div>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(sub)}</div></div>`;
+            <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(sub)}</div></div>`;
         const g1 = (k) => cur ? nn(cur[k]) : null, g0 = (k) => prv ? nn(prv[k]) : null;
         const idle = (g1("Roster Foremen") != null && g1("Foremen Worked") != null)
           ? g1("Roster Foremen") - g1("Foremen Worked") : null;
@@ -3073,7 +3073,7 @@ async function renderMonthly(host, MRCFG) {
           const pveCell = r => { if (!r.est || !r.pve) return td("—", "color:" + FAINT); const s = r.pveS;
             return td(fmt1(r.pve) + "×" + (s ? ` <span style="color:${SUB};font-weight:600">${fmt1(s)}/100</span>` : ""), `font-weight:800;color:${s >= 70 ? POS : s >= 45 ? WARN : NEG}`); };
           const tEst = eff.reduce((a, r) => a + r.est, 0), tWrt = eff.reduce((a, r) => a + r.wrt, 0);
-          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${pmName}</th><th>Reviews / job</th><th>vs ${pmName}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${esc(r.f)}${r.ok ? "" : ` <span style="color:var(--faint);font-size:10px" title="${esc(r.why)}">not ranked</span>`}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
+          const effHtml = `<table class="mrx-tbl"><thead><tr><th>Foreman</th><th>Packing estimate</th><th>Packing written</th><th>× estimate · score</th><th>Packing $ / 100 CF</th><th>vs ${pmName}</th><th>Reviews / job</th><th>vs ${pmName}</th></tr></thead><tbody>${eff.map((r, i) => { const p = prevEff[r.f] || {}; return `<tr><td>${esc(r.f)}${r.ok ? "" : ` <span style="color:var(--faint);font-size:12px" title="${esc(r.why)}">not ranked</span>`}</td>${td(r.est ? money(r.est) : "—", "color:" + SUB)}${td(money(r.wrt))}${pveCell(r)}${td(money(r.p100))}${dCell(r.p100, p.p100)}${td(fmt1(r.rtj))}${dCell(r.rtj, p.rtj)}</tr>`; }).join("")}<tr class="tot"><td>All crews</td>${td(money(tEst))}${td(money(tWrt))}${td(tEst ? fmt1(tWrt / tEst) + "×" : "—")}${td("")}${td("")}${td("")}${td("")}</tr></tbody></table>`;
           tableCard(g, "Foreman efficiency — packing estimate vs written, density & reviews", monLbl + " vs " + pmName, effHtml, { icon: KIC.grid, headVal: tEst ? fmt1(tWrt / tEst) + "× estimate" : fmtN(eff.length) + " crews", noteKind: "how", note: `Packing estimate = what the job was quoted to pack; Packing written = what the crew actually sold on site. The estimate is a floor to beat, NOT a target to hit — your packing-vs-estimate scoring bands score 1.0× at only 20/100 and pay full marks at 3.3× and above, so "× estimate" is shown with that same 0–100 score beside it (green 70+, amber 45+, red below). It is the identical score that feeds Forman Score at 20% weight, so this card and the scorecard always agree. Then packing $ written per 100 CF moved, and reviews collected per job — ranked by density, ▲▼ vs ${pmName}. A crew with no estimate on file shows "—". <b>Ranked by density, not by the Foreman of the Month model</b> — this answers "who sells the most packing per cubic foot", which is one input of four, so the leader here is often not the month's winner and there is no crown. A crew the month says too little about (fewer than five jobs, or less than half the counted score measurable) still appears, because the packing it sold is real, but sorts last and is marked "not ranked".` });
         }
       }
@@ -3414,6 +3414,7 @@ async function renderMonthly(host, MRCFG) {
     const rl = document.getElementById("mrRetryLoad"); if (rl) rl.onclick = () => reRender();   // failed feeds aren't cached — a re-render refetches them
 }
 
+// std-ok: head -- the dark cover is this page's head, and it is also the PDF cover (ZTZ-80)
 registerPage({ id: "monthly-report", group: "pulse", title: "Monthly Report", render(host) { return renderMonthly(host, null); } });
 
 /* Themed dashboards — one page per topic, each a lite-mode slice of the SAME report
