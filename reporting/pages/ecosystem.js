@@ -26,13 +26,12 @@
     st.id = "eco-style";
     st.textContent = ""
       + ".eco{font-variant-numeric:tabular-nums;max-width:1180px}"
-      + ".eco-eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:700}"
-      + ".eco-intro{font-size:14px;line-height:1.55;color:var(--ink);margin:6px 0 14px;max-width:980px}"
       + ".eco-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}"
       + ".eco-kpi{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--brand,#8db13c);border-radius:12px;padding:11px 14px}"
       + ".eco-kpi b{display:block;font-size:26px;line-height:1.15;color:var(--ink);font-weight:800}"
       + ".eco-kpi span{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.35}"
-      + ".eco-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}"
+      // ZTZ-80: the underline tabs sit straight above the KPI row
+      + ".eco .rs-utabs{margin-bottom:14px}"
       + ".eco-pills{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}"
       + ".eco-pills>span{font-size:12px;color:var(--faint);margin-right:2px}"
       + ".eco-h2{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;color:var(--ink);margin:6px 0 6px}"
@@ -42,7 +41,7 @@
       + ".eco-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 14px}"
       + ".eco-card h3{font-size:14.5px;margin:0 0 3px;color:var(--ink)}"
       + ".eco-sub{font-size:12px;color:var(--faint);margin:0 0 12px;line-height:1.45}"
-      + ".eco-foot{font-size:11.5px;color:var(--faint);margin:10px 0 0;line-height:1.45}"
+      + ".eco-foot{font-size:12px;color:var(--faint);margin:10px 0 0;line-height:1.45}"
       + ".eco-row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}"
       + ".eco-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}"
       + ".eco-row4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}"
@@ -53,7 +52,7 @@
       + ".eco table.rs-table td{vertical-align:top;font-size:12.5px;line-height:1.45}"
       + ".eco-st{background:rgba(37,99,235,.12);color:#1d4ed8;border-radius:4px;padding:0 4px;font-weight:600}"
       + ".eco-sz{background:rgba(217,119,6,.16);color:#b45309;border-radius:4px;padding:0 4px;font-weight:600}"
-      + ".eco-pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap;"
+      + ".eco-pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap;"
       + "border:1px solid var(--line);color:var(--muted);background:var(--panel)}"
       + ".eco-pill.lime{background:var(--brand,#8db13c);border-color:var(--brand,#8db13c);color:#14200a}"
       + ".eco-pill.soft{border-color:var(--brand,#8db13c);color:#4d6b12}"
@@ -62,9 +61,15 @@
       + ".eco-pill.dark{background:#14200a;border-color:#14200a;color:#c8ef6b}"
       + ".eco-pill.blue{background:rgba(37,99,235,.12);border-color:transparent;color:#1d4ed8}"
       + "body.rs-app:not(.light) .eco-pill.soft{color:#c8ef6b}body.rs-app:not(.light) .eco-pill.dark{background:#c8ef6b;color:#14200a}"
-      + ".eco-bars .grp{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:12px 0 4px}"
+      + ".eco-bars .grp{font-size:12px;color:var(--faint);font-weight:700;margin:12px 0 4px}"
       + ".eco-bar{display:grid;grid-template-columns:200px minmax(0,1fr) 60px;gap:10px;align-items:center;font-size:12.5px;margin:4px 0}"
       + ".eco-bar .t{height:10px;border-radius:99px;background:var(--panel-2)}.eco-bar .t i{display:block;height:100%;border-radius:99px}"
+      // ZTZ-80: her blue / orange / teal bars on the portal's greens, told apart by lightness (dark, mid, light);
+      // grey is "the others" beside a highlighted row. Dark theme: the darkest green would vanish on its track.
+      + ".eco-bar .t i.eco-t1{background:#14301F}.eco-bar .t i.eco-t2{background:#3F7D20}.eco-bar .t i.eco-t3{background:#A3CF3A}"
+      + ".eco-bar .t i.eco-tg{background:#94A3B8}"
+      + "body.rs-app:not(.light) .eco-bar .t i.eco-t1{background:#B7E23B}body.rs-app:not(.light) .eco-bar .t i.eco-t3{background:#94A3B8}"
+      + "body.rs-app:not(.light) .eco-bar .t i.eco-tg{background:#475569}"
       + ".eco-bar b{text-align:right;font-weight:600;color:var(--muted)}"
       + ".eco-bar.click{cursor:pointer}.eco-bar.click:hover .t,.eco-bar.on .t{outline:2px solid var(--ink);outline-offset:1px}"
       + ".eco-list{list-style:none;margin:0;padding:0}.eco-list li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;margin:8px 0;font-size:13px;line-height:1.45}"
@@ -76,7 +81,7 @@
       + ".eco-pillars{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;margin:4px 0 12px}"
       + ".eco-pillars span{display:inline-flex;align-items:center;gap:7px}"
       + ".eco-pillars i{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;"
-      + "background:var(--brand,#8db13c);color:#14200a;font-size:11px;font-weight:800}"
+      + "background:var(--brand,#8db13c);color:#14200a;font-size:12px;font-weight:800}"
       + ".eco-stair{display:flex;flex-direction:column;gap:6px}"
       + ".eco-step{border-left:3px solid var(--brand,#8db13c);background:var(--panel-2);border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.4}"
       + ".eco-step b{display:block;font-size:12px}.eco-step small{display:block;color:var(--faint);margin-top:2px}"
@@ -88,7 +93,7 @@
       + ".eco-journey{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:stretch}"
       + ".eco-jstep{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;background:var(--panel)}"
       + ".eco-jstep b{display:block;font-size:13.5px}.eco-jstep.hot{background:rgba(37,99,235,.1);border:2px solid #2563eb}"
-      + ".eco-jloop{font-size:11.5px;color:var(--faint);text-align:center;align-self:center}"
+      + ".eco-jloop{font-size:12px;color:var(--faint);text-align:center;align-self:center}"
       + ".eco-text{font-size:13px;line-height:1.55;color:var(--ink)}"
       + ".eco-text p{margin:0 0 10px}"
       + ".eco-ring{background:#141a12;border-radius:14px;padding:6px;margin:0 0 14px}"
@@ -100,13 +105,13 @@
       + ".eco-mx td.c.on{outline:2px solid var(--ink);outline-offset:-2px}.eco-mx th.sel{color:var(--ink)}"
       + ".eco-mx td.c.dim{opacity:.45}"
       + ".eco-evid{font-size:12.5px;line-height:1.5;margin:10px 0 0}"
-      + ".eco-camp h4{margin:2px 0 6px;font-size:14px}.eco-camp .who{font-size:11.5px;color:var(--faint)}"
+      + ".eco-camp h4{margin:2px 0 6px;font-size:14px}.eco-camp .who{font-size:12px;color:var(--faint)}"
       + ".eco-camp .for{background:#14200a;color:#e9f5d0;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.45;margin-top:8px}"
       + ".eco-camp .for b{color:#c8ef6b}"
       + ".eco-cfield{font-size:12.5px;line-height:1.5;margin:5px 0}"
       + ".eco-dumb{width:100%;height:auto;display:block}"
       + ".eco-search{width:240px;max-width:100%}"
-      + ".eco-src{font-size:11.5px;color:var(--faint);margin:16px 2px 4px;line-height:1.5}";
+      + ".eco-src{font-size:12px;color:var(--faint);margin:16px 2px 4px;line-height:1.5}";
     document.head.appendChild(st);
   }
 
@@ -136,9 +141,11 @@
         : '<tr><td colspan="' + cols.length + '" class="dim">Nothing for this state.</td></tr>')
       + "</tbody></table></div>";
   }
+  // tone: eco-t1 / eco-t2 / eco-t3 (dark, mid, light green) or eco-tg (grey); see the sheet
+  const TONES = ["eco-t1", "eco-t2", "eco-t3"];
   const bars = (rows, max, color, attr) => rows.map(r => '<div class="eco-bar' + (attr ? " click" + (attr(r).on ? " on" : "") : "") + '"'
       + (attr ? ' data-eco="' + esc(attr(r).key) + '"' : "") + "><span>" + fmt(r[0]) + '</span><div class="t">'
-      + (r[1] !== "" && r[1] != null ? '<i style="width:' + Math.max(1, 100 * (+String(r[1]).replace(/,/g, "") / max)).toFixed(1) + "%;background:" + (r[2] || color) + '"></i>' : "")
+      + (r[1] !== "" && r[1] != null ? '<i class="' + (r[2] || color) + '" style="width:' + Math.max(1, 100 * (+String(r[1]).replace(/,/g, "") / max)).toFixed(1) + '%"></i>' : "")
       + "</div><b>" + esc(r[3] != null ? r[3] : r[1] === "" ? "n/a" : r[1]) + "</b></div>").join("");
   const list = (items, chk) => '<ul class="eco-list' + (chk ? " chk" : "") + '">' + items.map(t => "<li><i>" + (chk ? "✓" : "+") + "</i><span>" + fmt(t) + "</span></li>").join("") + "</ul>";
   const useAvoid = (use, avoid) => '<div class="eco-row2" style="margin:0 0 12px"><div class="eco-ua use"><b>Use</b>' + fmt(use)
@@ -177,8 +184,8 @@
     const U = E.universities, A = U.audience;
     const max = Math.max(...A.groups.flatMap(g => g.rows.map(r => +r[1] || 0)));
     return '<p class="eco-lead">' + fmt(U.lead) + "</p>"
-      + card(A.title, A.sub, '<div class="eco-bars">' + A.groups.map(g => '<div class="grp">' + esc(g.label) + "</div>"
-          + bars(g.rows.map(r => [r[0], r[1], g.color, r[1] === "" ? "n/a" : r[1] + "k"]), max)).join("") + "</div>", A.foot)
+      + card(A.title, A.sub, '<div class="eco-bars">' + A.groups.map((g, gi) => '<div class="grp">' + esc(g.label) + "</div>"
+          + bars(g.rows.map(r => [r[0], r[1], TONES[gi % TONES.length], r[1] === "" ? "n/a" : r[1] + "k"]), max)).join("") + "</div>", A.foot)
       + card(U.shortlist.title, "", table(U.shortlist.cols, U.shortlist.rows, (i, v) => i === 3 ? PILL.grade(v) : i === 2 ? "<b>" + esc(v) + "</b>" : fmt(v)))
       + '<div class="eco-row2" style="margin:0 0 14px">' + card(U.offers.title, "", list(U.offers.items), U.offers.foot)
       + card(U.expects.title, "", list(U.expects.items, true)) + "</div>"
@@ -283,15 +290,15 @@
     if (L === "overview") {
       const O = C.overview, sel = st || S.over, sc = O.scores.find(r => r[0] === sel) || O.scores[0];
       const gaps = O.gaps.filter(g => g[0] === sc[0]), comps = O.competitors.filter(c => c[0] === sc[0]);
-      h += '<div class="eco-row2">' + card(O.title, O.sub, '<div class="eco-bars">' + bars(O.scores.map(r => [sname(r[0]), r[1], "#2563eb", r[1]]), 100,
-            "#2563eb", r => ({ key: O.scores.find(s => sname(s[0]) === r[0])[0], on: sname(sc[0]) === r[0] })) + "</div>")
+      h += '<div class="eco-row2">' + card(O.title, O.sub, '<div class="eco-bars">' + bars(O.scores.map(r => [sname(r[0]), r[1], "eco-t2", r[1]]), 100,
+            "eco-t2", r => ({ key: O.scores.find(s => sname(s[0]) === r[0])[0], on: sname(sc[0]) === r[0] })) + "</div>")
         + card(sname(sc[0]), "Gap score " + sc[1] + " · " + comps.length + " competitors tracked · " + sc[2] + " tactics missing or thin"
             + (!st && sc[0] === "CT" ? " · widest gap shown, pick a state to switch" : ""),
-            '<p class="eco-sub" style="margin:0 0 4px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Biggest gaps here</p>'
+            '<p class="eco-sub" style="margin:0 0 4px;font-weight:700">Biggest gaps here</p>'
             + gaps.map(g => '<div class="eco-cfield"><b>' + esc(g[1]) + "</b> — Zip to Zip Moving: " + esc(g[2]) + "; " + esc(g[3]) + " of 5 competitors use it</div>").join("")
-            + '<p class="eco-sub" style="margin:12px 0 4px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Competitors</p>'
+            + '<p class="eco-sub" style="margin:12px 0 4px;font-weight:700">Competitors</p>'
             + comps.map(c => '<div class="eco-cfield"><b>' + esc(c[1]) + '</b> <span class="dim">· ' + esc(c[2]) + "</span></div>").join("")
-            + '<p class="eco-sub" style="margin:12px 0 4px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Where Zip to Zip Moving is covered</p>'
+            + '<p class="eco-sub" style="margin:12px 0 4px;font-weight:700">Where Zip to Zip Moving is covered</p>'
             + '<div class="eco-cfield">' + esc(sc[3]) + "</div>") + "</div>";
     } else if (L === "activity") {
       const A = C.activity;
@@ -307,12 +314,12 @@
       const known = P.known.cards.filter(c => (c[0] === "All" || !st || c[0] === st) && (!S.play || c[3] === S.play));
       h += card(P.lens.title, P.lens.sub, '<div class="eco-row3">' + (lens.length ? lens.map(c => '<div class="eco-field" style="margin:0"><b>' + esc(c[1]) + " " + PILL.state(c[0]) + "</b>" + fmt(c[2]) + "</div>").join("")
             : '<div class="dim">No competitor in ' + esc(sname(st)) + " wins mainly through a partnership.</div>") + "</div>"
-          + '<p class="eco-sub" style="margin:14px 0 6px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">What this means for Zip to Zip Moving</p>'
+          + '<p class="eco-sub" style="margin:14px 0 6px;font-weight:700">What this means for Zip to Zip Moving</p>'
           + P.lens.means.map(m => '<div class="eco-cfield">' + PILL.prio(m[0]) + " <b>" + esc(m[1]) + "</b> — " + fmt(m[2]) + "</div>").join(""))
         + card(P.known.title, P.known.sub, '<div class="eco-pills"><span>Play type</span>' + [["", "All plays"], ["Partnership", "Partnership"], ["Content", "Content"], ["Campaign", "Campaign"], ["Reputation", "Reputation"]]
             .map(([k, l]) => '<button class="rs-btn' + (S.play === k ? " pri" : "") + '" data-eco-play="' + k + '">' + l + "</button>").join("") + "</div>"
           + '<div class="eco-row3">' + known.map(c => '<div class="eco-card" style="margin:0;' + (c[0] === "All" ? "border:2px solid var(--brand,#8db13c)" : "background:var(--panel-2)") + '"><h3>' + esc(c[1]) + " " + PILL.state(c[0]) + "</h3>"
-            + '<p class="eco-sub" style="margin:0 0 6px">Known for: ' + esc(c[2]) + '</p><p class="eco-sub" style="margin:0 0 3px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Most effective ' + esc(c[3].toLowerCase()) + "</p><b>" + fmt(c[4]) + "</b></div>").join("") + "</div>");
+            + '<p class="eco-sub" style="margin:0 0 6px">Known for: ' + esc(c[2]) + '</p><p class="eco-sub" style="margin:0 0 3px;font-weight:700">Most effective ' + esc(c[3].toLowerCase()) + "</p><b>" + fmt(c[4]) + "</b></div>").join("") + "</div>");
     } else if (L === "reputation") {
       const R = C.reputation, rows = R.board.rows.filter(r => r[1] === "All" || !st || r[1] === st);
       // her dumbbell chart: Google (blue) and Yelp (black) per company on a 2.5-5.0 axis
@@ -361,7 +368,7 @@
           + (C.campaigns.cards.some(c => !st || c[1] === st) ? "" : '<div class="dim">No featured campaign in ' + esc(sname(st)) + ".</div>") + "</div>");
     } else if (L === "search") {
       const X = C.search, mx = i => Math.max(...X.rows.map(r => +r[i].replace(/,/g, "")));
-      const b = i => '<div class="eco-bars">' + bars(X.rows.map((r, j) => [r[0], r[i], j ? "#9ca3af" : "#2563eb", r[i]]), mx(i)) + "</div>";
+      const b = i => '<div class="eco-bars">' + bars(X.rows.map((r, j) => [r[0], r[i], j ? "eco-tg" : "eco-t2", r[i]]), mx(i)) + "</div>";
       h += '<div class="eco-row2" style="margin:0 0 14px">' + card(X.visits.title, X.visits.sub, b(2)) + card(X.ai.title, X.ai.sub, b(4)) + "</div>"
         + card("Search snapshot", "", table(X.cols, X.rows, (i, v) => i === 0 ? "<b>" + esc(v) + "</b>" : esc(v)));
     } else {
@@ -388,11 +395,12 @@
 
   /* ---- the Marketing page ------------------------------------------------------------------- */
   if (typeof registerPage !== "function") return;
+  const SUB = "Sophie's 2027 partnership and audience strategy: universities, partners, personas, channels and segments.";
   registerPage({
     id: "partnership-strategy",
     group: "marketing",
     title: "Partnership & Strategy",
-    subtitle: "Sophie's 2027 partnership and audience strategy: universities, partners, personas, channels and segments.",
+    subtitle: SUB,
     datasets: [],
     render(host) {
       const E = window.ZTZ_ECO;
@@ -403,8 +411,15 @@
         const gaps = S.page === "gaps";
         const body = gaps ? '<div id="ecoGaps"></div>' : S.page === "uni" ? pageUni(E) : S.page === "map" ? pageMap(E, S)
           : S.page === "personas" ? pagePersonas(E) : S.page === "channels" ? pageChannels(E) : pageSegments(E, S);
-        host.innerHTML = '<div class="eco"><div class="eco-eyebrow">' + esc(E.header.eyebrow) + '</div><p class="eco-intro">' + fmt(E.header.intro) + "</p>"
-          + kpis(E.header.kpis) + '<div class="eco-tabs">' + PAGES.map(([k, l]) => '<button class="rs-btn' + (S.page === k ? " pri" : "") + '" data-eco-page="' + k + '">' + esc(l) + "</button>").join("") + "</div>"
+        /* THE PAGE STANDARD (ZTZ-80): the kit head (her eyebrow and intro moved into its panel, word for
+           word), her numbered pages as underline tabs (data-eco-page, so the click below is unchanged),
+           then her six headline numbers as the kit's KPI row */
+        host.innerHTML = '<div class="eco">' + RSC.pageHeadHtml({ title: "Partnership & Strategy", key: "partnership-strategy",
+            sub: SUB, chip: "Snapshot · " + E.source.copied, howTitle: "About this page",
+            how: "<h3>" + esc(E.header.eyebrow) + "</h3><p>" + fmt(E.header.intro) + "</p><h3>Sources</h3><p>" + fmt(E.header.footer)
+              + "</p><p>From Sophie's page \"" + esc(E.source.title) + '" (copied ' + esc(E.source.copied) + "). A snapshot: it changes when her page does, not by itself.</p>" })
+          + RSC.tabsHtml(PAGES.map(([k, l]) => ({ id: k, label: l })), S.page, "eco-page")
+          + RSC.kpisHtml(E.header.kpis.map(([v, l]) => ({ label: l, value: esc(v) })))
           + '<div class="eco-h2"><i>' + (PAGES.findIndex(p => p[0] === S.page) + 1) + "</i>" + esc(PAGES.find(p => p[0] === S.page)[1].replace(/^\d · /, "")) + "</div>"
           + body + '<p class="eco-src">' + fmt(E.header.footer) + "<br>From Sophie's page \"" + esc(E.source.title) + '" (copied ' + esc(E.source.copied)
           + "). A snapshot: it changes when her page does, not by itself.</p></div>";

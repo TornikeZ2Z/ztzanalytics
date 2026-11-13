@@ -189,11 +189,8 @@ registerPage({
       + "--sm-c6:var(--muted)}"
       + ".sm-hero{position:relative;overflow:hidden}"
       + ".sm-htop{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}"
-      + ".sm-monbtn{appearance:none;border:0;background:none;font:inherit;font-size:31px;"
-      + "font-weight:800;letter-spacing:-.6px;color:var(--ink);cursor:pointer;padding:0;"
-      + "display:flex;align-items:center;gap:8px}"
-      + ".sm-monbtn .car{font-size:14px;color:var(--faint);transition:transform .16s}"
-      + ".sm-monbtn.open .car{transform:rotate(180deg)}"
+      /* the month picker is a control in the filter row now (ZTZ-80): the kit's slicer
+         button, with this page's own list of months (each with its ranked count) under it */
       + ".sm-mwrap{position:relative}"
       + ".sm-mlist{position:absolute;top:calc(100% + 6px);left:0;min-width:250px;z-index:44;"
       + "background:var(--panel);border:1px solid var(--line-2);border-radius:14px;"
@@ -204,15 +201,12 @@ registerPage({
       + "padding:8px 11px;border-radius:9px;cursor:pointer;text-align:left}"
       + ".sm-mopt:hover{background:var(--panel-2)}"
       + ".sm-mopt.cur{background:var(--brand-glow);font-weight:800}"
-      + ".sm-mopt .tag{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.05em;"
-      + "text-transform:uppercase;color:var(--faint)}"
+      + ".sm-mopt .tag{margin-left:auto;font-size:12px;font-weight:800;color:var(--faint)}"
       + ".sm-mopt .tag.yg{color:var(--warn)}"
-      + ".sm-sub{font-size:12.5px;color:var(--muted);margin-top:5px;max-width:var(--rs-prose,68ch)}"
-      + ".sm-stats{margin-left:auto;display:flex;gap:0}"
+      + ".sm-stats{display:flex;gap:0}"
       + ".sm-st{padding:0 20px;border-left:1px solid var(--line)}"
       + ".sm-st:first-child{border-left:0}"
-      + ".sm-st span{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--muted)}"
+      + ".sm-st span{display:block;font-size:12px;font-weight:800;color:var(--muted)}"
       + ".sm-st b{display:block;font-size:26px;font-weight:750;letter-spacing:-.5px;"
       + "color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}"
       + ".sm-st small{display:block;font-size:12px;color:var(--faint);margin-top:2px}"
@@ -234,7 +228,7 @@ registerPage({
       + ".sm-rk.oor{background:none;border:1px dashed var(--line-2);color:var(--faint)}"
       + ".sm-nm{font-size:20px;font-weight:750;letter-spacing:-.3px;color:var(--ink);"
       + "display:flex;align-items:center;gap:8px;flex-wrap:wrap}"
-      + ".sm-gone{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+      + ".sm-gone{font-size:12px;font-weight:800;"
       + "color:var(--faint);border:1px solid var(--line-2);border-radius:999px;padding:1px 8px}"
       + ".sm-si{font-size:13px;color:var(--faint);margin-top:3px;display:flex;gap:7px;"
       + "flex-wrap:wrap;align-items:center}"
@@ -247,13 +241,13 @@ registerPage({
       + ".sm-bar{height:12px;border-radius:6px;background:var(--panel-2);overflow:hidden;"
       + "display:flex}"
       + ".sm-bar u{display:block;height:100%;text-decoration:none}"
-      + ".sm-barcap{font-size:11px;color:var(--faint);margin-top:5px;font-weight:650}"
+      + ".sm-barcap{font-size:12px;color:var(--faint);margin-top:5px;font-weight:650}"
       + ".sm-tot{text-align:right;min-width:92px}"
       + ".sm-tot b{display:block;font-size:30px;font-weight:800;letter-spacing:-.9px;"
       + "color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}"
-      + ".sm-tot i{display:block;font-style:normal;font-size:10px;font-weight:800;"
-      + "letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:3px}"
-      + ".sm-vd{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;"
+      + ".sm-tot i{display:block;font-style:normal;font-size:12px;font-weight:800;"
+      + "color:var(--faint);margin-top:3px}"
+      + ".sm-vd{font-size:12px;font-weight:800;"
       + "border-radius:999px;padding:2px 10px;border:1px solid}"
       + ".sm-vd.top{color:var(--pos);border-color:var(--pos);background:var(--pos-bg)}"
       + ".sm-vd.good{color:var(--brand-d);border-color:var(--line-2)}"
@@ -268,7 +262,7 @@ registerPage({
       + ".sm-body{display:none;padding:0 18px 18px;border-top:1px solid var(--line)}"
       + ".sm-card.on .sm-body{display:block;animation:smin .16s ease-out}"
       + "@keyframes smin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}"
-      + ".sm-sec{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
+      + ".sm-sec{font-size:12px;font-weight:800;"
       + "color:var(--muted);margin:16px 0 10px}"
       + ".sm-sec .rescale{text-transform:none;letter-spacing:0;font-weight:600;color:var(--warn)}"
       + ".sm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}"
@@ -279,11 +273,11 @@ registerPage({
       + ".sm-tl .l{font-size:13px;font-weight:750;color:var(--ink)}"
       + ".sm-tl .v{margin-left:auto;font-size:18px;font-weight:800;color:var(--ink);"
       + "font-variant-numeric:tabular-nums}"
-      + ".sm-tl .v small{font-size:11px;font-weight:700;color:var(--faint)}"
+      + ".sm-tl .v small{font-size:12px;font-weight:700;color:var(--faint)}"
       + ".sm-tb{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:8px 0 7px}"
       + ".sm-tb>i{display:block;height:100%;background:var(--tc,var(--brand))}"
       + ".sm-tr{font-size:12px;color:var(--muted);line-height:1.5}"
-      + ".sm-tw{font-size:11px;color:var(--faint);margin-top:5px;display:flex;gap:8px;"
+      + ".sm-tw{font-size:12px;color:var(--faint);margin-top:5px;display:flex;gap:8px;"
       + "align-items:center;flex-wrap:wrap}"
       + ".sm-tw b{color:var(--muted);font-weight:750}"
       + ".sm-empty{border:1px dashed var(--line-2);border-radius:12px;padding:52px 20px;"
@@ -309,17 +303,15 @@ registerPage({
       + ".sm-msf{width:100%;height:calc(100vh - 160px);border:0;border-radius:14px;background:#f4f5f2}"
       + "@media(max-width:1180px){.sm-head{grid-template-columns:44px minmax(0,1fr) auto}"
       + ".sm-head .sm-scwrap{display:none}}"
-      + "@media(max-width:820px){.sm-rep{display:none}.sm-stats{margin-left:0;margin-top:12px}}"
+      + "@media(max-width:820px){.sm-rep{display:none}}"
       /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2.
          The six topic hues become RS.V2.cat in order -- in v2 --brand and --blue are the SAME
          blue and amber means a warning, so the old set could not tell topics apart. */
       + "body.rs-app.light.v2 .sm-wrap{--sm-c1:#14301F;--sm-c2:#3F7D20;--sm-c3:#A3CF3A;--sm-c4:#0F766E;--sm-c5:#7C3AED;--sm-c6:#94A3B8}"
-      + "body.rs-app.light.v2 .sm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
       + "body.rs-app.light.v2 .sm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
       + "body.rs-app.light.v2 .sm-mopt{font-weight:500;border-radius:8px}"
       + "body.rs-app.light.v2 .sm-mopt.cur{background:var(--blue-bg);color:var(--brand-d);font-weight:600}"
       + "body.rs-app.light.v2 .sm-mopt .tag{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
-      + "body.rs-app.light.v2 .sm-sub{font-size:14px;line-height:1.55}"
       + "body.rs-app.light.v2 .sm-st span{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
       + "body.rs-app.light.v2 .sm-st b{font-size:24px;font-weight:600;letter-spacing:-.3px}"
       + "body.rs-app.light.v2 .sm-st small{font-size:12.5px}"
@@ -356,9 +348,25 @@ registerPage({
       + "body.rs-app.light.v2 .sm-msbar .lbl{font-weight:600}"
       + "body.rs-app.light.v2 .sm-msbar select{border-radius:8px}"
       + SHEET_CSS
-      + "</style><div class='sm-wrap' id='smWrap'><div class='sm-empty'>Reading the record…</div></div>";
+      + "</style><div id='smHead'></div>"
+      + "<div class='sm-wrap' id='smWrap'><div class='sm-empty'>Reading the record…</div></div>";
 
     const wrap = host.querySelector("#smWrap");
+
+    /* THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026): the page's own name is the
+     * title, not the month. The month picker moved down into the filter row, and the paragraph
+     * that opened the page moved, word for word, into How it's counted; the chip keeps the
+     * one caveat a reader must not miss (a young month, a tiny pool). Drawn straight away so
+     * the name shows while the record loads, then again by paint() for the month on screen. */
+    const headHost = host.querySelector("#smHead");
+    function paintHead(o) {
+      if (!headHost || !RSC.pageHeadHtml) return;
+      headHost.innerHTML = RSC.pageHeadHtml(Object.assign({
+        title: "Sales Person of the Month", key: "sales-of-the-month",
+        sub: "Every point counted from the record — no one rates anybody here.",
+      }, o || {}));
+    }
+    paintHead();
 
     // ---------------------------------------------------------------- helpers
     const monLab = m => {
@@ -427,6 +435,7 @@ registerPage({
     function paint() {
       const months = monthsOf();
       if (!months.length) {
+        paintHead();
         wrap.innerHTML = "<div class='sm-empty'>No scored months yet.</div>";
         return;
       }
@@ -457,35 +466,30 @@ registerPage({
         : matured === 1 ? "one month on"
         : matured + " months on";
 
-      const hero = "<div class='panel sm-hero'><div class='sm-htop'>"
-        + "<div><div class='sm-mwrap'>"
-        + "<button class='sm-monbtn' id='smMonBtn'>" + esc(monLab(S.month))
-        + " <span class='car'>▾</span></button>"
-        + "<div class='sm-mlist' id='smMList'>"
-        + months.map(m => {
-            const rr = rowsFor(m).filter(x => num(x["Rank"]) != null);
-            const mm = num((rowsFor(m)[0] || {})["Months Matured"]);
-            const growing = mm != null && mm < 2;
-            return "<button class='sm-mopt" + (m === S.month ? " cur" : "") + "' data-m='" + esc(m) + "'>"
-              + esc(monLab(m)) + "<span class='tag" + (growing ? " yg" : "") + "'>"
-              + rr.length + " ranked" + (growing ? " · growing" : "") + "</span></button>";
-          }).join("")
-        + "</div></div>"
-        + "<div class='sm-sub'>Everything here is counted from the record — the leads that "
-        + "arrived in " + esc(monLab(S.month)) + ", what became of them, and what the jobs "
-        + "earned. Nobody rates anybody on this page."
-        + (young ? " <b>" + esc(monLab(S.month)) + " is still growing</b> — a fifth of the "
+      // A PERCENTILE NEEDS PEOPLE TO BE A PERCENTILE OF. With four reps over the line,
+      // last place on the two topics that could be measured scores a flat 0.0 — which
+      // reads as a verdict on the person when it only means "the lowest of four". Say so
+      // rather than let the number speak for itself: in How it's counted in full, and as the
+      // head's chip at a glance.
+      const smallPool = ranked.length && ranked.length < 6;
+      const caveats = (young ? "<p><b>" + esc(monLab(S.month)) + " is still growing</b> — a fifth of the "
                  + "leads that eventually book do so more than a month after they arrive, so "
-                 + "this order will still move." : "")
-        // A PERCENTILE NEEDS PEOPLE TO BE A PERCENTILE OF. With four reps over the line,
-        // last place on the two topics that could be measured scores a flat 0.0 — which
-        // reads as a verdict on the person when it only means "the lowest of four". Say so
-        // rather than let the number speak for itself.
-        + (ranked.length && ranked.length < 6
-            ? " <b>Only " + ranked.length + " salespeople cleared 20 leads here</b>, so these "
+                 + "this order will still move.</p>" : "")
+        + (smallPool
+            ? "<p><b>Only " + ranked.length + " salespeople cleared 20 leads here</b>, so these "
               + "standings separate very few people — the bottom of a pool this small scores "
-              + "near zero by arithmetic, not by judgement." : "")
-        + "</div></div>"
+              + "near zero by arithmetic, not by judgement.</p>" : "");
+      const chip = [young ? "still growing" : "", smallPool ? "only " + ranked.length + " ranked" : ""]
+        .filter(Boolean).join(" · ");
+      paintHead({
+        chip: chip ? chip.charAt(0).toUpperCase() + chip.slice(1) : "", chipTone: chip ? "warn" : "",
+        how: "<h3>What is counted</h3><p>Everything here is counted from the record — the leads that "
+          + "arrived in " + esc(monLab(S.month)) + ", what became of them, and what the jobs "
+          + "earned. Nobody rates anybody on this page.</p>"
+          + (caveats ? "<h3>" + esc(monLab(S.month)) + "</h3>" + caveats : ""),
+      });
+
+      const hero = "<div class='panel sm-hero'><div class='sm-htop'>"
         + "<div class='sm-stats'>"
         + stat("Ranked", fmtN(ranked.length),
                rows.length > ranked.length ? (rows.length - ranked.length) + " under 20 leads" : "everyone who worked")
@@ -499,7 +503,24 @@ registerPage({
             + esc(t.label) + " <b>" + t.w + "</b></span>").join("")
         + "</div></div>";
 
-      const bar = "<div class='rs-bar'><input class='rs-inp' id='smQ' placeholder='Find a salesperson…' value=\""
+      // the month picker: the kit's slicer button over this page's own month list, so the
+      // list keeps each month's ranked count and its "growing" tag
+      const picker = "<div class='rs-slicer sm-mwrap'>"
+        + "<button type='button' class='rs-slicer-btn on' id='smMonBtn' aria-haspopup='listbox'>"
+        + "<span class='lbl'>Month</span><span class='val'>" + esc(monLab(S.month)) + "</span>"
+        + "<span class='chev'>▾</span></button>"
+        + "<div class='sm-mlist' id='smMList'>"
+        + months.map(m => {
+            const rr = rowsFor(m).filter(x => num(x["Rank"]) != null);
+            const mm = num((rowsFor(m)[0] || {})["Months Matured"]);
+            const growing = mm != null && mm < 2;
+            return "<button class='sm-mopt" + (m === S.month ? " cur" : "") + "' data-m='" + esc(m) + "'>"
+              + esc(monLab(m)) + "<span class='tag" + (growing ? " yg" : "") + "'>"
+              + rr.length + " ranked" + (growing ? " · growing" : "") + "</span></button>";
+          }).join("")
+        + "</div></div>";
+
+      const bar = "<div class='rs-bar'>" + picker + "<input class='rs-inp' id='smQ' placeholder='Find a salesperson…' value=\""
         + esc(S.q || "") + "\"><span class='rs-spacer'></span>"
         + "<span class='rs-hint' style='margin:0'>Click a card for the six topics behind the score.</span></div>";
 
@@ -520,7 +541,9 @@ registerPage({
       // A REP RUSO SWITCHED OFF KEEPS THE MONTHS THEY WORKED, rank and all, under a collapsed
       // "Former reps" line below the cards (his "Grouped as 'Former reps'", 2026-10-16); a
       // search that finds one opens the line.
-      wrap.innerHTML = hero + bar
+      // the standard's order: the filter row (month + search) right under the head, then the
+      // stat strip, then the ranked list
+      wrap.innerHTML = bar + hero
         + (shown.length ? (RSC.repRows
                             ? RSC.repRows(shown, r => String(r["Sales Person"] || ""), card,
                                           { id: "sotm", open: !!q })

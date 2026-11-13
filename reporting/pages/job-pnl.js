@@ -85,6 +85,7 @@
     .jpl-list .rs-table td.jpl-cust{white-space:normal;min-width:150px}
     .jpl-list .rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);background:var(--panel-2)}
     .jpl-pager{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-top:12px;font-size:13px;color:var(--muted)}
+    .jpl-pager .rs-slicer{display:inline-block;vertical-align:middle}
     .jpl-pages{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
     .jpl-pages .rs-btn{min-width:34px;padding:5px 9px}
     .jpl-pages .rs-btn.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
@@ -94,12 +95,12 @@
     .jpl-dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px;position:sticky;top:-14px;
       background:var(--bg,var(--panel));padding:8px 0;z-index:1}
     @media (max-width:760px){.jpl-drawer{padding:10px 12px 40px}}
-    .jpl-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .jpl-eyebrow{font-size:12px;font-weight:800;color:var(--muted)}
     .jpl-wrap{max-width:1040px}
     .jpl-title{font-size:24px;font-weight:800;margin:4px 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .jpl-sub{color:var(--muted);font-size:13px;line-height:1.6}
     .jpl-sub b{color:var(--ink);font-weight:600}
-    .jpl-chip{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;
+    .jpl-chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;
       background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
     .jpl-chip.jpl-ok{color:var(--pos);background:var(--pos-bg);border-color:transparent}
     .jpl-chip.jpl-warn{color:var(--warn);background:var(--warn-bg);border-color:transparent}
@@ -130,14 +131,14 @@
     .jpl-ledger td.jpl-z{color:var(--faint,var(--muted))}
     .jpl-ledger td.jpl-p{color:var(--muted);font-size:12.5px;width:72px}
     .jpl-ledger tr.jpl-grp td{font-weight:800;padding-top:16px;border-bottom:1px solid var(--line-2,var(--line))}
-    .jpl-ledger tr.jpl-grp td:first-child{font-size:12px;letter-spacing:.07em;text-transform:uppercase}
+    .jpl-ledger tr.jpl-grp td:first-child{font-size:12px}
     .jpl-ledger tr.jpl-item td:first-child{padding-left:28px}
     .jpl-ledger tr.jpl-tot td{font-weight:800;border-top:1px solid var(--ink);border-bottom:0}
     .jpl-ledger tr.jpl-band td{font-weight:800;font-size:15.5px;background:var(--pos-bg);border-bottom:0}
     .jpl-ledger tr.jpl-band.jpl-loss td{background:var(--neg-bg)}
     .jpl-ledger tr.jpl-band td:first-child{border-radius:8px 0 0 8px} .jpl-ledger tr.jpl-band td:last-child{border-radius:0 8px 8px 0}
     .jpl-ledger tr.jpl-final td{font-weight:800;font-size:16px;border-bottom:0;border-top:2px solid var(--ink)}
-    .jpl-tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:0 6px;border-radius:99px;
+    .jpl-tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.03em;padding:0 6px;border-radius:99px;
       margin-left:6px;vertical-align:1px;color:var(--muted);border:1px solid var(--line)}
     .jpl-tag.jpl-est{color:var(--warn);background:var(--warn-bg);border-color:transparent}
     .jpl-pos{color:var(--pos)} .jpl-neg{color:var(--neg)}
@@ -169,7 +170,7 @@
       const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "—";
 
       injectStyle();
-      host.innerHTML = '<div class="panel"><div class="rs-loading">Reading every job’s costs…</div></div>';
+      host.innerHTML = RSC.loadingHtml("Job P&L", "Reading every job’s costs…");
 
       // the swipes are extra: without them (an older bridge, no grant) the page still works
       const fuelLoad = RS.load("job_fuel").catch(e => { console.warn("job-pnl: no WEX swipes", e); return null; });
@@ -331,16 +332,19 @@
         }
         const within = (j, r) => j.d >= r[0] && j.d <= r[1];
 
+        /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head (the "Financial" eyebrow goes; the
+           long subtitle is How it's counted's, word for word), and every filter is the kit's dropdown */
         host.innerHTML =
-          '<div class="rs-page-head"><div class="jpl-eyebrow">Financial</div><h1>Job P&L</h1>' +
-          '<p class="jpl-sub">Every job with what it billed and what it left after every cost. Pick one to see its full ' +
-          'breakdown: every cost on its closing sheet, the costs the sheet leaves out (truck, card fuel, packing, refunds) ' +
-          'and what was left. A delivery day counts with its pickup.</p></div>' +
+          RSC.pageHeadHtml({ title: "Job P&L", key: "job-pnl",
+            sub: "Every job with what it billed and what it left after every cost.",
+            how: "<p>Every job with what it billed and what it left after every cost. Pick one to see its full " +
+              "breakdown: every cost on its closing sheet, the costs the sheet leaves out (truck, card fuel, packing, refunds) " +
+              "and what was left. A delivery day counts with its pickup.</p>" }) +
           '<div class="jpl-top"><div class="rs-seg" id="jplPer" role="group" aria-label="Period">' +
             PERIODS.map(p => '<button type="button" data-per="' + p[0] + '">' + esc(p[1]) + "</button>").join("") + "</div>" +
             '<span id="jplCustom" hidden><input type="date" class="rs-inp" id="jplFrom" aria-label="From"> – ' +
             '<input type="date" class="rs-inp" id="jplTo" aria-label="To"></span>' +
-            '<select class="rs-sel" id="jplCo" aria-label="Company"></select></div>' +
+            '<div id="jplCo"></div></div>' +
           '<div id="jplKpis" class="jpl-tiles"></div>' +
           '<div class="panel"><div class="jpl-chead"><b>Month by month</b><span class="jpl-key">' +
             '<span><i class="jpl-sw" id="jplSwP"></i>Full profit</span><span><i class="jpl-sw" id="jplSwC"></i>Costs</span>' +
@@ -349,11 +353,9 @@
           '<div class="rs-bar" id="jplBar">' +
             '<div class="rs-fld jpl-qfld"><span>Search</span><input id="jplQ" class="rs-inp" type="search" autocomplete="off" ' +
               'placeholder="Job code, customer, closing #, foreman, salesperson" aria-label="Search jobs"></div>' +
-            [["type", "Move type"], ["state", "State"], ["foreman", "Foreman"], ["sales", "Salesperson"], ["source", "Source"]]
-              .map(f => '<div class="rs-fld"><span>' + f[1] + '</span><select class="rs-sel" data-f="' + f[0] + '"></select></div>').join("") +
-            '<div class="rs-fld"><span>Margin</span><select class="rs-sel" data-f="band">' +
-              BANDS.map(b => '<option value="' + b[0] + '">' + esc(b[1]) + "</option>").join("") + "</select></div>" +
-            '<div class="rs-fld"><span>Fuel check</span><select class="rs-sel" data-f="fuel" title="Over = paid at least 30% and at least $10 more than the route’s estimate"></select></div>' +
+            ["type", "state", "foreman", "sales", "source"].map(f => '<div data-f="' + f + '"></div>').join("") +
+            '<div data-f="band"></div>' +
+            '<div data-f="fuel" title="Over = paid at least 30% and at least $10 more than the route’s estimate"></div>' +
             '<button type="button" class="rs-tog" id="jplLoss"><i></i>Losses only</button>' +
             '<button type="button" class="rs-btn" id="jplReset">Reset</button></div>' +
           '<div class="panel jpl-list"><div id="jplTable"></div></div>' +
@@ -367,11 +369,19 @@
         const C_PROFIT = css("--pos", "#1baf7a"), C_COST = css("--line-2", "#c3c2b7");
         $("jplSwP").style.background = C_PROFIT; $("jplSwC").style.background = C_COST;
 
-        /* ---- controls ---- */
-        function fillSelect(el, label, values, cur) {
-          el.innerHTML = '<option value="">' + esc(label) + "</option>" +
-            values.map(v => '<option value="' + esc(v[0]) + '"' + (v[0] === cur ? " selected" : "") + ">" + esc(v[0]) + " (" + v[1] + ")</option>").join("");
-          if (cur && !values.some(v => v[0] === cur)) el.insertAdjacentHTML("beforeend", '<option value="' + esc(cur) + '" selected>' + esc(cur) + " (0)</option>");
+        /* ---- controls ----
+           Every filter is the kit's dropdown (RSC.localSelect, ZTZ-80), rebuilt on each paint so its
+           counts follow the other filters, as the native dropdowns did. The empty pick is "All" (the company's
+           "All companies"); a pick the counts no longer carry stays on the list at 0. */
+        function slicer(el, label, values, key, allLabel) {
+          el.innerHTML = "";
+          RSC.localSelect(el, { label, values, value: V[key], allLabel,
+            onChange: v => { V[key] = v; V.page = 0; paintAll(); } });
+        }
+        function fillSelect(el, label, values, key, allLabel) {
+          const vals = values.map(v => ({ v: v[0], l: v[0], n: v[1] }));
+          if (V[key] && !values.some(v => v[0] === V[key])) vals.push({ v: V[key], l: V[key], n: 0 });
+          slicer(el, label, vals, key, allLabel);
         }
         const counted = (list, f) => { const c = new Map(); list.forEach(j => [].concat(f(j)).forEach(v => { if (v) c.set(v, (c.get(v) || 0) + 1); }));
           return Array.from(c.entries()).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))); };
@@ -380,18 +390,17 @@
           $("jplCustom").hidden = V.period !== "custom";
           const r = range(); $("jplFrom").value = r[0]; $("jplTo").value = r[1];
           const inR = JOBS.filter(j => within(j, r));
-          fillSelect($("jplCo"), "All companies", counted(inR, j => j.company), V.company);
+          fillSelect($("jplCo"), "Company", counted(inR, j => j.company), "company", "All companies");
           const pool = inR.filter(j => !V.company || j.company === V.company);
-          fillSelect(host.querySelector('[data-f="type"]'), "All", counted(pool, j => j.type), V.type);
-          fillSelect(host.querySelector('[data-f="state"]'), "All", counted(pool, j => j.state), V.state);
-          fillSelect(host.querySelector('[data-f="foreman"]'), "All", counted(pool, j => j.foreman), V.foreman);
-          fillSelect(host.querySelector('[data-f="sales"]'), "All", counted(pool, j => j.salesAll), V.sales);
-          fillSelect(host.querySelector('[data-f="source"]'), "All", counted(pool, j => j.source), V.source);
-          host.querySelector('[data-f="band"]').value = V.band;
+          fillSelect(host.querySelector('[data-f="type"]'), "Move type", counted(pool, j => j.type), "type");
+          fillSelect(host.querySelector('[data-f="state"]'), "State", counted(pool, j => j.state), "state");
+          fillSelect(host.querySelector('[data-f="foreman"]'), "Foreman", counted(pool, j => j.foreman), "foreman");
+          fillSelect(host.querySelector('[data-f="sales"]'), "Salesperson", counted(pool, j => j.salesAll), "sales");
+          fillSelect(host.querySelector('[data-f="source"]'), "Source", counted(pool, j => j.source), "source");
+          slicer(host.querySelector('[data-f="band"]'), "Margin", BANDS.filter(b => b[0]).map(b => ({ v: b[0], l: b[1] })), "band");
           const fc = { over: 0, ok: 0, none: 0, nodata: 0 };
           pool.forEach(j => { fc[j.fuel ? j.fuel.state : "nodata"]++; });
-          host.querySelector('[data-f="fuel"]').innerHTML = FUELS.map(o => '<option value="' + o[0] + '"' + (o[0] === V.fuel ? " selected" : "") + ">" +
-            esc(o[1]) + (o[0] ? " (" + fc[o[0]].toLocaleString() + ")" : "") + "</option>").join("");
+          slicer(host.querySelector('[data-f="fuel"]'), "Fuel check", FUELS.filter(o => o[0]).map(o => ({ v: o[0], l: o[1], n: fc[o[0]] })), "fuel");
           $("jplLoss").classList.toggle("on", V.band === "loss");
         }
 
@@ -408,15 +417,15 @@
             const before = JOBS.filter(j => within(j, pr) && passes(j)).length;
             if (before) { const d = Math.round(100 * (n - before) / before); cmp = (d >= 0 ? "+" : "−") + Math.abs(d) + "% on the same days of " + pr[0].slice(0, 4); }
           }
-          const tile = (l, v, sub, cls) => '<div class="kpi"><div class="l">' + l + '</div><div class="v' + (cls ? " " + cls : "") + '">' + v +
-            '</div><div class="s">' + sub + "</div></div>";
-          $("jplKpis").innerHTML = '<div class="rs-kpis" style="--kpi-cols:6">' +
-            tile("Jobs", n.toLocaleString(), cmp || esc(day(r[0])) + " – " + esc(day(r[1]))) +
-            tile("Billed", shortMoney(bill), n ? money(bill / n) + " a job" : "—") +
-            tile("Full profit", shortMoney(full), "after every cost", full < 0 ? "jpl-down" : "") +
-            tile("Profit margin", bill > 0 ? (100 * full / bill).toFixed(1).replace("-", "−") + "%" : "—", med == null ? "—" : "median job " + pctTxt(med)) +
-            tile("Profit a job", n ? money(full / n) : "—", "average") +
-            tile("Loss-making", loss.toLocaleString(), n ? pctTxt(loss / n) + " of jobs" : "—", loss ? "jpl-down" : "") + "</div>";
+          // the kit's tiles (ZTZ-80): the same six, a red value as the kit's "neg" tone; the kit escapes the sub
+          const tile = (l, v, sub, tone) => ({ label: l, value: v, sub, tone: tone || "" });
+          $("jplKpis").innerHTML = RSC.kpisHtml([
+            tile("Jobs", n.toLocaleString(), cmp || day(r[0]) + " – " + day(r[1])),
+            tile("Billed", shortMoney(bill), n ? money(bill / n) + " a job" : "—"),
+            tile("Full profit", shortMoney(full), "after every cost", full < 0 ? "neg" : ""),
+            tile("Profit margin", bill > 0 ? (100 * full / bill).toFixed(1).replace("-", "−") + "%" : "—", med == null ? "—" : "median job " + pctTxt(med)),
+            tile("Profit a job", n ? money(full / n) : "—", "average"),
+            tile("Loss-making", loss.toLocaleString(), n ? pctTxt(loss / n) + " of jobs" : "—", loss ? "neg" : "")]);
         }
 
         /* ---- the chart: the 13 months to the period's end, billed = profit + costs ---- */
@@ -518,11 +527,13 @@
               '<td class="num">' + money(bill) + '</td><td class="num' + neg(full) + '">' + money(full) + '</td><td class="num' + neg(full) + '">' +
               (bill > 0 ? pctTxt(full / bill) : "—") + '</td><td class="num">' + fuelTotal(current) + "</td></tr></tfoot></table></div>" +
             '<div class="jpl-pager"><span>' + (from + 1).toLocaleString() + "–" + Math.min(from + V.size, n).toLocaleString() + " of " + n.toLocaleString() +
-              ' · <select class="rs-sel" id="jplSize" aria-label="Jobs a page">' + [25, 50, 100].map(k => '<option value="' + k + '"' + (k === V.size ? " selected" : "") + ">" + k + " a page</option>").join("") + "</select></span>" +
+              ' · <span id="jplSize"></span></span>' +
               '<span class="jpl-pages"><button type="button" class="rs-btn" data-page="' + (V.page - 1) + '"' + (V.page === 0 ? " disabled" : "") + ' aria-label="Previous page">‹</button>' +
               pageBtns.join("") + '<button type="button" class="rs-btn" data-page="' + (V.page + 1) + '"' + (V.page >= pages - 1 ? " disabled" : "") + ' aria-label="Next page">›</button></span>' +
               '<button type="button" class="rs-btn" id="jplCsv">Download for Excel</button></div>';
-          $("jplSize").onchange = e => { V.size = +e.target.value; V.page = 0; paintTable(list); };
+          RSC.localSelect($("jplSize"), { label: "", required: true, value: String(V.size),
+            values: [25, 50, 100].map(k => ({ v: String(k), l: k + " a page" })),
+            onChange: v => { V.size = +v; V.page = 0; paintTable(list); } });
           $("jplCsv").onclick = () => download(current);
         }
         // every job the filters keep, not only this page; a text that starts like a formula is quoted
@@ -873,8 +884,7 @@
         host.querySelectorAll("[data-per]").forEach(b => b.addEventListener("click", () => { V.period = b.dataset.per; V.page = 0; paintAll(); }));
         $("jplFrom").addEventListener("change", e => { V.from = e.target.value; V.page = 0; paintAll(); });
         $("jplTo").addEventListener("change", e => { V.to = e.target.value; V.page = 0; paintAll(); });
-        $("jplCo").addEventListener("change", e => { V.company = e.target.value; V.page = 0; paintAll(); });
-        $("jplBar").addEventListener("change", e => { const f = e.target.dataset.f; if (!f) return; V[f] = e.target.value; V.page = 0; paintAll(); });
+        // the company and the bar's dropdowns set V themselves (slicer() above)
         $("jplLoss").addEventListener("click", () => { V.band = V.band === "loss" ? "" : "loss"; V.page = 0; paintAll(); });
         const reset = () => { Object.assign(V, { company: "", q: "", type: "", state: "", foreman: "", sales: "", source: "", band: "", fuel: "", page: 0 }); $q.value = ""; paintAll(); };
         $("jplReset").addEventListener("click", reset);

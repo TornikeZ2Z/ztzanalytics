@@ -150,17 +150,13 @@ registerPage({
     }
 
     host.innerHTML = '<style id="fa2Css">'
-      // THE STICKY SUBMIT BAR FLOATS OVER THE LIST, so the list needs room underneath it or
-      // it covers the last question — which is exactly what it was doing: a description cut
-      // mid-sentence with the bar drawn on top of it, looking like a text overflow bug.
-      + ".fa2{font-variant-numeric:tabular-nums;padding-bottom:96px}"
+      // The progress bar used to float over the list (sticky at the bottom) and the list kept
+      // 96px of room under it; it still covered rows while scrolling. Since ZTZ-80 it is an
+      // ordinary block above the list, so nothing floats and no room needs keeping.
+      + ".fa2{font-variant-numeric:tabular-nums}"
       // ---- the two views: rating, and the questionnaire behind it ----------------------
-      /* THE KIT (rs.css, "THE COMPONENT KIT"): this was a private copy of .rs-seg in bigger
-         type. The switcher is now the same segmented control every other page uses; all that
-         survives here is the eyebrow tag the admin button carries, which no other segment has. */
-      + ".fa2-views{margin:0 0 16px}"
-      + ".fa2-views i{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.09em;"
-      + "text-transform:uppercase;opacity:.7}"
+      /* THE VIEWS ARE THE KIT'S UNDERLINE TABS (ZTZ-80, RSC.tabsHtml with data-view), so this
+         page keeps no switcher styling of its own. */
       // ---- the questionnaire admin screen ---------------------------------------------
       /* the shell is the kit's .panel; only its padding is page-specific, because the action
          bar below has to reach the card's own edges to sit flush when it sticks.
@@ -191,7 +187,7 @@ registerPage({
       + ".fa2-qnmon{margin-left:auto;min-width:230px}"
       /* the hint under the select is a DIRECT CHILD SPAN of .rs-fld, which the kit styles as
          the field's uppercase caption -- it has to say it is prose, not a second label */
-      + ".fa2-qnmon .hint{font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;"
+      + ".fa2-qnmon .hint{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;"
       + "color:var(--faint);line-height:1.5}"
       + ".fa2-qnbar{height:5px;border-radius:3px;background:var(--line);overflow:hidden;"
       + "width:190px;flex:0 0 auto}"
@@ -229,7 +225,7 @@ registerPage({
       + ".fa2-qnrow .rbd{color:var(--muted)}"
       + ".fa2-qnrow .rbp.over{border-color:var(--neg);color:var(--neg)}"
       + ".fa2-qnrow .rs-fld>span i{font-style:normal;font-weight:600;letter-spacing:0;"
-      + "text-transform:none;color:var(--faint);font-size:10.5px}"
+      + "text-transform:none;color:var(--faint);font-size:12px}"
       + ".fa2-qnstars,.fa2-qnold{font-size:13px;font-weight:700;color:var(--muted);padding:9px 2px}"
       + ".fa2-qnold{color:var(--warn);cursor:help}"
       + ".fa2-qnrow .rbx{align-self:center}"
@@ -242,35 +238,34 @@ registerPage({
       + ".fa2-qnadd{border-style:dashed}"
       + ".fa2-qnadd:hover{border-style:solid}"
       + "@media(max-width:1150px){.fa2-qnrow{grid-template-columns:1fr;gap:10px}.fa2-qnrow .n{display:none}}"
-      // ---- hero ------------------------------------------------------------------------
-      // The card itself is the kit's .panel. NOT overflow:hidden — the month list hangs out
-      // of the hero, and clipping it left the dropdown showing exactly one row. The rows
-      // inside carry their own padding, and the progress bar rounds its own corners.
-      + "body.rs-app .fa2-hero{padding:0;position:relative}"
-      + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
-      + ".fa2-eyebrow{font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:2px}"
-      // the month picker: a native <select> popup cannot be styled, so the trigger is the
-      // month title itself and the list is ours — each month carrying its open/submitted state
+      // ---- the filter row: the month picker and the month's state ----------------------
+      /* THE PAGE STANDARD (ZTZ-80): the month used to be the hero's 31px title, under an
+         eyebrow. The page's name is the kit head now, and the month is a control: the trigger
+         wears the kit's slicer button, the list stays ours -- each month carrying its
+         open/submitted state, which a plain dropdown cannot show. */
+      + ".fa2-fbar{align-items:center}"
       + ".fa2-mon{position:relative;display:inline-block}"
-      + ".fa2-monbtn{display:flex;align-items:center;gap:10px;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:31px;font-weight:800;letter-spacing:-.6px;padding:0;cursor:pointer;font-variant-numeric:tabular-nums}"
-      + ".fa2-monbtn .car{font-size:13px;color:var(--faint);transition:transform .16s ease;margin-top:5px}"
-      + ".fa2-monbtn:hover .car{color:var(--muted)}"
-      + ".fa2-monbtn.open .car{transform:rotate(180deg)}"
-      + ".fa2-mlist{position:absolute;top:calc(100% + 10px);left:-10px;min-width:252px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,.22),var(--shadow);padding:6px;z-index:44;display:none}"
+      + ".fa2-monbtn{font-family:inherit;font-variant-numeric:tabular-nums}"
+      + ".fa2-monbtn .chev{display:inline-block;transition:transform .16s ease}"
+      + ".fa2-monbtn.open .chev{transform:rotate(180deg)}"
+      + ".fa2-mlist{position:absolute;top:calc(100% + 6px);left:0;min-width:252px;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 44px rgba(0,0,0,.22),var(--shadow);padding:6px;z-index:44;display:none}"
       + ".fa2-mlist.open{display:block;animation:fa2in .14s ease}"
       + ".fa2-mopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:inherit;font-size:15px;font-weight:650;color:var(--ink);background:none;border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-variant-numeric:tabular-nums}"
       + ".fa2-mopt:hover{background:var(--panel-2)}"
       + ".fa2-mopt.cur{background:var(--brand-glow);color:var(--brand-d);font-weight:800}"
       + "body.rs-app:not(.light) .fa2-mopt.cur{color:var(--brand)}"
-      + ".fa2-mopt .tag{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}"
+      + ".fa2-mopt .tag{margin-left:auto;font-size:12px;font-weight:700;letter-spacing:0;text-transform:none}"
       + ".fa2-mopt .tag.sub{color:var(--blue)} .fa2-mopt .tag.op{color:var(--pos)}"
-      // the month's state is a kit verdict pill (.rs-pill .ok / .info); it only needs to sit
-      // off the baseline of the 31px month title beside it
-      + ".fa2-pill{margin-top:5px}"
-      + ".fa2-stats{display:flex;flex-wrap:wrap;margin-left:auto}"
+      // ---- the stat strip ------------------------------------------------------------
+      // The card itself is the kit's .panel; the row inside carries its own padding, and the
+      // progress bar rounds its own corners.
+      + "body.rs-app .fa2-hero{padding:0;position:relative}"
+      + ".fa2-hrow{display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;padding:18px 22px}"
+      + ".fa2-stats{display:flex;flex-wrap:wrap}"
       + ".fa2-st{padding:4px 28px;border-left:1px solid var(--line)}"
+      + ".fa2-st:first-child{border-left:0;padding-left:0}"
       + ".fa2-st b{display:block;font-size:26px;font-weight:750;letter-spacing:-.4px;line-height:1.15;white-space:nowrap}"
-      + ".fa2-st span{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-st span{font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint)}"
       + ".fa2-st small{display:block;font-size:12px;color:var(--muted);margin-top:1px;white-space:nowrap}"
       + ".fa2-prog{height:5px;background:var(--panel-2);border-radius:0 0 13px 13px;overflow:hidden}"
       + ".fa2-prog i{display:block;height:100%;background:var(--blue);transition:width .4s ease}"
@@ -278,8 +273,6 @@ registerPage({
       /* THE WHOLE BAR IS THE KIT NOW: .rs-bar holds it, .rs-seg is the four-way progress
          filter (it was four loose pill buttons, which is the same control drawn differently),
          .rs-inp is the search box and .rs-spacer pushes it right. Nothing left to define. */
-      + ".fa2-how summary{cursor:pointer;font-weight:700;color:var(--muted);font-size:13.5px;user-select:none}"
-      + ".fa2-how[open] summary{margin-bottom:5px}"
       + ".fa2-msg{font-size:13.5px;padding:11px 15px;border-radius:10px;margin-bottom:12px;display:none}"
       + ".fa2-msg.on{display:block;background:var(--pos-bg);color:var(--pos)}"
       + ".fa2-msg.err{display:block;background:var(--neg-bg);color:var(--neg)}"
@@ -326,7 +319,7 @@ registerPage({
       + ".fa2-sb u.a{background:var(--brand)} .fa2-sb u.m{background:var(--blue)}"
       + ".fa2-tot{text-align:right;min-width:92px}"
       + ".fa2-tot b{font-size:31px;font-weight:800;letter-spacing:-.7px}"
-      + ".fa2-tot i{display:block;font-style:normal;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".fa2-tot i{display:block;font-style:normal;font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint);margin-top:1px}"
       + ".fa2-rep{font-family:inherit;font-size:12px;font-weight:700;margin-left:13px;"
       + "padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);"
       + "color:var(--muted);cursor:pointer;white-space:nowrap}"
@@ -346,12 +339,12 @@ registerPage({
       + ".fa2-body{display:none;border-top:1px solid var(--line);padding:20px 22px 24px}"
       + ".fa2-card.on .fa2-body{display:block;animation:fa2in .16s ease}"
       + "@keyframes fa2in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}"
-      + ".fa2-sec{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:6px 0 12px}"
+      + ".fa2-sec{font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint);margin:6px 0 12px}"
       + ".fa2-sec b{color:var(--ink);font-size:17px;letter-spacing:-.2px}"
       + ".fa2-sec .rescale{text-transform:none;letter-spacing:0;font-weight:500;color:var(--muted)}"
       + ".fa2-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px}"
       + ".fa2-tile{background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:14px 17px}"
-      + ".fa2-tile .l{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-tile .l{font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint)}"
       + ".fa2-tile .v{font-size:23px;font-weight:750;margin-top:5px;letter-spacing:-.4px}"
       + ".fa2-tile .v small{font-size:13px;color:var(--faint);font-weight:600}"
       + ".fa2-tile .r{font-size:12.5px;color:var(--muted);margin-top:3px}"
@@ -398,8 +391,8 @@ registerPage({
       + ".fa2-rubchip u{text-decoration:none;font-weight:800;background:var(--brand-glow);"
       + "color:var(--brand-d);border-radius:999px;padding:3px 11px;font-variant-numeric:tabular-nums;font-size:13.5px}"
       + "body.rs-app:not(.light) .fa2-rubchip u{color:var(--brand)}"
-      + ".fa2-rubchip i.tri{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.05em;"
-      + "text-transform:uppercase;color:var(--faint)}"
+      + ".fa2-rubchip i.tri{font-style:normal;font-size:12px;font-weight:700;letter-spacing:0;"
+      + "text-transform:none;color:var(--faint)}"
       // ---- the three-way control -------------------------------------------------------
       + ".fa2-ctl{display:flex;gap:9px;align-items:center;flex-wrap:wrap}"
       + ".fa2-tri{display:inline-flex;gap:5px;flex-wrap:wrap}"
@@ -428,10 +421,10 @@ registerPage({
       + "display:flex;align-items:flex-start;gap:8px}"
       + ".fa2-note.edit{flex-direction:column;gap:6px}"
       + ".fa2-notetx{flex:1;font-size:12.5px;line-height:1.5;color:var(--muted);white-space:pre-wrap}"
-      + ".fa2-noteadd{font:inherit;font-size:11.5px;font-weight:700;color:var(--faint);background:none;"
+      + ".fa2-noteadd{font:inherit;font-size:12px;font-weight:700;color:var(--faint);background:none;"
       + "border:1px dashed var(--line-2);border-radius:8px;padding:4px 10px;cursor:pointer}"
       + ".fa2-noteadd:hover{color:var(--brand);border-color:var(--brand);border-style:solid}"
-      + ".fa2-noteedit{font:inherit;font-size:11px;font-weight:700;color:var(--faint);background:none;"
+      + ".fa2-noteedit{font:inherit;font-size:12px;font-weight:700;color:var(--faint);background:none;"
       + "border:0;padding:2px 4px;cursor:pointer;flex:0 0 auto}"
       + ".fa2-noteedit:hover{color:var(--brand);text-decoration:underline}"
       + ".fa2-notein{width:100%;box-sizing:border-box;font:inherit;font-size:12.5px;line-height:1.5;"
@@ -439,25 +432,27 @@ registerPage({
       + "border:1px solid var(--line-2);border-radius:9px;padding:8px 10px}"
       + ".fa2-notein:focus{outline:none;border-color:var(--brand)}"
       + ".fa2-noterow{display:flex;align-items:center;gap:8px;width:100%}"
-      + ".fa2-notect{flex:1;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}"
-      + ".fa2-noteok{font:inherit;font-size:11.5px;font-weight:700;color:var(--brand-ink);"
+      + ".fa2-notect{flex:1;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}"
+      + ".fa2-noteok{font:inherit;font-size:12px;font-weight:700;color:var(--brand-ink);"
       + "background:var(--brand);border:0;border-radius:8px;padding:5px 12px;cursor:pointer}"
-      + ".fa2-notecx{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:none;"
+      + ".fa2-notecx{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:none;"
       + "border:1px solid var(--line-2);border-radius:8px;padding:5px 11px;cursor:pointer}"
       + ".fa2-stars{display:flex;gap:1px;align-items:center}"
       + ".fa2-star{font-size:34px;line-height:1;cursor:pointer;background:none;border:0;padding:0 3px;color:var(--line-2);transition:transform .07s}"
       + ".fa2-star.on,.fa2-star.pv{color:var(--warn)}"
       + ".fa2-star:disabled{cursor:default;opacity:.7}"
       + ".fa2-star:hover:not(:disabled){transform:scale(1.2)}"
-      + ".fa2-clr{font-size:11.5px;color:var(--faint);background:none;border:0;cursor:pointer;margin-left:7px;text-decoration:underline;font-family:inherit}"
+      + ".fa2-clr{font-size:12px;color:var(--faint);background:none;border:0;cursor:pointer;margin-left:7px;text-decoration:underline;font-family:inherit}"
       + ".fa2-pts{text-align:right;font-size:27px;font-weight:800;letter-spacing:-.6px;"
       + "line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}"
-      + ".fa2-pts small{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--faint);margin-top:5px}"
+      + ".fa2-pts small{display:block;font-size:12px;font-weight:700;letter-spacing:0;"
+      + "text-transform:none;color:var(--faint);margin-top:5px}"
       + ".fa2-pts.un{color:var(--faint);font-weight:600;font-size:14px;letter-spacing:0}"
       + ".fa2-pts.un small{margin-top:4px}"
-      // ---- submit bar ------------------------------------------------------------------
-      + ".fa2-sub{position:sticky;bottom:18px;margin:18px 26px 0;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 14px 38px rgba(0,0,0,.26),var(--shadow);padding:15px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;z-index:6}"
+      // ---- progress bar ----------------------------------------------------------------
+      // ZTZ-80: a normal block above the list. It was sticky at the bottom of the screen and
+      // drew itself over the foreman rows while you scrolled.
+      + ".fa2-sub{margin:0 0 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 18px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}"
       + ".fa2-sub .t{font-size:14px;color:var(--muted)} .fa2-sub .t b{color:var(--ink);font-size:15.5px}"
       + ".fa2-auto{font-size:13px;color:var(--faint);white-space:nowrap}"
       /* Submit is a kit .rs-btn, deliberately NOT .rs-btn.pri: it is rare, it is one-way, and
@@ -466,7 +461,7 @@ registerPage({
          "submitted", so the button hovers into the state it produces. */
       + ".fa2-submit{display:inline-flex;align-items:center;gap:8px}"
       + ".fa2-submit:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}"
-      + ".fa2-submit i{font-style:normal;font-size:11.5px;font-weight:800;color:var(--faint);"
+      + ".fa2-submit i{font-style:normal;font-size:12px;font-weight:800;color:var(--faint);"
       + "font-variant-numeric:tabular-nums}"
       + ".fa2-spb{flex:1;min-width:150px;height:6px;border-radius:4px;background:var(--panel-2);overflow:hidden}"
       + ".fa2-spb i{display:block;height:100%;background:var(--blue);transition:width .3s}"
@@ -477,7 +472,6 @@ registerPage({
          navy for the selected / leading thing, neutral hover. The A4 sheet (SHEET_CSS) is left
          alone on purpose: the print document carries only SHEET_CSS, so restyling it here
          would make the sheet on screen differ from the sheet on paper. */
-      + "body.rs-app.light.v2 .fa2-views i{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}"
       // questionnaire admin
       + "body.rs-app.light.v2 .fa2-qnact{border-radius:10px 10px 0 0;border-bottom-color:var(--line)}"
       + "body.rs-app.light.v2 .fa2-qnact .run b{font-size:26px;font-weight:700;letter-spacing:-.4px}"
@@ -491,9 +485,7 @@ registerPage({
       + "body.rs-app.light.v2 .fa2-qnmv,body.rs-app.light.v2 .fa2-qngrip{border-radius:8px}"
       + "body.rs-app.light.v2 .fa2-qnmv:hover:not(:disabled){color:var(--ink);border-color:#94A3B8}"
       + "body.rs-app.light.v2 .fa2-qnstars,body.rs-app.light.v2 .fa2-qnold{font-weight:600}"
-      // hero: the eyebrow and the stat captions become sentence-case labels
-      + "body.rs-app.light.v2 .fa2-eyebrow{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);margin-bottom:4px}"
-      + "body.rs-app.light.v2 .fa2-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
+      // the stat captions are sentence-case labels
       + "body.rs-app.light.v2 .fa2-mlist{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}"
       + "body.rs-app.light.v2 .fa2-mopt{font-size:14px;font-weight:500;border-radius:8px}"
       + "body.rs-app.light.v2 .fa2-mopt:hover{background:#F8FAFC}"
@@ -505,7 +497,6 @@ registerPage({
       + "body.rs-app.light.v2 .fa2-st small{font-size:12.5px;color:var(--faint);margin-top:4px}"
       + "body.rs-app.light.v2 .fa2-prog{border-radius:0 0 10px 10px;background:#F1F5F9}"
       + "body.rs-app.light.v2 .fa2-prog i{background:#3F7D20}"
-      + "body.rs-app.light.v2 .fa2-how summary{font-weight:600}"
       + "body.rs-app.light.v2 .fa2-msg{border-radius:8px}"
       + "body.rs-app.light.v2 .fa2-done{border-radius:10px;background:#F4FAE6;border:1px solid #DCEFB0;color:#2F6316;font-weight:600}"
       // the foreman cards
@@ -583,15 +574,22 @@ registerPage({
       + "body.rs-app.light.v2 .fa2-pts{font-size:24px;font-weight:700;letter-spacing:-.4px}"
       + "body.rs-app.light.v2 .fa2-pts small{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none}"
       + "body.rs-app.light.v2 .fa2-pts.un{font-size:14px;font-weight:500;letter-spacing:0}"
-      // the floating submit bar: a quiet lift, not a heavy shadow
-      + "body.rs-app.light.v2 .fa2-sub{border-radius:10px;border-color:#E2E8F0;box-shadow:0 8px 24px rgba(15,23,42,.10)}"
+      // the progress bar above the list: a flat card like the rest
+      + "body.rs-app.light.v2 .fa2-sub{border-radius:10px;border-color:#E2E8F0}"
       + "body.rs-app.light.v2 .fa2-sub .t b{font-weight:600}"
       + "body.rs-app.light.v2 .fa2-submit:hover:not(:disabled){border-color:#14301F;color:#14301F}"
       + "body.rs-app.light.v2 .fa2-submit i{font-size:12px;font-weight:600}"
       + "body.rs-app.light.v2 .fa2-spb{background:#F1F5F9}"
       + "body.rs-app.light.v2 .fa2-spb i{background:#3F7D20}"
       + "body.rs-app.light.v2 .fa2-empty{border-radius:10px;border-color:#CBD5E1;font-size:14px}"
-      + '</style><div class="fa2"><div id="fa2Main"></div></div>';
+      + '</style><div class="fa2">'
+      // THE PAGE STANDARD (ZTZ-80): the kit's page head, outside #fa2Main, which paint()
+      // rewrites on every star click. How it's counted is a function, so it states the points
+      // the current rubric shares at the moment it is opened.
+      + (RSC.pageHeadHtml ? RSC.pageHeadHtml({ title: "Foreman Assessment", key: "foreman-assessment",
+          sub: "What only a person can judge — scored monthly on the rubric logistics sets, on top of what the warehouse already counts.",
+          how: faHow }) : "")
+      + '<div id="fa2Main"></div></div>';
 
     const main = host.querySelector("#fa2Main");
     main.innerHTML = '<div class="fa2-empty">Loading the scorecard…</div>';
@@ -709,6 +707,28 @@ registerPage({
       return n + (t >= 11 && t <= 13 ? "th"
         : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th");
     };
+
+    /* HOW IT'S COUNTED (ZTZ-80): the "How the scoring works · who can win" note that sat above
+     * the views, word for word, in the kit head's side panel. A function, so the points it
+     * quotes are the current rubric's at the moment it is opened. */
+    function faHow() {
+      // his pick 13 Nov: say the September 2026 rubric (AUTO_V3), which the old note never caught up with
+      return "<h3>How the scoring works</h3><p>The warehouse already scores <b>60 points</b>. From "
+        + "September 2026: packing per 100 CF (20), late arrivals confirmed in the morning digest (10, "
+        + "less 2.5 for each, none left at four), reviews (10), packing against the sales estimate (10) "
+        + "and complaints upheld (10, less 2.5 for each claim upheld against him). Up to August 2026 "
+        + "packing per 100 CF was worth 30 and there was no late-arrivals topic. "
+        + "The questions on this page are yours, sharing <b>" + fmt1(MANUAL_TOTAL()) + " points</b> "
+        + "as the rubric divides them — change that and this month changes with it, while months "
+        + "already scored keep theirs.</p>"
+        + "<p>A question you have not answered is left out of the total and shown as unrated — it "
+        + "is never counted as zero, because a zero would say the man was assessed and failed.</p>"
+        + "<h3>Who can win</h3><p>A foreman is ranked only once the month has said enough about "
+        + "him — at least five jobs run, and at least half the counted score measurable. Everyone "
+        + "else keeps their score and is still worth rating; they are simply out of the running.</p>"
+        + "<h3>When a month opens</h3><p>A month opens for rating on its own " + OPEN_DAY + "th and "
+        + "closes when you submit it.</p>";
+    }
 
     const stat = (b, lab, sub) => '<div class="fa2-st"><span>' + esc(lab) + "</span><b>" + b
       + "</b><small>" + esc(sub) + "</small></div>";
@@ -1176,20 +1196,32 @@ registerPage({
         rows = rows.filter(x => x.f.Foreman.toLowerCase().indexOf(qq) >= 0);
       }
 
-      // rs-noanim: paint() rewrites main.innerHTML on every star click, and the kit's panel
-      // entrance animation would replay each time — the page would flinch on every rating
-      let h = '<div class="panel rs-noanim fa2-hero"><div class="fa2-hrow">'
-        + '<div><div class="fa2-eyebrow">Foreman assessment</div>'
-        + '<div class="fa2-mon"><button class="fa2-monbtn" id="fa2MonBtn" type="button">'
-        + esc(monLab(S.month)) + ' <span class="car">▼</span></button>'
+      // THE PAGE STANDARD (ZTZ-80), in its order: the views as the kit's underline tabs (the
+      // same data-view the wiring already reads), then ONE filter row -- the month picker and
+      // the month's state -- then the stat strip, as it was.
+      //
+      // TWO VIEWS, and the second one is the point of the whole rework: Ramaz builds
+      // the questionnaire himself. It used to be a small Edit button on a panel that
+      // said "cannot be changed" for the month you actually land on, which read as
+      // "the questions are hardcoded" — because in practice they were.
+      let h = RSC.tabsHtml([{ id: "rate", label: "Rate foremen" }]
+          .concat(S.canEditRubric ? [{ id: "rubric", label: "Questionnaire (admin)" }] : []),
+        S.view, "view");
+      h += '<div class="rs-bar fa2-fbar">'
+        + '<div class="fa2-mon"><button class="rs-slicer-btn fa2-monbtn" id="fa2MonBtn" type="button">'
+        + '<span class="lbl">Month</span><span class="val">' + esc(monLab(S.month)) + '</span>'
+        + '<span class="chev">▾</span></button>'
         + '<div class="fa2-mlist" id="fa2MList">'
         + months.map(m => '<button class="fa2-mopt' + (m === S.month ? " cur" : "")
             + '" type="button" data-m="' + m + '">' + monLab(m)
             + '<span class="tag ' + ((S.locks || {})[m] ? "sub" : isOpenForRating(m) ? "op" : "sub") + '">'
             + ((S.locks || {})[m] ? "✓ submitted" : isOpenForRating(m) ? "open" : "rubric only") + "</span></button>").join("")
         + "</div></div>"
-        + '<div><span class="rs-pill fa2-pill ' + (S.locked ? "info" : S.notOpen ? "info" : "ok") + '">'
-        + (S.locked ? "✓ Submitted — ratings are final" : S.notOpen ? "○ Rubric only — rating opens on the " + OPEN_DAY + "th" : "● Open for rating") + "</span></div></div>"
+        + '<span class="rs-pill ' + (S.locked ? "info" : S.notOpen ? "info" : "ok") + '">'
+        + (S.locked ? "✓ Submitted — ratings are final" : S.notOpen ? "○ Rubric only — rating opens on the " + OPEN_DAY + "th" : "● Open for rating") + "</span></div>";
+      // rs-noanim: paint() rewrites main.innerHTML on every star click, and the kit's panel
+      // entrance animation would replay each time — the page would flinch on every rating
+      h += '<div class="panel rs-noanim fa2-hero"><div class="fa2-hrow">'
         + '<div class="fa2-stats">'
         + stat(fmtN(all.length), "Foremen", "with work in " + monLab(S.month))
         + stat(done + " / " + all.length, "Fully assessed",
@@ -1200,28 +1232,8 @@ registerPage({
         + "</div></div>"
         + '<div class="fa2-prog"><i style="width:' + (all.length ? (done / all.length * 100).toFixed(0) : 0) + '%"></i></div></div>';
 
-      h += '<details class="rs-hint fa2-how"><summary>How the scoring works · who can win</summary>'
-        + "The warehouse already scores four topics — packing per 100 CF (30), reviews (10), "
-        + "packing against the sales estimate (10) and complaints upheld (10, less 2.5 for each "
-        + "claim upheld against him): <b>60 points</b>. The questions below are yours, sharing "
-        + "<b>" + fmt1(MANUAL_TOTAL()) + " points</b> as the rubric above divides them — change "
-        + "that and this month changes with it, while months already scored keep theirs. "
-        + "A question you have not answered is left "
-        + "out of the total and shown as unrated — it is never counted as zero, because a zero "
-        + "would say the man was assessed and failed. <b>Who can win:</b> a foreman is ranked "
-        + "only once the month has said enough about him — at least five jobs run, and at least "
-        + "half the counted score measurable. Everyone else keeps their score and is still "
-        + "worth rating; they are simply out of the running. A month opens for rating on its "
-        + "own " + OPEN_DAY + "th and closes when you submit it below.</details>";
-
-      // TWO VIEWS, and the second one is the point of the whole rework: Ramaz builds
-      // the questionnaire himself. It used to be a small Edit button on a panel that
-      // said "cannot be changed" for the month you actually land on, which read as
-      // "the questions are hardcoded" — because in practice they were.
-      h += '<div class="rs-seg fa2-views">'
-        + '<button' + (S.view === "rate" ? ' class="on"' : "") + ' data-view="rate">Rate foremen</button>'
-        + (S.canEditRubric ? '<button' + (S.view === "rubric" ? ' class="on"' : "") + ' data-view="rubric">Questionnaire <i>admin</i></button>' : "")
-        + "</div>";
+      // (the "How the scoring works · who can win" note that sat here is the head's How
+      //  it's counted panel now -- faHow, in its words)
       h += '<div class="fa2-msg' + (S.msg ? (S.msgErr ? " err" : " on") : "") + '">' + esc(S.msg || "") + "</div>";
       if (S.view === "rubric") { main.innerHTML = h + questionnaireView(); wire(); return; }
       h += rubricPanel();
@@ -1232,6 +1244,20 @@ registerPage({
               + (S.subAt ? " · " + esc(String(S.subAt).slice(0, 16)) : "") + "</small>" : "")
           + (S.canReopen ? '<button class="rs-btn" id="fa2Reopen">Reopen this month</button>' : "")
           + "</div>";
+      }
+
+      /* THE PROGRESS BAR NO LONGER SUBMITS. Every star click already saves on its own
+       * — it POSTs the moment it is pressed — so the only thing this button ever did was LOCK
+       * THE MONTH, and it sat exactly where a person reaches for Save. Ramaz was pressing it
+       * meaning "save my work" (Tornike, 2026-08-10). Now it reports progress and says that
+       * saving is automatic; submitting is a deliberate act in the toolbar below it.
+       * ZTZ-80: it sits ABOVE the list as an ordinary block. Sticky at the bottom of the
+       * screen it drew itself over the foreman rows. */
+      if (!S.locked && !S.notOpen && all.length) {
+        h += '<div class="fa2-sub"><span class="t"><b>' + done + " of " + all.length
+          + "</b> fully assessed" + (done < all.length ? "" : " — ready to sign off") + "</span>"
+          + '<span class="fa2-spb"><i style="width:' + (done / all.length * 100).toFixed(0) + '%"></i></span>'
+          + '<span class="fa2-auto">Every rating saves the moment you click it</span></div>';
       }
 
       h += '<div class="rs-bar"><div class="rs-seg">'
@@ -1251,18 +1277,6 @@ registerPage({
 
       h += rows.length ? rows.map(card).join("")
         : '<div class="fa2-empty">No foreman matches here.</div>';
-
-      /* THE BAR AT THE BOTTOM NO LONGER SUBMITS. Every star click already saves on its own
-       * — it POSTs the moment it is pressed — so the only thing this button ever did was LOCK
-       * THE MONTH, and it sat exactly where a person reaches for Save. Ramaz was pressing it
-       * meaning "save my work" (Tornike, 2026-08-10). Now it reports progress and says that
-       * saving is automatic; submitting is a deliberate act at the top of the page. */
-      if (!S.locked && !S.notOpen && all.length) {
-        h += '<div class="fa2-sub"><span class="t"><b>' + done + " of " + all.length
-          + "</b> fully assessed" + (done < all.length ? "" : " — ready to sign off") + "</span>"
-          + '<span class="fa2-spb"><i style="width:' + (done / all.length * 100).toFixed(0) + '%"></i></span>'
-          + '<span class="fa2-auto">Every rating saves the moment you click it</span></div>';
-      }
 
       main.innerHTML = h;
       wire();

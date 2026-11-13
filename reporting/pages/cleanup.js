@@ -65,6 +65,29 @@ registerPage({
       sel: null, probOnly: false, busy: "", msg: "",
       baseF: null, coF: null, mapOn: false, openRun: null, shut: {} });
 
+    // "How it's counted" (ZTZ-80). The page had no head and no method text above the data; this
+    // says what the page's own notes and the code's comments already say, in the same words.
+    function cuHow() {
+      return "<p>The question this answers is not “what is booked” but “can we staff it, and do we "
+        + "still have room for tomorrow’s sale”. Every day should keep a couple of crews spare; a day "
+        + "that runs to the last foreman has no room for a callback, a sick driver or a same-day "
+        + "booking.</p>"
+        + "<h3>The tiles</h3><ul>"
+        + "<li><b>Days short of crews</b>: fewer crews than routes.</li>"
+        + "<li><b>Days with no buffer</b>: staffed, but nothing spare.</li>"
+        + "<li><b>Tightest day</b>: the day with the fewest spare crews.</li>"
+        + "<li><b>Chains already counted</b>: jobs booked in the calendar to share a crew, plus the "
+        + "chains the board made. Both are already inside every day’s crews-needed count.</li></ul>"
+        + "<h3>Filters</h3><p>Base and Company narrow what is shown, never what the day’s verdict was "
+        + "computed from: the crew count is a fact about the whole day, not about the slice you are "
+        + "looking at.</p>"
+        + "<h3>What would free another crew</h3><p>The ladder is an order, not a list: a call is "
+        + "cheaper than moving someone’s date. It is shown even when the day is comfortable, because "
+        + "a free chain is a crew freed for tomorrow’s sale.</p>"
+        + "<h3>Where the numbers come from</h3><p>The day’s verdict and the jobs behind it are "
+        + "precomputed by the pipeline, from the same engine the dispatcher board runs.</p>";
+    }
+
     host.innerHTML = '<style id="cuCss">'
       /* THE SHARED KIT (assets/rs.css) carries this page's tiles, cards, control bars,
          segments, buttons, pills and hints. The cu-kpis / cu-kpi / cu-card / cu-hd /
@@ -72,7 +95,7 @@ registerPage({
          the same controls, drifted. What is left below is what the kit has no answer for:
          the day horizon, the clock timeline, the chain ledger, the option ladder, the run
          drawer and the map. */
-      + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:11px;--t6:9.5px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:200px;max-width:none}"
+      + ".cu-wrap{--t1:26px;--t2:15px;--t3:13.5px;--t4:12px;--t5:12px;--t6:12px;--r-card:14px;--r-ctl:10px;--r-bar:6px;--cu-lab:200px;max-width:none}"
       /* This board REWRITES ITS WHOLE BODY on every click -- a day, a run, a base filter.
          The kit's entrance animation would replay each time, and the page reads as
          flinching. Same reason rs.css gives .panel its own .rs-noanim escape. */
@@ -87,7 +110,7 @@ registerPage({
       + "border-radius:12px;padding:9px 10px;cursor:pointer;text-align:left;font:inherit;color:var(--ink)}"
       + ".cu-day:hover{border-color:var(--blue)}"
       + ".cu-day.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}"
-      + ".cu-day .dow{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".cu-day .dow{font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint)}"
       + ".cu-day .dat{font-size:14px;font-weight:750;letter-spacing:-.2px;margin-top:1px}"
       + ".cu-day .bar{height:5px;border-radius:99px;background:var(--panel-2);margin:8px 0 6px;overflow:hidden}"
       + ".cu-day .bar u{position:absolute;top:0;height:100%;background:var(--neg)}"
@@ -96,9 +119,9 @@ registerPage({
       + ".cu-day.tight .bar i{background:var(--warn)} .cu-day.short .bar i{background:var(--neg)}"
       + ".cu-day .fig.neg{color:var(--neg);font-weight:750}"
       + ".cu-day .fig.warn{color:var(--warn);font-weight:750}"
-      + ".cu-day .fig{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}"
+      + ".cu-day .fig{font-variant-numeric:tabular-nums;font-size:12px;color:var(--faint)}"
       + ".cu-day .fig b{color:var(--ink);font-weight:700}"
-      + ".cu-day.today{background:linear-gradient(0deg,var(--panel-2),var(--panel))}"
+      + ".cu-day.today{background:var(--panel-2)}"
       + ".cu-day.today .dow{color:var(--blue)}"
       /* the sentence a dispatcher actually needs -- the kit's hint measure and margins,
          but at reading weight: this is the answer the page exists to give */
@@ -127,12 +150,12 @@ registerPage({
       + ".cu-mrow:last-child{border-bottom:0}"
       + ".cu-mrow.skip{opacity:.5}"
       + ".cu-mrow div{color:var(--muted);font-size:12.5px;margin-top:2px}"
-      + ".cu-mday{color:var(--faint);font-size:11.5px;margin-left:6px}"
+      + ".cu-mday{color:var(--faint);font-size:12px;margin-left:6px}"
       + ".cu-mnote{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:10px}"
       + ".cu-merr{margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--neg-bg);"
       + "border:1px solid var(--neg);color:var(--neg);font-size:12.5px;line-height:1.55}"
       + ".cu-merr.warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}"
-      + ".cu-mstrict{margin-left:6px;font-size:10.5px;font-weight:700;color:var(--warn);"
+      + ".cu-mstrict{margin-left:6px;font-size:12px;font-weight:700;color:var(--warn);"
       + "background:var(--warn-bg);border:1px solid var(--warn);border-radius:999px;"
       + "padding:1px 7px;vertical-align:1px}"
       + ".cu-fmwarn{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--warn-bg);border:1px solid var(--warn);font-size:12px;line-height:1.55;color:var(--muted)}"
@@ -184,58 +207,60 @@ registerPage({
       + ".cu-ghd{display:flex;align-items:baseline;gap:8px;margin:14px 0 2px;"
       + "padding-bottom:5px;border-bottom:1px solid var(--line-2)}"
       + ".cu-ghd:first-of-type{margin-top:6px}"
-      + ".cu-ghd b{font-size:var(--t6);font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--faint)}"
+      + ".cu-ghd b{font-size:var(--t6);font-weight:700;letter-spacing:0;"
+      + "text-transform:none;color:var(--faint)}"
       + ".cu-ghd span{font-size:var(--t5);color:var(--faint)}"
       /* DAY NAV and FILTERS are both .rs-bar now -- see assets/rs.css, THE COMPONENT KIT */
       /* THE DAY'S WORK: a route is one crew's row on a clock, grouped by its depot */
       + ".cu-split{display:flex;gap:16px;align-items:flex-start}"
       + ".cu-tlwrap{flex:1;min-width:0}"
       + ".cu-tl{margin-top:4px}"
-      + ".cu-tlax{position:relative;height:15px;margin-left:calc(var(--cu-lab) + 7px);border-bottom:1px solid var(--line)}"
-      + ".cu-tlax span{position:absolute;top:0;font-size:9.5px;color:var(--faint);"
+      + ".cu-tlax{position:relative;height:17px;margin-left:calc(var(--cu-lab) + 7px);border-bottom:1px solid var(--line)}"
+      + ".cu-tlax span{position:absolute;top:0;font-size:12px;color:var(--faint);"
       + "transform:translateX(-50%);font-variant-numeric:tabular-nums}"
       + ".cu-tlax i{display:none}"
       + ".cu-base{margin-top:12px;position:relative;overflow:hidden}"
-      + ".cu-bhd{display:flex;align-items:center;gap:7px;width:100%;font:inherit;font-size:10px;"
-      + "font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);"
+      + ".cu-bhd{display:flex;align-items:center;gap:7px;width:100%;font:inherit;font-size:12px;"
+      + "font-weight:700;letter-spacing:0;text-transform:none;color:var(--faint);"
       + "background:transparent;border:0;border-bottom:1px solid var(--line-2);padding:0 0 4px;"
       + "margin-bottom:6px;cursor:pointer;text-align:left}"
       + ".cu-bhd:hover{color:var(--ink)}"
-      + ".cu-bhd i{font-style:normal;font-size:11px;transition:transform .15s}"
+      + ".cu-bhd i{font-style:normal;font-size:12px;transition:transform .15s}"
       + ".cu-bhd.shut i{transform:rotate(-90deg)}"
       + ".cu-bhd em{font-style:normal;font-weight:650;letter-spacing:0;text-transform:none;"
-      + "font-size:11px;margin-left:auto;font-variant-numeric:tabular-nums}"
+      + "font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}"
       /* the ROW is the hit target, not just the bar */
       + ".cu-row{display:flex;align-items:center;min-height:38px;border-radius:9px;cursor:pointer;"
       + "border-left:3px solid transparent;padding-left:4px}"
       + ".cu-row:hover{background:var(--panel-2)}"
       + ".cu-row:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}"
       + ".cu-row.on{background:var(--panel-2);border-left-color:var(--ink)}"
-      + ".cu-rlab{flex:0 0 var(--cu-lab);font-size:11.5px;line-height:1.35;padding-right:12px}"
+      + ".cu-rlab{flex:0 0 var(--cu-lab);font-size:12px;line-height:1.35;padding-right:12px}"
       + ".cu-rlab b{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:-.1px}"
-      + ".cu-rlab b .ch{font-style:normal;color:var(--blue);font-size:10px}"
-      + ".cu-rlab span{display:block;color:var(--faint);font-size:10.5px;overflow:hidden;"
+      + ".cu-rlab b .ch{font-style:normal;color:var(--blue);font-size:12px}"
+      + ".cu-rlab span{display:block;color:var(--faint);font-size:12px;overflow:hidden;"
       + "text-overflow:ellipsis;white-space:nowrap}"
-      + ".cu-rlab em{display:block;font-style:normal;color:var(--faint);font-size:10px;"
+      + ".cu-rlab em{display:block;font-style:normal;color:var(--faint);font-size:12px;"
       + "font-variant-numeric:tabular-nums;opacity:.75}"
-      + ".cu-track{position:relative;flex:1;height:30px;border-left:1px solid var(--line-2);background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px var(--cu-step,100%))}"
+      + ".cu-track{position:relative;flex:1;height:30px;border-left:1px solid var(--line-2)}"
+      /* the hour gridlines: one 1px rule per axis label, from the same loop as the axis, so
+         they can never fall out of register with it (a repeating gradient before ZTZ-80) */
+      + ".cu-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}"
       + ".cu-bar{position:absolute;top:5px;height:20px;border-radius:var(--r-bar);background:var(--job-local);"
-      + "color:#fff;font-size:10.5px;font-weight:700;line-height:20px;padding:0 7px;overflow:hidden;"
+      + "color:#fff;font-size:12px;font-weight:700;line-height:20px;padding:0 7px;overflow:hidden;"
       + "white-space:nowrap;text-overflow:ellipsis}"
       + ".cu-bar.long{background:var(--job-long)} .cu-bar.straight{background:var(--job-straight)}"
       + ".cu-bar.labor{background:var(--job-labor)}"
       /* the empty drive between two chained jobs -- the cost chaining trades away */
-      + ".cu-gap{position:absolute;top:11px;height:8px;border-radius:4px;opacity:.9;"
-      + "background:repeating-linear-gradient(115deg,var(--empty) 0 3px,transparent 3px 7px)}"
+      + ".cu-gap{position:absolute;top:11px;height:8px;border-radius:4px;opacity:.5;"
+      + "background:var(--empty)}"
       + ".cu-gap.over{background:var(--neg);opacity:.45}"
-      + ".cu-mleg i.hatch{background:repeating-linear-gradient(115deg,var(--empty) 0 3px,"
-      + "transparent 3px 7px);height:5px}"
+      + ".cu-mleg i.hatch{background:var(--empty);opacity:.5;height:5px}"
       /* MAP FURNITURE: arrows on the line, chips at the stops, a readable tooltip */
       + ".cu-arrow i{font-style:normal;font-size:13px;line-height:1;display:block;"
       + "text-shadow:0 0 3px var(--panel),0 0 3px var(--panel)}"
       + ".cu-chipwrap{pointer-events:none}"
-      + ".cu-mchip{position:absolute;left:9px;top:-9px;white-space:nowrap;font-size:10px;"
+      + ".cu-mchip{position:absolute;left:9px;top:-9px;white-space:nowrap;font-size:12px;"
       + "font-weight:750;letter-spacing:-.1px;padding:2px 6px;border-radius:999px;"
       + "background:var(--panel);color:var(--ink);border:1px solid var(--line-2);"
       + "box-shadow:0 1px 3px rgba(0,0,0,.18)}"
@@ -244,7 +269,7 @@ registerPage({
       + ".cu-mchip.base{background:var(--ink);color:var(--panel);border-color:var(--ink)}"
       + ".leaflet-tooltip.cu-mtip{background:var(--panel);color:var(--ink);"
       + "border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);"
-      + "padding:7px 10px;font-size:11.5px;line-height:1.5;max-width:260px;white-space:normal}"
+      + "padding:7px 10px;font-size:12px;line-height:1.5;max-width:260px;white-space:normal}"
       + ".leaflet-tooltip.cu-mtip b{display:block;font-size:12px;margin-bottom:2px}"
       + ".leaflet-tooltip.cu-mtip span{display:block;color:var(--faint)}"
       + ".leaflet-tooltip.cu-mtip:before{border-top-color:var(--line)}"
@@ -257,7 +282,7 @@ registerPage({
       + "border-bottom:1px solid var(--line-2);border-radius:var(--r-card) var(--r-card) 0 0}"
       + ".cu-dhdbtn{margin-left:auto;display:flex;gap:6px;align-items:center}"
       + ".cu-dhd b{display:block;font-size:14px;letter-spacing:-.2px}"
-      + ".cu-dhd span{display:block;font-size:11.5px;color:var(--faint);margin-top:2px}"
+      + ".cu-dhd span{display:block;font-size:12px;color:var(--faint);margin-top:2px}"
       + ".cu-x{margin-left:auto;font:inherit;font-size:13px;line-height:1;color:var(--faint);"
       + "background:transparent;border:0;cursor:pointer;padding:2px 4px}"
       + ".cu-x:hover{color:var(--ink)}"
@@ -265,14 +290,14 @@ registerPage({
       + "border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}"
       + ".cu-vit b{display:block;font-size:12.5px;font-variant-numeric:tabular-nums;"
       + "letter-spacing:-.2px}"
-      + ".cu-vit span{display:block;font-size:9.5px;font-weight:800;letter-spacing:.06em;"
-      + "text-transform:uppercase;color:var(--faint);margin-top:1px}"
+      + ".cu-vit span{display:block;font-size:12px;font-weight:600;letter-spacing:0;"
+      + "text-transform:none;color:var(--faint);margin-top:1px}"
       + ".cu-who{font-size:12px;font-weight:650;padding:10px 0 2px;line-height:1.45}"
-      + ".cu-who em{display:block;font-style:normal;font-size:10.5px;color:var(--faint);"
+      + ".cu-who em{display:block;font-style:normal;font-size:12px;color:var(--faint);"
       + "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}"
       /* the run, step by step */
       + ".cu-step{margin:10px 0 4px;border-left:2px solid var(--line-2);padding-left:13px}"
-      + ".cu-step>div{display:flex;gap:9px;font-size:11.5px;line-height:1.5;padding:4px 0;"
+      + ".cu-step>div{display:flex;gap:9px;font-size:12px;line-height:1.5;padding:4px 0;"
       + "position:relative}"
       + ".cu-step>div::before{content:'';position:absolute;left:-17px;top:10px;width:7px;"
       + "height:7px;border-radius:50%;background:var(--line);"
@@ -281,13 +306,15 @@ registerPage({
       + ".cu-step>div.home::before{background:var(--ink)}"
       + ".cu-step>div.wait::before{background:var(--warn)}"
       + ".cu-step i{flex:0 0 40px;font-style:normal;font-variant-numeric:tabular-nums;"
-      + "font-size:11px;font-weight:700;color:var(--faint)}"
+      + "font-size:12px;font-weight:700;color:var(--faint)}"
       + ".cu-step .go span,.cu-step .wait span{color:var(--faint)}"
       + ".cu-step .wait span{font-weight:650}"
       + ".cu-vit .bad b{color:var(--neg)}"
-      + ".cu-warn{font-size:11.5px;line-height:1.55;color:var(--ink);background:var(--warn-bg);"
+      /* scoped to the drawer: "cu-warn" is also the KPI tile's amber tone class, and the bare rule
+         drew this box around the "Days with no buffer" figure (seen in the ZTZ-80 render check) */
+      + ".cu-drw .cu-warn{font-size:12px;line-height:1.55;color:var(--ink);background:var(--warn-bg);"
       + "border-left:3px solid var(--warn);border-radius:0 8px 8px 0;padding:8px 10px;margin-top:11px}"
-      + ".cu-dfoot{font-size:11px;color:var(--faint);line-height:1.55;margin-top:8px;"
+      + ".cu-dfoot{font-size:12px;color:var(--faint);line-height:1.55;margin-top:8px;"
       + "padding-top:9px;border-top:1px solid var(--line-2)}"
       /* the drawer gives the map room rather than sending it to the foot of the page */
       /* map open = an even split, so the route gets as much screen as the day does */
@@ -304,7 +331,7 @@ registerPage({
       /* MAP */
       + ".cu-map{height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--line);"
       + "background:var(--panel-2)}"
-      + ".cu-mleg{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--faint);margin-top:8px}"
+      + ".cu-mleg{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--faint);margin-top:8px}"
       + ".cu-mleg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;"
       + "vertical-align:2px}"
       /* DESIGN V2 ("Calm finance", 2026-10-06) -- light theme only, dark untouched. The job
@@ -404,7 +431,7 @@ registerPage({
       + "body.rs-app.light.v2 .cu-step>div.wait::before{background:#B45309}"
       + "body.rs-app.light.v2 .cu-step i{font-size:12px;font-weight:600;color:#64748B}"
       + "body.rs-app.light.v2 .cu-step .wait span{font-weight:600}"
-      + "body.rs-app.light.v2 .cu-warn{font-size:12.5px;background:#FFFBEB;border-left-color:#B45309;color:#78350F}"
+      + "body.rs-app.light.v2 .cu-drw .cu-warn{font-size:12.5px;background:#FFFBEB;border-left-color:#B45309;color:#78350F}"
       + "body.rs-app.light.v2 .cu-dfoot,body.rs-app.light.v2 .cu-dnote{font-size:12.5px;color:#64748B;border-top-color:#E2E8F0}"
       + "body.rs-app.light.v2 .cu-map{border-color:#E2E8F0;border-radius:10px}"
       + "body.rs-app.light.v2 .cu-mleg{font-size:12.5px;color:#475569}"
@@ -419,7 +446,13 @@ registerPage({
       + "body.rs-app.light.v2 .cu-merr{background:#FEF2F2;border-color:#FECACA;color:#991B1B;border-radius:8px;font-size:13px}"
       + "body.rs-app.light.v2 .cu-merr.warn{background:#FFFBEB;border-color:#FDE68A;color:#92400E}"
       + "body.rs-app.light.v2 .cu-mstrict{font-size:12px;font-weight:600;color:#92400E;background:#FEF3C7;border-color:#FDE68A;border-radius:6px}"
-      + "</style><div class='cu-wrap'><div id='cuBody'><div class='cu-empty'>Loading the horizon…</div></div></div>";
+      + "</style><div class='cu-wrap'>"
+      // THE PAGE STANDARD (ZTZ-80): the kit's page head. It sits OUTSIDE #cuBody, which paint()
+      // rewrites on every click, so the head and its How panel are drawn once per visit.
+      + (RSC.pageHeadHtml ? RSC.pageHeadHtml({ title: "Calendar Cleanup", key: "cleanup",
+          sub: "Crews needed against crews available, day by day — and where the buffer runs out.",
+          how: cuHow }) : "")
+      + "<div id='cuBody'><div class='cu-empty'>Loading the horizon…</div></div></div>";
 
     var gen = (window.__CUGEN = (window.__CUGEN || 0) + 1);
 
@@ -560,18 +593,20 @@ registerPage({
       });
 
       var axis = "<div class='cu-tlax'>";
+      // the track's hour gridlines come out of the same loop as the axis labels, so they can
+      // never fall out of register with the axis above them (ZTZ-80: solid rules, not a
+      // repeating gradient)
+      var grid = "";
       var step = (AX.b - AX.a) > 12 ? 2 : 1;
       for (var h = Math.ceil(AX.a); h <= AX.b; h += step) {
         var left = (h - AX.a) / (AX.b - AX.a) * 100;
         axis += "<i style='left:" + left + "%'></i>"
           + "<span style='left:" + left + "%'>" + h + ":00</span>";
+        if (left > 0 && left < 100) grid += "<i class='cu-gl' style='left:" + left + "%'></i>";
       }
       axis += "</div>";
 
-      // the hour pitch drives the track's gridlines, so they can never fall out of register
-      // with the axis above them -- both are derived from the same number
-      var pitch = step / (AX.b - AX.a) * 100;
-      return "<div class='cu-tl' style='--cu-step:" + pitch + "%'>" + axis
+      return "<div class='cu-tl'>" + axis
         + Object.keys(byBase).sort().map(function (b) {
         var rs = byBase[b].sort(function (x, y) {
           return String(x.legs[0].Start).localeCompare(String(y.legs[0].Start)); });
@@ -601,7 +636,7 @@ registerPage({
                 + "<span>" + sub + "</span>"
                 + "<em>" + clock(hrOf(first.Start)) + "–" + clock(endH) + " · "
                 + money(rcf) + " CF</em></div>"
-                + "<div class='cu-track'>"
+                + "<div class='cu-track'>" + grid
                 + r.legs.map(function (j, i) {
                     var l = pos(j.Start);
                     var hrs = +j.Hours || 2;
@@ -1395,7 +1430,7 @@ registerPage({
             : "<div class='cu-empty'>No jobs match this filter.</div>")
           + "<div class='rs-hint cu-note'>Each row is <b>one crew's day</b>, grouped by the depot it "
           + "leaves from and laid out on the clock. A row with two bars is a chain — one crew "
-          + "running both jobs, and the hatched gap between them is the empty drive that costs. "
+          + "running both jobs, and the grey gap between them is the empty drive that costs. "
           + "Click a row to open the run.</div></div>"
           + runDrawer(shown)
           + "</div></div>"

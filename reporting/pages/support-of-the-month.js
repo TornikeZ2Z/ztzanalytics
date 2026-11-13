@@ -149,11 +149,8 @@ registerPage({
       + ".spm-wrap{display:flex;flex-direction:column;gap:14px;"
       + "--spm-c1:var(--brand);--spm-c2:var(--purple)}"
       + ".spm-htop{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}"
-      + ".spm-monbtn{appearance:none;border:0;background:none;font:inherit;font-size:31px;"
-      + "font-weight:800;letter-spacing:-.6px;color:var(--ink);cursor:pointer;padding:0;"
-      + "display:flex;align-items:center;gap:8px}"
-      + ".spm-monbtn .car{font-size:14px;color:var(--faint);transition:transform .16s}"
-      + ".spm-monbtn.open .car{transform:rotate(180deg)}"
+      /* the month picker is a control in the filter row now (ZTZ-80): the kit's slicer
+         button, with this page's own list of months (each with its ranked count) under it */
       + ".spm-mwrap{position:relative}"
       + ".spm-mlist{position:absolute;top:calc(100% + 6px);left:0;min-width:260px;z-index:44;"
       + "background:var(--panel);border:1px solid var(--line-2);border-radius:14px;"
@@ -164,16 +161,12 @@ registerPage({
       + "padding:8px 11px;border-radius:9px;cursor:pointer;text-align:left}"
       + ".spm-mopt:hover{background:var(--panel-2)}"
       + ".spm-mopt.cur{background:var(--brand-glow);font-weight:800}"
-      + ".spm-mopt .tag{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.05em;"
-      + "text-transform:uppercase;color:var(--faint)}"
+      + ".spm-mopt .tag{margin-left:auto;font-size:12px;font-weight:800;color:var(--faint)}"
       + ".spm-mopt .tag.yg{color:var(--warn)}"
-      + ".spm-sub{font-size:12.5px;color:var(--muted);margin-top:5px;max-width:var(--rs-prose,72ch);"
-      + "line-height:1.55}"
-      + ".spm-stats{margin-left:auto;display:flex;flex-wrap:wrap;row-gap:12px;min-width:0}"
+      + ".spm-stats{display:flex;flex-wrap:wrap;row-gap:12px;min-width:0}"
       + ".spm-st{padding:0 20px;border-left:1px solid var(--line)}"
       + ".spm-st:first-child{border-left:0}"
-      + ".spm-st span{display:block;font-size:11px;font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--muted)}"
+      + ".spm-st span{display:block;font-size:12px;font-weight:800;color:var(--muted)}"
       + ".spm-st b{display:block;font-size:26px;font-weight:750;letter-spacing:-.5px;"
       + "color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}"
       + ".spm-st small{display:block;font-size:12px;color:var(--faint);margin-top:2px}"
@@ -183,23 +176,22 @@ registerPage({
       + ".spm-win .medal{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;"
       + "background:var(--brand);color:var(--brand-ink);font-size:26px;font-weight:800;flex-shrink:0}"
       + ".spm-win .medal.dim{background:var(--panel-2);color:var(--faint)}"
-      + ".spm-win .k{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
-      + "color:var(--muted)}"
+      + ".spm-win .k{font-size:12px;font-weight:800;color:var(--muted)}"
       + ".spm-win .nm{font-size:24px;font-weight:800;letter-spacing:-.4px;color:var(--ink);margin-top:2px}"
       + ".spm-win .why{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}"
       + ".spm-win .sc{margin-left:auto;text-align:right}"
       + ".spm-win .sc b{display:block;font-size:34px;font-weight:800;letter-spacing:-1px;"
       + "color:var(--ink);line-height:1;font-variant-numeric:tabular-nums}"
-      + ".spm-win .sc i{display:block;font-style:normal;font-size:10px;font-weight:800;"
-      + "letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-top:4px}"
-      + ".spm-tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.05em;"
-      + "text-transform:uppercase;border-radius:999px;padding:2px 9px;border:1px solid var(--line-2);"
+      + ".spm-win .sc i{display:block;font-style:normal;font-size:12px;font-weight:800;"
+      + "color:var(--faint);margin-top:4px}"
+      + ".spm-tag{display:inline-block;font-size:12px;font-weight:800;"
+      + "border-radius:999px;padding:2px 9px;border:1px solid var(--line-2);"
       + "color:var(--faint);margin-left:6px;vertical-align:middle}"
       + ".spm-tag.yg{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}"
       + ".spm-tag.ok{color:var(--pos);border-color:var(--pos);background:var(--pos-bg)}"
       + ".spm-tag.frag{color:var(--neg);border-color:var(--neg);background:var(--neg-bg)}"
       /* the people, side by side */
-      + ".spm-sec{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
+      + ".spm-sec{font-size:12px;font-weight:800;"
       + "color:var(--muted);margin:2px 0 8px}"
       + ".spm-cmpwrap{overflow-x:auto}"
       + ".spm-cmp{width:100%;border-collapse:separate;border-spacing:0;min-width:640px}"
@@ -209,8 +201,8 @@ registerPage({
       + ".spm-cmp .lab{width:230px;font-size:12.5px;font-weight:700;color:var(--muted)}"
       + ".spm-cmp .lab small{display:block;font-weight:500;color:var(--faint);margin-top:2px;"
       + "line-height:1.45}"
-      + ".spm-cmp .grp td{font-size:10.5px;font-weight:800;letter-spacing:.08em;"
-      + "text-transform:uppercase;color:var(--faint);padding-top:16px;background:none}"
+      + ".spm-cmp .grp td{font-size:12px;font-weight:800;"
+      + "color:var(--faint);padding-top:16px;background:none}"
       + ".spm-cmp .v{font-size:17px;font-weight:750;color:var(--ink);font-variant-numeric:tabular-nums}"
       + ".spm-cmp .s{font-size:12px;color:var(--faint);margin-top:2px;line-height:1.45}"
       + ".spm-cmp .na .v{color:var(--faint)}"
@@ -224,7 +216,7 @@ registerPage({
       + ".spm-ph .nm{font-size:16px;font-weight:750;color:var(--ink);letter-spacing:-.2px}"
       + ".spm-ph .scr{font-size:26px;font-weight:800;letter-spacing:-.8px;color:var(--ink);"
       + "font-variant-numeric:tabular-nums;line-height:1}"
-      + ".spm-ph .scr small{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:0}"
+      + ".spm-ph .scr small{font-size:12px;font-weight:700;color:var(--faint);letter-spacing:0}"
       + ".spm-ph .oor{font-size:12px;font-weight:700;color:var(--warn)}"
       + ".spm-bar{height:10px;border-radius:5px;background:var(--panel-2);overflow:hidden;display:flex}"
       + ".spm-bar u{display:block;height:100%;text-decoration:none}"
@@ -243,8 +235,7 @@ registerPage({
       /* the team panel */
       + ".spm-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}"
       + ".spm-tile{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--panel-2)}"
-      + ".spm-tile .l{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;"
-      + "color:var(--muted)}"
+      + ".spm-tile .l{font-size:12px;font-weight:800;color:var(--muted)}"
       + ".spm-tile .v{font-size:22px;font-weight:800;color:var(--ink);margin-top:4px;"
       + "font-variant-numeric:tabular-nums;letter-spacing:-.4px}"
       + ".spm-tile .s{font-size:12px;color:var(--faint);margin-top:3px;line-height:1.45}"
@@ -259,7 +250,7 @@ registerPage({
       + "color:#fff;font:inherit;font-size:13px;font-weight:700;border-radius:9px;padding:8px 16px;"
       + "cursor:pointer}"
       + ".spm-rbtn.pri{background:#fff;color:#16181D;border-color:#fff}"
-      + "@media(max-width:820px){.spm-stats{margin-left:0;margin-top:12px}.spm-win .sc{margin-left:0}"
+      + "@media(max-width:820px){.spm-win .sc{margin-left:0}"
       /* on a phone the table scrolls sideways; the label column keeps its name, drops its gloss */
       + ".spm-cmp .lab{min-width:130px}.spm-cmp .lab small{display:none}}"
       /* a phone: the four hero figures sit two by two, and a wrapped figure opens its row
@@ -271,12 +262,10 @@ registerPage({
          The two score hues become RS.V2.cat[0..1] (the old --brand green no longer exists, and
          purple is not in the v2 set); status tags become the kit's radius-6 pills. */
       + "body.rs-app.light.v2 .spm-wrap{--spm-c1:#14301F;--spm-c2:#3F7D20}"
-      + "body.rs-app.light.v2 .spm-monbtn{font-size:26px;font-weight:700;letter-spacing:-.35px}"
       + "body.rs-app.light.v2 .spm-mlist{border-radius:10px;border-color:var(--line);box-shadow:0 12px 32px rgba(15,23,42,.14)}"
       + "body.rs-app.light.v2 .spm-mopt{font-weight:500;border-radius:8px}"
       + "body.rs-app.light.v2 .spm-mopt.cur{background:var(--blue-bg);color:var(--brand-d);font-weight:600}"
       + "body.rs-app.light.v2 .spm-mopt .tag{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}"
-      + "body.rs-app.light.v2 .spm-sub{font-size:14px}"
       + "body.rs-app.light.v2 .spm-st span{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}"
       + "body.rs-app.light.v2 .spm-st b{font-size:24px;font-weight:600;letter-spacing:-.3px}"
       + "body.rs-app.light.v2 .spm-st small{font-size:12.5px}"
@@ -321,9 +310,25 @@ registerPage({
       // the phone sizes above must still win over the v2 figure size
       + "@media(max-width:640px){body.rs-app.light.v2 .spm-st b{font-size:20px}}"
       + SHEET_CSS
-      + "</style><div class='spm-wrap' id='spmWrap'><div class='spm-empty'>Reading the record…</div></div>";
+      + "</style><div id='spmHead'></div>"
+      + "<div class='spm-wrap' id='spmWrap'><div class='spm-empty'>Reading the record…</div></div>";
 
     const wrap = host.querySelector("#spmWrap");
+
+    /* THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026), as on Sales Person of the
+     * Month: the page's own name is the title, not the month. The month picker moved down into
+     * the filter row, and the paragraph that opened the page moved, word for word, into How
+     * it's counted; a still-growing month keeps its warning as the head's chip. Drawn straight
+     * away so the name shows while the marts load, then again by paint() for the month. */
+    const headHost = host.querySelector("#spmHead");
+    function paintHead(o) {
+      if (!headHost || !RSC.pageHeadHtml) return;
+      headHost.innerHTML = RSC.pageHeadHtml(Object.assign({
+        title: "Support of the Month", key: "support-of-the-month",
+        sub: "Counted from the claims board — the shared phone line is shown for the team, never ranked.",
+      }, o || {}));
+    }
+    paintHead();
 
     // ---------------------------------------------------------------- helpers
     const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
@@ -405,6 +410,7 @@ registerPage({
     function paint() {
       const months = monthsOf();
       if (!months.length) {
+        paintHead();
         wrap.innerHTML = "<div class='spm-empty'>"
           + (S.err.work ? "Could not load the claim work — " + esc(S.err.work)
                         : "No months to show yet.") + "</div>";
@@ -427,6 +433,17 @@ registerPage({
       const claimsFiled = filedCol != null ? filedCol
         : Math.round(10 * mRows.reduce((a, r) => a + (num(r["Claims Owned"]) || 0), 0)) / 10;
       const unassigned = num((mRows.find(r => r["Person"] === "Unassigned") || {})["Claims Owned"]) || 0;
+      paintHead({
+        chip: growing(mm) ? "Still growing" : "", chipTone: growing(mm) ? "warn" : "",
+        how: "<h3>What is counted</h3><p>Counted from the Monday claims board: the claims filed in "
+          + esc(monLab(m)) + ", who owns them, how fast they reached their last status and whether "
+          + "they escalated. Nobody rates anybody here.</p>"
+          + "<h3>Read the stability panel first</h3><p><b>With three people and about 15–20 claims "
+          + "each, this order is fragile</b> — a claim or two either way can move it, so read the "
+          + "stability panel before the ranking.</p>"
+          + (growing(mm) ? "<p><b>" + esc(monLab(m)) + " is still growing</b> — its claims are still "
+                           + "reaching their last status, so these numbers will move.</p>" : ""),
+      });
 
       /* A MART THAT DID NOT LOAD IS SAID, NEVER READ AS AN EMPTY MONTH (review 2026-09-24): with
        * the scorecard missing the page used to say "Nobody owned 10 claims" over people who
@@ -455,9 +472,12 @@ registerPage({
       const leader = ranked[0] || null;
       const maturity = mm == null ? "—" : mm <= 0 ? "still running" : mm === 1 ? "one month on"
                      : mm + " months on";
-      return "<div class='panel'><div class='spm-htop'><div><div class='spm-mwrap'>"
-        + "<button class='spm-monbtn' id='spmMonBtn'>" + esc(monLab(m))
-        + " <span class='car'>▾</span></button><div class='spm-mlist' id='spmMList'>"
+      // the filter row: the kit's slicer button over this page's own month list, so the list
+      // keeps each month's ranked count and its "still growing" tag
+      return "<div class='rs-bar'><div class='rs-slicer spm-mwrap'>"
+        + "<button type='button' class='rs-slicer-btn on' id='spmMonBtn' aria-haspopup='listbox'>"
+        + "<span class='lbl'>Month</span><span class='val'>" + esc(monLab(m)) + "</span>"
+        + "<span class='chev'>▾</span></button><div class='spm-mlist' id='spmMList'>"
         + months.map(x => {
             const n = peopleFor(x).filter(p => p.s && num(p.s["Rank"]) != null).length;
             const xm = maturedOf(x), g = growing(xm);
@@ -467,15 +487,8 @@ registerPage({
                  xm != null && xm <= 0 ? "running" : g ? "still growing" : ""].filter(Boolean).join(" · ")
               + "</span></button>";
           }).join("")
-        + "</div></div>"
-        + "<div class='spm-sub'>Counted from the Monday claims board: the claims filed in "
-        + esc(monLab(m)) + ", who owns them, how fast they reached their last status and whether "
-        + "they escalated. Nobody rates anybody here. <b>With three people and about 15–20 claims "
-        + "each, this order is fragile</b> — a claim or two either way can move it, so read the "
-        + "stability panel before the ranking."
-        + (growing(mm) ? " <b>" + esc(monLab(m)) + " is still growing</b> — its claims are still "
-                         + "reaching their last status, so these numbers will move." : "")
-        + "</div></div>"
+        + "</div></div></div>"
+        + "<div class='panel'><div class='spm-htop'>"
         + "<div class='spm-stats'>"
         + (S.err.work ? stat("Claims filed", "—", "claim work not loaded")
            : stat("Claims filed", fmtC(claimsFiled), unassigned ? fmtC(unassigned) + " with no owner"

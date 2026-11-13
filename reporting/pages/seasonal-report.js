@@ -336,7 +336,7 @@ async function renderSeasonal(host) {
     .srx-tbl .up{color:${POS};font-weight:800}.srx-tbl .dn{color:${NEG};font-weight:800}
     .srx-tbl td.ok{color:${POS};font-weight:800}.srx-tbl td.no{color:${NEG};font-weight:800}
     .srx-mx td{text-align:center}.srx-mx td:first-child{text-align:left}
-    .srx-mx td small{display:block;font-size:11.5px;color:${FAINT};font-weight:600}
+    .srx-mx td small{display:block;font-size:12px;color:${FAINT};font-weight:600}
     .srx-strip{display:grid;grid-template-columns:minmax(260px,1.6fr) repeat(auto-fit,minmax(150px,1fr));gap:14px;align-items:stretch}
     .srx-big{background:${INK};color:#fff;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px}
     .srx-big b{font-family:${MONO};font-size:40px;font-weight:900;letter-spacing:-1.5px;color:${LIME};line-height:1}
@@ -354,7 +354,7 @@ async function renderSeasonal(host) {
     .srx-tbl tr.srx-det>td{background:#fbfcf7;white-space:normal;padding:10px 14px 14px;border-bottom:2px solid ${LIME}}
     .srx-tbl tr.small td{color:${FAINT}}
     .srx-mini{width:100%;border-collapse:collapse;font-size:12.5px;font-family:Inter,sans-serif}
-    .srx-mini th{text-align:left;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};padding:5px 8px;border-bottom:1px solid ${LINE}}
+    .srx-mini th{text-align:left;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:${SUB};padding:5px 8px;border-bottom:1px solid ${LINE}}
     .srx-mini td{text-align:left!important;padding:5px 8px;border-bottom:1px solid ${GRID};font-weight:500!important;color:${INK2}!important;font-family:Inter,sans-serif!important;white-space:normal}
     .srx-mini td.no{color:${NEG}!important;font-weight:700!important}
     .srx-minif{margin-top:6px;font-size:12px;color:${SUB};font-weight:600}
@@ -394,18 +394,22 @@ async function renderSeasonal(host) {
     s2.textContent = [
       `.srx{background:#F6F7F9;color:#0F172A;font-family:${RS.V2.font};border-radius:10px;padding:8px 4px 40px}`,
       `.srx-loading{color:#475569;font-weight:500}`,
-      `.srx-cover{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-radius:10px;padding:20px 22px}`,
+      // THE PAGE STANDARD (ZTZ-80), the Monthly Report's treatment: the cover reads as the kit's page head -- the
+      // title first, the report line under it, the action on the right, the pickers (and their chips) as the filter
+      // row -- and stays one element, so the printout keeps its cover. CSS only: the markup is the print's too.
+      `.srx-cover{background:transparent;color:#0F172A;border:0;border-radius:0;padding:0 0 4px;display:flex;flex-direction:column}`,
       `.srx-cover:before{display:none}`,
-      `.srx-eyebrow{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
-      `.srx-h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:#0F172A;margin:4px 0 4px}`,
+      `.srx-eyebrow{order:2;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;color:#475569;margin-top:4px}`,
+      `.srx-h1{order:1;font-size:24px;font-weight:600;letter-spacing:-.2px;color:#0F172A;margin:0;padding-right:110px}`,
       `.srx-h1 em{color:#14301F}`,
-      `.srx-cvsub{color:#64748B;font-size:13px;font-weight:400}`,
+      `.srx-cover .srx-pick{order:4;margin:14px 0 6px}`, `.srx-cover .rs-pchips{order:4}`, `.srx-cover .srx-cvfilt{order:5}`,
+      `.srx-cvsub{order:3;color:#64748B;font-size:13px;font-weight:400;margin-top:2px}`,
       `.srx-cvfilt{color:#64748B;font-weight:400}`, `.srx-cvfilt b{color:#0F172A;font-weight:600}`,
       `.srx-cover .rs-pchips .rs-sum-l{color:#64748B}`, `.srx-cover .rs-chip.clear{border-color:#CBD5E1;color:#64748B}`,
       `.srx-nf{background:#FFFBEB;border:1px solid #FDE68A;color:#78350F;border-radius:10px;font-size:13px}`, `.srx-nf b{color:#92400E;font-weight:600}`,
       `.srx-pick .rs-slicer-btn .val{color:#0F172A}`,
       `.srx-pick .rs-slicer-btn .chev{color:#64748B}`,
-      `.srx-print{top:18px;right:20px;background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600;font-size:13px}`,
+      `.srx-print{top:0;right:0;background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600;font-size:13px}`,
       `.srx-print:hover{color:#0F172A;border-color:#94A3B8;background:#F8FAFC}`,
       `.srx-banner{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;color:#78350F;font-weight:400;font-size:13.5px}`,
       `.srx-banner b{font-family:inherit;color:#92400E;font-weight:600}`,
@@ -414,11 +418,12 @@ async function renderSeasonal(host) {
       `.srx-tocb{font-weight:600;color:#0F172A;border-color:#E2E8F0;border-radius:999px}`,
       `.srx-tocb i{font-family:inherit;font-weight:500;color:#64748B}`,
       `.srx-tocb:hover{border-color:#94A3B8;background:#F8FAFC}`,
-      `.srx-part{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:20px 24px;margin:40px 0 18px}`,
+      // ZTZ-80: a part heading sits a size below the page title, as on the Monthly Report
+      `.srx-part{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:14px 20px;margin:32px 0 16px}`,
       `.srx-part:before{display:none}`,
-      `.srx-part .pt{font-size:26px;font-weight:700;letter-spacing:-.4px}`,
+      `.srx-part .pt{font-size:20px;font-weight:600;letter-spacing:-.2px;color:#0F172A}`,
       `.srx-part .ps{font-size:14.5px;font-weight:400;color:#475569;opacity:1}`,
-      `.srx-part .pn{font-family:inherit;font-weight:700;font-size:40px;letter-spacing:-1px;color:#14301F;opacity:1;font-variant-numeric:tabular-nums}`,
+      `.srx-part .pn{font-family:inherit;font-weight:600;font-size:24px;letter-spacing:-.4px;color:#14301F;opacity:1;font-variant-numeric:tabular-nums}`,
       `.srx-card{border-color:#E2E8F0;border-radius:10px;box-shadow:none}`,
       `.srx-card:before{display:none}`,
       `.srx-ch{border-bottom-color:#F1F5F9}`,
@@ -829,7 +834,7 @@ async function renderSeasonal(host) {
   /* ---------- cover + honesty banners + contents ---------- */
   const root = host.querySelector(".srx"); root.innerHTML = "";
   const cover = document.createElement("div"); cover.className = "srx-cover";
-  cover.innerHTML = `<button class="srx-print" id="srPrint" title="Browser print">🖨 Print</button>
+  cover.innerHTML = `<button class="srx-print" id="srPrint" title="Browser print">Print</button>
     <div class="srx-eyebrow">Seasonal Report · ${esc(CO)}</div>
     <div class="srx-h1">${esc(seasonName)} <em>${Y}</em></div>
     <div class="srx-pick"><div id="srFrom"></div><div id="srTo"></div><div id="srYear"></div><div id="srCo"></div><div id="srFilt" title="State, Local / Long distance and Source"></div></div>

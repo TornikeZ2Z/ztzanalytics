@@ -114,7 +114,7 @@
       + ".roi .roi-np{color:var(--faint)}"
       + ".roi .roi-x{font-weight:700;font-variant-numeric:tabular-nums}.roi .roi-x.hi{color:var(--pos)}.roi .roi-x.lo{color:var(--neg)}"
       + ".roi .roi-tot td{font-weight:800;border-top:1px solid var(--line-2)}"
-      + ".roi .rs-table td small{display:block;color:var(--faint);font-size:11px;font-weight:600}"
+      + ".roi .rs-table td small{display:block;color:var(--faint);font-size:12px;font-weight:600}"
       // the heat grid: a cell is a button into the drill
       + ".roi .roi-hm td.roi-hc{padding:3px 4px}"
       + ".roi .roi-hc button{font:inherit;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;width:100%;min-width:52px;"
@@ -162,14 +162,14 @@
       + ".roi-q{display:flex;gap:6px;flex-wrap:wrap}"
       + ".roi-qc,.roi-fc,.roi-sc,.roi-nx{font:inherit;font-size:12.5px;border-radius:999px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer;"
       + "padding:5px 12px;display:inline-flex;align-items:center;gap:6px;line-height:1.3;transition:border-color .12s,background .12s}"
-      + ".roi-qc{font-size:12px;padding:4px 10px}.roi-qc small,.roi-fc small{color:var(--muted);font-size:11px}.roi-qc.done{color:var(--pos)}"
+      + ".roi-qc{font-size:12px;padding:4px 10px}.roi-qc small,.roi-fc small{color:var(--muted);font-size:12px}.roi-qc.done{color:var(--pos)}"
       + ".roi-qc.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}.roi-qc.on small{color:inherit;opacity:.75}"
       + ".roi-msh{display:flex;align-items:baseline;gap:8px;font-size:13px}.roi-msh small{color:var(--muted);font-size:12px}"
       + ".roi-mcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}"
       + ".roi-mc{font:inherit;text-align:left;border-radius:12px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer;"
       + "padding:7px 10px;display:flex;flex-direction:column;gap:1px;transition:border-color .12s,background .12s}"
-      + ".roi-mc-l{font-size:11.5px;color:var(--muted);font-weight:600}.roi-mc-v{font-weight:700;font-variant-numeric:tabular-nums}"
-      + ".roi-mc-p{font-size:11px;color:var(--muted)}"
+      + ".roi-mc-l{font-size:12px;color:var(--muted);font-weight:600}.roi-mc-v{font-weight:700;font-variant-numeric:tabular-nums}"
+      + ".roi-mc-p{font-size:12px;color:var(--muted)}"
       + ".roi-mc.full{background:var(--pos-bg);border-color:var(--pos)}.roi-mc.full .roi-mc-v,.roi-mc.full .roi-mc-p{color:var(--pos)}"
       + ".roi-mc.part{background:var(--warn-bg);border-color:var(--warn)}.roi-mc.part .roi-mc-p{color:var(--warn)}"
       + ".roi-mc.over{background:var(--neg-bg);border-color:var(--neg)}.roi-mc.over .roi-mc-p{color:var(--neg)}"
@@ -181,13 +181,13 @@
       + ".roi-note{font-size:12.5px;color:var(--warn);background:var(--warn-bg);border-radius:8px;padding:6px 10px}"
       + ".roi-scs{display:flex;gap:6px;flex-wrap:wrap}"
       + ".roi-sc{font-weight:600;padding:5px 11px 5px 9px}.roi-sc i{width:8px;height:8px;border-radius:50%;background:var(--c);display:inline-block}"
-      + ".roi-sc small{font-size:10.5px;font-weight:600;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:0 6px}"
+      + ".roi-sc small{font-size:12px;font-weight:600;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:0 6px}"
       + ".roi-sc.on{background:color-mix(in srgb,var(--c) 14%,var(--panel));border-color:var(--c)}"
       + ".roi-bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--panel-2)}.roi-bar i{display:block;height:100%}"
       + ".roi-sr{display:grid;grid-template-columns:48px minmax(0,1fr) 56px 10px 104px 76px 24px;gap:8px;align-items:center;padding:3px 0}"
       + ".roi-dl{display:flex;align-items:center;gap:3px;color:var(--muted);font-size:12.5px}"
       + ".roi-dl .rs-inp{width:100%;min-width:0;text-align:right;padding:4px 6px;font-variant-numeric:tabular-nums;border-radius:8px;font-weight:600}"
-      + ".roi-rest{font:inherit;font-size:11.5px;font-weight:600;border-radius:999px;border:1px dashed var(--brand);background:transparent;color:var(--ink);"
+      + ".roi-rest{font:inherit;font-size:12px;font-weight:600;border-radius:999px;border:1px dashed var(--brand);background:transparent;color:var(--ink);"
       + "cursor:pointer;padding:3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums}"
       + ".roi-rest:hover{background:var(--panel-2)}.roi-rest.off{visibility:hidden}"
       + ".roi-sr b{font-weight:700;display:flex;align-items:center;gap:6px}.roi-sr b i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}"
@@ -207,7 +207,7 @@
   async function render(host) {
     injectStyle();
     if (!C0.D.ready) {
-      host.innerHTML = '<div class="rs-loading">Reading every ad dollar, lead and job by source…<div class="bar"><i></i></div></div>';
+      host.innerHTML = RSC.loadingHtml("Return on Investment", "Reading every ad dollar, lead and job by source…");
       try { await C0.ensure(); }
       catch (e) {
         host.innerHTML = '<div class="panel"><div class="panel-head"><span class="panel-title">Return on Investment could not load</span></div>'
@@ -254,12 +254,13 @@
     setHash();
     var w = win(), R = calcNow(w);
     V.R = R;
-    host.innerHTML = '<div class="roi"><div class="rs-page-head"><h1>Return on Investment</h1>'
-      + "<p>Where the advertising money goes, state by state, and the revenue it brings back. Revenue per $1 is "
-      + "revenue (Total Bill) of a source's jobs in a state ÷ that source's ad spend placed there — revenue, not profit.</p></div>"
-      + '<div class="rs-tabs" id="roiTabs">' + TABS.map(function (t) {
-          return '<button type="button" class="rs-tab' + (Q.tab === t[0] ? " on" : "") + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
-        }).join("") + "</div>"
+    /* THE PAGE STANDARD (ZTZ-80): the kit head (the definition of revenue per $1 and both "how spend is
+       placed" paragraphs moved into How it's counted, word for word), the three views as underline tabs
+       (still #roiTabs [data-tab], so the click below is unchanged), then the one filter row */
+    host.innerHTML = '<div class="roi">' + RSC.pageHeadHtml({ title: "Return on Investment", key: "marketing-roi",
+        sub: "Where the advertising money goes, state by state, and the revenue it brings back.",
+        chip: C0.D.ledgerEnd ? "Spend through " + niceDay(C0.D.ledgerEnd) : "", how: HOW_HTML })
+      + '<div id="roiTabs">' + RSC.tabsHtml(TABS.map(function (t) { return { id: t[0], label: t[1] }; }), Q.tab, "tab") + "</div>"
       + '<div class="rs-bar"><div id="roiFam"></div><div id="roiCo"></div>'
       + '<div class="rs-fld"><span>Period</span><div id="roiDate"></div></div><div id="roiSt"></div></div>'
       + '<div id="roiBody"></div></div>';
@@ -345,6 +346,20 @@
     return { PS: PS, stIn: stIn, byS: byS, T: T, st: st };
   }
 
+  /* HOW IT'S COUNTED (ZTZ-80): the texts that sat above the numbers -- the head's definition, the
+     Overview's "how spend is placed" and Spend by state's paragraph card -- word for word */
+  var HOW_HTML = "<h3>Revenue per $1</h3><p>Revenue per $1 is "
+    + "revenue (Total Bill) of a source's jobs in a state ÷ that source's ad spend placed there — revenue, not profit.</p>"
+    + "<h3>How spend is placed in a state</h3><p>"
+    + "Spend is placed from the source's label (post cards, Yelp-NJ), Google's own state report, Thumbtack's cost per lead, "
+    + "Yelp's own report for what the bank left untagged, "
+    + "Angi's and Google Local's leads by state, or the dollars entered per month on <b>Spend by state</b>. Cost per job is spend "
+    + "placed ÷ jobs moved (closings) of the same sources in the same states.</p>"
+    + "<h3>Spend by state</h3><p>"
+    + "A source the data can place (its label, Google's state report, Yelp's report, Thumbtack's cost per lead, Angi's and Google Local's leads) "
+    + "needs nothing here. For the rest, open the source and say month by month where its money went — in % or $. "
+    + "What you leave out stays not placed, and its return counts by state at once on every tab.</p>";
+
   function clipHint(R) {
     return R.clipped ? "Spend up to <b>" + esc(niceDay(R.e)) + "</b>, the last day the advertising ledger is posted (revenue stops there too). " : "";
   }
@@ -405,11 +420,8 @@
             + '<td class="num" title="' + esc(money0(revF) + " revenue ÷ " + money0(spF) + " spend") + '">' + xTxt(revF, spF) + "</td></tr>";
         }).join("")
       + "</tbody></table></div></div>";
-    body.innerHTML = '<div class="panel"><div class="rs-hint">' + clipHint(R)
-      + "Spend is placed from the source's label (post cards, Yelp-NJ), Google's own state report, Thumbtack's cost per lead, "
-      + "Yelp's own report for what the bank left untagged, "
-      + "Angi's and Google Local's leads by state, or the dollars entered per month on <b>Spend by state</b>. Cost per job is spend "
-      + "placed ÷ jobs moved (closings) of the same sources in the same states.</div><div class=\"rs-kpis\" id=\"roiK\"></div></div>"
+    body.innerHTML = '<div class="panel">' + (R.clipped ? '<div class="rs-hint">' + clipHint(R) + "</div>" : "")
+      + '<div class="rs-kpis" id="roiK"></div></div>'
       + stTable + hm
       + '<div class="roi-h"><h2>Spend and return · by source</h2><span id="roiSpendPills"></span></div><div id="roiSpendAll"></div>';
     RSC.kpis(body.querySelector("#roiK"), k);
@@ -579,10 +591,7 @@
       + '<div class="roi-lg"><span><i class="roi-cc rule"></i>placed by a rule (label, Google report, Yelp report, leads, lead cost)</span>'
       + '<span><i class="roi-cc ent"></i>entered or imported</span><span><i class="roi-cc part"></i>part placed</span>'
       + '<span><i class="roi-cc miss"></i>not placed</span></div></div>';
-    body.innerHTML = '<div class="panel"><div class="rs-hint">' + clipHint(R)
-      + "A source the data can place (its label, Google's state report, Yelp's report, Thumbtack's cost per lead, Angi's and Google Local's leads) "
-      + "needs nothing here. For the rest, open the source and say month by month where its money went — in % or $. "
-      + "What you leave out stays not placed, and its return counts by state at once on every tab.</div></div>"
+    body.innerHTML = (R.clipped ? '<div class="rs-hint">' + clipHint(R) + "</div>" : "")
       + grid + '<div class="rs-grid2">' + missingHtml(R) + noStateHtml(R) + "</div>";
     if (co) {
       body.querySelectorAll(".roi-cv tr[data-f]").forEach(function (tr) {

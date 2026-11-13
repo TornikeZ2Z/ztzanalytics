@@ -1,7 +1,7 @@
 /* CUSTOM BREAKDOWN v2 — a pivot builder over the job book, the lead book, and packing.
  *
  * The v1 page proved the idea (rows × columns, two measures, stacking filters, saved views)
- * and failed on three fronts he named (2026-08-27): the visuals (a wall of naked <select>s
+ * and failed on three fronts he named (2026-08-27): the visuals (a wall of naked native selects
  * beside kit components), the intuition (filters collected through window.prompt), and the
  * data (nothing about estimates vs reality — "packing estimate vs packing real is something
  * i was asked and i could not provide"). v2 keeps the proven engine and replaces all three:
@@ -558,16 +558,21 @@ async function cbRender(host) {
 
     /* ---- page shell -------------------------------------------------------------- */
     const NOUN = isLeads ? "leads" : "jobs";
+    /* THE PAGE STANDARD (ZTZ-80): the kit head carries the one-line sub and, on its right, the
+       page's actions (same ids, wired below as before); then the presets row, then ONE builder row
+       -- the sentence (universe, measures, rows, columns) and its refinements (search, filters,
+       Top, Chart) used to sit on two rows of their own. */
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Custom Breakdown</h1>
-        <p>Pick a starting point, or build your own — <b>${RS.fmtN(rows.length)}</b>
-           ${NOUN} in scope${activeFilters.length ? ` after ${activeFilters.length} page filter${activeFilters.length === 1 ? "" : "s"}` : ""}</p>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Custom Breakdown", key: "analysis-by-category",
+        subHtml: `Pick a starting point, or build your own — <b>${RS.fmtN(rows.length)}</b>
+           ${NOUN} in scope${activeFilters.length ? ` after ${activeFilters.length} page filter${activeFilters.length === 1 ? "" : "s"}` : ""}`,
+        actions: [{ html: '<button class="rs-btn" id="cbSave">Save view</button>' },
+          { html: '<button class="rs-btn" id="cbLink">Copy link</button>' },
+          { html: '<button class="rs-btn" id="cbCsv">CSV</button>' },
+          { html: '<button class="rs-btn" id="cbReset">Reset</button>' }] })}
       <div class="cb-shelf" id="cbShelf"></div>
       <div class="panel cb-deck" id="cbDeck">
         <div class="cb-row" id="cbRow1"></div>
-        <div class="cb-row cb-row2" id="cbRow2"></div>
       </div>
       ${coverage ? `<div class="rs-hint cb-note" id="cbCov">${esc(coverage)}</div>` : ""}
       <div class="rs-kpis" id="kpis"></div>
@@ -593,13 +598,12 @@ async function cbRender(host) {
         .cb-preset .x{margin-left:7px;color:var(--faint);font-weight:800}
         .cb-preset .x:hover{color:var(--red)}
 
-        /* the builder deck: row 1 reads as a sentence, row 2 refines it */
+        /* the builder deck: one row -- the sentence, a thin rule, then what refines it */
         .cb-deck{display:flex;flex-direction:column;gap:10px;padding:12px 14px}
         .cb-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-        .cb-row2{border-top:1px solid var(--line);padding-top:10px}
-        .cb-word{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-          color:var(--faint);margin:0 1px}
-        .cb-act{display:flex;gap:6px;margin-left:auto}
+        .cb-sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+        .cb-grp{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px}
+        .cb-word{font-size:12px;font-weight:600;color:var(--faint);margin:0 1px}
         .cb-fdel{border:0;background:transparent;color:var(--faint);cursor:pointer;
           font-size:12px;padding:2px 2px 2px 0;margin-left:-4px}
         .cb-fdel:hover{color:var(--red)}
@@ -632,7 +636,7 @@ async function cbRender(host) {
         .rs-table.cb-piv tbody tr:hover td:first-child{background:var(--panel-2)}
         .rs-table.cb-piv th[data-s]{cursor:pointer;user-select:none}
         .rs-table.cb-piv th[data-s]:hover{color:var(--brand)}
-        .rs-table.cb-piv td .b{font-size:10.5px;color:var(--muted)}
+        .rs-table.cb-piv td .b{font-size:12px;color:var(--muted)}
         .rs-table.cb-piv tbody tr.cb-tot td,
         .rs-table.cb-piv tbody tr.cb-tot:hover td{border-top:2px solid var(--line-2);font-weight:800;
           background:var(--panel-2);position:sticky;bottom:0}
@@ -684,7 +688,9 @@ async function cbRender(host) {
       return out;
     };
     const row1 = $("cbRow1");
-    const word = t => { const s = document.createElement("span"); s.className = "cb-word"; s.textContent = t; row1.appendChild(s); };
+    // one row that wraps BETWEEN groups, never between a word and the control it names
+    const grp = () => { const g = document.createElement("span"); g.className = "cb-grp"; row1.appendChild(g); return g; };
+    const word = (t, at) => { const s = document.createElement("span"); s.className = "cb-word"; s.textContent = t; (at || row1).appendChild(s); };
 
     // universe segment
     const uni = document.createElement("div");
@@ -703,22 +709,23 @@ async function cbRender(host) {
     });
     row1.appendChild(uni);
 
-    word("show");
-    RSC.localSelect(row1, { label: "Measure", values: withGroups(MEAS), value: CB.mA,
+    let g = grp(); word("show", g);
+    RSC.localSelect(g, { label: "Measure", values: withGroups(MEAS), value: CB.mA,
       required: true, onChange: go(v => { CB.mA = v; }) });
-    word("vs");
-    RSC.localSelect(row1, { label: "2nd measure", values: withGroups(MEAS).filter(i => i.div || i.v !== CB.mA),
+    g = grp(); word("vs", g);
+    RSC.localSelect(g, { label: "2nd measure", values: withGroups(MEAS).filter(i => i.div || i.v !== CB.mA),
       value: CB.mB, allLabel: "— nothing —", onChange: go(v => { CB.mB = v; }) });
-    word("by");
-    RSC.localSelect(row1, { label: "Rows", values: withGroups(DIMS), value: CB.rowDim,
+    g = grp(); word("by", g);
+    RSC.localSelect(g, { label: "Rows", values: withGroups(DIMS), value: CB.rowDim,
       required: true, onChange: go(v => { CB.rowDim = v; }) });
-    word("split by");
-    RSC.localSelect(row1, { label: "Columns", values: withGroups(DIMS).filter(i => i.div || i.v !== CB.rowDim),
+    g = grp(); word("split by", g);
+    RSC.localSelect(g, { label: "Columns", values: withGroups(DIMS).filter(i => i.div || i.v !== CB.rowDim),
       value: CB.colDim, allLabel: "— none —", onChange: go(v => { CB.colDim = v; }) });
 
-    /* row 2: page filters as LIVE kit multi-pickers (click to edit, ✕ to drop), then
-       Top / Chart segments and the actions. */
-    const row2 = $("cbRow2");
+    /* then, on the same row: page filters as LIVE kit multi-pickers (click to edit, ✕ to drop),
+       then the Top / Chart segments. The actions live in the page head. */
+    const row2 = row1;
+    { const sep = document.createElement("span"); sep.className = "cb-sep"; row2.appendChild(sep); }
     const qIn = document.createElement("input");
     qIn.className = "cb-q"; qIn.id = "cbQ";
     qIn.placeholder = "customer or request #…";
@@ -733,45 +740,38 @@ async function cbRender(host) {
       CB._qFocus = 0;
       qIn.focus(); qIn.setSelectionRange(qIn.value.length, qIn.value.length);
     }
-    const fWord = document.createElement("span"); fWord.className = "cb-word"; fWord.textContent = "filter"; row2.appendChild(fWord);
+    const fg = grp(); word("filter", fg);
     activeFilters.concat(Object.keys(CB.filters).filter(k => DIMS[k] && !activeFilters.includes(k))).forEach(dim => {
       const counts = new Map();
       scoped.forEach(r => { const k = keyOf(dim, r); counts.set(k, (counts.get(k) || 0) + 1); });
       const vals = [...counts.entries()].sort((a, b) => b[1] - a[1])
         .map(([v, n]) => ({ v, l: v, n }));
-      RSC.localMulti(row2, { label: dim, values: vals, selected: CB.filters[dim] || [],
+      RSC.localMulti(fg, { label: dim, values: vals, selected: CB.filters[dim] || [],
         emptyLabel: "pick values…", startOpen: CB._editF === dim,
         onChange: set => { CB._editF = dim;
           if (set.size) CB.filters[dim] = set; else CB.filters[dim] = new Set(); redraw(); } });
       const del = document.createElement("button");
       del.className = "cb-fdel"; del.title = "Remove this filter"; del.textContent = "✕";
       del.onclick = () => { CB._editF = ""; delete CB.filters[dim]; redraw(); };
-      row2.appendChild(del);
+      fg.appendChild(del);
     });
-    RSC.localSelect(row2, { label: "+ Add", values: Object.keys(DIMS)
+    RSC.localSelect(fg, { label: "+ Add", values: Object.keys(DIMS)
       .filter(d => !(d in CB.filters) && !DIMS[d].search),
       value: "", allLabel: "a filter…",
       onChange: v => { if (v) { CB.filters[v] = new Set(); CB._editF = v; redraw(); } } });
 
-    const tWord = document.createElement("span"); tWord.className = "cb-word"; tWord.textContent = "top"; row2.appendChild(tWord);
+    g = grp(); word("top", g);
     const topSeg = document.createElement("div"); topSeg.className = "rs-seg";
     topSeg.innerHTML = [10, 20, 50, 0].map(n =>
       `<button data-n="${n}" class="${n === CB.topN ? "on" : ""}">${n || "All"}</button>`).join("");
     topSeg.querySelectorAll("button").forEach(b => b.onclick = () => { CB._editF = ""; CB.topN = +b.dataset.n; redraw(); });
-    row2.appendChild(topSeg);
+    g.appendChild(topSeg);
 
-    const cWord = document.createElement("span"); cWord.className = "cb-word"; cWord.textContent = "chart"; row2.appendChild(cWord);
+    g = grp(); word("chart", g);
     const chSeg = document.createElement("div"); chSeg.className = "rs-seg";
     chSeg.innerHTML = [["bar", "Bars"], ["hbar", "Rows"], ["stacked", "Stacked"], ["line", "Line"], ["donut", "Donut"]]
       .map(([v, l]) => `<button data-c="${v}" class="${v === CB.chart ? "on" : ""}">${l}</button>`).join("");
-    row2.appendChild(chSeg);
-
-    const act = document.createElement("div"); act.className = "cb-act";
-    act.innerHTML = `<button class="rs-btn" id="cbSave">Save view</button>
-      <button class="rs-btn" id="cbLink">Copy link</button>
-      <button class="rs-btn" id="cbCsv">CSV</button>
-      <button class="rs-btn" id="cbReset">Reset</button>`;
-    row2.appendChild(act);
+    g.appendChild(chSeg);
 
     /* ---- KPI strip --------------------------------------------------------------- */
     const disp = k => k;

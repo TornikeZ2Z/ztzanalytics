@@ -153,22 +153,13 @@ registerPage({
         #stSearch{width:100%;max-width:520px}
         #stModes{margin-bottom:13px}
         .strc-results{margin-top:12px}
-        /* min(320px,100%) so it never overflows a narrow pane, and auto-fit so the six
-           rungs spread across whatever width the screen actually gives them: 3x2 on a
-           laptop, 6 across on a wide monitor, rather than a fixed column count. */
-        /* strc-how* on purpose: .strc-ladder/.strc-rule already belong to the per-job trace
-           below, and a second .strc-ladder here simply lost the cascade to it. A plain px floor,
-           not min()/clamp() inside repeat() -- keep this one boringly resolvable.
-           The whole sheet is strc-* because sales-team.js owns the st-* namespace AND had
+        /* The whole sheet is strc-* because sales-team.js owns the st-* namespace AND had
            claimed the id "st-style": whichever page loaded first won, and the other rendered
            with no CSS at all. Keep this prefix unique -- scripts/lint_page_css.py checks. */
-        .strc-howgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
-        .strc-howrung{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
-          padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
-        .strc-hown{width:26px;height:26px;border-radius:8px;background:var(--brand);color:var(--brand-ink);
-          font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
-        .strc-howt{font-size:13.5px;font-weight:700;color:var(--ink)}
-        .strc-howd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.5}
+        /* the ladder as a numbered list in How it's counted (ZTZ-80); strc-how* because
+           .strc-ladder/.strc-rule belong to the per-job trace */
+        .strc-howlist{margin:0 0 10px;padding-left:22px}
+        .strc-howlist li{margin:0 0 9px}
         /* the 1fr was the customer NAME, so on a wide screen a search hit read as
            "#110292  Jane Doe .................................. Google  chip" with 1600px
            of nothing in the middle. Flexible track LAST: the five cells sit together and
@@ -178,14 +169,14 @@ registerPage({
     border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
   .strc-chip:hover{border-color:var(--brand)}
   .strc-chip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
-  .strc-chip .c{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+  .strc-chip .c{font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
   .strc-chip.clear{color:var(--faint);border-style:dashed}
   /* The browse and multi-source lists are kit tables (.rs-tablewrap + .rs-table) and the
      pager buttons are .rs-btn. Two narrow adjustments only: the wrap sits INSIDE a panel, so
      its own border would draw a second card edge around the first, and the match-key column
      only reads as a key in a monospace face. */
   .rs-tablewrap.strc-bwrap{border:0;border-radius:0}
-  .rs-table td.strc-key{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
+  .rs-table td.strc-key{color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}
   .strc-pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0 2px;font-size:12.5px;color:var(--muted)}
   .strc-hit{display:grid;grid-template-columns:auto auto auto auto minmax(0,1fr);gap:10px 16px;
           align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:11px;
@@ -193,7 +184,7 @@ registerPage({
         .strc-hit:hover{border-color:var(--brand);background:var(--panel)}
         .strc-hit b{color:var(--ink);font-size:13.5px}
         .strc-hit .strc-mini{color:var(--muted);font-size:12.5px}
-        .strc-lab{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+        .strc-lab{font-size:12px;font-weight:700;color:var(--faint)}
         /* .rs-hint is the kit's explanation line. It carries a bottom margin, which is right
            under a bar and wrong as the last line inside a card, and this page's emphasis
            means "watch out", not "look here" -- so it stays amber rather than brand. */
@@ -205,12 +196,11 @@ registerPage({
         .strc-cell{border:1px solid var(--line-2);border-radius:13px;padding:14px 16px;background:var(--panel-2)}
         .strc-cell .num{display:inline-flex;width:20px;height:20px;border-radius:6px;margin-right:7px;
           background:var(--panel);border:1px solid var(--line-2);color:var(--muted);
-          font-size:11px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle}
+          font-size:12px;font-weight:800;align-items:center;justify-content:center;vertical-align:middle}
         .strc-cell .big{font-size:18px;font-weight:800;color:var(--ink);margin:6px 0 6px}
         /* the priority ladder */
-        .strc-sechead{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-          color:var(--muted);margin:2px 0 11px}
-        .strc-sechead span{color:var(--faint);font-weight:700;text-transform:none;letter-spacing:0}
+        .strc-sechead{font-size:12px;font-weight:800;color:var(--muted);margin:2px 0 11px}
+        .strc-sechead span{color:var(--faint);font-weight:700}
         .strc-cap{font-size:12px;font-weight:600;color:var(--faint);margin-left:8px}
         .strc-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
         .strc-rule{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;
@@ -233,7 +223,7 @@ registerPage({
            the label sits next to the answer and the bar stops pretending to be a table. */
         .strc-final{display:inline-flex;align-items:baseline;gap:14px;width:max-content;max-width:100%;
           padding:15px 18px;border-radius:14px;background:var(--brand);color:var(--brand-ink);margin-bottom:16px}
-        .strc-final .fl{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.9}
+        .strc-final .fl{font-size:12px;font-weight:800;opacity:.9}
         .strc-final .fv{font-size:22px;font-weight:800}
         /* faithful vs current + verdict */
         @media(max-width:640px){.strc-hit{grid-template-columns:1fr 1fr}}
@@ -247,13 +237,13 @@ registerPage({
         .strc-step:not(:last-child)::before{content:"";position:absolute;left:12px;top:26px;bottom:0;
           width:2px;background:var(--line-2)}
         .strc-dot{width:26px;height:26px;border-radius:50%;background:var(--panel);border:2px solid var(--line-2);
-          display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+          display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;
           color:var(--muted);z-index:1}
         .strc-step.chg .strc-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
         .strc-step.raw .strc-dot{background:var(--ink);border-color:var(--ink);color:var(--panel)}
         .strc-step.fin .strc-dot{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
         .strc-sbody{padding-top:0}
-        .strc-slab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+        .strc-slab{font-size:12px;font-weight:800;color:var(--faint)}
         .strc-sval{font-size:15.5px;font-weight:800;color:var(--ink);margin:1px 0 1px}
         .strc-step.chg .strc-sval,.strc-step.fin .strc-sval{color:var(--brand-d)}
         .strc-step.raw .strc-sval{font-size:17px}
@@ -261,7 +251,7 @@ registerPage({
         .strc-snote b{color:var(--ink)}
         /* Multi-source tab: tracker chips (folded in from the retired page; fresh class
            names because lint_page_css forbids sharing a class across pages) */
-        .strc-mchip{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;
+        .strc-mchip{display:inline-block;font-size:12px;font-weight:800;padding:2px 8px;
           border-radius:999px;margin:1px 3px 1px 0;white-space:nowrap}
         .strc-mchip.CallRail{background:var(--brand-glow);color:var(--brand-d)}
         .strc-mchip.GoogleLocal{background:var(--blue-bg);color:var(--blue)}
@@ -273,15 +263,15 @@ registerPage({
         body.rs-app.light.v2 :is(.strc-lab,.strc-sechead,.strc-slab,.strc-final .fl){text-transform:none;letter-spacing:0;
           font-size:12.5px;font-weight:500;color:#475569;opacity:1}
         body.rs-app.light.v2 .strc-sechead{font-size:14px;font-weight:600;color:#0F172A}
-        body.rs-app.light.v2 :is(.strc-howrung,.strc-hit,.strc-cell,.strc-rule){background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}
+        body.rs-app.light.v2 :is(.strc-hit,.strc-cell,.strc-rule){background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}
         body.rs-app.light.v2 .strc-hit:hover{border-color:#C9E68A;background:#F8FAFC}
-        body.rs-app.light.v2 :is(.strc-hown,.strc-rule.won .strc-badge,.strc-step.chg .strc-dot,.strc-step.fin .strc-dot){
+        body.rs-app.light.v2 :is(.strc-rule.won .strc-badge,.strc-step.chg .strc-dot,.strc-step.fin .strc-dot){
           background:#14301F;border-color:#14301F;color:#FFFFFF}
         body.rs-app.light.v2 .strc-rule.won{background:#F4FAE6;border-color:#C9E68A}
         body.rs-app.light.v2 :is(.strc-rule.won .rs,.strc-step.chg .strc-sval,.strc-step.fin .strc-sval){color:#14301F}
         body.rs-app.light.v2 .strc-final{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-left:3px solid #14301F;border-radius:10px}
         body.rs-app.light.v2 .strc-final .fv{font-weight:600;color:#14301F}
-        body.rs-app.light.v2 :is(.strc-cell .big,.strc-sval,.strc-howt,.strc-rule .rt){font-weight:600}
+        body.rs-app.light.v2 :is(.strc-cell .big,.strc-sval,.strc-rule .rt){font-weight:600}
         body.rs-app.light.v2 .strc-chip{border-color:#CBD5E1;font-weight:600}
         body.rs-app.light.v2 .strc-chip:hover{border-color:#C9E68A}
         body.rs-app.light.v2 .strc-chip.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
@@ -298,16 +288,13 @@ registerPage({
     }
 
     /* ---------------- shell ---------------- */
+    /* THE PAGE STANDARD (ZTZ-80): the kit head; the long subtitle and the nine "How a source is
+       decided" cards moved into How it's counted (howHtml below, word for word, the ladder as a
+       numbered list). The search, the mode pills and the Matched-by chips stay where they were. */
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Source Trace</h1>
-        <p>Look up any job and see how its lead <b>source</b> is decided, step by step — the
-           priority ladder (incl. the <b>UTM tag</b> on the link they clicked, <b>Meta Referral</b>
-           forms, CallRail, Google Local, <b>Angi</b> / <b>Thumbtack</b> lead-data matching, Post Card
-           region) that resolves it. Switch between the
-           <b>Closing</b> sheet source and the upstream <b>Moveboard</b> source.
-           <span class="freshness">· read-only</span></p>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Source Trace", key: "source-trace",
+        sub: "Look up any job and see how its lead source is decided, step by step.",
+        chip: "Read-only", how: () => howHtml() })}
       <div class="panel">
         <div style="padding:14px 16px">
           <div class="rs-seg" id="stModes">
@@ -323,7 +310,6 @@ registerPage({
       </div>
       <div id="stChips" class="strc-chips"></div>
       <div id="stBrowse"></div>
-      <div id="stIdle"></div>
       <div id="stTrace"></div>`;
 
     const inp = document.getElementById("stSearch");
@@ -352,12 +338,10 @@ registerPage({
                   "Raw booked source"],
     };
 
-    /* The page spends most of its life waiting for someone to type, and it used to spend that
-       time as a small box in the corner of an empty screen. The ladder below is the whole
-       point of the report — the order the rungs are tried in is exactly what a trace walks —
-       so showing it while idle answers "how is source decided?" without anyone searching, and
-       gives the screen something to hold. It clears the moment a job is opened, and it
-       FOLLOWS THE TAB: the two sides do not walk the same ladder — CallRail is a rung of its
+    /* The ladder is the whole point of the report — the order the rungs are tried in is exactly
+       what a trace walks. It sat on the page while idle until the page standard (ZTZ-80, 13 Nov
+       2026) moved it into How it's counted, where it answers "how is source decided?" without
+       anyone searching. It FOLLOWS THE TAB: the two sides do not walk the same ladder — CallRail is a rung of its
        own on the Moveboard side with Google Local beneath it, where the Closing side folds
        CallRail into the Post Card and fallback rungs. Drawing the closing ladder over the
        moveboard tab described nine rungs while the trace below walked ten (2026-09-04). */
@@ -396,29 +380,23 @@ registerPage({
       "Raw booked source": ["Raw booked source",
         "Nothing above matched, so the moveboard's booked source stands, translated to its canonical name."],
     };
-    function paintIdleLadder() {
-      const el = document.getElementById("stIdle");
-      if (!el) return;
-      // the multi tab has its own subject; the explainer describes the other two
-      const mode = ST_STATE.mode === "multi" ? "closing" : ST_STATE.mode;
+    function howHtml() {
+      // the multi tab opens moveboard traces, so it shows the moveboard ladder
+      const mode = ST_STATE.mode === "multi" ? "moveboard" : ST_STATE.mode;
       const unit = mode === "moveboard" ? "moveboard lead" : "closing job";
-      const rungs = (RUNGS[mode] || RUNGS.closing).map((name, i) => {
+      const rungs = (RUNGS[mode] || RUNGS.closing).map(name => {
         const t = RUNG_TEXT[name] || [name, ""];
-        return { n: i + 1, t: t[0], d: (mode === "moveboard" && t[2]) || t[1] };
+        return { t: t[0], d: (mode === "moveboard" && t[2]) || t[1] };
       });
-      el.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h3 style="margin:0">How a source is decided</h3>
-          <span class="strc-cap">the ladder every ${RSC.esc(unit)} trace walks, in order — the first rung that matches wins</span></div>
-        <div class="strc-howgrid">${rungs.map(r => `
-          <div class="strc-howrung">
-            <div class="strc-hown">${r.n}</div>
-            <div><div class="strc-howt">${RSC.esc(r.t)}</div>
-                 <div class="strc-howd">${RSC.esc(r.d)}</div></div>
-          </div>`).join("")}</div>
-      </div>`;
+      return `<p>Look up any job and see how its lead <b>source</b> is decided, step by step — the
+           priority ladder (incl. the <b>UTM tag</b> on the link they clicked, <b>Meta Referral</b>
+           forms, CallRail, Google Local, <b>Angi</b> / <b>Thumbtack</b> lead-data matching, Post Card
+           region) that resolves it. Switch between the
+           <b>Closing</b> sheet source and the upstream <b>Moveboard</b> source.</p>
+        <h3>How a source is decided</h3>
+        <p>The ladder every ${RSC.esc(unit)} trace walks, in order — the first rung that matches wins.</p>
+        <ol class="strc-howlist">${rungs.map(r => `<li><b>${RSC.esc(r.t)}</b>${r.d ? `<br>${RSC.esc(r.d)}` : ""}</li>`).join("")}</ol>`;
     }
-    paintIdleLadder();
     function winClosing(r) {
       const lc = String(r["Match Path"] || "").toLowerCase();
       const isPost = /post card/.test(norm(r["Final Source (current)"])) || /post card/.test(norm(r["Source Connector"]));
@@ -594,11 +572,9 @@ registerPage({
     function paintBrowse() {
       if (ST_STATE.mode === "multi") return;   // the multi tab owns stBrowse via paintMulti
       const el = document.getElementById("stBrowse");
-      const idleEl = document.getElementById("stIdle");
       if (!el) return;
-      if (!ST_STATE.rung) { el.innerHTML = ""; if (idleEl) idleEl.style.display = ""; return; }
+      if (!ST_STATE.rung) { el.innerHTML = ""; return; }
       const m = MODES[ST_STATE.mode];
-      if (idleEl) idleEl.style.display = "none";
       traceEl.innerHTML = "";
       const hits = rows.filter(r => m.win(r) === ST_STATE.rung)
         .sort((a, b) => String(m.date(b)).localeCompare(String(m.date(a))));
@@ -754,14 +730,7 @@ registerPage({
       const m = MODES[ST_STATE.mode];
       ST_STATE.sel = key;
       const r = rows.find(x => String(m.key(x)) === String(key));
-      const idleEl = document.getElementById("stIdle");
-      if (!r) {
-        traceEl.innerHTML = "";
-        // the idle ladder describes the closing/moveboard traces, never the multi table
-        if (idleEl && ST_STATE.mode !== "multi") idleEl.style.display = "";
-        return;
-      }
-      if (idleEl) idleEl.style.display = "none";
+      if (!r) { traceEl.innerHTML = ""; return; }
       m.render(r);
     }
 
@@ -1110,21 +1079,12 @@ registerPage({
       // the old mode's rung chips must not stay live through a multi-second load — their
       // handlers would run paintBrowse against the wrong mode
       { const e = document.getElementById("stChips"); if (e) e.innerHTML = ""; }
-      { const e = document.getElementById("stIdle");
-        if (e) e.style.display = ST_STATE.mode === "multi" ? "none" : ""; }
-      paintIdleLadder();          // the two sides walk different ladders
       if (await loadMode(ST_STATE.mode)) {
         if (ST_STATE.mode === "multi") { paintMultiChips(); paintMulti(); }
         else { idleCount(); paintChips(); }
       }
     });
     modesEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.mode === ST_STATE.mode));
-    if (ST_STATE.mode === "multi") {
-      // hide the ladder BEFORE the 108k load, not after it — the explainer describes the
-      // other two tabs and should never flash over the multi view
-      const e = document.getElementById("stIdle");
-      if (e) e.style.display = "none";
-    }
     if (await loadMode(ST_STATE.mode)) {
       if (ST_STATE.mode === "multi") {
         paintMultiChips(); paintMulti();

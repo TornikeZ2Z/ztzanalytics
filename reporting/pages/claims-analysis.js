@@ -87,9 +87,6 @@ registerPage({
       st.textContent = [
         // only what the kit cannot say; page-prefixed so it can never leak
         ".cln-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
-        // the print button sits with the page title, right-aligned, and never squeezes
-        // the description text on a narrow window
-        ".cln-pdf{float:right;margin:-2px 0 8px 16px}",
         ".cln-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
           + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
           + "margin-bottom:1px}",
@@ -100,12 +97,12 @@ registerPage({
         // THE HERO: one answer, at the size of an answer. Everything else is evidence.
         ".cln-hero{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:26px;padding:20px 22px;align-items:start}",
         "@media (max-width:860px){.cln-hero{grid-template-columns:1fr}}",
-        ".cln-hero .lbl{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}",
+        ".cln-hero .lbl{font-size:12px;font-weight:800;color:var(--faint)}",
         ".cln-big{font-size:clamp(38px,4.4vw,58px);font-weight:800;letter-spacing:-2px;line-height:1;"
           + "margin:8px 0 2px;font-variant-numeric:tabular-nums}",
         ".cln-big .u{font-size:15px;font-weight:700;letter-spacing:0;color:var(--muted);margin-left:6px}",
         ".cln-deltas{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}",
-        ".cln-d{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;"
+        ".cln-d{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;"
           + "background:var(--panel-2);color:var(--muted);border:1px solid var(--line-2)}",
         ".cln-d.good{color:var(--pos);border-color:color-mix(in srgb,var(--pos) 34%,transparent)}",
         ".cln-d.bad{color:var(--neg);border-color:color-mix(in srgb,var(--neg) 34%,transparent)}",
@@ -117,10 +114,10 @@ registerPage({
           + "border-top:1px solid var(--line-2);margin-top:16px;padding-top:14px}",
         ".cln-mini>div{padding:0 16px;border-left:1px solid var(--line-2);min-width:0}",
         ".cln-mini>div:first-child{border-left:0;padding-left:0}",
-        ".cln-mini .k{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
+        ".cln-mini .k{font-size:12px;font-weight:800;color:var(--faint)}",
         ".cln-mini .n{font-size:20px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}",
         ".cln-mini .n.warn{color:var(--warn)} .cln-mini .n.bad{color:var(--neg)}",
-        ".cln-mini .h{font-size:11px;color:var(--faint);margin-top:3px;line-height:1.45}",
+        ".cln-mini .h{font-size:12px;color:var(--faint);margin-top:3px;line-height:1.45}",
         // the trend, drawn rather than listed
         ".cln-svg{width:100%;height:auto;display:block;overflow:visible}",
         ".cln-svg .ax{stroke:var(--line-2);stroke-width:1}",
@@ -159,7 +156,7 @@ registerPage({
         ".cln-say{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:none;"
           + "margin:0 0 12px}",
         ".cln-say b{color:var(--ink)}",
-        ".cln-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
+        ".cln-small{color:var(--faint);font-size:12px;white-space:nowrap}",
         // what the jobs cannot follow among the panel's filters, said where jobs are shown (2026-10-15)
         ".cln-nf{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px}",
         ".cln-nf b{color:var(--ink);font-weight:600}",
@@ -168,14 +165,14 @@ registerPage({
         ".cln-mon:hover{text-decoration:underline}",
         // the person row that opens: a caret, and a hover the inert kit rows do not get
         ".cln-open{cursor:pointer} .cln-open:hover td{background:var(--panel-2)}",
-        ".cln-cx{display:inline-block;width:12px;color:var(--faint);font-size:10px;" +
+        ".cln-cx{display:inline-block;width:12px;color:var(--faint);font-size:12px;" +
           "transition:transform .12s ease}",
         ".cln-open.on .cln-cx{transform:rotate(90deg);color:var(--brand)}",
         ".cln-subrow td{background:var(--panel-2);padding:0 0 10px}",
         ".cln-sub{border-left:2px solid var(--line-2);margin:0 0 0 18px;padding:10px 12px}",
         ".cln-subh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}",
         ".cln-subh b{font-size:13px}",
-        ".cln-sub .rs-table td,.cln-sub .rs-table th{padding:5px 8px;font-size:11.5px}",
+        ".cln-sub .rs-table td,.cln-sub .rs-table th{padding:5px 8px;font-size:12px}",
         ".cln-stale td{opacity:.55}",
         ".cln-tail td{background:var(--panel-2);color:var(--muted)}",
         ".cln-tot td{border-top:2px solid var(--line);font-weight:700;background:var(--panel-2)}",
@@ -192,15 +189,15 @@ registerPage({
         ".cln-dh .x{margin-left:auto}",
         ".cln-db{overflow:auto;padding:14px 20px 24px;flex:1}",
         ".cln-cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 14px;margin-bottom:14px}",
-        ".cln-cell .l{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}",
+        ".cln-cell .l{font-size:12px;font-weight:800;color:var(--faint)}",
         ".cln-cell .v{font-size:13px;margin-top:2px;overflow-wrap:anywhere}",
         ".cln-msg{padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;margin-top:8px;background:var(--panel)}",
         ".cln-msg.reply{margin-left:26px;background:var(--panel-2)}",
-        ".cln-msg .who{font-size:11.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}",
+        ".cln-msg .who{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}",
         ".cln-msg .who b{color:var(--ink)}",
         ".cln-msg .txt{font-size:13px;line-height:1.55;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}",
-        ".cln-msg .att{font-size:11.5px;color:var(--faint);margin-top:6px}",
-        ".cln-eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}",
+        ".cln-msg .att{font-size:12px;color:var(--faint);margin-top:6px}",
+        ".cln-eyebrow{font-size:12px;font-weight:800;color:var(--muted);margin:14px 0 4px}",
         // DESIGN V2 "Calm finance" (2026-10-06): light theme only, dark keeps everything above.
         // Sentence-case labels at readable sizes, navy for selected, the trend in the accent
         // (amber now means only "warning"), deltas as plain ▲/▼ text instead of outlined pills.
@@ -244,8 +241,7 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `<div class="rs-page-head"><h1>Claims Analysis</h1></div>
-      <div class="rs-loading" style="padding:22px">Reading the claims and the closings…</div>`;
+    host.innerHTML = RSC.loadingHtml("Claims Analysis", "Reading the claims and the closings…");
 
     const [claimsAll, closingAll, creditAll] = await Promise.all([
       RS.load("claims_analysis"), RS.load("closing"),
@@ -379,6 +375,16 @@ registerPage({
     // "Not filtered by Reason family: <what>." where the page shows jobs
     const famGap = what => S.fam.size
       ? `<div class="cln-nf"><b>Not filtered by Reason family:</b> ${what}.</div>` : "";
+
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head carries one line; the rest of the old
+       subtitle is How it's counted's, word for word. */
+    const HOW_HTML = "<p>Every claim joined to the job it came from, read as the <b>share of jobs that drew a claim</b> "
+      + "rather than a count.</p>"
+      + "<h3>When the rate is a real rate</h3><p>The date range, job type, salesperson and foreman all come from the "
+      + "closing, so they narrow the jobs as well as the claims and the rate stays a real rate; responsibility, extra "
+      + "service and the search box exist only on the claim, so under those the rate is withheld rather than guessed.</p>"
+      + "<h3>The claims behind a number</h3><p>Click a salesperson or a foreman to see the claims behind their number; "
+      + "<b>Open&nbsp;&#8599;</b> opens the claim on the Monday board.</p>";
 
     /* ---------- one paint ---------- */
     function paint() {
@@ -892,15 +898,10 @@ registerPage({
       };
 
       host.innerHTML = `
-        <div class="rs-page-head"><h1>Claims Analysis</h1>
-          <p style="max-width:none">Every claim joined to the job it came from, read as the <b>share of jobs that drew a
-          claim</b> rather than a count. The
-          date range, job type, salesperson and foreman all come from the closing, so they narrow
-          the jobs as well as the claims and the rate stays a real rate; responsibility, extra
-          service and the search box exist only on the claim, so under those the rate is withheld
-          rather than guessed. Click a salesperson or a foreman to see the claims behind their
-          number; <b>Open&nbsp;&#8599;</b> opens the claim on the Monday board.</p>
-          <button class="rs-btn pri cln-pdf" id="clnPdf" title="a print sheet of this dashboard, to save as a PDF">Download PDF</button></div>
+        ${RSC.pageHeadHtml({ title: "Claims Analysis", key: "claims-analysis",
+          subHtml: "Every claim joined to the job it came from, read as the <b>share of jobs that drew a claim</b> rather than a count.",
+          actions: [{ html: '<button type="button" class="rs-btn pri cln-pdf" id="clnPdf" title="a print sheet of this dashboard, to save as a PDF">Download PDF</button>' }],
+          how: HOW_HTML })}
         <div class="cln-bar" id="clnBar"></div>
 
         <div class="panel cln-hero">

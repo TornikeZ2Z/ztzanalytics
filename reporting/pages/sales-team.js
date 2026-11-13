@@ -140,28 +140,25 @@
     st.textContent = `
     /* ===== full-bleed, modern data-command design ===== */
     .st-page{max-width:none;margin:0}
-    /* tabs — segmented pill */
-    .st-tabbar{display:inline-flex;gap:3px;background:var(--panel-2);border:1px solid var(--line);border-radius:13px;padding:4px;margin:2px 0 20px}
-    .st-tab{appearance:none;border:0;background:none;font-family:inherit;font-size:14px;font-weight:750;color:var(--muted);padding:9px 20px;cursor:pointer;border-radius:9px;transition:color .15s,background .15s}
-    .st-tab:hover{color:var(--ink)}
-    .st-tab.on{color:var(--brand-ink);background:var(--brand);box-shadow:0 3px 10px var(--brand-glow)}
+    /* views — the kit's underline tabs (RSC.tabsHtml, ZTZ-80); this only spaces them from the view */
+    .st-tabbar{margin:0 0 18px}
     /* KPI tiles */
     .st-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
     @media(max-width:900px){.st-kpis{grid-template-columns:repeat(2,1fr)}}
     .st-draftnm{color:var(--faint);font-style:italic;font-weight:650;border-bottom:1px dotted var(--line-2);cursor:help}
-    .st-kpi{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;padding:12px 16px 11px;box-shadow:var(--shadow);overflow:hidden;transition:transform .16s,box-shadow .16s,border-color .16s}
-    .st-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--brand),var(--brand-d));opacity:0;transition:opacity .16s}
+    .st-kpi{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px 11px;box-shadow:var(--shadow);overflow:hidden;transition:transform .16s,box-shadow .16s,border-color .16s}
+    .st-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand);opacity:0;transition:opacity .16s}
     .st-kpi:hover{transform:translateY(-2px);border-color:var(--line-2);box-shadow:0 2px 4px rgba(0,0,0,.04),0 18px 42px rgba(0,0,0,.13)}
     .st-kpi:hover::before{opacity:.95}
-    .st-kpi .l{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .st-kpi .l{font-size:12px;font-weight:800;color:var(--muted)}
     .st-kpi .v{font-size:27px;font-weight:850;color:var(--ink);margin-top:5px;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.04}
     .st-kpi .v.st-bad{color:var(--red)} .st-kpi .v.st-good{color:var(--brand-d)}
-    .st-kpi .s{font-size:11.5px;color:var(--faint);margin-top:3px}
+    .st-kpi .s{font-size:12px;color:var(--faint);margin-top:3px}
     /* cards */
     .st-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 20px;margin-bottom:16px}
     /* tables (shared) */
     .st-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
-    .st-tbl th{text-align:left;color:var(--muted);font-weight:750;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
+    .st-tbl th{text-align:left;color:var(--muted);font-weight:750;font-size:12px;padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
     .st-tbl td{padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
     .st-tbl tbody tr:last-child td{border-bottom:0}
     .st-tbl tr.click{cursor:pointer} .st-tbl tr.click:hover td{background:var(--brand-glow)}
@@ -174,7 +171,7 @@
     .st-gridscroll .st-tbl tbody tr:hover td{background:var(--brand-glow)}
     .st-bad{color:var(--red);font-weight:750} .st-good{color:var(--brand);font-weight:700}
     .st-dim{color:var(--faint);font-weight:600}
-    .st-flag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;border:1px solid;border-radius:999px;padding:1px 8px;margin-right:4px}
+    .st-flag{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.03em;border:1px solid;border-radius:999px;padding:1px 8px;margin-right:4px}
     .st-flag.r{color:var(--red);border-color:color-mix(in srgb,var(--red) 55%,transparent)} .st-flag.a{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 55%,transparent)}
     .st-flag.b{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 55%,transparent)} .st-flag.p{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 55%,transparent)}
     .st-flag.g{color:var(--pos,#15803d);border-color:color-mix(in srgb,var(--pos,#15803d) 55%,transparent)} .st-flag.x{color:var(--muted);border-color:var(--line-2)}
@@ -183,7 +180,7 @@
     .st-decbtn.cls{background:var(--pos,#15803d);border-color:transparent;color:#fff} .st-decbtn.dis{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
     .st-decbtn.ghost{color:var(--muted)} .st-decbtn:disabled{opacity:.5;cursor:default}
     .st-decedit textarea{width:100%;min-width:220px;box-sizing:border-box;font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;background:var(--panel);color:var(--ink);resize:vertical}
-    .st-deccmt{margin-top:5px;font-size:12.5px;color:var(--ink)} .st-decmeta{font-size:11px;color:var(--faint);margin-top:2px} .st-decerr{font-size:11.5px;color:var(--red)}
+    .st-deccmt{margin-top:5px;font-size:12.5px;color:var(--ink)} .st-decmeta{font-size:12px;color:var(--faint);margin-top:2px} .st-decerr{font-size:12px;color:var(--red)}
     /* toolbar */
     .st-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);margin-bottom:12px}
     .st-search{position:relative;flex:1;min-width:240px}
@@ -197,27 +194,27 @@
     .cmp-head{display:grid;grid-template-columns:1fr 56px 1fr;gap:14px;align-items:end;
               padding:20px 24px;border-bottom:1px solid var(--line);background:var(--panel-2)}
     .cmp-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
-    .cmp-pick label{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
-    .cmp-vs{text-align:center;font-size:13px;font-weight:800;letter-spacing:.1em;
-            text-transform:uppercase;color:var(--faint);padding-bottom:14px}
+    .cmp-pick label{font-size:12px;font-weight:800;color:var(--faint)}
+    .cmp-vs{text-align:center;font-size:13px;font-weight:800;
+            color:var(--faint);padding-bottom:14px}
     .cmp-score{padding:16px 24px;font-size:15.5px;border-bottom:1px solid var(--line)}
     .cmp-score b{font-weight:800}
     .cmp-tbl{width:100%;border-collapse:collapse;font-size:14.5px}
-    .cmp-tbl th{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    .cmp-tbl th{font-size:12px;font-weight:800;
                 color:var(--faint);text-align:right;padding:13px 24px;border-bottom:1px solid var(--line)}
     .cmp-tbl th:first-child{text-align:left}
     .cmp-tbl td{padding:13px 24px;border-bottom:1px solid var(--line);text-align:right;
                 vertical-align:top;font-variant-numeric:tabular-nums}
     .cmp-tbl tr:last-child td{border-bottom:0}
     .cmp-l{text-align:left !important;font-weight:650;font-size:15px}
-    .cmp-l .st-dim{display:block;font-size:11.5px;font-weight:600;margin-top:2px}
+    .cmp-l .st-dim{display:block;font-size:12px;font-weight:600;margin-top:2px}
     .cmp-a,.cmp-b{font-size:17px;font-weight:750;width:20%}
-    .cmp-a i,.cmp-b i{display:block;font-style:normal;font-size:11px;color:var(--faint);font-weight:600;margin-top:2px}
-    .cmp-a u,.cmp-b u{display:block;text-decoration:none;font-size:11px;color:var(--faint);font-weight:700;margin-top:1px}
+    .cmp-a i,.cmp-b i{display:block;font-style:normal;font-size:12px;color:var(--faint);font-weight:600;margin-top:2px}
+    .cmp-a u,.cmp-b u{display:block;text-decoration:none;font-size:12px;color:var(--faint);font-weight:700;margin-top:1px}
     .cmp-d{width:20%;font-size:17px;font-weight:800;color:var(--faint)}
     .cmp-d.up{color:var(--pos)} .cmp-d.down{color:var(--neg)}
-    .cmp-sec td{background:var(--panel-2);font-size:11.5px;font-weight:800;letter-spacing:.09em;
-                text-transform:uppercase;color:var(--faint);text-align:left !important;padding:11px 24px}
+    .cmp-sec td{background:var(--panel-2);font-size:12px;font-weight:800;
+                color:var(--faint);text-align:left !important;padding:11px 24px}
     @media(max-width:820px){.cmp-head{grid-template-columns:1fr}.cmp-vs{padding:0}}
     .st-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
     .st-chip{appearance:none;border:1px solid var(--line-2);background:var(--panel);border-radius:999px;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;cursor:pointer;transition:.13s}
@@ -225,27 +222,26 @@
     .st-chip.on{color:var(--brand-ink);border-color:var(--brand);background:var(--brand);box-shadow:0 2px 8px var(--brand-glow)}
     /* ===== rep profile — futuristic ===== */
     .st-head{position:relative;display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between;
-      background:radial-gradient(130% 180% at 0% 0%,var(--brand-glow),transparent 52%),linear-gradient(180deg,var(--panel),var(--panel-2));
+      background:var(--panel);
       border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:22px 26px;margin-bottom:16px;overflow:hidden}
-    .st-head::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--brand-glow),transparent);opacity:.6;pointer-events:none}
     .rp-id{display:flex;align-items:center;gap:17px;position:relative;z-index:1}
-    .rp-avatar{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;font-size:23px;font-weight:850;color:var(--brand-ink);background:linear-gradient(140deg,var(--brand),var(--brand-d));box-shadow:0 8px 22px var(--brand-glow);letter-spacing:-.5px;flex-shrink:0}
+    .rp-avatar{width:58px;height:58px;border-radius:17px;display:grid;place-items:center;font-size:23px;font-weight:850;color:var(--brand-ink);background:var(--brand);box-shadow:0 8px 22px var(--brand-glow);letter-spacing:-.5px;flex-shrink:0}
     .rp-name{font-size:29px;font-weight:860;color:var(--ink);letter-spacing:-.7px;line-height:1.08}
     .rp-sub{font-size:12.5px;color:var(--muted);margin-top:6px;font-weight:600;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-    .st-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:750;padding:3px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+    .st-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:750;padding:3px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
     .st-pill.on{color:var(--brand-d);border-color:color-mix(in srgb,var(--brand) 45%,transparent);background:var(--brand-glow)}
     .rp-strengths{display:grid;gap:7px;min-width:290px;position:relative;z-index:1}
     .rp-watch{margin-top:12px}
-    .rp-cap{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+    .rp-cap{font-size:12px;font-weight:800;color:var(--faint);margin-bottom:3px}
     .rp-str{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:8px 13px;border-radius:11px;background:var(--panel);border:1px solid var(--line)}
     .rp-str-l{flex:1;color:var(--muted);font-weight:650}
     .rp-str-v{font-weight:820;color:var(--ink);font-variant-numeric:tabular-nums}
-    .rp-str-r{font-size:11px;color:var(--brand-d);font-weight:800;min-width:58px;text-align:right}
+    .rp-str-r{font-size:12px;color:var(--brand-d);font-weight:800;min-width:58px;text-align:right}
     .rp-watch .rp-str-r{color:var(--amber)}
     .rp-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
     @media(max-width:900px){.rp-cols{grid-template-columns:1fr}}
     .rp-cardcap{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px;letter-spacing:-.1px}
-    .rp-alltime{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:999px;padding:1px 8px;margin-left:7px;vertical-align:middle}
+    .rp-alltime{font-size:12px;font-weight:800;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:999px;padding:1px 8px;margin-left:7px;vertical-align:middle}
     .rp-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--panel-2);gap:1px}
     .rp-stack>div{min-width:2px}
     .rp-trend{display:flex;gap:12px;align-items:flex-end;padding:10px 2px 2px;overflow-x:auto;width:100%}
@@ -253,7 +249,7 @@
        overflow-x:auto could never engage -- the scroller was declared and unreachable, and
        every bar became an unreadable sliver. A fixed floor that is allowed to overflow. */
     .rp-mo{flex:0 0 auto;min-width:34px;display:flex;flex-direction:column;gap:6px;cursor:default}
-    .rp-mo-val{font-size:11px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
+    .rp-mo-val{font-size:12px;font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
     /* fixed-height slot so every month shares one baseline; the bar sits at its bottom */
     .rp-mo-slot{display:flex;align-items:flex-end;justify-content:center}
     /* one bar = that month's leads, split bottom-up: confirmed / qualified-not-confirmed / dead.
@@ -265,27 +261,27 @@
     .rp-mo-open{width:100%;background:var(--blue)}
     .rp-mo-fill{width:100%;background:var(--brand)}
     .rp-mo:hover .rp-mo-bar{filter:brightness(1.14)}
-    .rp-mo-x{font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
-    .rp-mo-pct{font-size:9.5px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;text-align:center}
+    .rp-mo-x{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;text-align:center}
+    .rp-mo-pct{font-size:12px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;text-align:center}
     .rp-trend-base{height:1px;background:var(--line);margin:0 2px}
     .st-cal{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;
-      border:1px solid var(--line);border-radius:6px;text-decoration:none;font-size:11px;line-height:1;
+      border:1px solid var(--line);border-radius:6px;text-decoration:none;font-size:12px;line-height:1;
       background:var(--panel-2);vertical-align:middle;margin-left:5px}
     .st-cal:hover{border-color:var(--blue);background:var(--panel)}
-    .st-caldiff{display:block;font-size:10.5px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
+    .st-caldiff{display:block;font-size:12px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
     .rp-lg{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle}
     .rp-lg-l{background:var(--blue)} .rp-lg-c{background:var(--brand)} .rp-lg-d{background:var(--line)}
     /* mix-adjusted booking — visual gauge */
     .rp-mix{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:2px 0 10px}
     .rp-mix-cell{min-width:140px}
-    .rp-mix-l{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .rp-mix-l{font-size:12px;font-weight:800;color:var(--muted)}
     .rp-mix-v{font-size:30px;font-weight:850;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.6px;margin-top:3px}
     .rp-mix-arrow{font-size:24px;color:var(--faint)}
     .rp-mix-gap{font-size:20px;font-weight:850;padding:8px 16px;border-radius:12px;font-variant-numeric:tabular-nums;border:1px solid var(--line)}
     .rp-mix-gap.st-good{color:var(--brand-d);background:var(--brand-glow);border-color:color-mix(in srgb,var(--brand) 40%,transparent)}
     .rp-mix-gap.st-bad{color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent);border-color:color-mix(in srgb,var(--red) 40%,transparent)}
     .rp-track{position:relative;height:9px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);margin:2px 0 2px;overflow:visible}
-    .rp-track-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,var(--brand),var(--brand-d))}
+    .rp-track-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--brand)}
     .rp-track-mark{position:absolute;top:-3px;bottom:-3px;width:3px;border-radius:2px;background:var(--ink);opacity:.55}
     /* distribution / win-leak — segmented toggle */
     .rp-dimbar{display:inline-flex;gap:3px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:3px;margin:2px 0 12px;flex-wrap:wrap}
@@ -295,7 +291,7 @@
     /* integrity */
     .rp-intgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:2px 0 4px}
     @media(max-width:900px){.rp-intgrid{grid-template-columns:1fr}}
-    .rp-int{display:flex;gap:12px;align-items:center;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,var(--panel),var(--panel-2))}
+    .rp-int{display:flex;gap:12px;align-items:center;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:var(--panel)}
     .rp-int.flag{border-color:color-mix(in srgb,var(--red) 50%,transparent);background:color-mix(in srgb,var(--red) 7%,var(--panel))}
     .rp-int-i{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:14px;font-weight:800;flex-shrink:0}
     .rp-int.ok .rp-int-i{color:var(--brand-d);background:var(--brand-glow)} .rp-int.flag .rp-int-i{color:var(--red);background:color-mix(in srgb,var(--red) 14%,transparent)}
@@ -307,7 +303,7 @@
     .rp-who{font-size:14.5px;font-weight:750;color:var(--muted)}
     .rp-who b{color:var(--ink);font-weight:820}
     /* head-of-sales assessment */
-    .rp-assess{border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px;background:linear-gradient(180deg,var(--panel),var(--panel-2))}
+    .rp-assess{border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px;background:var(--panel)}
     .rp-assess.top{border-color:color-mix(in srgb,var(--brand) 55%,transparent)}
     .rp-assess.warn,.rp-assess.bad{border-color:color-mix(in srgb,var(--red) 45%,transparent)}
     .rp-verdict{display:flex;align-items:center;gap:20px;margin-bottom:14px;flex-wrap:wrap}
@@ -352,7 +348,7 @@
     .st-drawer{position:fixed;top:0;right:-100vw;bottom:0;width:100vw;background:var(--bg);z-index:71;transition:right .18s;display:flex;flex-direction:column;box-shadow:-14px 0 40px rgba(0,0,0,.4)}
     /* CALL BADGE (Ruso 2026-10-06): the same four words and colours as the daily email, so
        "Called" / "Call received & answered" / "Not called" read identically in both places */
-    .st-cb{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:750;border-radius:999px;padding:2px 10px;border:1px solid;vertical-align:middle;margin-left:6px}
+    .st-cb{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:750;border-radius:999px;padding:2px 10px;border:1px solid;vertical-align:middle;margin-left:6px}
     .st-cb::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
     .st-cb.called{color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
     .st-cb.incoming{color:var(--green, #2e7d32);background:color-mix(in srgb,var(--green, #2e7d32) 10%,transparent)}
@@ -361,40 +357,40 @@
     .st-dmeta{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px;font-size:12.5px;color:var(--muted)}
     .st-dmeta b{color:var(--ink);font-weight:650}
     .st-ans{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:11px;padding:10px 14px;margin:0 0 12px;background:var(--panel)}
-    .st-ans .h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+    .st-ans .h{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:4px}
     .st-ans .it{font-size:13px;padding:5px 0;border-top:1px solid var(--line-2)}
     .st-ans .it:first-of-type{border-top:0}
     .st-ans .it .w{color:var(--muted);font-size:12px}
     .st-lfv{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:6px}
     .st-lfv .c{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
-    .st-lfv .l{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+    .st-lfv .l{font-size:12px;font-weight:800;color:var(--muted)}
     .st-lfv .v{font-size:19px;font-weight:700;margin-top:3px}
     .st-lfv .v.sm{font-size:14px;font-weight:600}
     .st-lfv .c.good{border-color:var(--pos)} .st-lfv .c.bad{border-color:var(--neg)}
     .st-lfv .c.warn{border-color:var(--warn)}
     .st-open{background:var(--panel);border:1px solid var(--warn);border-radius:11px;padding:11px 14px;margin:4px 0 14px}
-    .st-open h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
+    .st-open h4{margin:0 0 6px;font-size:12px;color:var(--warn)}
     .st-open li{font-size:13px;margin:3px 0}
     .st-story{margin-top:2px}
     .st-srow{display:grid;grid-template-columns:44px 20px 1fr;gap:8px;align-items:start;padding:5px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
-    .st-srow .tm{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;padding-top:2px}
+    .st-srow .tm{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;padding-top:2px}
     .st-srow .ic{font-size:12px;color:var(--muted);text-align:center;padding-top:1px}
     .st-srow .tx{font-size:13px;line-height:1.5}
     .st-srow.out .ic{color:var(--blue)} .st-srow.in .ic{color:var(--brand)}
     .st-srow.miss .ic{color:var(--red)} .st-srow.ms .ic{color:var(--purple)}
     .st-srow.ms .tx{color:var(--muted)}
-    .st-sday{font-size:10.5px;font-weight:800;letter-spacing:.07em;color:var(--faint);margin:13px 0 4px}
-    .st-trb{font:inherit;font-size:11px;color:var(--purple);background:none;border:1px solid var(--line-2);border-radius:7px;padding:1px 8px;margin-left:6px;cursor:pointer}
+    .st-sday{font-size:12px;font-weight:800;color:var(--faint);margin:13px 0 4px}
+    .st-trb{font:inherit;font-size:12px;color:var(--purple);background:none;border:1px solid var(--line-2);border-radius:7px;padding:1px 8px;margin-left:6px;cursor:pointer}
     .st-trb:hover,.st-trb.on{border-color:var(--purple)}
     .st-trw:not(:empty){margin:8px 0 4px;border-left:2px solid var(--line);padding-left:11px}
     .st-open{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:11px 14px;margin:2px 0 16px}
     .st-open .f{font-size:13px;font-weight:600;color:var(--amber);margin:2px 0}
     .st-open .s{font-size:13px;color:var(--ink);margin-top:6px;line-height:1.55}
     .st-open .s>div{margin:2px 0}
-    .st-open .src{font-size:11px;color:var(--faint);margin-top:6px}
-    .st-open details summary{font-size:11.5px;color:var(--muted);cursor:pointer;margin-top:4px}
+    .st-open .src{font-size:12px;color:var(--faint);margin-top:6px}
+    .st-open details summary{font-size:12px;color:var(--muted);cursor:pointer;margin-top:4px}
     .st-fold{border-top:1px solid var(--line);margin-top:12px}
-    .st-fold>summary{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:11px 0;cursor:pointer}
+    .st-fold>summary{font-size:12px;font-weight:800;color:var(--muted);padding:11px 0;cursor:pointer}
     .st-fold[open]>summary{color:var(--ink)}
     .st-lfcols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0 30px;align-items:start}
     /* ---- LEAD FILE v3 (2026-10-06, "it needs to be proper"): a centred sheet, actions in the
@@ -421,24 +417,24 @@
     .lx-views{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
     .lx-views button{appearance:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--panel);
       border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
-    .lx-views button i{font-style:normal;font-size:11px;font-weight:800;color:var(--faint);background:var(--panel-2);border-radius:999px;padding:1px 7px}
+    .lx-views button i{font-style:normal;font-size:12px;font-weight:800;color:var(--faint);background:var(--panel-2);border-radius:999px;padding:1px 7px}
     .lx-views button.on{color:var(--brand-ink);background:var(--brand);border-color:var(--brand)}
     .lx-views button.on i{background:rgba(0,0,0,.12);color:inherit}
     .lx td{vertical-align:middle}
-    .lx .nm b{display:block;font-size:13.5px}.lx .nm span{display:block;font-size:11.5px;color:var(--faint);margin-top:1px}
-    .lx .sub{display:block;font-size:11px;color:var(--faint);margin-top:1px}
-    .lx-st{display:inline-block;font-size:11px;font-weight:750;border-radius:6px;padding:2px 8px;background:var(--panel-2);color:var(--muted)}
+    .lx .nm b{display:block;font-size:13.5px}.lx .nm span{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+    .lx .sub{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+    .lx-st{display:inline-block;font-size:12px;font-weight:750;border-radius:6px;padding:2px 8px;background:var(--panel-2);color:var(--muted)}
     .lx-st.ok{background:color-mix(in srgb,var(--green, #2e7d32) 13%,transparent);color:var(--green, #2e7d32)}
     .lx-st.bad{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
     .lx-st.warn{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}
     .lx .st-cb{margin-left:0}
-    .lx-ans{font-size:11px;font-weight:800;color:var(--brand-d, var(--brand));white-space:nowrap}
+    .lx-ans{font-size:12px;font-weight:800;color:var(--brand-d, var(--brand));white-space:nowrap}
     @media(max-width:760px){
       .lx thead{display:none}
       .lx,.lx tbody,.lx tr,.lx td{display:block;width:100%}
       .lx tr{border-bottom:1px solid var(--line);padding:10px 12px}
       .lx td{border:0!important;padding:2px 0!important;white-space:normal!important}
-      .lx td[data-l]::before{content:attr(data-l) "  ";font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+      .lx td[data-l]::before{content:attr(data-l) "  ";font-size:12px;font-weight:800;color:var(--faint)}
       .st-toolbar>div{flex:1 1 45%}
     }
     @media(max-width:1100px){.st-lfcols{grid-template-columns:1fr}}
@@ -450,10 +446,10 @@
     .st-db{overflow:auto;padding:18px 24px;flex:1}
     .st-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
     @media(max-width:900px){.st-cols{grid-template-columns:1fr}}
-    .st-sec{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 9px}
+    .st-sec{font-size:12px;font-weight:800;color:var(--muted);margin:16px 0 9px}
     .st-fin{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:9px}
     .st-fin .c{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
-    .st-fin .l{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .st-fin .l{font-size:12px;font-weight:800;color:var(--muted)}
     .st-fin .v{font-size:16px;font-weight:780;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}
     .st-fin .v.small{font-size:12.5px}
     .st-est{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;margin-bottom:4px;font-size:15px;color:var(--ink)}
@@ -485,10 +481,6 @@
     /* ===== DESIGN V2 "Calm finance" (2026-10-06) — light theme only; dark keeps every rule above.
        Prefixed on body (not on .st-page) because the lead file lives on document.body and opens
        over ANY page, so these rules must hold wherever it is mounted. ===== */
-    body.rs-app.light.v2 .st-tabbar{background:none;border:0;padding:0;gap:6px;flex-wrap:wrap;margin:2px 0 18px}
-    body.rs-app.light.v2 .st-tab{font-size:13.5px;font-weight:600;color:var(--ink);background:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;padding:7px 16px;min-height:36px}
-    body.rs-app.light.v2 .st-tab:hover{background:#F8FAFC}
-    body.rs-app.light.v2 .st-tab.on{color:#FFFFFF;background:#14301F;border-color:#14301F;box-shadow:none}
     body.rs-app.light.v2 .st-kpis{gap:12px}
     body.rs-app.light.v2 .st-kpi{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:none;transition:none}
     body.rs-app.light.v2 .st-kpi::before{display:none}
@@ -2577,7 +2569,7 @@
     const mixMax = Math.max(expRate || 0, p.bookRate || 0, 10) * 1.18;
     const calcRow = s => `<tr><td><b>${esc(s.label)}</b></td>
       <td style="text-align:right">${RS.fmtN(s.qual)}</td>
-      <td style="text-align:right">${pct1(100 * s.rate)}${s.tq < M_PRIOR ? ` <span class="st-dim" title="Only ${s.tq} team leads here — pulled toward the ${pct1(100 * p0)} team average">~</span>` : ""} <span class="st-dim" style="font-size:10.5px">(${RS.fmtN(s.tq)} team)</span></td>
+      <td style="text-align:right">${pct1(100 * s.rate)}${s.tq < M_PRIOR ? ` <span class="st-dim" title="Only ${s.tq} team leads here — pulled toward the ${pct1(100 * p0)} team average">~</span>` : ""} <span class="st-dim" style="font-size:12px">(${RS.fmtN(s.tq)} team)</span></td>
       <td style="text-align:right;color:var(--muted)">${(Math.round(s.exp * 10) / 10).toFixed(1)}</td>
       <td style="text-align:right;font-weight:700">${RS.fmtN(s.conf)}</td></tr>`;
     const mixCalc = `<details class="rp-calc"><summary>How the expected rate is calculated ▾</summary>
@@ -2719,7 +2711,7 @@
     </div>`;
 
     // ---- lead distribution & win/leak (full funnel per segment) ----
-    const cellNP = (n, pct) => `<td style="text-align:right">${RS.fmtN(n)}${pct != null ? ` <span class="st-dim" style="font-size:11px">${Math.round(pct)}%</span>` : ""}</td>`;
+    const cellNP = (n, pct) => `<td style="text-align:right">${RS.fmtN(n)}${pct != null ? ` <span class="st-dim" style="font-size:12px">${Math.round(pct)}%</span>` : ""}</td>`;
     const distTbl = d => {
       const rd = {};
       p.rows.forEach(r => {
@@ -2745,12 +2737,12 @@
         const delta = (repBook != null && teamBook != null) ? repBook - teamBook : null;
         const over = repShare - teamShare;
         return `<tr><td><b>${esc(v)}</b></td>
-          <td style="text-align:right">${RS.fmtN(b.leads)} <span class="st-dim" style="font-size:11px">${pct1(repShare)}${Math.abs(over) >= 5 ? ` <span class="${over > 0 ? "st-good" : "st-bad"}">${over > 0 ? "▲" : "▼"}</span>` : ""} <span style="color:var(--faint)">/ ${Math.round(teamShare)}%</span></span></td>
+          <td style="text-align:right">${RS.fmtN(b.leads)} <span class="st-dim" style="font-size:12px">${pct1(repShare)}${Math.abs(over) >= 5 ? ` <span class="${over > 0 ? "st-good" : "st-bad"}">${over > 0 ? "▲" : "▼"}</span>` : ""} <span style="color:var(--faint)">/ ${Math.round(teamShare)}%</span></span></td>
           ${cellNP(b.qual, b.leads ? 100 * b.qual / b.leads : null)}
           ${cellNP(b.dead, b.leads ? 100 * b.dead / b.leads : null)}
           ${cellNP(b.conf, null)}
           ${cellNP(b.conn, b.leads ? 100 * b.conn / b.leads : null)}
-          <td style="text-align:right;background:${heatColor(delta)};font-weight:750">${repBook != null ? pct1(repBook) : "—"}${teamBook != null ? ` <span class="st-dim" style="font-size:11px">/ ${Math.round(teamBook)}%</span>` : ""}</td></tr>`;
+          <td style="text-align:right;background:${heatColor(delta)};font-weight:750">${repBook != null ? pct1(repBook) : "—"}${teamBook != null ? ` <span class="st-dim" style="font-size:12px">/ ${Math.round(teamBook)}%</span>` : ""}</td></tr>`;
       };
       const t = rows.reduce((a, [, b]) => { a.leads += b.leads; a.qual += b.qual; a.dead += b.dead; a.conf += b.conf; a.conn += b.conn; return a; }, { leads: 0, qual: 0, dead: 0, conf: 0, conn: 0 });
       const totBook = t.qual ? 100 * t.conf / t.qual : null;
@@ -2901,10 +2893,12 @@
         if (sc) sc.classList.remove("on");
         if (dw) dw.classList.remove("on");
       }
+      // THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026): the kit head, the one-line sub
+      // unchanged, and the date-basis line that trailed it moved, word for word, into How it's counted
       host.innerHTML = `<div class="st-page">
-        <div class="rs-page-head"><h1>Sales Person Analysis</h1>
-          <p>Every lead's full story — calls, texts, routing, and the money it became.
-          <span class="freshness">· leads count by created date · confirmations by confirmed date</span></p></div>
+        ${RSC.pageHeadHtml({ title: "Sales Person Analysis", key: "sales-command",
+          sub: "Every lead's full story — calls, texts, routing, and the money it became.",
+          how: "<h3>Which date counts</h3><p>Leads count by created date · confirmations by confirmed date.</p>" })}
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
       const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["compare", "Compare"],
                     ["explorer", "Lead Explorer"], ["nolead", "Calls without a lead"], ["answers", "Rep answers"]];
@@ -2916,8 +2910,9 @@
         repStats: null, repCanon: null, repSel: null, go: k => go(k) };
 
       const paintTabs = () => {
-        tabsEl.innerHTML = TABS.map(([k, l]) => `<button class="st-tab ${k === active ? "on" : ""}" data-k="${k}">${l}</button>`).join("");
-        tabsEl.querySelectorAll(".st-tab").forEach(b => b.onclick = () => go(b.dataset.k));
+        // the kit's underline tabs, carrying the same data-k the handler has always read
+        tabsEl.innerHTML = RSC.tabsHtml(TABS.map(([k, l]) => ({ id: k, label: l })), active, "k");
+        tabsEl.querySelectorAll("[data-k]").forEach(b => b.onclick = () => go(b.dataset.k));
       };
       const go = async k => {
         active = k; ST_LAST_TAB = k; paintTabs();

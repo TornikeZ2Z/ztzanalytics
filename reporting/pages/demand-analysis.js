@@ -123,16 +123,8 @@ registerPage({
 
     host.innerHTML = '<style id="dmCss">'
       + ".dm{font-variant-numeric:tabular-nums}"
-      // ---- the basis banner: the one thing nobody may miss ------------------------------
-      + ".dm-basis{display:flex;gap:12px;align-items:flex-start;background:var(--brand-glow);"
-      + "border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:13px;"
-      + "padding:12px 16px;margin-bottom:14px}"
-      + ".dm-basis .bt{font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
-      + "color:var(--brand-d);background:var(--panel);border-radius:999px;padding:5px 10px;white-space:nowrap}"
-      + "body.rs-app:not(.light) .dm-basis .bt{color:var(--brand)}"
-      + ".dm-basis p{margin:0;font-size:12.5px;line-height:1.65;color:var(--muted);max-width:112ch}"
-      + ".dm-basis b{color:var(--ink)}"
-      + "details.dm-basis{display:block}"
+      // ---- the basis banner, the one thing nobody may miss, is the kit head's chip now
+      // ("Counted by move date") and its explanation is in How it's counted (ZTZ-80) -------
       + ".dm-panel .dm-card{border:0;padding:0;margin:0;background:transparent;box-shadow:none}"
       + ".dm-sw{margin:0 0 14px;flex-wrap:wrap}"
       + ".dm-ph{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}"
@@ -156,21 +148,15 @@ registerPage({
       + ".dm-r .d{text-align:right;font-size:12px;font-weight:700;color:var(--faint)}"
       + ".dm-r .d.up{color:var(--pos)}.dm-r .d.dn{color:var(--neg)}"
       + ".dm-rsep{height:10px}"
-      + ".dm-leg{font-size:11.5px;color:var(--faint);margin:10px 0 0;display:flex;align-items:center;gap:6px}"
+      + ".dm-leg{font-size:12px;color:var(--faint);margin:10px 0 0;display:flex;align-items:center;gap:6px}"
       + ".dm-leg .tk{display:inline-block;width:2px;height:12px;background:var(--ink);opacity:.6}"
-      + "details.dm-basis summary{cursor:pointer;list-style:none;font-size:12.5px;color:var(--muted);line-height:1.6}"
-      + "details.dm-basis summary::-webkit-details-marker{display:none}"
-      + "details.dm-basis summary .bt{margin-right:10px}"
-      + "details.dm-basis summary u{color:var(--brand);text-decoration:none;font-weight:600;margin-left:6px;white-space:nowrap}"
-      + "details.dm-basis[open] summary u{display:none}"
-      + "details.dm-basis p{margin-top:8px}"
       + ".dm-sz{border-collapse:separate;border-spacing:4px;width:100%;font-size:12px}"
-      + ".dm-sz th{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:2px 6px;text-align:center}"
+      + ".dm-sz th{font-size:12px;font-weight:800;color:var(--faint);padding:2px 6px;text-align:center}"
       + ".dm-sz th.rh{text-align:right;font-size:12px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:700;white-space:nowrap}"
       + ".dm-sz td.c{text-align:center;padding:9px 6px;border-radius:7px;background:rgba(63,125,32,var(--h,0));min-width:120px}"
       + ".dm-sz td.c b{display:block;font-size:15px;font-variant-numeric:tabular-nums}"
-      + ".dm-sz td.c small{color:var(--muted);font-size:11px}"
-      + ".dm-sz td.c em{display:block;font-style:normal;font-size:11px;color:var(--ink);opacity:.8;margin-top:2px}"
+      + ".dm-sz td.c small{color:var(--muted);font-size:12px}"
+      + ".dm-sz td.c em{display:block;font-style:normal;font-size:12px;color:var(--ink);opacity:.8;margin-top:2px}"
       + ".dm-sz td.nil{color:var(--faint);background:var(--panel-2)}"
       + ".dm-sz td.tot{background:var(--panel);border:1px solid var(--line-2)}"
       + ".dm-sz tr.ft th.rh{color:var(--muted)}"
@@ -186,18 +172,18 @@ registerPage({
       + ".dm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px;margin-bottom:16px}"
       + ".dm-k{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
       + ".dm-k b{display:block;font-size:23px;font-weight:750;letter-spacing:-.5px;line-height:1.15}"
-      + ".dm-k span{display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:5px}"
-      + ".dm-k small{display:block;font-size:11px;color:var(--muted);margin-top:2px}"
+      + ".dm-k span{display:block;font-size:12px;font-weight:800;color:var(--faint);margin-top:5px}"
+      + ".dm-k small{display:block;font-size:12px;color:var(--muted);margin-top:2px}"
       + ".dm-k.blue b{color:var(--blue)}"
       // ---- cards -------------------------------------------------------------------------
       + ".dm-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 17px 17px;margin-bottom:14px}"
       + ".dm-h{display:flex;flex-wrap:wrap;gap:9px;align-items:baseline;margin-bottom:4px}"
       + ".dm-h h3{margin:0;font-size:14.5px;font-weight:750;letter-spacing:-.2px;color:var(--ink)}"
-      + ".dm-h .tag{font-size:8.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
+      + ".dm-h .tag{font-size:12px;font-weight:800;"
       + "color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:3px 8px}"
       + "body.rs-app:not(.light) .dm-h .tag{color:var(--brand)}"
-      + ".dm-h .rt{margin-left:auto;font-size:11.5px;color:var(--faint)}"
-      + ".dm-note{font-size:11.5px;color:var(--faint);line-height:1.65;max-width:112ch;margin:0 0 12px}"
+      + ".dm-h .rt{margin-left:auto;font-size:12px;color:var(--faint)}"
+      + ".dm-note{font-size:12px;color:var(--faint);line-height:1.65;max-width:112ch;margin:0 0 12px}"
       + ".dm-note b{color:var(--muted)}"
       + ".dm-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}"
       // ---- calendar heatmap ---------------------------------------------------------------
@@ -208,10 +194,10 @@ registerPage({
       + ".dm-cal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}"
       + "@media(min-width:1050px){.dm-cal{grid-template-columns:repeat(4,minmax(0,1fr))}}"
       + "@media(min-width:1500px){.dm-cal{grid-template-columns:repeat(6,minmax(0,1fr))}}"
-      + ".dm-mon .ml{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+      + ".dm-mon .ml{font-size:12px;font-weight:800;"
       + "color:var(--muted);margin-bottom:6px}"
       + ".dm-wk{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}"
-      + ".dm-wk .wh{font-size:8.5px;font-weight:700;color:var(--faint);text-align:center;padding-bottom:2px}"
+      + ".dm-wk .wh{font-size:12px;font-weight:700;color:var(--faint);text-align:center;padding-bottom:2px}"
       + ".dm-c{position:relative;aspect-ratio:1;border-radius:4px;background:var(--panel-2);"
       + "border:1px solid var(--line);overflow:hidden;cursor:pointer}"
       + ".dm-c.pad{background:none;border:0;cursor:default}"
@@ -220,7 +206,7 @@ registerPage({
       + ".dm-c.ahead{border-style:dashed;border-color:var(--line-2)}"
       + ".dm-c.on{outline:2px solid var(--ink);outline-offset:1px;z-index:2}"
       + ".dm-c:hover{outline:2px solid var(--brand-d);outline-offset:1px;z-index:2}"
-      + ".dm-leg{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--faint);margin-top:13px}"
+      + ".dm-leg{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12px;color:var(--faint);margin-top:13px}"
       + ".dm-leg .sw{display:inline-flex;gap:3px;align-items:center;vertical-align:middle}"
       + ".dm-leg .sw i{width:13px;height:13px;border-radius:3px;background:var(--brand);display:inline-block;"
       + "border:1px solid var(--line)}"
@@ -233,7 +219,7 @@ registerPage({
       + ".dm-tt .d{font-weight:800;font-size:12.5px;margin-bottom:5px}"
       + ".dm-tt .r{display:flex;justify-content:space-between;gap:14px;color:var(--muted);line-height:1.75}"
       + ".dm-tt .r b{color:var(--ink);font-weight:700}"
-      + ".dm-tt .f{margin-top:6px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--line);padding-top:5px}"
+      + ".dm-tt .f{margin-top:6px;font-size:12px;color:var(--faint);border-top:1px solid var(--line);padding-top:5px}"
       // ---- tables ---------------------------------------------------------------------------
       // dm-t is now a NARROW ADJUSTMENT ON .rs-table, not a table of its own: these are
       // numeric tables, so cells are right-aligned by default and the first column is the
@@ -257,8 +243,8 @@ registerPage({
       // no width, so the table sized to its content -- a ~655px matrix floating in a 2054px
       // card with 1400px of the card left blank. Full width, and a bigger cell floor so the
       // extra goes to every column evenly instead of the last one taking it all.
-      + ".dm-mx{border-collapse:separate;border-spacing:3px;font-size:11.5px;width:100%}"
-      + ".dm-mx th{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:2px 4px}"
+      + ".dm-mx{border-collapse:separate;border-spacing:3px;font-size:12px;width:100%}"
+      + ".dm-mx th{font-size:12px;font-weight:800;color:var(--faint);padding:2px 4px}"
       + ".dm-mx td{position:relative;text-align:center;padding:7px 4px;border-radius:6px;min-width:90px;"
       + "font-weight:700;color:var(--ink);background:var(--panel-2)}"
       + ".dm-mx td .lv{position:absolute;inset:0;border-radius:6px;background:var(--brand)}"
@@ -269,21 +255,18 @@ registerPage({
       + ".dm-day{background:var(--panel-2);border:1px solid var(--line-2);border-radius:12px;padding:13px 15px;margin-top:14px}"
       + ".dm-day .dh{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-bottom:9px}"
       + ".dm-day .dh b{font-size:14px;font-weight:800}"
-      + ".dm-day .dh span{font-size:11.5px;color:var(--muted)}"
-      + ".dm-day .dh button{margin-left:auto;font-family:inherit;font-size:11px;font-weight:700;"
+      + ".dm-day .dh span{font-size:12px;color:var(--muted)}"
+      + ".dm-day .dh button{margin-left:auto;font-family:inherit;font-size:12px;font-weight:700;"
       + "padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}"
       + ".dm-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:8px}"
       + ".dm-f{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 11px}"
-      + ".dm-f .l{font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".dm-f .l{font-size:12px;font-weight:800;color:var(--faint)}"
       + ".dm-f .v{font-size:13.5px;font-weight:750;margin-top:2px}"
-      + ".dm-f .s{font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis}"
+      + ".dm-f .s{font-size:12px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis}"
       + ".dm-empty{padding:38px;text-align:center;color:var(--faint);font-size:13.5px;background:var(--panel);"
       + "border:1px dashed var(--line-2);border-radius:14px}"
       + "@media(max-width:700px){.dm-cal{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}"
       /* DESIGN V2 ("Calm finance"). Old rules untouched; these ride on body.rs-app.light.v2. */
-      + "body.rs-app.light.v2 .dm-basis{background:var(--blue-bg);border:1px solid #DCEFB0;border-radius:10px;padding:12px 16px}"
-      + "body.rs-app.light.v2 .dm-basis .bt{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:#2F6316;background:#FFFFFF;border:1px solid #DCEFB0;border-radius:6px;padding:3px 8px}"
-      + "body.rs-app.light.v2 .dm-basis p{font-size:13.5px;line-height:1.6}"
       + "body.rs-app.light.v2 .dm .rs-seg{border-radius:8px;background:#FFFFFF;border-color:var(--line-2)}"
       + "body.rs-app.light.v2 .dm .rs-seg button{font-weight:600}"
       + "body.rs-app.light.v2 .dm .rs-seg button.on{background:#14301F;color:#FFFFFF;font-weight:600}"
@@ -331,9 +314,27 @@ registerPage({
       + "body.rs-app.light.v2 .dm-f .v{font-size:14px;font-weight:600}"
       + "body.rs-app.light.v2 .dm-f .s{font-size:12px}"
       + "body.rs-app.light.v2 .dm-empty{border-radius:10px}"
-      + '</style><div class="dm"><div id="dmMain"></div></div><div class="dm-tt" id="dmTip"></div>';
+      + '</style><div class="dm"><div id="dmHead"></div><div id="dmMain"></div></div><div class="dm-tt" id="dmTip"></div>';
 
     const main = host.querySelector("#dmMain");
+    /* THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026): the page had no title and
+     * opened on the move-date basis banner. The kit head names it; the banner's gist stays in
+     * sight as the head's chip, and its whole text moved, word for word, into How it's counted.
+     * Drawn once, outside #dmMain, so the name shows while the mart loads and every repaint
+     * (filters, a clicked day) leaves it alone. */
+    const headHost = host.querySelector("#dmHead");
+    if (headHost && RSC.pageHeadHtml) headHost.innerHTML = RSC.pageHeadHtml({
+      title: "Demand by Move Date", key: "demand-analysis",
+      sub: "Every lead aimed at each move date, with what we booked laid over it.",
+      chip: "Counted by move date",
+      how: "<h3>Move-date basis</h3><p>Every number here is counted on the <b>date the customer wants "
+        + "to move</b>, not the day the lead came in.</p>"
+        + "<h3>Why it won't match the Sales pages</h3>"
+        + "<p>The Lead Funnel, Sales pages and the Monthly Report count leads by <b>create date</b>, "
+        + "so the two will not add up and are not meant to: a lead created in March for a July "
+        + "Saturday is March there and July here. <b>Demand means everything that was asked for</b>, "
+        + "booked or not; the blue foot on each square is the part we confirmed.</p>",
+    });
     const tip = host.querySelector("#dmTip");
     main.innerHTML = '<div class="dm-empty">Loading the demand calendar…</div>';
 
@@ -548,7 +549,7 @@ registerPage({
         rs.forEach(r => fold(all, r));
       }
 
-      let h = basisBanner() + toolbar() + kpis(all, days);
+      let h = toolbar() + kpis(all, days);
       if (leadFilterOn() && !S.leads) {
         h += '<div class="dm-empty">' + (S.leadsErr
           ? "Could not load the per-lead detail — " + esc(S.leadsErr)
@@ -559,16 +560,6 @@ registerPage({
       h += breakdownPanel(days);
       main.innerHTML = h;
       wire(days);
-    }
-
-    function basisBanner() {
-      return '<details class="dm-basis"><summary><span class="bt">Move-date basis</span>'
-        + "Every number here is counted on the <b>date the customer wants to move</b>, not the day "
-        + "the lead came in. <u>Why it won't match the Sales pages</u></summary>"
-        + "<p>The Lead Funnel, Sales pages and the Monthly Report count leads by <b>create date</b>, "
-        + "so the two will not add up and are not meant to: a lead created in March for a July "
-        + "Saturday is March there and July here. <b>Demand means everything that was asked for</b>, "
-        + "booked or not; the blue foot on each square is the part we confirmed.</p></details>";
     }
 
     function toolbar() {
@@ -1032,7 +1023,7 @@ registerPage({
           a.crewSum += d.crewSum; a.crewN += d.crewN;
         });
         const lo = b.rows[0].leads, hi = b.rows[b.rows.length - 1].leads;
-        return "<tr><td class='nm'>" + esc(b.lab) + '<div style="font-size:10.5px;color:var(--faint);'
+        return "<tr><td class='nm'>" + esc(b.lab) + '<div style="font-size:12px;color:var(--faint);'
           + "font-weight:500\">" + fmtN(lo) + "–" + fmtN(hi) + " leads a day</div></td><td>"
           + fmtN(b.rows.length) + "</td><td>" + fmtN(a.leads) + "</td><td>"
           + fmt1(a.leads / b.rows.length) + "</td><td>" + (a.cfN ? fmtN(a.cf) : "—") + "</td><td>"

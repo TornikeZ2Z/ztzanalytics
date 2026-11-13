@@ -84,8 +84,7 @@ registerPage({
       st.textContent = [
         // only what the kit cannot say; everything else is .rs-bar / .rs-kpis / table.tab / .panel
         ".fo .rs-bar .rs-seg{flex-wrap:wrap;max-width:100%}",
-        ".fo-sec{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
-          + "color:var(--faint);margin:6px 0 8px}",
+        ".fo-sec{font-size:12px;font-weight:800;color:var(--faint);margin:6px 0 8px}",
         ".fo-note{font-size:13px;line-height:1.65;color:var(--muted);background:var(--panel-2);"
           + "border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 14px}",
         ".fo-note b{color:var(--ink)}",
@@ -94,8 +93,8 @@ registerPage({
         ".fo .fo-dn{color:var(--neg)}",
         ".fo .fo-mute{color:var(--faint)}",
         ".fo table.tab tr.fo-sel td{color:var(--ink);font-weight:750}",
-        ".fo table.tab tr.fo-grp td{color:var(--faint);font-size:10.5px;font-weight:800;"
-          + "text-transform:uppercase;letter-spacing:.07em;text-align:left;background:transparent}",
+        ".fo table.tab tr.fo-grp td{color:var(--faint);font-size:12px;font-weight:800;"
+          + "text-align:left;background:transparent}",
         ".fo table.tab tr.fo-tot td{color:var(--ink);font-weight:750;border-top:1px solid var(--line-2)}",
         ".fo table.tab td.fo-l{text-align:left}",
         ".fo .fo-grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}",
@@ -107,7 +106,7 @@ registerPage({
         ".fo .fo-nf b{color:var(--ink);font-weight:700}",
         ".fo .fo-proj{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:4px 0 10px}",
         ".fo .fo-proj .fo-pv{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}",
-        ".fo .fo-proj .fo-pl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
+        ".fo .fo-proj .fo-pl{font-size:12px;font-weight:800;color:var(--faint)}",
         ".fo .fo-proj .fo-ps{font-size:12px;color:var(--muted);margin-top:2px}",
         ".fo .fo-proj > div{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px}",
         ".fo .rs-datepop .rng input{min-width:0}",
@@ -115,17 +114,14 @@ registerPage({
         ".fo .fo-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 12px}",
         ".fo .fo-hc{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:12px 16px}",
         ".fo .fo-hc.fo-now{border-color:var(--brand)}",
-        ".fo .fo-hl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}",
+        ".fo .fo-hl{font-size:12px;font-weight:800;color:var(--faint)}",
         ".fo .fo-hv{font-size:clamp(24px,2vw,34px);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.15}",
         ".fo .fo-hs{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}",
         ".fo .fo-sec.fo-rest{margin-top:22px;padding-top:12px;border-top:1px solid var(--line)}",
-        ".fo .fo-miss{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;"
+        ".fo .fo-miss{display:inline-block;padding:1px 7px;border-radius:999px;font-size:12px;font-weight:700;"
           + "border:1px solid var(--line-2);color:var(--muted);margin:1px 3px 1px 0;white-space:nowrap}",
         /* DESIGN V2 ("Calm finance", 2026-10-06): this page IS the standard (Main.dc.html) --
            sentence-case labels, white cards, navy selected pills, one delta format. Dark untouched. */
-        "body.rs-app.light.v2 .fo .report-head{margin:4px 0 16px}",
-        "body.rs-app.light.v2 .fo .report-head h2{font-size:26px;font-weight:700;letter-spacing:-.35px;color:var(--ink);margin:0 0 6px}",
-        "body.rs-app.light.v2 .fo .report-head .sub{font-size:14.5px;color:var(--muted);line-height:1.55;max-width:var(--rs-prose)}",
         "body.rs-app.light.v2 .fo .fo-sec{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);margin:10px 0 10px}",
         "body.rs-app.light.v2 .fo .fo-sec.fo-rest{margin-top:26px;padding-top:16px}",
         "body.rs-app.light.v2 .fo .fo-note{font-size:13.5px;background:#FFFFFF;border-radius:10px;color:var(--muted)}",
@@ -153,11 +149,19 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    const head = `<div class="report-head"><div><h2>Financial Overview</h2>
-      <div class="sub">Month to date and year to date, day for day against earlier months and years,
-        with how many closings are still missing data. Everything counts by move date, up to the day
-        you pick.</div></div></div>`;
-    host.innerHTML = `<div class="fo">${head}<div class="rs-loading">Reading the closings…</div></div>`;
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head. The long subtitle, the day note and the
+       pace chart's key moved into How it's counted, word for word; the day note keeps one line on top.
+       The panel reads what is on screen NOW, so it is a function of the last paint. */
+    const HOW_INTRO = "Month to date and year to date, day for day against earlier months and years, with how many "
+      + "closings are still missing data. Everything counts by move date, up to the day you pick.";
+    let howDay = "", howPace = null;
+    const howHtml = () => `<p>${HOW_INTRO}</p>`
+      + (howDay ? `<h3>The day shown</h3><p>${howDay}</p>` : "")
+      + (howPace ? `<h3>${esc(howPace.title)}</h3><p>${esc(howPace.text)}</p>` : "");
+    const headHtml = chip => RSC.pageHeadHtml({ title: "Financial Overview", key: "financial-overview",
+      sub: "Month to date and year to date, day for day against earlier months and years.",
+      chip: chip || "", how: howHtml });
+    host.innerHTML = `<div class="fo">${RSC.loadingHtml("Financial Overview", "Reading the closings…")}</div>`;
 
     /* ================= PHASE 1: closings + bookings ================= */
     let closing, bookings = [], bookErr = null;
@@ -165,7 +169,7 @@ registerPage({
       closing = await RS.load("closing");
     } catch (e) {
       console.error("financial-overview closing:", e);
-      host.innerHTML = `<div class="fo">${head}<div class="panel"><div class="rs-loading">The closings
+      host.innerHTML = `<div class="fo">${headHtml()}<div class="panel"><div class="rs-loading">The closings
         could not load (${esc(e.message || e)}). Reload the page to try again.</div></div></div>`;
       return;
     }
@@ -505,6 +509,7 @@ registerPage({
     function paint() {
       if (paceChart) { try { paceChart.destroy(); } catch (e) { /* already gone */ } paceChart = null; }
       host.querySelectorAll("canvas").forEach(c => { const ch = window.Chart && Chart.getChart(c); if (ch) ch.destroy(); });
+      howPace = null;           // set again once the pace chart draws
       const P = periods();
       const A = agg(S.co, P.sel.from, P.sel.to);
       const PMo = P.prevMonths.map(p => Object.assign(agg(S.co, p.from, p.to), { p }));
@@ -515,7 +520,7 @@ registerPage({
       const recorded = dayCountF(S.co, S.day);
       const lf = lastFilled(S.co, njToday());
 
-      host.innerHTML = `<div class="fo">${head}
+      host.innerHTML = `<div class="fo">${headHtml(lf ? "Closings through " + dShort(lf) : "")}
         <div class="rs-bar" id="foBar"></div>
         ${dayNote(P, recorded, lf)}
         ${heroHtml(P, A, LM, LY, YTD, YTDLY)}
@@ -672,9 +677,20 @@ registerPage({
       parts.push(`Every comparison uses the same days: 1–${P.sel.days} of each month.`);
       if (P2 && P2.cardOk && P2.cardLast && S.day > P2.cardLast)
         parts.push(`Fleet-card fuel is on file only through <b>${esc(dLabel(P2.cardLast))}</b>, so gross profit after it counts cash fuel only.`);
-      const warn = fell || (recorded && typAvg && recorded < typAvg * 0.6) || (lf && S.day > lf)
-        || (P2 && P2.cardOk && P2.cardLast && S.day > P2.cardLast);
-      return `<div class="fo-note${warn ? " warn" : ""}">${parts.join(" ")}</div>`;
+      // ZTZ-80: the whole note above is How it's counted's "The day shown"; ONE line stays over the
+      // tiles -- which day and why, with its numbers, and each warning in a few words
+      howDay = parts.join(" ");
+      const filling = !!(recorded && typAvg && recorded < typAvg * 0.6);
+      const cardLate = !!(P2 && P2.cardOk && P2.cardLast && S.day > P2.cardLast);
+      const line = [fell
+        ? `No closings recorded for <b>${esc(dShort(yesterday))}</b> yet; showing <b>${esc(dShort(S.day))}</b>, the newest day with closings`
+        : `Showing up to <b>${esc(dShort(S.day))}</b>`,
+        `<b>${fmtN(recorded)}</b> closing${recorded === 1 ? "" : "s"} that day`
+          + (filling ? ` against ${typAvg.toFixed(1)} on a usual ${esc(DOW[dow(S.day)])}, so it may still be filling in` : "")];
+      if (lf && S.day > lf) line.push(`closings recorded only through <b>${esc(dShort(lf))}</b>`);
+      if (cardLate) line.push(`fleet-card fuel only through <b>${esc(dShort(P2.cardLast))}</b>`);
+      const warn = fell || filling || (lf && S.day > lf) || cardLate;
+      return `<div class="fo-note${warn ? " warn" : ""}">${line.join(" · ")}.</div>`;
     }
 
     /* ---------- MTD: the picked month against 5 months and every earlier year ---------- */
@@ -785,14 +801,13 @@ registerPage({
             + `</tbody></table>`;
         },
       });
+      // ZTZ-80: the chart's key is How it's counted's, not a paragraph over the chart
+      howPace = { title: "Where " + sel.label + " is",
+        text: (v2 ? "Blue = this month to the picked day; dark = last month and grey dashed = the same month last year, each "
+          : "Bold = this month to the picked day; blue = last month and violet = the same month last year, each ")
+          + "as a whole month, so you see how the rest of it usually goes." + (S.paceAll ? (v2 ? " Light grey" : " Grey") + " = the other earlier months and years." : "") };
       const card = mount.querySelector(".panel");
       if (card) {
-        const hint = document.createElement("p");
-        hint.className = "rs-hint";
-        hint.textContent = (v2 ? "Blue = this month to the picked day; dark = last month and grey dashed = the same month last year, each "
-          : "Bold = this month to the picked day; blue = last month and violet = the same month last year, each ")
-          + "as a whole month, so you see how the rest of it usually goes." + (S.paceAll ? (v2 ? " Light grey" : " Grey") + " = the other earlier months and years." : "");
-        card.insertBefore(hint, card.querySelector(".gview"));
         card.querySelectorAll("[data-fo-pace]").forEach(b => b.onclick = () => { if (S.pace !== b.dataset.foPace) { S.pace = b.dataset.foPace; paint(); } });
         card.querySelectorAll("[data-fo-paceall]").forEach(b => b.onclick = () => { S.paceAll = !S.paceAll; paint(); });
       }
