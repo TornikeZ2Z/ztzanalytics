@@ -172,7 +172,11 @@ registerPage({
         .rp-live.pending{background:var(--panel-2);color:var(--faint)}
         /* the kit bar, PINNED: the matrix scrolls underneath it and its controls have to stay
            reachable. Nothing on these three rows carries a label above it, so they centre. */
-        .rp-bar{position:sticky;top:0;z-index:6;padding:10px 0;margin:6px 0 0;
+        /* top:-16px, not 0: sticky insets resolve against the scroller's CONTENT box, and
+           .rs-content has 16px of top padding, so top:0 left a 16px strip above the bar where the
+           rows slid by (ZP-1 made the page the matrix's scroller). Same as monthly-report.js'
+           .mrx-toc; keep it in sync with .rs-content's padding-top. */
+        .rp-bar{position:sticky;top:-16px;z-index:6;padding:10px 0;margin:6px 0 0;
           background:var(--bg,var(--panel));border-bottom:1px solid var(--line)}
         .rp-bar,.rp-supbar,.rp-bdbar{align-items:center}
         .rp-bdbar{margin-bottom:14px}
@@ -211,10 +215,16 @@ registerPage({
 
         /* ---- the matrix. A kit table reads left-aligned rows of text; this one is a heat
            grid: every cell is a coloured band, two columns are frozen, the header sorts. ---- */
-        /* 232px (and the 300px in the mobile block below) are pre-measurement fallbacks —
-           RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so collapsing
-           the bar above the matrix leaves no dead gap */
-        .rp-wrap{max-height:calc(100vh - var(--pg-chrome, 232px))}
+        /* NO inner scroll (ZP-1, 13 Nov: "full table with web scroll and not inner scroll"). The
+           matrix is as tall as its rows and the PAGE scrolls it. overflow:clip still rounds the
+           corners but, unlike auto, does not make the box a scroller, so the sticky header rides
+           the page and parks under the pinned bar (--rp-stick = the bar's height, set by
+           fitMatrix). Only a matrix wider than its box (.rp-x: a laptop, a long window) scrolls,
+           and only sideways; the box is a scroller again then, so slideHead moves the header
+           down to the same line by hand (--rp-dy). */
+        .rp-wrap{overflow:clip}
+        .rp-wrap.rp-x{overflow-x:auto}
+        .rp-wrap.rp-x .rp-mx thead th{top:0;transform:translateY(var(--rp-dy,0px))}
         /* width:100% so the matrix spends the width it is given. It sized to its content and
            stopped at roughly 1600px, leaving a third of a 2560px screen blank beside it while
            the cells themselves stayed cramped. min-width keeps it scrollable on a laptop; the
@@ -222,7 +232,7 @@ registerPage({
         .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
         .rp-mx th,.rp-mx td{padding:0;text-align:center;white-space:nowrap;box-sizing:border-box}
         .rp-mx thead th{background:var(--panel-2);color:var(--faint);font-size:12px;font-weight:800;text-transform:none;
-          letter-spacing:.03em;padding:8px 6px;position:sticky;top:0;border-bottom:1px solid var(--line);cursor:pointer;z-index:1}
+          letter-spacing:.03em;padding:8px 6px;position:sticky;top:var(--rp-stick,0px);border-bottom:1px solid var(--line);cursor:pointer;z-index:1}
         .rp-mx thead th:hover{color:var(--ink)}
         .rp-mx thead th.srt{color:var(--brand)}
         .rp-mx th.fm,.rp-mx td.fm{position:sticky;left:0;background:var(--panel);text-align:left;padding:6px 12px;font-weight:600;
@@ -320,7 +330,6 @@ registerPage({
         .rp-bdpz{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;width:44px}
         .rp-bdpz i{font-style:normal;font-size:12px;color:var(--faint);font-weight:700}
         .rp-bdidle{font-size:12px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
-        @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}
 
         /* ================= DESIGN V2 ("Calm finance") — light theme only =================
            Sentence-case labels at 12px+, IBM Plex with tabular figures, flat surfaces, pill
@@ -1321,7 +1330,57 @@ registerPage({
       else if (v === "reasons") paintReasons();
       else paintSupport();
       if (barC) barC.refresh();
-      RSC.fitScroller(document.getElementById("rpWrapEl"));
+      fitMatrix();
+    }
+
+    // The matrix has no scroller of its own (see .rp-wrap): park its sticky header under the
+    // pinned bar, and let it scroll sideways only when it is wider than its box. Re-run when the
+    // bar or the box changes size (the bar folds, the window resizes): on a timer, so a toggle
+    // here never re-enters the observer ("ResizeObserver loop" in the console), and not in a
+    // frame, which a background tab never paints.
+    var wrapEl = document.getElementById("rpWrapEl");
+    function fitMatrix() {
+      if (!wrapEl || !wrapEl.isConnected) return;
+      var t = wrapEl.querySelector("table");
+      wrapEl.classList.toggle("rp-x", !!t && t.offsetWidth > wrapEl.clientWidth + 1);
+      // the bar's own inset (-16px) counts: the header parks where the bar's bottom edge parks
+      // (the exact height, not offsetHeight: a rounded-down bar left a hairline of rows showing)
+      wrapEl.style.setProperty("--rp-stick", (barEl.getBoundingClientRect().height + (parseFloat(getComputedStyle(barEl).top) || 0)) + "px");
+      slideHead();
+    }
+    // .rp-x: a box that scrolls sideways is a scroller, and browsers differ on what its sticky
+    // header then sticks to: some to the box (which never scrolls down, so it never sticks),
+    // current Chrome to the page at top:0 (behind the bar). Measure where the header actually
+    // sits without our nudge and slide it by what is missing to reach the line under the bar,
+    // never past the last row. Without .rp-x the native sticky does it all and this stays 0.
+    function slideHead() {
+      var dy = 0, t = wrapEl.classList.contains("rp-x") && wrapEl.querySelector("table");
+      var cell = t && t.tHead && t.tHead.rows[0] && t.tHead.rows[0].cells[0];
+      if (cell) {
+        var sc = wrapEl.closest(".rs-content");
+        var line = (sc ? sc.getBoundingClientRect().top + (parseFloat(getComputedStyle(sc).paddingTop) || 0) : 0)
+          + (parseFloat(wrapEl.style.getPropertyValue("--rp-stick")) || 0);
+        var base = cell.getBoundingClientRect().top - (parseFloat(wrapEl.style.getPropertyValue("--rp-dy")) || 0);
+        var floor = t.getBoundingClientRect().top + t.offsetHeight - t.tHead.offsetHeight;
+        dy = Math.max(0, Math.min(line - base, floor - base));
+      }
+      wrapEl.style.setProperty("--rp-dy", dy + "px");
+    }
+    // scroll does not bubble, so listen in the capture phase for whichever pane scrolls the page;
+    // both listeners let go once this page is swapped out (another tab of the hub, another page)
+    function onPageScroll() {
+      if (!wrapEl.isConnected) { document.removeEventListener("scroll", onPageScroll, true); return; }
+      if (wrapEl.classList.contains("rp-x")) slideHead();
+    }
+    document.addEventListener("scroll", onPageScroll, { capture: true, passive: true });
+    if (window.ResizeObserver) {
+      var fitT = 0, fitRO = new ResizeObserver(function () {
+        if (!wrapEl.isConnected) { fitRO.disconnect(); return; }
+        clearTimeout(fitT);
+        fitT = setTimeout(fitMatrix, 0);
+      });
+      fitRO.observe(barEl);
+      fitRO.observe(wrapEl);
     }
 
     // ---- control wiring ---- (the window picker wires itself inside paintWinOpts)
