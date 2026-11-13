@@ -678,11 +678,164 @@ window.RSC = (function () {
     const MAX = 6;                                  // beyond six the label stops being readable
     const rows = Math.ceil(n / MAX) || 1;
     host.style.setProperty("--kpi-cols", Math.ceil(n / rows));
-    host.innerHTML = items.map(x =>
-      `<div class="kpi${x.tone ? " " + x.tone : ""}"><div class="l">${esc(x.label)}</div>`
-      + `<div class="v">${x.value}</div>`
-      + `<div class="s">${esc(x.sub || "")}</div></div>`
-    ).join("");
+    host.innerHTML = items.map(kpiTile).join("");
+  }
+  /* One tile, the page standard's format (ZTZ-80): label, value, then ONE delta line
+     ("▲ 4% vs last year", coloured by whether the move is good) and the comparison under it.
+     x.delta: { text, dir: "up"|"down"|"flat", good: true|false|null } -- `good` decides the
+     colour, not the arrow: fewer complaints is a green ▼. Old callers pass only `sub`. */
+  function kpiTile(x) {
+    let d = "";
+    if (x.delta && x.delta.text) {
+      const dir = x.delta.dir || "flat";
+      const arrow = dir === "up" ? "▲ " : dir === "down" ? "▼ " : "";
+      const tone = x.delta.good === true ? " good" : x.delta.good === false ? " bad" : "";
+      d = `<div class="d${tone}">${arrow}${esc(x.delta.text)}</div>`;
+    }
+    return `<div class="kpi${x.tone ? " " + x.tone : ""}"${x.title ? ` title="${esc(x.title)}"` : ""}><div class="l">${esc(x.label)}</div>`
+      + `<div class="v">${x.value}</div>${d}`
+      + (x.sub || !d ? `<div class="s">${esc(x.sub || "")}</div>` : "") + "</div>";
+  }
+  /* the same row as markup, for pages that build their HTML as one string */
+  function kpisHtml(items, cls) {
+    const n = items.length, rows = Math.ceil(n / 6) || 1;
+    return `<div class="rs-kpis${cls ? " " + cls : ""}" style="--kpi-cols:${Math.ceil(n / rows)}">` + items.map(kpiTile).join("") + "</div>";
+  }
+
+  /* =================== THE PAGE STANDARD (ZTZ-80, 13 Nov 2026) ===================
+     His approved plan (https://claude.ai/artifact/4FSpBfqcvGxfc6BG57WEts): every page has the
+     same six parts in the same order -- head, views + filters, headline, KPI row, main view,
+     detail -- and the KIT draws them, so pages stop drifting apart. Explanations leave the top
+     of the page for the "How it's counted" panel (his pick). Each helper has a string form
+     (…Html) for pages that build one HTML string, and wiring is delegated, so a page that
+     rewrites its markup on every click needs nothing re-attached. */
+
+  /* 1. PAGE HEAD. o: { title, sub (text) | subHtml, chip, chipTone: "live"|"warn"|"bad"|"",
+     actions: [{ id, label, primary, html }], how: html | () => html, howTitle, key }.
+     The head is one line: name + freshness chip, the one-line question under it, and the
+     actions on the right with "How it's counted" first. */
+  const HOW = {};
+  function pageHeadHtml(o) {
+    o = o || {};
+    const key = String(o.key || o.title || "page");
+    if (o.how) HOW[key] = { title: o.howTitle || "How it's counted", html: o.how };
+    else delete HOW[key];
+    // chipHtml: a page whose freshness is live markup of its own (Money Flow's Live · Refresh)
+    const chip = o.chipHtml != null ? o.chipHtml
+      : o.chip ? `<span class="rs-ph-chip${o.chipTone ? " " + o.chipTone : ""}">${esc(o.chip)}</span>` : "";
+    const sub = o.subHtml != null ? o.subHtml : (o.sub ? esc(o.sub) : "");
+    const acts = (o.how ? `<button type="button" class="rs-ph-how" data-rs-how="${esc(key)}">${esc(o.howTitle || "How it's counted")}</button>` : "")
+      + (o.actions || []).map(a => a.html != null ? a.html
+        : `<button type="button" class="rs-btn${a.primary ? " pri" : ""}"${a.id ? ` id="${esc(a.id)}"` : ""}>${esc(a.label)}</button>`).join("");
+    return `<div class="rs-page-head rs-ph"><div class="rs-ph-main"><div class="rs-ph-tr"><h1>${esc(o.title || "")}</h1>${chip}</div>`
+      + (sub ? `<p class="rs-ph-sub">${sub}</p>` : "") + "</div>"
+      + (acts ? `<div class="rs-ph-act">${acts}</div>` : "") + "</div>";
+  }
+  function pageHead(host, o) {
+    const w = el("div", null, pageHeadHtml(o));
+    const head = w.firstChild;
+    (o.actions || []).forEach(a => {
+      if (!a.onClick || !a.id) return;
+      const b = head.querySelector("#" + CSS.escape(a.id));
+      if (b) b.onclick = a.onClick;
+    });
+    if (host) { if (o.prepend) host.insertBefore(head, host.firstChild); else host.appendChild(head); }
+    return head;
+  }
+
+  /* The "How it's counted" side panel. Same frame as the Filters panel (rs-fpanel), its own
+     element, so opening one never clobbers the other. html may be a function: the page then
+     describes the numbers it is showing NOW, filters included. */
+  function howPanel(o) {
+    let scrim = document.getElementById("rsHowScrim"), panel = document.getElementById("rsHowPanel");
+    if (!panel) {
+      scrim = el("div", "rs-fscrim hidden"); scrim.id = "rsHowScrim";
+      panel = el("aside", "rs-fpanel rs-howpanel hidden"); panel.id = "rsHowPanel";
+      panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
+      document.body.appendChild(scrim); document.body.appendChild(panel);
+      document.addEventListener("keydown", e => {
+        const p = document.getElementById("rsHowPanel");
+        if (e.key === "Escape" && p && !p.classList.contains("hidden")) closeHow();
+      });
+      scrim.onclick = closeHow;
+    }
+    const title = (o && o.title) || "How it's counted";
+    let body = o && o.html;
+    try { if (typeof body === "function") body = body(); } catch (e) { body = "<p>" + esc(e.message) + "</p>"; }
+    panel.setAttribute("aria-label", title);
+    panel.innerHTML = `<div class="rs-fp-head"><h2>${esc(title)}</h2>`
+      + '<button type="button" class="rs-fp-x" aria-label="Close">&times;</button></div>'
+      + `<div class="rs-fp-body rs-how">${body || ""}</div>`
+      + '<div class="rs-fp-foot"><span></span><button type="button" class="rs-fp-done">Close</button></div>';
+    panel.querySelector(".rs-fp-x").onclick = closeHow;
+    panel.querySelector(".rs-fp-done").onclick = closeHow;
+    panel.classList.remove("hidden"); scrim.classList.remove("hidden");
+    panel.querySelector(".rs-fp-x").focus();
+  }
+  function closeHow() {
+    const p = document.getElementById("rsHowPanel"), s = document.getElementById("rsHowScrim");
+    if (p) p.classList.add("hidden");
+    if (s) s.classList.add("hidden");
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("[data-rs-how]");
+    if (b && HOW[b.dataset.rsHow]) howPanel(HOW[b.dataset.rsHow]);
+  });
+
+  /* 2. VIEWS: underline tabs. items: [{ id, label, count }]. The string form carries
+     data-tab="<id>" and the page handles the click (it already re-renders on a view change);
+     the element form takes onChange. */
+  function tabsHtml(items, value, attr) {
+    const a = attr || "tab";
+    return '<div class="rs-utabs" role="tablist">' + (items || []).map(it => {
+      const on = String(it.id) === String(value);
+      return `<button type="button" role="tab" class="rs-utab${on ? " on" : ""}" aria-selected="${on}" data-${a}="${esc(it.id)}">`
+        + esc(it.label) + (it.count != null ? `<span class="n">${esc(it.count)}</span>` : "") + "</button>";
+    }).join("") + "</div>";
+  }
+  function tabs(host, { items, value, onChange }) {
+    const w = el("div", null, tabsHtml(items, value));
+    const bar = w.firstChild;
+    bar.querySelectorAll(".rs-utab").forEach(b => b.onclick = () => {
+      bar.querySelectorAll(".rs-utab").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", String(x === b)); });
+      if (onChange) onChange(b.dataset.tab);
+    });
+    if (host) host.appendChild(bar);
+    return bar;
+  }
+
+  /* 3. HEADLINE: the one sentence that says what happened, numbers in <b>. html is the page's
+     own markup (it escapes its values); nothing longer than two lines belongs here. */
+  function headlineHtml(html) { return html ? `<p class="rs-headline">${html}</p>` : ""; }
+
+  /* STATES: one loading skeleton shaped like the standard page, one empty state that says what
+     to do, one error card with a Retry that retries. */
+  function loadingHtml(title, msg) {
+    const tile = '<div class="rs-sk-tile"><i></i><b></b></div>';
+    return `<div class="rs-skel" aria-busy="true"><span class="rs-sr">Loading ${esc(title || "")}…</span>`
+      + '<div class="rs-sk-head"><i></i><b></b></div>'
+      + (msg ? `<div class="rs-sk-msg">${esc(msg)}</div>` : "")
+      + `<div class="rs-sk-tiles">${tile.repeat(4)}</div>`
+      + '<div class="rs-sk-row"><div class="rs-sk-card"></div><div class="rs-sk-card"></div></div>'
+      + '<div class="rs-sk-table">' + "<i></i>".repeat(6) + "</div></div>";
+  }
+  function loading(host, title, msg) { if (host) host.innerHTML = loadingHtml(title, msg); }
+  function emptyHtml(o) {
+    o = o || {};
+    return `<div class="rs-state"><div class="rs-state-t">${esc(o.title || "Nothing to show")}</div>`
+      + (o.body ? `<div class="rs-state-b">${esc(o.body)}</div>` : "")
+      + (o.actionId ? `<button type="button" class="rs-btn" id="${esc(o.actionId)}">${esc(o.actionLabel || "Show everything")}</button>` : "")
+      + "</div>";
+  }
+  function failed(host, { title, error, onRetry } = {}) {
+    if (!host) return;
+    host.innerHTML = `<div class="rs-state rs-state-err" role="alert"><div class="rs-state-t">${esc(title || "This report couldn't load")}</div>`
+      + '<div class="rs-state-b">Usually a brief connection problem; trying again fixes it. If it keeps failing, tell <b>Tornike</b>.</div>'
+      + '<button type="button" class="rs-btn pri rs-retry">Try again</button>'
+      + (error ? `<details class="rs-state-d"><summary>Technical details</summary><div>${esc(error)}</div></details>` : "")
+      + "</div>";
+    const b = host.querySelector(".rs-retry");
+    if (b && onRetry) b.onclick = onRetry;
   }
 
   /* ---------------- chart card with Graph ⇄ Tabular toggle ---------------- */
@@ -1320,7 +1473,9 @@ window.RSC = (function () {
   }
 
   return { el, esc, printDoc, multiSelect, singleSelect, localSelect, localMulti, filterPanel, filterChips, dateBar, dateRange, datePresets,
-           kpis, chartCard, table, matrix,
+           kpis, kpisHtml, kpiTile, chartCard, table, matrix,
+           pageHead, pageHeadHtml, howPanel, closeHow, tabs, tabsHtml, headlineHtml,
+           loading, loadingHtml, emptyHtml, failed,
            confirm: confirmDlg, ask: askDlg, notice: noticeDlg, choice: choiceDlg,
            collapsible, fitScroller, fit, reflow, reflowAfter, printView,
            repGroups, repRows, repOptions };

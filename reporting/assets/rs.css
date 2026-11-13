@@ -978,3 +978,107 @@ body.rs-app.light.v2 .rs-side .foot #footRefresh{background:#1F4430;border-color
 body.rs-app.light.v2 .rs-side .foot #footRefresh:hover{background:#2E5A3E;color:#FFFFFF}
 body.rs-app.light.v2 .rs-side::-webkit-scrollbar-thumb{background:#2E5A3E;border-color:#14301F}
 body.rs-app.light.v2 .rs-kpis .kpi{border-top:3px solid #B7E23B}
+
+/* ================= THE PAGE STANDARD (ZTZ-80, his approved plan, 13 Nov 2026) =================
+   https://claude.ai/artifact/4FSpBfqcvGxfc6BG57WEts -- keep today's look, fix the structure:
+   every page has six parts in one order (head, views + filters, headline, KPI row, main view,
+   detail), drawn by the kit (RSC.pageHead / tabs / headlineHtml / kpis / loading / failed) so
+   pages stop drifting apart. Explanations live in the "How it's counted" panel, not on top of
+   the numbers. Built on the tokens, so dark keeps working; v2 refines it below. */
+body.rs-app{--fs-1:12px;--fs-2:13px;--fs-3:14px;--fs-4:16px;--fs-5:20px;--fs-6:28px}
+
+/* 1. the head: name + freshness chip, the one-line question, actions on the right */
+.rs-ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.rs-ph-main{min-width:0;flex:1 1 420px}
+.rs-ph-tr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rs-page-head.rs-ph h1{margin:0}
+.rs-page-head .rs-ph-sub{margin:4px 0 0}
+.rs-ph-chip{font-size:12px;font-weight:600;line-height:20px;padding:0 9px;border-radius:999px;white-space:nowrap;
+  background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
+.rs-ph-chip.live{background:var(--pos-bg);color:var(--pos);border-color:transparent}
+.rs-ph-chip.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.rs-ph-chip.bad{background:var(--neg-bg);color:var(--neg);border-color:transparent}
+.rs-ph-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
+.rs-ph-how{border:0;background:none;padding:0 4px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  color:var(--brand-d);text-decoration:underline;text-underline-offset:3px}
+.rs-ph-how:hover{color:var(--ink)}
+.rs-ph-how:focus-visible,.rs-utab:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+
+/* 2. views: underline tabs (the old .rs-tab pills stay until each page moves) */
+.rs-utabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin:4px 0 2px;overflow-x:auto}
+.rs-utab{border:0;background:none;font:inherit;font-size:14px;font-weight:500;color:var(--muted);padding:10px 0;
+  cursor:pointer;white-space:nowrap;box-shadow:inset 0 -2px 0 transparent}
+.rs-utab:hover{color:var(--ink)}
+.rs-utab.on{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--brand-d)}
+.rs-utab .n{margin-left:6px;font-size:12px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+
+/* 3. the headline sentence */
+.rs-headline{font-size:16px;line-height:1.5;color:var(--ink);margin:6px 0 14px;max-width:var(--rs-prose,104ch)}
+.rs-headline b{font-weight:600}
+
+/* 4. KPI tiles: one delta line, coloured by GOOD/BAD (not by the arrow) */
+.rs-kpis .kpi .d{font-size:13px;font-weight:600;margin-top:2px;color:var(--faint);font-variant-numeric:tabular-nums}
+.rs-kpis .kpi .d.good{color:var(--pos)}
+.rs-kpis .kpi .d.bad{color:var(--neg)}
+/* the kit now colours the tones RSC.kpis has always emitted (26 Aug: only some pages styled
+   them, so a tile's colour depended on which page you had opened before). Kept at (0,4,0) so a
+   page's own namespaced tone rule still wins. */
+.rs-kpis .kpi.pos .v{color:var(--pos)}
+.rs-kpis .kpi.neg .v{color:var(--neg)}
+.rs-kpis .kpi.warn .v{color:var(--warn)}
+
+/* states: skeleton, empty, error */
+.rs-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rs-skel{display:grid;gap:14px;padding:2px 0;animation:rsPulse 1.4s ease-in-out infinite}
+.rs-skel i,.rs-skel b{display:block;background:var(--line);border-radius:6px}
+.rs-sk-head i{width:240px;max-width:60%;height:22px}
+.rs-sk-head b{width:440px;max-width:80%;height:12px;margin-top:10px}
+.rs-sk-msg{font-size:13px;color:var(--muted)}
+.rs-sk-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rs-sk-tile{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 16px}
+.rs-sk-tile i{width:50%;height:10px}
+.rs-sk-tile b{width:40%;height:22px;margin-top:14px}
+.rs-sk-row{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+.rs-sk-card{height:220px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.rs-sk-table{display:grid;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px}
+.rs-sk-table i{height:12px}
+@keyframes rsPulse{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.rs-skel{animation:none}}
+.rs-state{max-width:480px;margin:56px auto;text-align:center;display:grid;gap:10px;justify-items:center}
+.rs-state-t{font-size:16px;font-weight:600;color:var(--ink)}
+.rs-state-b{font-size:14px;line-height:1.55;color:var(--muted)}
+.rs-state-b b{color:var(--ink)}
+.rs-state-d{font-size:12px;color:var(--faint);max-width:100%}
+.rs-state-d summary{cursor:pointer}
+.rs-state-d div{margin-top:6px;word-break:break-all}
+
+/* the "How it's counted" panel: the Filters frame, holding prose */
+.rs-fpanel.rs-howpanel{width:min(500px,100%)}
+.rs-how{font-size:14px;line-height:1.6;color:var(--muted)}
+.rs-how h3{font-size:14px;font-weight:600;color:var(--ink);margin:18px 0 4px}
+.rs-how h3:first-child{margin-top:0}
+.rs-how p{margin:0 0 10px}
+.rs-how b,.rs-how strong{color:var(--ink);font-weight:600}
+.rs-how ul{margin:0 0 10px;padding-left:18px}
+.rs-how li{margin:3px 0}
+
+/* sidebar: Pinned + Recent, and the pin on each item */
+.rs-nav-t{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rs-nav-item .rs-pin{flex:none;margin-left:auto;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  border:0;border-radius:6px;background:none;color:inherit;cursor:pointer;opacity:0;padding:0}
+.rs-nav-item .rs-pin svg{width:14px;height:14px;opacity:1}
+.rs-nav-item:hover .rs-pin,.rs-nav-item .rs-pin:focus-visible{opacity:.75}
+.rs-nav-item .rs-pin.on{opacity:.9}
+.rs-nav-item .rs-pin.on svg{fill:currentColor}
+.rs-nav-item .rs-pin:hover{opacity:1}
+.rs-quick .g-title{cursor:default}
+
+/* v2 (the light look everyone uses): the standard's sizes -- title 24/600, sub 14, tiles 28 */
+body.rs-app.light.v2 .rs-page-head h1{font-size:24px;font-weight:600;letter-spacing:-.2px;margin-bottom:4px}
+body.rs-app.light.v2 .rs-page-head.rs-ph h1{margin:0}
+body.rs-app.light.v2 .rs-page-head p{font-size:14px}
+body.rs-app.light.v2 .rs-ph-chip.live{background:#ECFDF3;color:#15803D;border:1px solid #BBF7D0}
+body.rs-app.light.v2 .rs-ph-how{color:#14301F}
+body.rs-app.light.v2 .rs-utab.on{box-shadow:inset 0 -2px 0 #14301F}
+body.rs-app.light.v2 .rs-kpis .kpi .v{font-size:clamp(22px,1.5vw,28px)}
+body.rs-app.light.v2 .rs-skel i,body.rs-app.light.v2 .rs-skel b{background:#E9EEF3}

@@ -110,21 +110,27 @@ registerPage({
     // + MONTH CLOSE (2026-10-09): the month's cash, foreman repayments, job expenses and corrections
     var TOPS = [["money-flow", "Money Flow", "mfPaneFlow"], ["day-closing", "Day Closing", "mfPaneDc"],
                 ["month-close", "Month close", "mfPaneMonth"], ["how-to", "How to use", "mfPaneHow"]];
+    /* THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026; this page's own mockup): one head
+       line -- name, the Live chip, the question, and the actions on the right; underline tabs;
+       How to use leaves the tab row and opens from "How it works" in the head; the controls sit
+       in the standard place, above today's drawer line. */
+    var TABS_SHOWN = TOPS.filter(function (t) { return t[0] !== "how-to"; });
     host.innerHTML = '<div class="mf-root' + (S.compact ? " mf-compact" : "") + '" id="mfRoot">'
-      + '<div class="mf-titles"><h1>Money Flow</h1>'
-      + "<p>Who owes whom between the base and the foremen, job by job and on each foreman’s balance.</p></div>"
-      + '<div class="rs-tabs mf-toptabs" role="tablist" aria-label="Money Flow sections">'
-      + TOPS.map(function (t) {
-          return '<button type="button" class="rs-tab" role="tab" id="mfTopT-' + t[0] + '" aria-controls="' + t[2]
+      + RSC.pageHeadHtml({ title: "Money Flow", key: "money-flow",
+          sub: "Who owes whom between the base and the foremen.",
+          chipHtml: '<span class="mf-livebar"><span class="mf-live mf-off" id="mfLive">Syncing…</span><span id="mfLast"></span>'
+            + '<button type="button" class="mf-linkbtn" id="mfRefresh">Refresh</button></span>',
+          actions: [{ html: '<button type="button" class="rs-ph-how" id="mfHowBtn">How it works</button>' },
+                    { html: '<button type="button" class="mf-btn mf-flowonly" id="mfMethodsBtn">' + ICON.card + "Payment methods</button>" },
+                    { html: '<button type="button" class="mf-btn mf-flowonly" id="mfExportBtn">' + ICON.dl + "Export</button>" }] })
+      + '<div class="rs-utabs mf-toptabs" role="tablist" aria-label="Money Flow sections">'
+      + TABS_SHOWN.map(function (t) {
+          return '<button type="button" class="rs-utab" role="tab" id="mfTopT-' + t[0] + '" aria-controls="' + t[2]
             + '" aria-selected="false" data-mftop="' + t[0] + '">' + t[1] + "</button>";
         }).join("") + "</div>"
       + '<div class="mf-pane mf-pane-flow" id="mfPaneFlow" role="tabpanel" aria-labelledby="mfTopT-money-flow">'
-      + '<div class="mf-top"><div class="mf-livebar"><span class="mf-live mf-off" id="mfLive">Syncing…</span><span id="mfLast"></span>'
-      + '<button type="button" class="mf-linkbtn" id="mfRefresh">Refresh</button></div>'
-      + '<div class="mf-topbtns"><button type="button" class="mf-btn" id="mfMethodsBtn">' + ICON.card + "Payment methods</button>"
-      + '<button type="button" class="mf-btn" id="mfExportBtn">' + ICON.dl + "Export</button></div></div>"
-      + '<div id="mfDayStrip"></div>'
       + '<div class="mf-tools" id="mfTools"></div>'
+      + '<div id="mfDayStrip"></div>'
       + '<div id="mfBody" class="mf-bodywrap"><div class="mf-load"><div class="mf-spin"></div>Loading jobs…</div></div>'
       + '<div class="mf-bulk" id="mfBulk" role="region" aria-label="Selected jobs" hidden></div></div>'
       + '<div class="mf-pane" id="mfPaneDc" role="tabpanel" aria-labelledby="mfTopT-day-closing" hidden></div>'
@@ -145,10 +151,12 @@ registerPage({
     Array.prototype.forEach.call(host.querySelectorAll("[data-mftop]"), function (b) {
       b.onclick = function () { setTop(b.getAttribute("data-mftop")); };
     });
+    var howBtn = host.querySelector("#mfHowBtn");
+    if (howBtn) howBtn.onclick = function () { setTop("how-to"); };
     var tabList = host.querySelector(".mf-toptabs");
     if (tabList) tabList.onkeydown = function (e) {         // arrow keys move along the tabs
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-      var keys = TOPS.map(function (t) { return t[0]; }), i = keys.indexOf(topNow);
+      var keys = TABS_SHOWN.map(function (t) { return t[0]; }), i = Math.max(0, keys.indexOf(topNow));
       var next = keys[(i + (e.key === "ArrowRight" ? 1 : keys.length - 1)) % keys.length];
       e.preventDefault(); setTop(next);
       var nb = document.getElementById("mfTopT-" + next); if (nb) nb.focus();
@@ -1071,26 +1079,29 @@ registerPage({
         + '<div class="mf-kpi mf-kpi-look"><span class="mf-kl">Needs a look</span><span class="mf-kv">' + nLook + " job" + (nLook === 1 ? "" : "s") + "</span>"
         + '<span class="mf-ks">Someone has to check or fix each one</span></div></div>';
 
-      // NEEDS A LOOK: three cards, each filters the queue to its jobs
+      // NEEDS A LOOK: ONE checklist card (ZTZ-80), a row per kind, each row's button filters the
+      // queue to its jobs. It was four full-yellow cards competing for the eye; the amber now
+      // marks the count only.
       var card = function (key, n, title, line) {
         if (!n) return "";
-        return '<div class="mf-needc' + (S.need === key ? " mf-on" : "") + '"><div class="mf-needt"><span class="mf-needn">' + n + "</span>"
-          + '<span class="mf-b">' + title + "</span></div><p>" + line + "</p>"
+        return '<div class="mf-needr' + (S.need === key ? " mf-on" : "") + '"><span class="mf-needn">' + n + "</span>"
+          + '<span class="mf-needt">' + title + '</span><span class="mf-needw">' + line + "</span>"
           + '<button type="button" class="mf-needbtn" data-mfa="need" data-v="' + key + '">'
-          + (S.need === key ? "Showing them below" : "Open the " + n + " job" + (n === 1 ? "" : "s")) + "</button></div>";
+          + (S.need === key ? "Showing them below" : "Open " + n + " job" + (n === 1 ? "" : "s")) + "</button></div>";
       };
       var oldest = needs.cnr.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; })[0];
       var widest = needs.nib.slice().sort(function (a, b) { return Math.abs(b.balance || 0) - Math.abs(a.balance || 0); })[0];
-      var nl = nLook ? '<section class="mf-need" aria-labelledby="mfNeedH"><h2 class="mf-h2" id="mfNeedH">Needs a look</h2><div class="mf-needs">'
-        + card("cnr", needs.cnr.length, "job" + (needs.cnr.length === 1 ? " has" : "s have") + " no contract yet",
+      var nl = nLook ? '<section class="mf-need" aria-labelledby="mfNeedH"><div class="mf-needh"><h2 class="mf-h2" id="mfNeedH">Needs a look</h2>'
+        + '<span class="mf-mut">' + nLook + " job" + (nLook === 1 ? "" : "s") + ", each needs someone to check or fix it</span></div>"
+        + card("cnr", needs.cnr.length, "No contract yet",
             "Nobody can say what is owed until the contract comes in." + (oldest ? " Oldest: " + esc(oldest.customer || "—") + ", " + fmtShort(oldest.date) + "." : ""))
-        + card("nib", needs.nib.length, "job" + (needs.nib.length === 1 ? " doesn’t" : "s don’t") + " add up",
+        + card("nib", needs.nib.length, "Don’t add up",
             "Money was recorded, but not the amount the closing asks for." + (widest ? " Widest gap: " + esc(widest.customer || "—") + ", " + money(Math.abs(widest.balance)) + "." : ""))
-        + card("mc", needs.mc.length, "job" + (needs.mc.length === 1 ? " has" : "s have") + " no closing",
+        + card("mc", needs.mc.length, "No closing",
             "The calendar has the job; the closing sheet doesn’t, so there’s no net cash to settle.")
-        + card("fix", needs.fix.length, "job" + (needs.fix.length === 1 ? "’s" : "s’") + " net cash to fix",
+        + card("fix", needs.fix.length, "Net cash to fix",
             "Settled on a corrected net cash. The contract or closing still says another figure — fix it there.")
-        + "</div></section>" : "";
+        + "</section>" : "";
 
       // THE QUEUE
       var HEAD = {
@@ -2955,6 +2966,8 @@ registerPage({
         if (b) { b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; }
         if (p) p.hidden = !on;
       });
+      // Payment methods and Export act on the Money Flow tab only (they sat inside it before ZTZ-80)
+      Array.prototype.forEach.call(document.querySelectorAll(".mf-root .mf-flowonly"), function (b) { b.hidden = key !== "money-flow"; });
       setTopHash(key);
       if (key !== "money-flow" && P) closePanel();
       if (key === "day-closing") mountDc();
@@ -3471,16 +3484,23 @@ function mfCss() {
     .mf-pane{min-width:0}
     .mf-pane.mf-pane-flow{display:flex;flex-direction:column;gap:18px}
     .mf-root > .mf-pane[hidden]{display:none}
-    .mf-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px}
-    .mf-titles{display:flex;flex-direction:column;gap:4px;min-width:0}
-    .mf-titles h1{margin:0;font-size:26px;line-height:1.2;font-weight:600;color:var(--mf-head)}
-    .mf-titles p{margin:0;color:var(--mf-muted);max-width:640px}
+    /* ZTZ-80: the kit's page head carries the title, the Live chip and the actions */
+    .mf-root > .rs-page-head{margin:0}
+    .mf-root .mf-flowonly[hidden]{display:none}
+    /* today's drawer as ONE line on this page (Day Closing keeps its own two-row strip) */
+    .mf-root #mfDayStrip.dcl-strip{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:9px 14px;margin:0}
+    .mf-root #mfDayStrip .dcl-shead{display:contents}
+    .mf-root #mfDayStrip .lbl{order:0}
+    .mf-root #mfDayStrip .dcl-srow{order:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;border:0;padding:0}
+    .mf-root #mfDayStrip .dcl-srow .big{font-size:16px}
+    .mf-root #mfDayStrip .dcl-pill{order:2}
+    .mf-root #mfDayStrip .dcl-ocbtns{order:3;margin-left:auto}
+    .mf-root #mfDayStrip .dcl-link{order:4}
     .mf-livebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12.5px;color:var(--mf-faint)}
     .mf-live{display:inline-flex;align-items:center;gap:6px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--mf-in-bg);color:var(--mf-in-ink)}
     .mf-live.mf-off{background:var(--mf-warn-bg);color:var(--mf-warn-ink)}
     .mf-linkbtn{border:0;background:transparent;color:var(--mf-acc-ink);font-weight:500;cursor:pointer;padding:2px 4px;text-decoration:underline;text-underline-offset:3px;min-height:28px}
     .mf-linkbtn:hover{color:var(--mf-head)}
-    .mf-topbtns{display:flex;flex-wrap:wrap;gap:8px}
     .mf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 14px;border:1px solid var(--mf-line2);border-radius:10px;background:var(--mf-panel);color:var(--mf-ink);font-weight:500;cursor:pointer;white-space:nowrap}
     .mf-btn:hover:not([disabled]){background:var(--mf-panel2)}
     .mf-btn[disabled]{opacity:.55;cursor:default}
@@ -3498,22 +3518,26 @@ function mfCss() {
     .mf-dens button{height:36px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--mf-muted);cursor:pointer}
     .mf-dens button[aria-pressed=true]{background:var(--mf-panel);color:var(--mf-head);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.12)}
     .mf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-    .mf-kpi{background:var(--mf-panel);border:1px solid var(--mf-line);border-top:3px solid var(--mf-lime);border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:4px}
-    .mf-kpi.mf-kpi-out{border-top-color:var(--mf-warn-btn)} .mf-kpi.mf-kpi-look{border-top-color:var(--mf-slate)}
+    .mf-kpi{background:var(--mf-panel);border:1px solid var(--mf-line);border-top:3px solid var(--mf-lime);border-radius:10px;padding:14px 18px;display:flex;flex-direction:column;gap:4px}
     .mf-kl{color:var(--mf-muted);font-weight:500}
-    .mf-kv{font-size:30px;font-weight:600;letter-spacing:-.01em;color:var(--mf-head);line-height:1.2}
-    .mf-kpi-out .mf-kv{color:var(--mf-out-ink)} .mf-kpi-look .mf-kv{color:var(--mf-ink)}
+    .mf-kv{font-size:28px;font-weight:600;letter-spacing:-.01em;color:var(--mf-ink);line-height:1.2}
     .mf-ks{color:var(--mf-muted)}
     .mf-h2{margin:0;font-size:15px;font-weight:600;color:var(--mf-ink)}
     .mf-h3{margin:0;font-size:15px;font-weight:600;color:var(--mf-ink)}
-    .mf-need{display:flex;flex-direction:column;gap:10px}
-    .mf-needs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
-    .mf-needc{background:var(--mf-warn-bg);border:1px solid var(--mf-warn-line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-    .mf-needc.mf-on{box-shadow:0 0 0 2px var(--mf-warn-btn)}
-    .mf-needt{display:flex;align-items:baseline;gap:8px}
-    .mf-needn{font-size:20px;font-weight:600;color:var(--mf-warn-ink)}
-    .mf-needc p{margin:0;color:var(--mf-muted)}
-    .mf-needbtn{align-self:flex-start;min-height:36px;padding:0 12px;border:1px solid var(--mf-warn-btn);border-radius:8px;background:var(--mf-panel);color:var(--mf-warn-ink);font-weight:500;cursor:pointer}
+    /* Needs a look (ZTZ-80): one checklist card, a row per kind; amber marks the count, not the card */
+    .mf-need{background:var(--mf-panel);border:1px solid var(--mf-line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+    .mf-needh{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;padding:12px 18px;border-bottom:1px solid var(--mf-line)}
+    .mf-needr{display:grid;grid-template-columns:64px 160px minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 18px;border-bottom:1px solid var(--mf-line)}
+    .mf-needr:last-child{border-bottom:0}
+    .mf-needr.mf-on{background:var(--mf-warn-bg)}
+    .mf-needn{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:600;color:var(--mf-ink);font-variant-numeric:tabular-nums}
+    .mf-needn::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--mf-warn-btn)}
+    .mf-needt{font-weight:600;color:var(--mf-ink)}
+    .mf-needw{color:var(--mf-muted)}
+    .mf-needbtn{justify-self:end;white-space:nowrap;min-height:34px;padding:0 12px;border:1px solid var(--mf-line2);border-radius:8px;background:var(--mf-panel);color:var(--mf-ink);font-weight:500;cursor:pointer}
+    .mf-needbtn:hover{background:var(--mf-panel2)}
+    .mf-needr.mf-on .mf-needbtn{border-color:var(--mf-warn-btn);color:var(--mf-warn-ink)}
+    @media (max-width:900px){.mf-needr{grid-template-columns:56px minmax(0,1fr) auto}.mf-needw{grid-column:2/-1;grid-row:2}}
     .mf-q{background:var(--mf-panel);border:1px solid var(--mf-line);border-radius:14px;overflow:hidden;position:relative}
     .mf-qhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px}
     .mf-qtitle{display:flex;flex-direction:column;gap:2px;min-width:0}

@@ -101,6 +101,7 @@
   var DETAIL = {};        // "fam|co|from|to" -> {rows: {jk: row}, capped, error} (or a Promise)
   var SMALL_SPEND = 500;   // the strip greys a state with less placed spend, as the ROI page does
   var PREF = { loaded: false, loading: false, saved: null, note: "" };
+  var CUR = null;          // the last paint's window + leads, for the late ROI repaint (headline, tiles, bars)
   var saveTimer = null;
 
   /* ------------------------------------------------------------------ helpers ---- */
@@ -161,38 +162,30 @@
       + ".sra .sra-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 10px}"
       + ".sra .sra-h h2{font-size:15px;font-weight:800;letter-spacing:-.2px;margin:0;color:var(--ink)}"
       + ".sra .sra-h .sra-sub{font-size:12px;color:var(--faint)}"
-      // the KIT COLOURS NO KPI TONE (portal-design-system): namespaced copies, leak nowhere
-      + ".sra .rs-kpis .kpi.pos .v{color:var(--pos)}"
-      + ".sra .rs-kpis .kpi.neg .v{color:var(--neg)}"
-      + ".sra .rs-kpis .kpi.warn .v{color:var(--warn)}"
-      // the comparison arrow inside a KPI value
-      + ".sra .sra-d{display:inline-block;margin-left:8px;font-size:12px;font-weight:800;"
-      + "letter-spacing:0;vertical-align:middle}"
+      // the comparison arrow (the Local / long distance table)
+      + ".sra .sra-d{display:inline-block;font-size:12px;font-weight:600;letter-spacing:0}"
       + ".sra .sra-d.up{color:var(--pos)}.sra .sra-d.dn{color:var(--neg)}.sra .sra-d.eq{color:var(--faint)}"
-      + ".sra .sra-side .rs-kpis{margin-bottom:10px}"
-      // four tiles in HALF a page: 2 x 2, never 3 + an orphan; 4 across only when there is room
-      + ".sra .sra-side .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}"
-      + "@media(min-width:1700px){.sra .sra-side .rs-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}"
-      + ".sra .sra-side .panel-head .rs-pill{margin-left:auto}"
-      // the funnel: three steps and an exit
-      + ".sra .sra-fn{display:grid;gap:7px;margin:4px 0 10px}"
-      + ".sra .sra-fr{display:grid;grid-template-columns:92px 1fr 150px;align-items:center;gap:10px;font-size:13px}"
-      + ".sra .sra-fl{color:var(--muted);font-weight:700;line-height:1.15}"
-      // 2026-09-23: the Confirmed step says which basis it is on, under its name
-      + ".sra .sra-fl small{display:block;font-size:10.5px;font-weight:600;color:var(--faint)}"
-      + ".sra .sra-fb{height:18px;background:var(--panel-2);border-radius:6px;overflow:hidden}"
-      + ".sra .sra-fb i{display:block;height:100%;border-radius:6px}"
-      + ".sra .sra-fb i.c-lead{background:var(--blue)}"
-      + ".sra .sra-fb i.c-qual{background:var(--blue);opacity:1;filter:saturate(.55)}"
-      + ".sra .sra-fb i.c-conf{background:var(--brand)}"
-      + ".sra .sra-fv{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}"
-      + ".sra .sra-fv em{font-style:normal;font-weight:600;color:var(--faint);font-size:11.5px;margin-left:6px}"
-      + ".sra .sra-exit{margin-left:102px;border-left:3px solid var(--neg);padding:6px 10px;"
-      + "font-size:12.5px;color:var(--muted);line-height:1.55;background:var(--panel-2);border-radius:0 8px 8px 0}"
-      + ".sra .sra-exit b{color:var(--ink)}"
-      + ".sra .sra-cohort{font-size:12.5px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:9px}"
-      + ".sra .sra-cohort b{color:var(--ink)}"
       + ".sra .sra-thin{color:var(--faint)}"
+      // ZTZ-80 main view: the comparison table and the revenue-per-$1 bars, side by side
+      + ".sra .rs-grid2.sra-main{margin-top:14px;align-items:start;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}"
+      + "@media(max-width:1100px){.sra .rs-grid2.sra-main{grid-template-columns:minmax(0,1fr)}}"
+      + ".sra .sra-cmpt td,.sra .sra-cmpt th{padding-left:10px;padding-right:10px;white-space:nowrap}"
+      + ".sra .sra-main>.panel{margin:0}"
+      + ".sra .panel-head .sra-sub{font-size:12.5px;color:var(--faint)}"
+      + ".sra .panel-head .sra-sub b{color:var(--ink);font-weight:600}"
+      + ".sra .sra-cmpt td:first-child{color:var(--muted)}"
+      + ".sra .sra-cmpt tr.sra-grp td{font-size:12.5px;font-weight:600;color:var(--faint);background:var(--panel-2);padding-top:7px;padding-bottom:7px}"
+      + ".sra .sra-cmpt tr.sra-cohort-r td:first-child{padding-left:22px}"
+      + ".sra .sra-roi2{display:grid;gap:8px;padding:6px 2px 4px}"
+      + ".sra .sra-rr{display:grid;grid-template-columns:56px minmax(0,1fr) 128px;align-items:center;gap:10px;font-size:13px}"
+      + ".sra .sra-rl{color:var(--muted);font-weight:600}"
+      + ".sra .sra-rt{position:relative;height:16px}"
+      + ".sra .sra-rb{position:absolute;left:0;top:1px;bottom:1px;border-radius:3px;background:var(--brand)}"
+      + ".sra .sra-ravg{position:absolute;top:-5px;bottom:-5px;width:0;border-left:1.5px dashed var(--ink);opacity:.55}"
+      + ".sra .sra-rv{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}"
+      + ".sra .sra-rv.sm{font-weight:500;color:var(--faint)}"
+      + ".sra .sra-note{font-size:12.5px;color:var(--faint);padding-top:10px;border-top:1px solid var(--line);margin-top:10px}"
+      + ".sra .sra-roi-go{margin-left:auto;font-size:13px;font-weight:600;white-space:nowrap}"
       // the breakdown grid: an odd last card spans both columns instead of leaving a hole
       + ".sra .sra-grid>.panel:last-child:nth-child(odd){grid-column:1/-1}"
       // minmax(0,1fr), not the kit's bare 1fr: a chart canvas has an intrinsic width, and a
@@ -206,7 +199,7 @@
       + ".sra .sra-rate small{color:var(--faint);font-weight:600;margin-left:5px}"
       // 2026-09-23: a small sample is said in WORDS, not only by the faint colour
       + ".sra .sra-rate .sra-ss{font-style:normal;font-weight:700;color:var(--warn);margin-left:5px;"
-      + "font-size:11px;white-space:nowrap}"
+      + "font-size:12px;white-space:nowrap}"
       + ".sra .rs-seg.sra-off button{opacity:.45;cursor:not-allowed}"
       // the lead list
       + ".sra .sra-list .rs-tablewrap{min-height:260px}"
@@ -217,14 +210,8 @@
       + ".sra .sra-list .rs-tablewrap.rs-fit{--pg-chrome:150px}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: the funnel steps light -> navy so
       // leads, qualified and confirmed stay apart now that --blue and --brand are one accent
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-lead{background:#DCEFB0}"
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-qual{background:#A3CF3A;filter:none}"
-      + "body.rs-app.light.v2 .sra .sra-fb i.c-conf{background:#14301F}"
-      + "body.rs-app.light.v2 .sra .sra-fb{background:#F1F5F9}"
       + "body.rs-app.light.v2 .sra .sra-h h2{font-weight:600}"
-      + "body.rs-app.light.v2 .sra :is(.sra-h .sra-sub,.sra-fl small,.sra-fv em,.sra-rate .sra-ss){font-size:12px}"
-      + "body.rs-app.light.v2 .sra .sra-fl{font-weight:600}"
-      + "body.rs-app.light.v2 .sra :is(.sra-fv,.sra-d){font-weight:600}"
+      + "body.rs-app.light.v2 .sra :is(.sra-h .sra-sub,.sra-rate .sra-ss){font-size:12px}"
       + "body.rs-app.light.v2 .sra .sra-tot td{font-weight:600;background:#F8FAFC}"
       + ".sra .sra-list td.wrap{white-space:normal;min-width:220px}"
       + ".sra .sra-list td a.sra-tr{white-space:nowrap}"
@@ -235,18 +222,9 @@
       + ".sra .sra-pg b{font-weight:800;color:var(--ink);min-width:62px;text-align:center}"
       + ".sra .sra-cols .rs-slicer-pop{min-width:280px;left:auto;right:0}"
       + ".sra .sra-cols .sra-reset{margin-top:8px;width:100%}"
-      + ".sra .sra-save{font-size:11.5px;color:var(--faint)}"
+      + ".sra .sra-save{font-size:12px;color:var(--faint)}"
       + ".sra .sra-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
-      // the revenue-per-$1 strip (2026-10-20): one line per source, read-only
-      + ".sra .sra-roi{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;font-size:13px}"
-      + ".sra .sra-roi .sra-roi-t{font-weight:700;color:var(--ink);margin-right:2px}"
-      + ".sra .sra-roi .sra-roi-c{display:inline-flex;gap:5px;align-items:baseline;padding:3px 9px;border-radius:999px;"
-      + "background:var(--panel-2);font-variant-numeric:tabular-nums}"
-      + ".sra .sra-roi .sra-roi-c b{font-weight:700}.sra .sra-roi .sra-roi-c.hi b{color:var(--pos)}.sra .sra-roi .sra-roi-c.lo b{color:var(--neg)}"
-      + ".sra .sra-roi .sra-roi-c.sm{background:transparent;color:var(--faint)}"
-      + ".sra .sra-roi .sra-roi-n{color:var(--muted);font-size:12px}"
-      + ".sra .sra-roi .sra-roi-go{margin-left:auto;white-space:nowrap}"
-      + "@media(max-width:700px){.sra .sra-fr{grid-template-columns:78px 1fr 110px}.sra .sra-exit{margin-left:0}}";
+      + "@media(max-width:700px){.sra .sra-rr{grid-template-columns:52px minmax(0,1fr) 96px}}";
     document.head.appendChild(st);
   }
 
@@ -444,8 +422,8 @@
     // the strip's numbers: the shared core (same marts, already in memory) and the dollars entered
     // per source and state; each repaints the strip alone when it lands
     if (window.RSROI) {
-      if (!RSROI.D.ready) RSROI.ensure().then(function () { paintRoiStrip(host, win()); }).catch(function () {});
-      if ((RSROI.D.amts == null || RSROI.D.amtErr) && !RSROI.D.loadingAmts) RSROI.loadAmounts().then(function () { paintRoiStrip(host, win()); });
+      if (!RSROI.D.ready) RSROI.ensure().then(function () { roiLanded(host); }).catch(function () {});
+      if ((RSROI.D.amts == null || RSROI.D.amtErr) && !RSROI.D.loadingAmts) RSROI.loadAmounts().then(function () { roiLanded(host); });
     }
     paint(host);
   }
@@ -501,9 +479,15 @@
     var leadsSt = pack.leads.filter(leadOk);
     var isPC = S.fam === "Post Card";
 
-    var head = '<div class="rs-page-head"><h1>Source Analysis</h1>'
-      + "<p>Everything one source did: the leads it sent, how many booked, what they were worth, and its revenue "
-      + 'per $1 of ads by state. Where the ad money goes across every source lives on <a href="#page=marketing-roi">Return on Investment</a>.</p></div>';
+    /* THE PAGE STANDARD (ZTZ-80, his approved plan 13 Nov 2026; the page's own mockup): one-line
+       head, one filter row, a headline sentence, five tiles for the source as a whole, then the
+       main view (Local vs Long distance in one table, revenue per $1 by state as bars). The long
+       description and the "what is being read" sentence moved to How it's counted. */
+    var head = RSC.pageHeadHtml({ title: "Source Analysis", key: "source-report",
+      sub: "One source's leads, bookings and revenue per ad dollar.",
+      chip: DATA.maxDay ? "Leads through " + shortDay(DATA.maxDay) : "",
+      how: howHtml });
+    CUR = { w: w, cw: cw, leadsSt: leadsSt };
     host.innerHTML = '<div class="sra">' + head
       + '<div class="rs-bar" id="sraBar">'
       + '<div id="sraFam"></div>'
@@ -517,11 +501,9 @@
       + "</div>"
       + '<div id="sraChips"></div>'
       + formsStaleHtml()
-      + '<div class="sra-h"><h2 id="sraOneH">One source in detail</h2>'
-      + '<span class="sra-sub">every filter above applies</span></div>'
-      + '<div class="rs-hint" id="sraLead"></div>'
-      + '<div class="panel" id="sraRoi"></div>'
-      + '<div class="rs-grid2" id="sraSides"></div>'
+      + '<p class="rs-headline" id="sraHl"></p>'
+      + '<div class="rs-kpis" id="sraKpis"></div>'
+      + '<div class="rs-grid2 sra-main"><div class="panel" id="sraCmpT"></div><div class="panel" id="sraRoi"></div></div>'
       + '<div class="sra-h"><h2>Breakdowns</h2>'
       + '<span class="sra-sub">leads by create date · confirmed by booked date</span></div>'
       + '<div class="rs-grid2 sra-grid" id="sraCharts"></div>'
@@ -533,10 +515,9 @@
       + "</div>";
 
     mountBar(host, w);
-    var oh = host.querySelector("#sraOneH"); if (oh) oh.textContent = (S.fam || "One source") + " in detail";
-    paintLead(host, w, cw, pack, leadsSt);
     paintRoiStrip(host, w);
-    paintSides(host, w, cw, leadsSt);
+    paintTop(host, w, cw, leadsSt);
+    paintCompare(host, w, cw, leadsSt);
     paintCharts(host, w, leadsSt);
     paintPivot(host, w, leadsSt);
     paintList(host, w, leadsSt);
@@ -546,31 +527,187 @@
      from the shared core (roi-core.js) -- the Return on Investment page runs the same calc. It follows
      Source, Company and Period; the Filters panel's state, size, rep and move type do not reach it
      (the ad ledger has none of them), and a Post Card campaign pick neither (spend is per family). */
+  /* the ad ledger landed after the first paint: the bars, the headline and the tiles read it */
+  function roiLanded(host) {
+    if (!host.isConnected) return;
+    var w = win();
+    paintRoiStrip(host, w);
+    if (CUR) paintTop(host, CUR.w, CUR.cw, CUR.leadsSt);
+  }
+  /* the source's revenue per $1, all states and by state -- null until the shared core has
+     landed, or when there is no spend to divide by */
+  function roiNow(w) {
+    if (!window.RSROI || !RSROI.D.ready) return null;
+    var R = RSROI.calc({ co: S.co, fams: new Set([S.fam]), a: w.a, bEff: w.bEff }), F = R.fams[S.fam];
+    if (!F || !(F.sp > 0.5)) return { R: R, F: F, x: null };
+    var revAll = 0;
+    Object.keys(F.st).forEach(function (s0) { revAll += F.st[s0].rev; });
+    return { R: R, F: F, x: revAll / F.sp, revAll: revAll };
+  }
+  /* 2026-11-13 (ZTZ-80): the strip of small chips became a sorted bar chart, the "all states"
+     figure a dashed line through every bar. Same numbers, same shared calc. */
   function paintRoiStrip(host, w) {
     var el = host.querySelector("#sraRoi");
     if (!el) return;
-    var go = '<a class="rs-btn sra-roi-go" href="#page=marketing-roi&tab=dr&src=' + encodeURIComponent(S.fam || "") + '">Open in Return on Investment ↗</a>';
-    if (!window.RSROI || !RSROI.D.ready) { el.innerHTML = '<div class="sra-roi"><span class="sra-roi-t">Revenue per $1 by state</span><span class="sra-roi-n">reading…</span>' + go + "</div>"; return; }
-    var R = RSROI.calc({ co: S.co, fams: new Set([S.fam]), a: w.a, bEff: w.bEff }), F = R.fams[S.fam];
-    if (!F || !(F.sp > 0.5)) {
-      el.innerHTML = '<div class="sra-roi"><span class="sra-roi-t">Revenue per $1 by state</span><span class="sra-roi-n">no ad spend on file for '
-        + esc(S.fam || "this source") + " in the period — revenue per $1 needs spend.</span>" + go + "</div>";
+    var go = '<a class="sra-roi-go" href="#page=marketing-roi&tab=dr&src=' + encodeURIComponent(S.fam || "") + '">Open in Return on Investment ↗</a>';
+    var headH = function (note) {
+      return '<div class="panel-head"><span class="panel-title">Revenue per $1 by state</span>'
+        + (note ? '<span class="sra-sub">' + note + "</span>" : "") + '<span class="spacer"></span>' + go + "</div>";
+    };
+    var Q = roiNow(w);
+    if (!Q) { el.innerHTML = headH("") + '<div class="sra-empty">Reading the ad ledger…</div>'; return; }
+    if (Q.x == null) {
+      el.innerHTML = headH("") + '<div class="sra-empty">No ad spend on file for ' + esc(S.fam || "this source")
+        + " in the period, so there is nothing to divide revenue by.</div>";
       return;
     }
-    var placed = 0, revAll = 0;
-    var cells = Object.keys(F.st).map(function (s0) { var c = F.st[s0]; revAll += c.rev; if (c.sp > 0) placed += c.sp; return { s: s0, c: c }; })
-      .filter(function (x) { return x.c.sp > 0; }).sort(function (a, b) { return b.c.sp - a.c.sp; });
-    var chip = function (label, rev, sp, small) {
-      var x = rev / sp, cls = small ? "sm" : x >= 5 ? "hi" : x < 2 ? "lo" : "";
-      return '<span class="sra-roi-c ' + cls + '" title="' + esc(money0(sp) + " placed · " + money0(rev) + " revenue" + (small ? " — under $500, too little to rate" : ""))
-        + '">' + esc(label) + " <b>" + x.toFixed(1) + "×</b></span>";
+    var F = Q.F, R = Q.R, placed = 0;
+    var cells = Object.keys(F.st).map(function (s0) { var c = F.st[s0]; if (c.sp > 0) placed += c.sp; return { s: s0, c: c, x: c.sp > 0 ? c.rev / c.sp : 0 }; })
+      .filter(function (x) { return x.c.sp > 0; })
+      .sort(function (a, b) { return (a.c.sp < SMALL_SPEND) - (b.c.sp < SMALL_SPEND) || b.x - a.x; });
+    var top = Math.max(Q.x, 1);
+    cells.forEach(function (x) { if (x.c.sp >= SMALL_SPEND) top = Math.max(top, x.x); });
+    var avg = (100 * Q.x / top).toFixed(1);
+    el.innerHTML = headH("all states <b>" + Q.x.toFixed(1) + "×</b>")
+      + '<div class="sra-roi2">' + cells.map(function (x) {
+          var small = x.c.sp < SMALL_SPEND, lab = x.s === OTHER_ST ? "Other" : x.s;
+          return '<div class="sra-rr" title="' + esc(money0(x.c.sp) + " placed · " + money0(x.c.rev) + " revenue"
+              + (small ? " (under $500, too little to rate)" : "")) + '"><span class="sra-rl">' + esc(lab) + "</span>"
+            + '<span class="sra-rt"><i class="sra-ravg" style="left:' + avg + '%"></i>'
+            + (small ? "" : '<i class="sra-rb" style="width:' + Math.max(x.x ? 0.8 : 0, 100 * x.x / top).toFixed(1) + '%"></i>') + "</span>"
+            + '<span class="sra-rv' + (small ? " sm" : "") + '">' + x.x.toFixed(1) + "×" + (small ? " · under $500" : "") + "</span></div>";
+        }).join("") + "</div>"
+      + '<div class="sra-note">' + money0(placed) + " of " + money0(F.sp) + " placed in a state"
+      + (F.unpl > 0.5 ? " · " + money0(F.unpl) + " not placed yet" : "") + (R.clipped ? " · ledger through " + esc(niceDay(R.e)) : "")
+      + " · the dashed line is all states</div>";
+  }
+
+  /* ---- the headline sentence and the five tiles: the source as a whole, every filter applied ---- */
+  function cmpWords(cw) { return cw && cw.label === "vs previous period" ? "the previous period" : "the same period last year"; }
+  function cmpShort(cw) { return cw && cw.label === "vs previous period" ? "previous period" : "last year"; }
+  function shortDay(s) {
+    var d = new Date(s + "T12:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+  /* the kit's delta object (RSC.kpis): counts as a percentage, rates in points; `thin` mutes it */
+  function kd(cur, prev, kind, thin) {
+    if (cur == null || prev == null || isNaN(cur) || isNaN(prev)) return null;
+    var d, txt;
+    if (kind === "pp") {
+      d = (cur - prev) * 100;
+      if (Math.abs(d) < 0.05) return { text: "± 0 pts", dir: "flat", good: null };
+      txt = Math.abs(d).toFixed(1) + " pts";
+    } else {
+      if (!prev) return cur ? { text: "new", dir: "flat", good: null } : null;
+      d = cur / prev - 1;
+      if (Math.abs(d) < 0.0005) return { text: "± 0%", dir: "flat", good: null };
+      txt = Math.abs(d * 100).toFixed(Math.abs(d) < 0.1 ? 1 : 0) + "%";
+    }
+    return { text: txt, dir: d > 0 ? "up" : "down", good: thin ? null : d > 0 };
+  }
+  function pctWords(cur, prev) {
+    var d = cur / prev - 1, p = Math.abs(d * 100);
+    return (p < 1 ? p.toFixed(1) : Math.round(p)) + "%";
+  }
+  function paintTop(host, w, cw, leadsSt) {
+    var hl = host.querySelector("#sraHl"), kp = host.querySelector("#sraKpis");
+    if (!hl || !kp) return;
+    var rows = leadsSt.filter(mtOk);
+    var f = funnel(rows, w.a, w.b), p = cw ? funnel(rows, cw.a, cw.b) : null;
+    var Q = roiNow(w), fam = S.fam || "This source";
+    // the sentence: what happened, in words, with the numbers (the plan's part 3)
+    var s = "<b>" + esc(fam) + "</b>" + (S.camp ? " · " + esc(S.camp) : "") + " sent <b>" + fmtN(f.leads) + "</b> lead"
+      + (f.leads === 1 ? "" : "s") + (w.open ? " in all" : " in this period");
+    if (p && p.leads && f.leads !== p.leads) s += ", " + pctWords(f.leads, p.leads) + (f.leads < p.leads ? " fewer" : " more") + " than " + cmpWords(cw);
+    s += ", and <b>" + fmtN(f.conf) + "</b> confirmed booking" + (f.conf === 1 ? "" : "s");
+    if (p && p.conf && f.conf !== p.conf) s += ", " + (f.conf < p.conf ? "down " : "up ") + pctWords(f.conf, p.conf);
+    s += ".";
+    if (!S.mts.size) {
+      var sd = SIDES0.map(function (x) { return { n: x[1], f: funnel(rows.filter(function (r) { return r["Moving Type"] === x[0]; }), w.a, w.b) }; });
+      if (sd[0].f.qual >= THIN && sd[1].f.qual >= THIN && sd[0].f.br != null && sd[1].f.br != null) {
+        var lo = sd[0].f.br <= sd[1].f.br ? sd[0] : sd[1], hi = lo === sd[0] ? sd[1] : sd[0];
+        if (lo.f.br < hi.f.br / 2) s += " " + esc(lo.n) + " is the weak spot: " + fmtN(lo.f.conf) + " booking" + (lo.f.conf === 1 ? "" : "s")
+          + " from " + fmtN(lo.f.qual) + " qualified leads.";
+      }
+    }
+    if (Q && Q.x != null) s += " Ad money came back <b>" + Q.x.toFixed(1) + "×</b> as revenue.";
+    hl.innerHTML = s;
+    var thin = (f.qual > 0 && f.qual < THIN) || (p && p.qual > 0 && p.qual < THIN);
+    var was = function (v, fmt, none) { return p ? cmpShort(cw) + " " + fmt(v) : none; };
+    RSC.kpis(kp, [
+      { label: "Leads", value: fmtN(f.leads), delta: p && kd(f.leads, p.leads), sub: was(p && p.leads, fmtN, "created in the period") },
+      { label: "Qualified", value: fmtN(f.qual), delta: p && kd(f.qual, p.qual), sub: was(p && p.qual, fmtN, "not dead") },
+      { label: "Confirmed", value: fmtN(f.conf), delta: p && kd(f.conf, p.conf), sub: was(p && p.conf, fmtN, "booked in the period"),
+        title: "bookings made in the period, some from leads created before it" },
+      { label: "Booking rate", value: pct1(f.br), delta: p && kd(f.br, p.br, "pp", thin),
+        sub: (thin ? "small sample · " : "") + fmtN(f.conf) + " / " + fmtN(f.qual) + (p ? " · " + cmpShort(cw) + " " + pct1(p.br) : "") },
+      { label: "Revenue per $1", value: Q && Q.x != null ? Q.x.toFixed(1) + "×" : "—",
+        sub: !Q ? "reading the ad ledger…" : Q.x == null ? "no ad spend in the period" : money0(Q.F.sp) + " ad spend",
+        title: "follows Source, Company and Period; the ad ledger has no state, size, rep or move type" },
+    ]);
+  }
+
+  /* ---- Local and long distance in ONE table (it was two cards of four tiles, a funnel and two
+     paragraphs each). Same numbers; the comparison sits in its own column. ---- */
+  function paintCompare(host, w, cw, leadsSt) {
+    var el = host.querySelector("#sraCmpT");
+    if (!el) return;
+    var all = funnel(leadsSt, w.a, w.b);
+    var SIDES = SIDES0.filter(function (s) { return !S.mts.size || S.mts.has(s[0]); });
+    var cols = SIDES.map(function (s) {
+      var rows = leadsSt.filter(function (r) { return r["Moving Type"] === s[0]; });
+      return { n: s[1], f: funnel(rows, w.a, w.b), p: cw ? funnel(rows, cw.a, cw.b) : null };
+    });
+    var dash = '<span class="sra-thin">—</span>';
+    var line = function (label, get, fmt, kind, title, cls) {
+      return "<tr" + (cls ? ' class="' + cls + '"' : "") + (title ? ' title="' + esc(title) + '"' : "") + "><td>" + label + "</td>"
+        + cols.map(function (c) {
+          var v = get(c.f, c), pv = c.p ? get(c.p, c) : null;
+          var vs = "";
+          if (cw) vs = '<td class="num">' + (kind && c.p ? delta(v, pv, kind, kind === "pp" && thinAny(c.f.qual, c.p.qual) ? null : undefined)
+            + ' <span class="sra-thin">' + fmt(pv, c.p) + "</span>" : dash) + "</td>";
+          return '<td class="num">' + fmt(v, c.f) + "</td>" + vs;
+        }).join("") + "</tr>";
     };
-    el.innerHTML = '<div class="sra-roi"><span class="sra-roi-t">Revenue per $1 by state</span>'
-      + cells.map(function (x) { return chip(x.s === OTHER_ST ? "Other" : x.s, x.c.rev, x.c.sp, x.c.sp < SMALL_SPEND); }).join("")
-      + chip("all states", revAll, F.sp, false)
-      + '<span class="sra-roi-n">' + money0(placed) + " of " + money0(F.sp) + " placed in a state"
-      + (F.unpl > 0.5 ? " · " + money0(F.unpl) + " not placed yet" : "") + (R.clipped ? " · ledger through " + esc(niceDay(R.e)) : "") + "</span>"
-      + go + "</div>";
+    var share = function (f) { return all.leads ? f.leads / all.leads : null; };
+    var rate = function (v, f) { return f ? pct1(v) + (f.qual > 0 && f.qual < THIN ? ' <em class="sra-ss">small sample</em>' : "") : pct1(v); };
+    el.innerHTML = '<div class="panel-head"><span class="panel-title">Local and long distance</span>'
+      + (cw ? '<span class="sra-sub">' + esc(cmpShort(cw)) + " in grey</span>" : "") + "</div>"
+      + '<div class="rs-tablewrap"><table class="rs-table sra-cmpt"><thead><tr><th></th>'
+      + cols.map(function (c) { return '<th class="num">' + esc(c.n) + "</th>" + (cw ? '<th class="num">vs ' + esc(cmpShort(cw)) + "</th>" : ""); }).join("")
+      + "</tr></thead><tbody>"
+      + line("Share of leads", share, pct1)
+      + line("Leads", function (f) { return f.leads; }, fmtN, "pct")
+      + line("Qualified", function (f) { return f.qual; }, fmtN, "pct")
+      + line("Confirmed", function (f) { return f.conf; }, fmtN, "pct", "bookings made in the period, some from leads created before it")
+      + line("Booking rate", function (f) { return f.br; }, rate, "pp")
+      + line("Dead leads", function (f) { return f.dead; }, function (v, f) { return f ? fmtN(v) + ' <span class="sra-thin">' + pct1(f.leads ? v / f.leads : null) + "</span>" : fmtN(v); })
+      + '<tr class="sra-grp"><td colspan="' + (1 + cols.length * (cw ? 2 : 1)) + '">This period\'s own leads, as they stand today</td></tr>'
+      + line("Booked", function (f) { return f.cBooked; }, fmtN, null, null, "sra-cohort-r")
+      + line("Moved", function (f) { return f.moved; }, fmtN, null, null, "sra-cohort-r")
+      + line("Billed", function (f) { return f.billed; }, money0, null, null, "sra-cohort-r")
+      + line("Still open", function (f) { return f.open; }, fmtN, null, null, "sra-cohort-r")
+      + "</tbody></table></div>";
+  }
+
+  /* ---- How it's counted: the page's method, written for the numbers on screen NOW ---- */
+  function howHtml() {
+    var w = win(), cw = cmpWin(w), pack = famPack();
+    return "<h3>What this page is reading</h3><p>" + leadSentence(w, cw, pack) + "</p>"
+      + "<h3>Confirmed and booking rate</h3><p>Confirmed counts the bookings <b>made</b> in the period, some from leads "
+      + "created before it, so in a short period it can pass Qualified. Booking rate is confirmed ÷ qualified; under "
+      + THIN + " qualified leads it says <b>small sample</b> and its change is drawn grey. The rows under "
+      + "<b>This period's own leads</b> follow only the leads created in the period: how many of them are booked, "
+      + "moved and billed today.</p>"
+      + "<h3>Dead leads</h3><p>A lead's current status. Its reason is the rep's disposition (Flag), often set after a "
+      + "quote, so a dead lead is not one that left before qualifying. The reasons are charted under Breakdowns.</p>"
+      + "<h3>Revenue per $1</h3><p>Revenue per $1 of ads, by the state the money was placed in: the same shared "
+      + 'calculation as <a href="#page=marketing-roi">Return on Investment</a>, where the spend and its drills live. It '
+      + "follows Source, Company and Period only. The Filters panel's state, size, rep and move type do not reach it, "
+      + "because the ad ledger has none of them. A state with under $500 placed is listed but not rated.</p>"
+      + "<h3>Where a lead's source comes from</h3><p>Every lead links to "
+      + '<a href="#page=source-trace">Source Trace</a> for why it counts as this source. Google, Google Local and '
+      + "ChatGPT are told apart by the tags in the website-form export, loaded weekly.</p>";
   }
 
   /* ---- the control bar ---- */
@@ -678,14 +815,13 @@
       + "after that date are incomplete.</div>";
   }
 
-  /* ---- the sentence under the bar: what is being read, and the traps it avoids ---- */
-  function paintLead(host, w, cw, pack, leadsSt) {
-    var el = host.querySelector("#sraLead");
+  /* ---- what is being read, and the traps it avoids (How it's counted, since ZTZ-80) ---- */
+  function leadSentence(w, cw, pack) {
     var labels = {};
     pack.leads.forEach(function (r) { if (inR(r._cd, w.a, w.b) && r.Source) labels[r.Source] = 1; });
     var lab = Object.keys(labels).sort();
     var through = DATA.maxDay ? " Leads on file through <b>" + esc(niceDay(DATA.maxDay)) + "</b>." : "";
-    el.innerHTML = "<b>" + esc(S.fam || "—") + "</b>" + (S.camp ? " · " + esc(S.camp) : "")
+    return "<b>" + esc(S.fam || "—") + "</b>" + (S.camp ? " · " + esc(S.camp) : "")
       + " · " + (S.co ? esc(S.co) : "both companies") + " · "
       + (w.open ? "all time" : esc(niceDay(w.a)) + " – " + esc(niceDay(w.b)))
       + (cw ? " · compared " + esc(cw.label.replace(/^vs /, "with the ")) + " (" + esc(niceDay(cw.a))
@@ -696,87 +832,7 @@
       + ' Every lead links to <a href="#page=source-trace">Source Trace</a> for why it counts as this source.';
   }
 
-  /* ---- Local | Long distance, side by side ---- */
-  function paintSides(host, w, cw, leadsSt) {
-    var wrap = host.querySelector("#sraSides");
-    var all = funnel(leadsSt, w.a, w.b);
-    // Local / Long distance in the panel shows the side(s) picked; the share stays of all leads
-    var SIDES = SIDES0.filter(function (s) { return !S.mts.size || S.mts.has(s[0]); });
-    wrap.innerHTML = SIDES.map(function (s, i) {
-      return '<div class="panel sra-side"><div class="panel-head"><span class="panel-title">'
-        + esc(s[1]) + '</span><span class="rs-pill mute" data-share="' + i + '"></span></div>'
-        + '<div class="rs-kpis" data-k="' + i + '"></div><div data-f="' + i + '"></div></div>';
-    }).join("");
-    SIDES.forEach(function (s, i) {
-      var rows = leadsSt.filter(function (r) { return r["Moving Type"] === s[0]; });
-      var f = funnel(rows, w.a, w.b);
-      var p = cw ? funnel(rows, cw.a, cw.b) : null;
-      var share = all.leads ? f.leads / all.leads : null;
-      wrap.querySelector('[data-share="' + i + '"]').textContent =
-        share == null ? "no leads" : pct1(share).replace(".0%", "%") + " of leads";
-      var sub = function (v, fmt) { return p ? (cw.label.replace("vs ", "") + ": " + fmt(v)) : ""; };
-      RSC.kpis(wrap.querySelector('[data-k="' + i + '"]'), [
-        { label: "Leads", value: fmtN(f.leads) + (p ? delta(f.leads, p.leads, "pct") : ""),
-          sub: sub(p && p.leads, fmtN) || "created in the period" },
-        { label: "Qualified", value: fmtN(f.qual) + (p ? delta(f.qual, p.qual, "pct") : ""),
-          sub: sub(p && p.qual, fmtN) || "not dead" },
-        { label: "Confirmed", value: fmtN(f.conf) + (p ? delta(f.conf, p.conf, "pct") : ""),
-          sub: sub(p && p.conf, fmtN) || "booked in the period" },
-        // 2026-09-23: a small sample says so in words, and its ▲/▼ is drawn muted (either side
-        // under THIN) -- 2 of 15 vs 2 of 6 is not a 20-point fall anybody should act on
-        { label: "Booking rate",
-          value: pct1(f.br) + (p ? delta(f.br, p.br, "pp",
-                                         thinAny(f.qual, p.qual) ? null : undefined) : ""),
-          sub: (f.qual && f.qual < THIN ? "small sample · " : "")
-               + fmtN(f.conf) + " confirmed / " + fmtN(f.qual) + " qualified"
-               + (p ? " · " + cw.label.replace("vs ", "") + ": " + pct1(p.br)
-                    + (p.qual && p.qual < THIN ? " (small sample)" : "") : ""),
-          tone: f.qual && f.qual < THIN ? "warn" : "" },
-      ]);
-      wrap.querySelector('[data-f="' + i + '"]').innerHTML = funnelHtml(f);
-    });
-  }
-
   function thinAny(a, b) { return (a > 0 && a < THIN) || (b > 0 && b < THIN); }
-
-  function funnelHtml(f) {
-    if (!f.leads && !f.conf) return '<div class="sra-empty">No leads in this period.</div>';
-    var base = Math.max(f.leads, 1);
-    var bar = function (n, cls) {
-      return '<span class="sra-fb"><i class="' + cls + '" style="width:'
-        + Math.max(n ? 1.5 : 0, Math.min(100, 100 * n / base)).toFixed(1) + '%"></i></span>';
-    };
-    var top = Object.keys(f.reasons).map(function (k) { return [k, f.reasons[k]]; })
-      .sort(function (a, b) { return b[1] - a[1]; });
-    var shown = top.slice(0, 4);
-    var rest = top.slice(4).reduce(function (a, x) { return a + x[1]; }, 0);
-    return '<div class="sra-fn">'
-      + '<div class="sra-fr"><span class="sra-fl">Leads</span>' + bar(f.leads, "c-lead")
-      + '<span class="sra-fv">' + fmtN(f.leads) + "</span></div>"
-      + '<div class="sra-fr"><span class="sra-fl">Qualified</span>' + bar(f.qual, "c-qual")
-      + '<span class="sra-fv">' + fmtN(f.qual) + "<em>" + (f.leads ? pct1(f.qual / f.leads) : "—")
-      + " of leads</em></span></div>"
-      // 2026-09-23 review: bookings MADE in the period (some from earlier leads), so in a
-      // short window it can pass Qualified; the label says so instead of passing as a subset
-      + '<div class="sra-fr" title="bookings made in the period, including leads created before it'
-      + (f.conf > f.leads ? " -- more than the period's own leads, so the bar is full" : "")
-      + '"><span class="sra-fl">Confirmed<small>booked in period</small></span>' + bar(f.conf, "c-conf")
-      + '<span class="sra-fv">' + fmtN(f.conf) + "<em>" + rateHtml(f.conf, f.qual) + "</em></span></div>"
-      + (f.dead
-          // the lead's CURRENT status -- often set after a quote ("price exceeded their budget"),
-          // so not "left before qualifying" (2026-09-23 review)
-          ? '<div class="sra-exit"><b>Dead · ' + fmtN(f.dead) + "</b> (" + pct1(f.dead / base)
-            + " of leads), by reason: "
-            + shown.map(function (x) { return esc(x[0]) + " <b>" + fmtN(x[1]) + "</b>"; }).join(" · ")
-            + (rest ? " · other reasons <b>" + fmtN(rest) + "</b>" : "") + "</div>"
-          : "")
-      + "</div>"
-      + '<div class="sra-cohort">Of the <b>' + fmtN(f.leads) + "</b> leads created in the period: <b>"
-      + fmtN(f.cBooked) + "</b> booked · <b>" + fmtN(f.moved) + "</b> moved · <b>" + money0(f.billed)
-      + "</b> billed · <b>" + fmtN(f.open) + "</b> still open. "
-      + '<span class="sra-thin">Confirmed above counts bookings MADE in the period (some from '
-      + "earlier leads); this line follows the period's own leads.</span></div>";
-  }
 
   /* ---- the four breakdowns + why leads die ---- */
   function monthsOf(a, b) {

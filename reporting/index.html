@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="38ffbb905334690ffeb3aff5abaccb131bc7358e">
+<meta name="ztz-ref" content="a291f1e0e2809152cf93b4238922746bf6c11f8b">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -87,7 +87,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=41">
+<link rel="stylesheet" href="assets/rs.css?v=42">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -185,7 +185,7 @@ body.rs-viewas .rs-layout{box-shadow:inset 0 0 0 2px #7c3aed}
 
 <script src="assets/portal.js?v=13"></script>
 <script src="assets/rs-core.js?v=65"></script>
-<script src="assets/rs-components.js?v=40"></script>
+<script src="assets/rs-components.js?v=42"></script>
 <script src="assets/email-designer.js?v=4"></script>
 <script src="assets/bug-report.js?v=1"></script>
 <script>
@@ -1264,6 +1264,8 @@ function navigate(id, push) {
   const mAct = m ? page.id + ":" + leaf : null;
   // keep the ACTIVE TAB in the hash so copied links reopen the same view (C32)
   if (push !== false) location.hash = "page=" + (mAct || page.id);
+  // the sidebar's Recent list (ZTZ-80); never allowed to stop a navigation
+  try { rememberRecent(page.id); paintQuickNav(); } catch (e) {}
   document.querySelectorAll(".rs-nav-item").forEach(n =>
     n.classList.toggle("active", n.dataset.id === page.id || (mAct != null && n.dataset.id === mAct)));
   showAccessBanner(deniedTitle);
@@ -1372,25 +1374,17 @@ async function renderPage() {
   host.classList.remove("rs-enter");
   void host.offsetWidth;
   host.classList.add("rs-enter");
-  host.innerHTML = `<div class="rs-loading"><div>Loading <b>${RSC.esc(CURRENT.title)}</b>…</div><div class="bar"><i></i></div></div>`;
+  // the page standard's skeleton (ZTZ-80): the shape of a page, not a sentence and a bar
+  RSC.loading(host, CURRENT.title);
   // the feed warning belongs to the page being OPENED -- set it now, or the last page's warning
   // sits over this one for as long as it takes to load
   updateFeedWarn();
   try {
     await CURRENT.render(host);
   } catch (e) {
-    // human words first, the raw error folded away, and a Retry that actually retries (C42)
-    host.innerHTML = `<div class="rs-loading"><div style="max-width:440px;text-align:center">
-      <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px">This report couldn't load</div>
-      <div style="line-height:1.6">Usually a brief connection problem — trying again fixes it.
-        If it keeps failing, tell <b style="color:var(--muted)">Tornike</b>.</div>
-      <button class="btn on" id="pageRetry" style="margin-top:14px">Try again</button>
-      <details style="margin-top:12px;font-size:11.5px;color:var(--faint)">
-        <summary style="cursor:pointer">Technical details</summary>
-        <div style="margin-top:6px;word-break:break-all">${RSC.esc(e.message)}</div></details>
-    </div></div>`;
-    const rb = host.querySelector("#pageRetry");
-    if (rb) rb.onclick = () => renderPage();
+    // human words first, the raw error folded away, and a Retry that actually retries (C42);
+    // the kit's one error card since ZTZ-80
+    RSC.failed(host, { error: e.message, onRetry: () => renderPage() });
     console.error(e);
   }
   // "a page has finished drawing": the lead file (sales-team.js) listens, so a link that carries
@@ -1593,6 +1587,7 @@ function buildNav() {
       }
     });
     display.sort((a, b) => (NAV_ORDER[a.id] || 50) - (NAV_ORDER[b.id] || 50));
+    if (!(ADMIN_GROUPS.has(g.key) && !(ME && ME.admin))) display.forEach(p => { if (!NAV_INDEX[p.id]) NAV_INDEX[p.id] = p; });
     const items = display.filter(p => p.search.toLowerCase().includes(q));
     const planned = PLANNED.filter(p => p.group === g.key && p.title.toLowerCase().includes(q));
     if (!items.length && !planned.length) return;
@@ -1618,11 +1613,7 @@ function buildNav() {
       box.classList.toggle("collapsed");
     };
     items.forEach(p => {
-      const a = RSC.el("div", "rs-nav-item" + (CURRENT && CURRENT.id === p.id ? " active" : ""),
-        icon(p.iconKey) + RSC.esc(p.title));
-      a.dataset.id = p.id;
-      a.onclick = () => { SOLO_VIEW = p.solo ? p.id : null; navigate(p.id); };
-      box.appendChild(a);
+      box.appendChild(navItemEl(p));
       // merged hubs list their tabs as indented sub-items (e.g. Angi under Lead Source Analysis)
       (p.children || []).forEach(ch => {
         const sub = RSC.el("div", "rs-nav-item rs-nav-sub" +
@@ -1636,6 +1627,56 @@ function buildNav() {
     planned.forEach(p => box.appendChild(RSC.el("div", "rs-nav-item disabled",
       icon(PAGE_ICONS[p.title]) + RSC.esc(p.title) + `<span class="soon">SOON</span>`)));
     navHost.appendChild(box);
+  });
+  try { paintQuickNav(); } catch (e) {}   // a convenience: it never costs the sidebar itself
+}
+
+/* PINNED + RECENT (ZTZ-80, his approved plan 13 Nov 2026): two short lists at the top of the
+   sidebar. Kept per browser (localStorage), so the bridge stores nothing new, and built only
+   from NAV_INDEX -- the pages this person can open -- so a revoked page drops out by itself. */
+const NAV_INDEX = {};
+const PIN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5M9 3h6l-1 6 3 3H7l3-3z"/></svg>';
+function navStore(k) {
+  try { const v = JSON.parse(localStorage.getItem(k) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string") : []; }
+  catch (e) { return []; }
+}
+function navSave(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function navItemEl(p) {
+  const pinned = navStore("rsNavPinned").indexOf(p.id) >= 0;
+  const a = RSC.el("div", "rs-nav-item" + (CURRENT && CURRENT.id === p.id ? " active" : ""),
+    icon(p.iconKey) + '<span class="rs-nav-t">' + RSC.esc(p.title) + "</span>"
+    + `<button type="button" class="rs-pin${pinned ? " on" : ""}" aria-label="${pinned ? "Unpin" : "Pin to the top"}" title="${pinned ? "Unpin" : "Pin to the top"}">${PIN_SVG}</button>`);
+  a.dataset.id = p.id;
+  a.onclick = () => { SOLO_VIEW = p.solo ? p.id : null; navigate(p.id); };
+  a.querySelector(".rs-pin").onclick = e => { e.stopPropagation(); togglePin(p.id); };
+  return a;
+}
+function togglePin(id) {
+  const p = navStore("rsNavPinned"), i = p.indexOf(id);
+  if (i >= 0) p.splice(i, 1); else p.push(id);
+  navSave("rsNavPinned", p);
+  buildNav();
+}
+function rememberRecent(id) {
+  if (!id || !NAV_INDEX[id]) return;
+  const r = navStore("rsNavRecent").filter(x => x !== id);
+  r.unshift(id);
+  navSave("rsNavRecent", r.slice(0, 8));
+}
+function paintQuickNav() {
+  const navHost = document.getElementById("nav");
+  if (!navHost) return;
+  navHost.querySelectorAll(".rs-quick").forEach(n => n.remove());
+  if ((document.getElementById("navSearch").value || "").trim()) return;
+  const cur = CURRENT && CURRENT.id;
+  const pinned = navStore("rsNavPinned").filter(id => NAV_INDEX[id]);
+  // Recent = where you were before this page: the open page is already lit in its group
+  const recent = navStore("rsNavRecent").filter(id => NAV_INDEX[id] && id !== cur && pinned.indexOf(id) < 0).slice(0, 4);
+  [["Recent", recent], ["Pinned", pinned]].forEach(([t, ids]) => {
+    if (!ids.length) return;
+    const box = RSC.el("div", "rs-group rs-quick", `<div class="g-title">${t}</div>`);
+    ids.forEach(id => box.appendChild(navItemEl(NAV_INDEX[id])));
+    navHost.insertBefore(box, navHost.firstChild);
   });
 }
 
@@ -2451,7 +2492,7 @@ registerPage({
 <script src="pages/source-trace.js?v=30"></script>
 <script src="pages/marketing-overview.js?v=37"></script>
 <script src="pages/roi-core.js?v=3"></script>
-<script src="pages/source-report.js?v=16"></script>
+<script src="pages/source-report.js?v=17"></script>
 <script src="pages/marketing-roi.js?v=3"></script>
 <script src="pages/meta-referrals.js?v=4"></script>
 <script src="pages/jobs-by-area.js?v=7"></script>
@@ -2484,7 +2525,7 @@ registerPage({
 <script src="pages/bo-salary.js?v=5"></script>
 <script src="pages/crew-pay-compare.js?v=18"></script>
 <script src="pages/day-closing.js?v=12"></script>
-<script src="pages/money-flow.js?v=81"></script>
+<script src="pages/money-flow.js?v=82"></script>
 <script src="pages/ld-planning.js?v=85"></script>
 <script src="pages/cleanup.js?v=41"></script>
 <script src="pages/packing-control.js?v=24"></script>
