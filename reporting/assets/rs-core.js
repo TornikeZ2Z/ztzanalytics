@@ -171,7 +171,9 @@ window.RS = (function () {
       // whole table download. The bridge silently drops unknown cols, so if a pipeline re-run
       // loses these flags the packing/storage cost panels degrade — nothing else breaks.
       cols: ["Company", "Transaction Date", "Expense Category", "Provider", "Amount",
-        "Is Advertising", "Is Storage Cost", "Is Packing Material Cost", "Source", "Record Source"],
+        "Is Advertising", "Is Storage Cost", "Is Packing Material Cost", "Source", "Record Source",
+        // the ledger's state account for Yelp ("Yelp-NJ"...): the Monthly Report's ROI splits Yelp by state (ZTZ-74)
+        "Sub Category"],
       dateCols: { "Transaction Date": "Transaction Date" }, defaultDate: "Transaction Date",
     },
     callrail: {

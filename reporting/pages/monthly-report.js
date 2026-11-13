@@ -2460,31 +2460,59 @@ async function renderMonthly(host, MRCFG) {
       const g = section("Marketing ROI", "ad spend and what it returns");
       // ===== RETURN (headline) =====
       // ad feed splits post cards by state ("Post Card - MA/DE/NJ…") while bookings pool them as "Post Card" — align both sides so ROI isn't falsely 0×
-      const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : (blank(s) ? "—" : String(s));
-      const adSrcMonth = (y, m) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = normSrc(r.Source); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
-      const bySrcMonth = (measure, y, m) => { const o = {}; segSeries("closing", measure, "Source", y, m).forEach(r => { const k = normSrc(r.k); o[k] = (o[k] || 0) + r.v; }); return o; };
+      // Yelp's ledger labels ("Yelp-DE" as a Source) pool with plain Yelp here; split by state below (ZTZ-74)
+      const normSrc = s => /post\s*card/i.test(String(s)) ? "Post Card" : /^yelp\b/i.test(String(s)) ? "Yelp" : (blank(s) ? "—" : String(s));
+      /* YELP BY STATE (13 Nov 2026, ZTZ-74, Gvantsa's "Yelp by state in the monthly report's ROI"). The ledger
+         books Yelp per state account (Sub Category "Yelp-NJ", "Yelp-PA"..., or the Source itself "Yelp-DE"), so
+         the by-source table can set each state's Yelp revenue against that state's Yelp spend. A state with no
+         Yelp account of its own, and Yelp charges with no state, read as "Yelp · other". Only the by-source
+         table and its charts split (split = true): the multi-year tables keep one Yelp row, because the ledger
+         did not label Yelp by state in the earlier years. */
+      const yelpSt = r => { const m = /yelp[-\s]*([A-Z]{2})\b/i.exec(String(r["Sub Category"] || "") + " " + String(r.Source || "")); return m ? m[1].toUpperCase() : null; };
+      const YELP_ST = new Set(); (DS.card_expenses || []).forEach(r => { if (/^yelp/i.test(String(r.Source || "")) && yelpSt(r)) YELP_ST.add(yelpSt(r)); });
+      const yelpKey = st => "Yelp · " + (st && YELP_ST.has(st) ? st : "other");
+      const adKey = (r, split) => { const k = normSrc(r.Source); return split && k === "Yelp" ? yelpKey(yelpSt(r)) : k; };
+      const adSrcMonth = (y, m, split) => { const o = {}; (reduceMonth("card_expenses", y, m, rs => rs.filter(r => Number(r["Is Advertising"]) === 1)) || []).forEach(r => { const s2 = adKey(r, split); o[s2] = (o[s2] || 0) + num(r.Amount); }); return o; };
+      const bySrcMonth = (measure, y, m, split) => { const o = {}; segSeries("closing", measure, "Source", y, m).forEach(r => {
+        const k = normSrc(r.k);
+        if (!(split && k === "Yelp")) { o[k] = (o[k] || 0) + r.v; return; }
+        const g = {}; r.rows.forEach(x => { const kk = yelpKey(String(x.State || "").trim().toUpperCase()); (g[kk] = g[kk] || []).push(x); });
+        Object.keys(g).forEach(kk => { const rs = g[kk], keys = new Set(rs.map(x => x["Unique Key"]).filter(u => u != null)); o[kk] = (o[kk] || 0) + (M[measure] ? M[measure].fn(rs, keys) || 0 : 0); });
+      }); return o; };
       // C25: the ad feed lags ~1 month — but only fall back to the PREVIOUS month when the
       // SELECTED month has no posted ad spend yet. An older report month shows its own ROI.
-      const adSel = adSrcMonth(curY, mo);
+      const adSel = adSrcMonth(curY, mo, true);
       const selHasSpend = Object.keys(adSel).some(k => adSel[k] > 0 && k !== "—");
       const roiY = selHasSpend ? curY : PMY, roiM = selHasSpend ? mo : PM, roiFellBack = !selHasSpend;
-      const adPM = selHasSpend ? adSel : adSrcMonth(roiY, roiM), revPMs = bySrcMonth("Revenue", roiY, roiM), opPMs = bySrcMonth("Operational Profit by Formula", roiY, roiM), jobPMs = bySrcMonth("Total Jobs", roiY, roiM);
-      const adLYr = adSrcMonth(roiY - 1, roiM), revLYr = bySrcMonth("Revenue", roiY - 1, roiM);
+      const adPM = selHasSpend ? adSel : adSrcMonth(roiY, roiM, true), revPMs = bySrcMonth("Revenue", roiY, roiM, true), opPMs = bySrcMonth("Operational Profit by Formula", roiY, roiM, true), jobPMs = bySrcMonth("Total Jobs", roiY, roiM, true);
+      const adLYr = adSrcMonth(roiY - 1, roiM, true), revLYr = bySrcMonth("Revenue", roiY - 1, roiM, true);
       const roiLbl = spanLbl(roiY, roiM, true);
       // a range whose LAST month has no ad spend posted yet: spend covers fewer months than revenue
       const adEnd = SPAN > 1 && selHasSpend ? monthly(() => adSrcMonth(curY, mo)) : null;
       const endNoAd = !!adEnd && !Object.keys(adEnd).some(k => adEnd[k] > 0 && k !== "—");
       // hide channels we no longer buy: only sources with ad spend in the CURRENT year appear in the ROI suite
-      const src2026 = new Set(); (DS.card_expenses || []).forEach(r => { if (coRow(r) && Number(r["Is Advertising"]) === 1 && String(r["Transaction Date"] || "").slice(0, 4) === String(curY) && num(r.Amount)) src2026.add(normSrc(r.Source)); });
-      const paidPM = Object.keys(adPM).filter(k => adPM[k] > 0 && k !== "—" && src2026.has(k)).sort((a, b) => adPM[b] - adPM[a]);
+      const src2026 = new Set(); (DS.card_expenses || []).forEach(r => { if (coRow(r) && Number(r["Is Advertising"]) === 1 && String(r["Transaction Date"] || "").slice(0, 4) === String(curY) && num(r.Amount)) { src2026.add(normSrc(r.Source)); src2026.add(adKey(r, true)); } });
+      /* NO LEADS TRACED (ZTZ-74 point 5, his "why do Quora and the like show in Sources"): the ledger marks
+         Quora, BBB, Pinterest, ChatGPT... as advertising, but no lead in MoveBoard this year carries their
+         source, so their row could only ever read 0x. They go into one "No leads traced" row (spend kept in
+         the total) instead of a column of zeros. */
+      const leadSrc = new Set(); (DS.moveboard || []).forEach(r => { if (coRow(r) && String(r["Create Date"] || "").slice(0, 4) === String(curY)) leadSrc.add(normSrc(r.Source)); });
+      const traced = k => leadSrc.has(/^Yelp · /.test(k) ? "Yelp" : k);
+      const paidAll = Object.keys(adPM).filter(k => adPM[k] > 0 && k !== "—" && src2026.has(k)).sort((a, b) => adPM[b] - adPM[a]);
+      const paidPM = paidAll.filter(traced), untraced = paidAll.filter(k => !traced(k));
       if (paidPM.length) {
         const roiRows = paidPM.map(k => { const roi = adPM[k] ? (revPMs[k] || 0) / adPM[k] : null; const roiLY = adLYr[k] ? (revLYr[k] || 0) / adLYr[k] : null; return { k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0, jobs: jobPMs[k] || 0, roi, roiLY, ppd: adPM[k] ? (opPMs[k] || 0) / adPM[k] : null }; });
-        const rt = roiRows.reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
+        // the untraced channels' spend still counts in "All paid": it is money spent on advertising
+        const un = untraced.map(k => ({ k, ad: adPM[k], rev: revPMs[k] || 0, op: opPMs[k] || 0 }));
+        const rt = roiRows.concat(un).reduce((a, r) => ({ ad: a.ad + r.ad, rev: a.rev + r.rev, op: a.op + r.op }), { ad: 0, rev: 0, op: 0 });
         const roiCol = v => v >= 5 ? POS : v >= 2 ? WARN : NEG;
         const growCell = r => { if (r.roi == null || r.roiLY == null || !r.roiLY) return td("—", "color:" + FAINT); const d2 = (r.roi - r.roiLY) / r.roiLY; return td(`${d2 >= 0 ? "▲" : "▼"} ${Math.abs(d2 * 100).toFixed(0)}%`, `color:${d2 >= 0 ? POS : NEG};font-weight:800`); };
         const yyR = String(roiY - 1).slice(2);
-        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>Ad Spend</th><th>Revenue</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(money(r.ad))}${td(money(r.rev))}${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? POS : r.ppd >= 1 ? WARN : NEG};font-weight:800`)}</tr>`).join("")}<tr class="tot"><td>All paid</td>${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
-        tableCard(g, "Return on ad spend by source", roiLbl + (roiFellBack ? " · latest fully-posted ad month" : ""), roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", noteKind: "how", note: `${endNoAd ? `<b>${endMon}'s ad spend has not posted yet</b> (the feed runs about a month behind), so spend here covers the earlier months while revenue covers all of ${esc(roiLbl)}; ROAS reads high until it lands. ` : ""}${roiFellBack ? `Ad spend posts ~1 month behind and ${perName}'s hasn't landed yet, so returns are shown for ${roiLbl} (the latest complete ad month) — ${perName}'s numbers fill in once the feed lands. ` : ""}ROAS = revenue ÷ ad spend; “ROAS vs '${yyR}” is the growth of that return vs the same month last year; Profit/$1 = gross profit per ad dollar (before refunds). Green ROAS ≥5×, amber ≥2×, red below. Post-card variants pooled.` });
+        // ROAS is the first column (ZTZ-74 point 4, Gvantsa: "ROAS should be the first column")
+        const unAd = un.reduce((a, r) => a + r.ad, 0);
+        const unRow = un.length ? `<tr><td>No leads traced <span style="font-weight:600;color:${FAINT}">· ${un.map(r => esc(r.k) + " " + money(r.ad)).join(" · ")}</span></td>${td("—", "color:" + FAINT)}${td("—", "color:" + FAINT)}${td(money(unAd))}${td(money(un.reduce((a, r) => a + r.rev, 0)))}${td("—", "color:" + FAINT)}</tr>` : "";
+        const roiHtml = `<table class="mrx-tbl"><thead><tr><th>Source</th><th>ROAS</th><th>ROAS vs '${yyR}</th><th>Ad Spend</th><th>Revenue</th><th>Profit / $1 ad</th></tr></thead><tbody>${roiRows.map(r => `<tr><td>${esc(r.k)}</td>${td(r.roi == null ? "—" : r.roi.toFixed(1) + "×", r.roi == null ? "" : `color:${roiCol(r.roi)};font-weight:800`)}${growCell(r)}${td(money(r.ad))}${td(money(r.rev))}${td(r.ppd == null ? "—" : "$" + fmt1(r.ppd), r.ppd == null ? "" : `color:${r.ppd >= 3 ? POS : r.ppd >= 1 ? WARN : NEG};font-weight:800`)}</tr>`).join("")}${unRow}<tr class="tot"><td>All paid</td>${td(rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—")}${td("")}${td(money(rt.ad))}${td(money(rt.rev))}${td(rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—")}</tr></tbody></table>`;
+        tableCard(g, "Return on ad spend by source", roiLbl + (roiFellBack ? " · latest fully-posted ad month" : ""), roiHtml, { icon: KIC.grid, headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") + " blended", noteKind: "how", note: `${endNoAd ? `<b>${endMon}'s ad spend has not posted yet</b> (the feed runs about a month behind), so spend here covers the earlier months while revenue covers all of ${esc(roiLbl)}; ROAS reads high until it lands. ` : ""}${roiFellBack ? `Ad spend posts ~1 month behind and ${perName}'s hasn't landed yet, so returns are shown for ${roiLbl} (the latest complete ad month) — ${perName}'s numbers fill in once the feed lands. ` : ""}ROAS = revenue ÷ ad spend; “ROAS vs '${yyR}” is the growth of that return vs the same month last year; Profit/$1 = gross profit per ad dollar (before refunds). Green ROAS ≥5×, amber ≥2×, red below. Post-card variants pooled. Yelp is split by its state accounts (Yelp-NJ, Yelp-PA…): each state's Yelp revenue against that account's spend; “Yelp · other” is Yelp spend with no state and Yelp revenue from states without an account of their own. “No leads traced” = channels we pay for that no lead in MoveBoard this year names as its source (Quora, BBB…), so they cannot have a return here; their spend still counts in All paid.` });
         // ===== 2 · EFFICIENCY ===== (headlines are BLENDED totals — summing per-channel ratios is meaningless)
         const totAdJobs = paidPM.reduce((a, k) => a + (jobPMs[k] || 0), 0);
         rankBars(g, "Gross profit per $1 of ad spend", paidPM.map(k => ({ k, v: adPM[k] ? (opPMs[k] || 0) / adPM[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), v => "$" + fmt1(v), { top: 10, sub: roiLbl, headVal: rt.ad ? "$" + fmt1(rt.op / rt.ad) : "—", noteKind: "how", note: "Each ad dollar's gross-profit return, by channel (before refunds) — the cleanest 'is this channel worth it' number. Headline = blended: total gross profit ÷ total ad spend." });
@@ -2492,7 +2520,7 @@ async function renderMonthly(host, MRCFG) {
         rankBars(g, "Ad cost per completed job", paidPM.map(k => ({ k, v: (jobPMs[k] || 0) > 0 ? adPM[k] / jobPMs[k] : 0 })).filter(r => r.v > 0).sort((a, b) => b.v - a.v), money, { top: 10, sub: roiLbl, headVal: totAdJobs ? money(rt.ad / totAdJobs) : "—", noteKind: "how", note: "Ad spend ÷ completed jobs, per source. Lower is better; the top of the list is where a job costs the most to win. Headline = blended: total ad spend ÷ total completed jobs." });
         // ===== 3 · TREND & SPEND =====
         const t3 = []; { let y = roiY, m = roiM; for (let i = 0; i < 3; i++) { t3.push([y, m]); m--; if (m < 1) { m = 12; y--; } } }
-        const adT3 = {}, revT3 = {}; monthly(() => t3.forEach(p => { const a = adSrcMonth(p[0], p[1]), rv = bySrcMonth("Revenue", p[0], p[1]); Object.keys(a).forEach(k => adT3[k] = (adT3[k] || 0) + a[k]); Object.keys(rv).forEach(k => revT3[k] = (revT3[k] || 0) + rv[k]); }));
+        const adT3 = {}, revT3 = {}; monthly(() => t3.forEach(p => { const a = adSrcMonth(p[0], p[1], true), rv = bySrcMonth("Revenue", p[0], p[1], true); Object.keys(a).forEach(k => adT3[k] = (adT3[k] || 0) + a[k]); Object.keys(rv).forEach(k => revT3[k] = (revT3[k] || 0) + rv[k]); }));
         const topPaid = paidPM.slice(0, 8);
         groupedBars(g, "ROAS — " + (SPAN === 1 ? "latest month" : "the period") + " vs last 3 months combined", topPaid, topPaid.map(k => adT3[k] ? (revT3[k] || 0) / adT3[k] : 0), "last 3 months combined", topPaid.map(k => adPM[k] ? (revPMs[k] || 0) / adPM[k] : 0), roiLbl, v => v.toFixed(1) + "×", { sub: "revenue ÷ ad spend · which channels are trending up", headVal: (rt.ad ? (rt.rev / rt.ad).toFixed(1) + "×" : "—") });
       }
