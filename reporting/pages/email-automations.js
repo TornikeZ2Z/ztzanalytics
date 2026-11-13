@@ -225,7 +225,7 @@
         const designs = kit().designs || {};
         const saved = it.template_draft && it.template_draft.blocks ? it.template_draft : it.template;
         const tpl = saved && saved.blocks ? saved : clone((designs.banner || designs.letter || {}).template || { subject: "", blocks: [] });
-        const aud = it.audience && it.audience.source ? it.audience : { source: "moves", scores: [9, 10], states: [], distance: "local", claims: "none", review: "any", support: "any", date_from: "", date_to: "" };
+        const aud = it.audience && it.audience.source ? it.audience : { source: "moves", scores: [9, 10], states: [], distance: "local", claims: "none", rise: "any", storage: "any", review: "any", support: "any", date_from: "", date_to: "" };
         const sch = it.schedule && "days_after" in it.schedule ? it.schedule : { days_after: 14, look_back: 46, run_hour: 10, daily_cap: 200, gap_days: 7 };
         return { name: it.name || "", purpose: it.purpose || "", owner: it.owner || "", category: it.category || (S.what === "single" ? "news" : "reviews"),
                  sender: it.sender || (S.what === "single" ? "hello" : "reviews"), mode: it.mode || "ask", template: clone(tpl), audience: clone(aud), schedule: clone(sch) };
@@ -643,6 +643,9 @@
         }
         // a claim on ANY of the customer's moves counts, found by email or phone (12 Nov, ZTZ-78)
         h += '<label class="l">Complaints</label>' + seg("claims", a.claims, [["none", "Leave out anyone with a complaint on any of their moves"], ["any", "Include them"]])
+          // a final bill 30%+ over MoveBoard's quote, and moves into storage (13 Nov, ZTZ-83; bridge/survey.py RISE_MIN)
+          + '<label class="l">Final bill vs estimate</label>' + seg("rise", a.rise || "any", [["exclude", "Leave out a final bill 30% or more over the estimate"], ["any", "Include them"]])
+          + '<label class="l">Storage</label>' + seg("storage", a.storage || "any", [["exclude", "Leave out moves that went into storage"], ["any", "Include them"]])
           + '<label class="l">Review written</label>' + seg("review", a.review, [["no", "Not yet"], ["yes", "Already reviewed"], ["any", "Either"]])
           + '<p class="eam-help">Always left out: no email address, unsubscribed, bounced, and ' + (S.what === "auto" ? "anyone this automation already emailed for the move." : "repeat addresses.") + "</p>"
           + navHtml() + '</div><div id="eamCount">' + countHtml() + "</div></div>";

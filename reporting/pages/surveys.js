@@ -507,21 +507,32 @@
       //   Already sent          one survey per move
       // TAKO'S RULE = the rating and claim choices in the panel (default 9-10, no claim): a move outside them
       // moves to "Left out by the rule" instead of vanishing. The other filters narrow every tab.
-      const RULE = () => ({ rating: new Set(["10", "9"]), claim: new Set(["None"]) });
-      const RULE_KEYS = ["rating", "claim"];
-      const AF = ["rating", "claim", "state", "mtype", "review", "surveyed"];
+      // 13 Nov (ZTZ-83): also a final bill RISE_MIN or more over MoveBoard's quote (his "if the bill is increased
+      // by 30% with estimate and final bill - then it should be excluded"; bridge/survey.py RISE_MIN) and any
+      // move into storage, ours or someone else's (Tako's ask).
+      const RISE_MIN = 0.30;
+      const RISE_P = Math.round(100 * RISE_MIN);
+      const RISE_OVER = RISE_P + "%+ over the estimate", RISE_UNDER = "Under " + RISE_P + "% over";
+      const RULE = () => ({ rating: new Set(["10", "9"]), claim: new Set(["None"]),
+                            rise: new Set([RISE_UNDER, "No estimate"]), storage: new Set(["No storage"]) });
+      const RULE_KEYS = ["rating", "claim", "rise", "storage"];
+      const AF = ["rating", "claim", "rise", "storage", "state", "mtype", "review", "surveyed"];
       if (!S.af || S.af.status) S.af = RULE();          // a tab opened before 11 Nov kept the old status filter
+      else RULE_KEYS.forEach(k => { if (!S.af[k]) S.af[k] = RULE()[k]; });   // a tab opened before 13 Nov
       if (!S.atab) S.atab = "will";
       const mtypeOf = r => (String(r.move_type_code || "").toUpperCase() === "LD" ? "Long-Distance Moving" : (r.form_move_type || "Local Moving"));
       const KEYS = {
         rating: r => (r.score == null || r.score === "" ? "No score" : String(+r.score)),
         claim: r => (r.complaints || r.other_claims ? "Has a complaint" : "None"),
+        rise: r => (r.bill_rise == null ? "No estimate" : r.bill_rise >= RISE_MIN - 1e-9 ? RISE_OVER : RISE_UNDER),
+        storage: r => (r.storage ? "Went into storage" : "No storage"),
         state: r => r.state || "Unknown",
         mtype: mtypeOf,
         review: r => (r.review ? "Review written" : "No review"),
         surveyed: r => (r.surveyed_before ? "Surveyed before" : "Not surveyed before"),
       };
-      const LABELS = { rating: "Tako's rule: foreman's rating (1–10)", claim: "Tako's rule: complaint", state: "State",
+      const LABELS = { rating: "Tako's rule: foreman's rating (1–10)", claim: "Tako's rule: complaint",
+                       rise: "Tako's rule: final bill vs estimate", storage: "Tako's rule: storage", state: "State",
                        mtype: "Move type", review: "Review", surveyed: "Surveyed before" };
       const ORDER = { rating: ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "No score"] };
       const rank = (ord, v) => { const i = ord.indexOf(v); return i < 0 ? 999 : i; };
@@ -530,7 +541,7 @@
       const ATAB_NOTE = {
         will: "These get the survey when you press Send. Switch someone off and they move to Switched off, where you can put them back.",
         off: "Switched off by hand, with who did it and when. Put them back any time before the send.",
-        rule: "Tako's rule leaves these out (the rating or a complaint). Add one by hand to ask them anyway.",
+        rule: "Tako's rule leaves these out (the rating, a complaint, a final bill " + RISE_P + "% or more over the estimate, or a move into storage). Add one by hand to ask them anyway.",
         cant: "These can never get it, whatever anyone picks: long distance, no email, unsubscribed, or under 14 days since the move.",
         sent: "One survey per move: these already got theirs. Each send's results are on the Sends tab.",
       };
@@ -567,8 +578,15 @@
         const out = [];
         if (S.af.rating && S.af.rating.size && !S.af.rating.has(KEYS.rating(r))) out.push(r.score == null ? "no rating" : "rating " + r.score);
         if (S.af.claim && S.af.claim.size && !S.af.claim.has(KEYS.claim(r))) out.push(r.complaints ? claimText(r) : otherClaimText(r));
+        if (S.af.rise && S.af.rise.size && !S.af.rise.has(KEYS.rise(r))) out.push(riseText(r));
+        if (S.af.storage && S.af.storage.size && !S.af.storage.has(KEYS.storage(r))) out.push(r.storage ? "storage: " + r.storage : "no storage");
         return out.join(" · ");
       }
+      // "bill 192% over the estimate ($5,783 vs $1,978)": the final bill against MoveBoard's quote (ZTZ-83)
+      const usd = v => "$" + Math.round(+v || 0).toLocaleString("en-US");
+      const riseText = r => (r.bill_rise == null ? "no estimate to compare"
+        : "bill " + (r.bill_rise >= 0 ? Math.round(100 * r.bill_rise) + "% over" : Math.round(-100 * r.bill_rise) + "% under")
+          + " the estimate (" + usd(r.bill) + " vs " + usd(r.quote) + ")");
       // ("complaint", not "claim": his word, 12 Nov)
       // a claim on the customer's OTHER move, found by their email or phone (12 Nov, ZTZ-78: a refunded claim on
       // the first move did not keep the clean second move out, and Tako took him out by hand)
@@ -702,7 +720,8 @@
           const fields = afFields(S.rows);
           const apply = next => { AF.forEach(k => { S.af[k] = new Set(next[k] || []); }); S.page = 0; paint(); };
           RSC.filterPanel(bar, { fields, selected: S.af, onApply: apply,
-            note: "<b>Tako's rule</b> is the rating and the complaint choice (9–10, no complaint). A move outside it moves to "
+            note: "<b>Tako's rule</b> is the rating, the complaint, the bill and the storage choice (9–10, no complaint, a final bill under "
+              + RISE_P + "% over the estimate, no storage). A move outside it moves to "
               + "<b>Left out by the rule</b>, where you can add it by hand. The other filters narrow every tab. "
               + "Long-distance moves, no email, unsubscribed and already surveyed can never be sent, whatever you pick." });
           const chips = host.querySelector("#svyAChips");
