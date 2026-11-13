@@ -37,7 +37,7 @@
         #rcSearch:focus{border-color:var(--brand)}
         .rc-tbl{width:100%;border-collapse:collapse}
         .rc-tbl th,.rc-tbl td{padding:8px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-        .rc-tbl th{color:var(--faint);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+        .rc-tbl th{color:var(--faint);font-size:12px;font-weight:800;text-transform:none}
         .rc-tbl tr:hover td{background:var(--panel-2)}
         .rc-neq{color:#e2687a;font-weight:700}
         .rc-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;cursor:pointer;
@@ -47,7 +47,7 @@
         .rc-chip.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent)}
         .rc-chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
         .rc-chip b{font-variant-numeric:tabular-nums}
-        .rc-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+        .rc-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
         /* DESIGN V2: sentence-case table header, neutral hover, accent-tint chips, flat pills */
         body.rs-app.light.v2 #rcSearch{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}
         body.rs-app.light.v2 #rcSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}
@@ -63,13 +63,13 @@
     }
 
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Request # Consistency</h1>
-        <p>Every closing's customer, cross-checked against its <b>moveboard</b> record and its <b>calendar</b> event.
-           When the names disagree, the <b>Request #</b> was likely mis-typed — tying the closing to a stranger's job.
-           A different <b>pickup zip</b> confirms a real mis-key; the same zip means one job with two names (benign).
-           <span class="freshness">· read-only · rebuilt nightly · fix at the closing sheet</span></p>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Request # Consistency", key: "request-consistency",
+        // ZTZ-80: one line on top; the method moved, word for word, into How it's counted
+        sub: "Every closing's customer, cross-checked against its moveboard record and its calendar event.",
+        chip: "Rebuilt nightly · read-only",
+        how: "<p>When the names disagree, the <b>Request #</b> was likely mis-typed, tying the closing to a stranger's job. "
+          + "A different <b>pickup zip</b> confirms a real mis-key; the same zip means one job with two names (benign).</p>"
+          + "<p>Read-only, rebuilt nightly. Fix it at the closing sheet.</p>" })}
       <div class="rs-kpis" id="rcKpis"><div class="rs-loading">Loading…</div></div>
       <div class="panel" style="margin-top:12px">
         <div class="panel-head"><span class="panel-title">Flagged closings</span></div>

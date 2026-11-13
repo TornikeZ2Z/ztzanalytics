@@ -56,7 +56,7 @@
       + ".pks-bar{position:relative;display:block;height:6px;border-radius:4px;"
       + "background:color-mix(in srgb,var(--ink) 7%,transparent);margin-top:5px;overflow:hidden}"
       + ".pks-bar i{display:block;height:100%;border-radius:4px;background:var(--brand)}"
-      + ".pks-cat{font-size:11px;color:var(--muted);display:block;margin-top:1px}"
+      + ".pks-cat{font-size:12px;color:var(--muted);display:block;margin-top:1px}"
       // the size matrix: many narrow numeric columns, the material name sticky on the left
       + ".pks-mx th,.pks-mx td{white-space:nowrap}"
       + ".pks-mx th:first-child,.pks-mx td:first-child{position:sticky;left:0;background:var(--panel);z-index:1}"
@@ -66,7 +66,6 @@
       + ".pks-part{color:var(--warn);font-weight:700}"
       + ".pks-sortable th{cursor:pointer;user-select:none}"
       + ".pks-sortable th.on{color:var(--brand)}"
-      + ".pks-seg{display:inline-flex;gap:4px;flex-wrap:wrap}"
       // a panel's heading row: title left, its segment control right
       + ".pks-sec{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px}"
       + ".pks-sec h3{margin:0;font-size:15px;flex:1 1 auto}"
@@ -89,8 +88,9 @@
   /* DESIGN V2 ("Calm finance", 2026-10-06). Light theme only -- every selector carries
      body.rs-app.light.v2, so dark keeps the rules above untouched. The tile reads label
      first (the v2 card: label, figure, sub) without touching the markup; the segment
-     buttons become pills with the selected one in navy; the kit's .rs-btn / .rs-fld label
-     have no v2 rules in rs.css yet, so their v2 shape is restated here inside .pks. */
+     controls are the kit's .rs-seg (pills, the selected one in navy, from rs.css); the kit's
+     .rs-btn / .rs-fld label have no v2 rules in rs.css yet, so their v2 shape is restated here
+     inside .pks. */
   function v2Css() {
     const V = "body.rs-app.light.v2 ";
     return ""
@@ -106,11 +106,6 @@
       + V + ".pks .rs-btn{border-radius:8px;font-weight:600}"
       + V + ".pks .rs-btn.pri{background:#14301F;border-color:#14301F;color:#FFFFFF}"
       + V + ".pks-sec h3{font-size:15px;font-weight:600;color:var(--ink)}"
-      + V + ".pks-seg .rs-btn{border-radius:999px;height:34px;padding:0 13px;font-weight:600;"
-      + "color:var(--ink);border-color:var(--line);background:#FFFFFF}"
-      + V + ".pks-seg .rs-btn:hover:not(:disabled){background:#F8FAFC;border-color:#CBD5E1;color:var(--ink)}"
-      + V + ".pks-seg .rs-btn.pri," + V + ".pks-seg .rs-btn.pri:hover:not(:disabled){background:#14301F;"
-      + "border-color:#14301F;color:#FFFFFF;filter:none}"
       + V + ".pks .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
       + V + ".pks-map input{border-radius:8px;border-color:#CBD5E1}"
       + V + ".pks-map input:focus{border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}"
@@ -162,7 +157,7 @@ registerPage({
     if (!S.pf) S.pf = {};
     PF_KEYS.forEach(k => { if (!Array.isArray(S.pf[k])) S.pf[k] = []; });
     injectStyle();
-    host.innerHTML = '<div class="pks"><div class="panel">Loading the packing lines…</div></div>';
+    host.innerHTML = '<div class="pks">' + RSC.loadingHtml("Packing Materials Sold", "Loading the packing lines…") + "</div>";
     const mine = host.querySelector(".pks");
     const alive = () => host.querySelector(".pks") === mine;
 
@@ -353,14 +348,19 @@ registerPage({
 
         // ---- paint ------------------------------------------------------------------- //
         const periodLab = PERIODS.find(p => p.k === S.period).lab;
-        let h = '<div class="rs-page-head"><h1>Packing Materials Sold</h1>'
-          + "<p>What the crews actually sold on the job, line by line from the digital contract — "
-          + "not the estimate pitched at quoting. A <b>contract</b> is the unit: two can share a job "
-          + "code and both can sell.</p></div>";
+        // THE KIT HEAD (ZTZ-80). The old paragraph's first sentence is the head's line; the whole
+        // paragraph, the contract-as-unit rule with it, is in "How it's counted", word for word.
+        let h = RSC.pageHeadHtml({ title: "Packing Materials Sold", key: "packing-sales",
+          sub: "What the crews actually sold on the job, line by line from the digital contract — "
+            + "not the estimate pitched at quoting.",
+          how: "<h3>What is counted</h3>"
+            + "<p>What the crews actually sold on the job, line by line from the digital contract — "
+            + "not the estimate pitched at quoting. A <b>contract</b> is the unit: two can share a job "
+            + "code and both can sell.</p>" });
 
         h += '<div class="rs-bar">'
-          + '<div class="pks-seg" id="pksPeriod">' + PERIODS.map(p =>
-              '<button class="rs-btn' + (S.period === p.k ? " pri" : "") + '" data-p="' + p.k + '">' + esc(p.lab) + "</button>").join("") + "</div>"
+          + '<div class="rs-seg" id="pksPeriod">' + PERIODS.map(p =>
+              '<button type="button"' + (S.period === p.k ? ' class="on"' : "") + ' data-p="' + p.k + '">' + esc(p.lab) + "</button>").join("") + "</div>"
           + '<span class="rs-spacer"></span>'
           + '<div id="pksCo"></div><div id="pksFilt"></div>'
           + '</div><div id="pksChips"></div>';
@@ -377,8 +377,8 @@ registerPage({
 
         // A. the materials table
         h += '<div class="panel"><div class="pks-sec"><h3>Which materials sell</h3>'
-          + '<div class="pks-seg" id="pksSort">' + [["usd", "by revenue"], ["units", "by units"], ["jobs", "by jobs"], ["perjob", "per buying job"], ["per100", "per 100 CF"]].map(([k, l]) =>
-              '<button class="rs-btn' + (S.sort === k ? " pri" : "") + '" data-k="' + k + '">' + l + "</button>").join("") + "</div></div>"
+          + '<div class="rs-seg" id="pksSort">' + [["usd", "by revenue"], ["units", "by units"], ["jobs", "by jobs"], ["perjob", "per buying job"], ["per100", "per 100 CF"]].map(([k, l]) =>
+              '<button type="button"' + (S.sort === k ? ' class="on"' : "") + ' data-k="' + k + '">' + l + "</button>").join("") + "</div></div>"
           + '<div class="rs-tablewrap"><table class="rs-table pks-sortable"><thead><tr>'
           + "<th>Material</th><th class=\"num\">Units</th><th class=\"num\">Jobs</th><th class=\"num\">Attach</th>"
           + "<th class=\"num\">Revenue</th><th class=\"num\">Share</th><th class=\"num\">Units / buying job</th>"
@@ -410,9 +410,9 @@ registerPage({
 
         // C. the size matrix
         h += '<div class="panel"><div class="pks-sec"><h3>How much a job takes, by size of move</h3>'
-          + '<div class="pks-seg" id="pksSizeBy">'
-          + '<button class="rs-btn' + (S.sizeBy === "cf" ? " pri" : "") + '" data-k="cf">by CF</button>'
-          + '<button class="rs-btn' + (S.sizeBy === "size" ? " pri" : "") + '" data-k="size">by building size</button></div></div>'
+          + '<div class="rs-seg" id="pksSizeBy">'
+          + '<button type="button"' + (S.sizeBy === "cf" ? ' class="on"' : "") + ' data-k="cf">by CF</button>'
+          + '<button type="button"' + (S.sizeBy === "size" ? ' class="on"' : "") + ' data-k="size">by building size</button></div></div>'
           + '<div class="rs-tablewrap"><table class="rs-table pks-mx"><thead><tr><th>' + (S.sizeBy === "size" ? "Building size" : "Job CF") + "</th>"
           + '<th class="num">Contracts</th><th class="num">Attach</th><th class="num">$ / buying job</th>'
           + topMats.map(m => '<th class="num" title="' + esc(m) + '">' + esc(headOf(m)) + "</th>").join("") + "</tr></thead><tbody>"

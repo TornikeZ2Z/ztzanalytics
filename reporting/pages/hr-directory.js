@@ -94,6 +94,7 @@
           ".hd .rs-kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}",
           // the kit paints every tile value in --ink; "without an email yet" is a warning
           ".hd .rs-kpis .kpi.warn .v{color:var(--warn)}",
+          ".hd .rs-utabs{margin-bottom:14px}",
           // this bar carries no field labels — a button, a find box and a sentence — so it
           // centres instead of sitting on the kit's label-aligned baseline
           ".hd .rs-bar{align-items:center}",
@@ -102,8 +103,8 @@
           ".hd-av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:800;flex:0 0 auto;letter-spacing:.02em}",
           // -------- people view: department cards of two-line rows --------
           ".hd-dept{margin:20px 0 8px;display:flex;align-items:center;gap:8px}",
-          ".hd-dept i{font-style:normal;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}",
-          ".hd-dept em{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}",
+          ".hd-dept i{font-style:normal;font-size:13px;font-weight:800;text-transform:none;color:var(--muted)}",
+          ".hd-dept em{font-style:normal;font-size:12px;color:var(--faint);font-weight:700}",
           ".hd-dept .dot{width:9px;height:9px;border-radius:50%}",
           ".hd-p.off{opacity:.55}",
           ".hd-p .pcell{display:flex;align-items:center;gap:10px}",
@@ -156,11 +157,11 @@
           ".hd-tc{position:relative;width:204px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 13px 9px;margin:6px 0;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.08),0 6px 18px rgba(0,0,0,.05)}",
           ".hd-tc:hover{border-color:var(--brand)}",
           ".hd-tc b{font-size:14px;display:block;line-height:1.3}",
-          ".hd-tc b small{font-weight:600;color:var(--faint);font-size:10.5px;margin-left:4px}",
+          ".hd-tc b small{font-weight:600;color:var(--faint);font-size:12px;margin-left:4px}",
           ".hd-tc span{display:block;font-size:12px;color:var(--faint);margin-top:1px}",
           ".hd-tc span.also{color:var(--muted);font-style:italic}",
-          ".hd-tc.lead{border-width:2px;padding-top:13px}",
-          ".hd-crown{position:absolute;top:-8px;left:11px;background:var(--c,#4f46e5);color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}",
+          ".hd-tc.lead{border-width:2px;padding-top:15px}",
+          ".hd-crown{position:absolute;top:-10px;left:11px;background:var(--c,#4f46e5);color:#fff;font-size:12px;font-weight:800;text-transform:none;line-height:1.5;padding:0 8px;border-radius:999px;white-space:nowrap}",
           ".hd-tc:not(.lead){border-left:3px solid var(--c,#94a3b8)}",
           ".hd-tc:not(.top)::before{content:'';position:absolute;top:-9px;left:50%;height:8px;border-left:2px solid var(--line-2)}",
           /* THE GROUP HEADING inside a leader's column. `align-self:stretch` matters: the
@@ -168,10 +169,10 @@
              nothing -- stretching also makes the heading match whatever card width that level
              uses (204px at the top, 186px in a sub-indent) without hard-coding either. */
           ".hd-grp{align-self:stretch;display:flex;align-items:center;gap:7px;margin:13px 0 3px;"
-            + "font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;"
+            + "font-size:12px;font-weight:800;text-transform:none;"
             + "color:var(--faint)}",
           ".hd-grp em{font-style:normal;font-weight:700;color:var(--muted);background:var(--panel-2);"
-            + "border:1px solid var(--line);border-radius:999px;padding:0 6px;font-size:9.5px}",
+            + "border:1px solid var(--line);border-radius:999px;padding:0 6px;font-size:12px}",
           ".hd-grp::after{content:'';flex:1;height:1px;background:var(--line)}",
           // the connector stub bridges the gap between two stacked cards; a heading now fills
           // that gap, so the card below one would draw its line straight through the label
@@ -191,22 +192,22 @@
           ".hd-flank{flex:0 0 auto;width:232px;display:flex;flex-direction:column;gap:9px;"
             + "padding-top:4px}",
           ".hd-vrule{align-self:stretch;border-left:2px dashed var(--line-2);margin:0 20px}",
-          ".hd-flabel{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;"
-            + "letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}",
+          ".hd-flabel{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;"
+            + "text-transform:none;color:var(--faint)}",
           ".hd-flabel em{font-style:normal;font-weight:700;color:var(--muted);"
             + "background:var(--panel-2);border:1px solid var(--line);border-radius:999px;"
-            + "padding:0 6px;font-size:10px}",
+            + "padding:0 6px;font-size:12px}",
           ".hd-base{background:var(--panel);border:1px solid var(--line);border-radius:12px;"
             + "border-left:3px solid var(--brand);padding:9px 12px 8px}",
           ".hd-bhd{display:flex;align-items:baseline;gap:7px}",
           ".hd-bhd b{font-size:12.5px;font-weight:800;line-height:1.25}",
-          ".hd-bhd em{margin-left:auto;font-style:normal;font-size:11px;font-weight:800;"
+          ".hd-bhd em{margin-left:auto;font-style:normal;font-size:12px;font-weight:800;"
             + "color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:0 7px}",
-          ".hd-bsub{font-size:10.5px;color:var(--faint);margin:1px 0 6px;line-height:1.4}",
+          ".hd-bsub{font-size:12px;color:var(--faint);margin:1px 0 6px;line-height:1.4}",
           ".hd-crew{font-size:12px;padding:3px 0;border-top:1px solid var(--line);"
             + "display:flex;gap:6px;align-items:baseline}",
           ".hd-crew b{font-weight:650;color:var(--ink)}",
-          ".hd-crew i{font-style:normal;font-size:10.5px;color:var(--faint)}",
+          ".hd-crew i{font-style:normal;font-size:12px;color:var(--faint)}",
           "@media(max-width:900px){.hd-orgwrap{flex-direction:column}"
             + ".hd-flank{width:100%}.hd-vrule{display:none;}}",
 
@@ -249,18 +250,30 @@
             + "border-radius:6px;padding:0 7px}",
           "body.rs-app.light.v2 .hd-bsub,body.rs-app.light.v2 .hd-crew i{font-size:12px}",
           "body.rs-app.light.v2 .hd-crew b{font-weight:600}",
-          // the inline 11.5px on "No foreman based here." -- the v2 floor is 12px
-          "body.rs-app.light.v2 .hd-base .hd-dim{font-size:12px !important}",
         ].join("\n");
         document.head.appendChild(st);
       }
 
+      /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head, the views as underline tabs right
+         under it, then the tiles. The page's description and the Crew view's "edited in the
+         sheet" note moved into How it's counted, word for word. */
+      var HD_HOW = "<p>Everyone at Zip to Zip. The office side is edited here and receives the "
+        + "questionnaires; crew follows the crew Google Sheet.</p>"
+        + "<h3>People</h3><p>The office list. Click a person to edit — the email is where their survey "
+        + "invitations are sent. Someone without an email is flagged, counts in every completion "
+        + "denominator, and cannot be invited yet.</p>"
+        + "<h3>Organization</h3><p>The same people drawn as the reporting tree, with dotted lines shown "
+        + "inline. The crew sits down the side, grouped by base: only foremen are named, drivers and "
+        + "helpers are counted.</p>"
+        + "<h3>Crew</h3><p><b>Crew is edited in the crew Google Sheet, not here.</b> "
+        + "This list follows the sheet through the nightly pipeline — change someone there and "
+        + "this page catches up on the next refresh.</p>";
       host.innerHTML = '<div class="hd">'
-        + '<div class="rs-page-head"><h1>Team Directory</h1>'
-        + "<p>Everyone at Zip to Zip. The office side is edited here and receives the "
-        + "questionnaires; crew follows the crew Google Sheet.</p></div>"
+        + RSC.pageHeadHtml({ title: "Team Directory", key: "hr-directory",
+            sub: "Everyone at Zip to Zip: the office is edited here, crew follows the crew Google Sheet.",
+            how: HD_HOW, howTitle: "How it works" })
+        + '<div id="hdTabs"></div>'
         + '<div class="rs-kpis" id="hdKpis"></div>'
-        + '<div class="rs-tabs" id="hdTabs"></div>'
         + '<div id="hdMain"></div><div class="hd-msg" id="hdMsg" style="margin-top:8px"></div></div>';
       var main = host.querySelector("#hdMain");
       var kpis = host.querySelector("#hdKpis");
@@ -291,23 +304,23 @@
         var noEmail = office.filter(function (p) { return !p.email; });
         var crewAct = S.crew.filter(function (c) { return String(c.status).toLowerCase() === "active"; });
         var pub = (S.home.questionnaires || []).filter(function (q) { return q.status === "published"; });
-        kpis.innerHTML =
-          '<div class="kpi"><div class="l">office people</div><div class="v">' + office.length + "</div></div>"
-          + '<div class="kpi' + (noEmail.length ? " warn" : "") + '"><div class="l">without an email yet</div>'
-          + '<div class="v">' + noEmail.length + "</div></div>"
-          + '<div class="kpi"><div class="l">active crew (sheet)</div><div class="v">' + crewAct.length + "</div></div>"
-          + pub.map(function (q) {
-              var done = (q.responses.submitted || 0) + (q.responses.resubmitted || 0);
-              var pct = q.audience_size ? Math.round(done / q.audience_size * 100) : 0;
-              return '<div class="kpi"><div class="l">' + esc(q.title.slice(0, 26)) + " filled</div>"
-                + '<div class="v">' + done + " / " + q.audience_size + " · " + pct + "%</div></div>";
-            }).join("");
+        // the kit tiles (RSC.kpis) instead of a hand-made copy of their markup; same labels, same values
+        RSC.kpis(kpis, [
+          { label: "office people", value: office.length },
+          { label: "without an email yet", value: noEmail.length, tone: noEmail.length ? "warn" : "" },
+          { label: "active crew (sheet)", value: crewAct.length },
+        ].concat(pub.map(function (q) {
+          var done = (q.responses.submitted || 0) + (q.responses.resubmitted || 0);
+          var pct = q.audience_size ? Math.round(done / q.audience_size * 100) : 0;
+          return { label: q.title.slice(0, 26) + " filled", value: done + " / " + q.audience_size + " · " + pct + "%" };
+        })));
       }
 
       function paintTabs() {
-        tabsEl.innerHTML = [["people", "People"], ["org", "Organization"], ["crew", "Crew"]].map(function (t) {
-          return '<button data-t="' + t[0] + '" class="rs-tab' + (S.tab === t[0] ? " on" : "") + '">' + t[1] + "</button>";
-        }).join("");
+        // kit underline tabs; each button keeps its data-t, which the click below reads
+        tabsEl.innerHTML = RSC.tabsHtml([["people", "People"], ["org", "Organization"], ["crew", "Crew"]].map(function (t) {
+          return { id: t[0], label: t[1] };
+        }), S.tab, "t");
         tabsEl.querySelectorAll("button").forEach(function (b) {
           b.onclick = function () { S.tab = b.dataset.t; S.editing = null; S.adding = false; S.q = ""; paint(); };
         });
@@ -630,7 +643,7 @@
                             + (c.nickname ? "<i>" + esc(c.nickname) + "</i>" : "")
                             + "</div>";
                         }).join("")
-                      : '<div class="hd-dim" style="font-size:11.5px">No foreman based here.</div>')
+                      : '<div class="hd-dim" style="font-size:12px">No foreman based here.</div>')
                   + "</div>";
               }).join("")
             + "</div>";
@@ -681,10 +694,8 @@
             return String(v || "").toLowerCase().indexOf(q2) >= 0;
           });
         });
-        main.innerHTML = '<p class="rs-hint"><b>Crew is edited in the crew Google Sheet, not here.</b> '
-          + "This list follows the sheet through the nightly pipeline — change someone there and "
-          + "this page catches up on the next refresh.</p>"
-          + '<div class="rs-bar" style="margin-bottom:12px">'
+        // the "edited in the sheet, not here" note lives in How it's counted (ZTZ-80)
+        main.innerHTML = '<div class="rs-bar" style="margin-bottom:12px">'
           + (S.crewSheet ? '<a class="rs-btn pri" href="' + esc(S.crewSheet)
               + '" target="_blank" rel="noopener" style="text-decoration:none">Open the Google Sheet ↗</a>' : "")
           + '<input class="rs-inp" id="hdQ" placeholder="Find a crew member…" value="' + esc(S.q) + '" style="min-width:220px">'

@@ -72,20 +72,12 @@
       + "padding:12px 16px;margin:0 0 14px;border:1px solid var(--line);border-radius:12px;"
       + "background:var(--panel-2);font-size:12.5px;color:var(--muted)}"
       + ".csd .csd-prov b{color:var(--ink);font-weight:750}"
-      + ".csd .csd-prov .csd-k{display:block;font-size:10.5px;font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--faint);margin-bottom:3px}"
-      // is / is not: two columns that stack on a phone
-      + ".csd .csd-isnot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 26px}"
-      + "@media(max-width:820px){.csd .csd-isnot{grid-template-columns:1fr}}"
-      + ".csd .csd-isnot h4{margin:0 0 8px;font-size:12px;font-weight:800;letter-spacing:.06em;"
-      + "text-transform:uppercase;color:var(--faint)}"
-      + ".csd .csd-isnot ul{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:var(--ink)}"
-      + ".csd .csd-isnot li{margin:0 0 5px}"
-      + ".csd .csd-isnot li span{color:var(--muted)}"
+      // ZTZ-80: sentence case at 12px (it was a 10.5px uppercase label)
+      + ".csd .csd-prov .csd-k{display:block;font-size:12px;font-weight:600;color:var(--faint);margin-bottom:3px}"
       // a margin of error rides beside its value, quieter
       + ".csd .csd-moe{color:var(--faint);font-size:12px;font-weight:600;margin-left:5px;white-space:nowrap}"
       + ".csd .csd-cell{white-space:nowrap}"
-      + ".csd .csd-cell .rs-pill{margin-left:6px;padding:1px 7px;font-size:10.5px}"
+      + ".csd .csd-cell .rs-pill{margin-left:6px;padding:1px 7px;font-size:12px}"
       // the place under the ZIP
       + ".csd .csd-zip{font-weight:800;color:var(--ink);letter-spacing:.02em}"
       + ".csd .csd-place{display:block;font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap}"
@@ -116,7 +108,6 @@
       + "body.rs-app.light.v2 .csd .csd-prov b{font-weight:600}"
       + "body.rs-app.light.v2 .csd .csd-prov .csd-k{text-transform:none;letter-spacing:0;"
       + "font-size:12.5px;font-weight:500;color:#475569}"
-      + "body.rs-app.light.v2 .csd .csd-isnot h4{text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:#0F172A}"
       + "body.rs-app.light.v2 .csd .csd-cell .rs-pill{font-size:12px}"
       + "body.rs-app.light.v2 .csd :is(.csd-zip,.csd-gap){font-weight:600;letter-spacing:0}"
       + "body.rs-app.light.v2 .csd .csd-warnbox{background:#FFFBEB;border-color:#FDE68A;color:#78350F;border-radius:10px}"
@@ -170,7 +161,12 @@ registerPage({
 
     const S = window.__CSD || (window.__CSD = { q: "", st: "", county: "", status: "", sort: "movers", dir: -1, shown: PAGE });
     injectStyle();
-    host.innerHTML = '<div class="csd"><div class="panel">Loading the Census data…</div></div>';
+    // THE PAGE STANDARD (ZTZ-80): the kit head on every state of the page. The "what this data
+    // is -- and is not" panel that sat between the tiles and the tables moved, word for word,
+    // into How it's counted; it is built from the loaded rows, so it joins the head once they arrive.
+    const head = o => RSC.pageHeadHtml(Object.assign({ title: "Census Data", key: "census-data",
+      sub: "The Census survey figures behind Seasonal Planning, checked against the Census's own totals." }, o || {}));
+    host.innerHTML = '<div class="csd">' + head() + RSC.loadingHtml("Census Data", "Loading the Census data…") + "</div>";
     const mine = host.querySelector(".csd");
     // #content is one element shared by every report: never paint over the page the reader
     // navigated to while this one was still loading
@@ -181,7 +177,7 @@ registerPage({
       zrows = zrows || [];
       srows = srows || [];
       if (!zrows.length) {
-        mine.innerHTML = '<div class="panel">No Census rows yet — the mart builds on the next pipeline '
+        mine.innerHTML = head() + '<div class="panel">No Census rows yet — the mart builds on the next pipeline '
           + "run after the Census load (sources=area-external).</div>";
         return;
       }
@@ -294,9 +290,8 @@ registerPage({
           + "about residents.</div>";
       }
 
-      /* ---------------- is / is not ---------------- */
-      h += '<div class="panel"><div class="panel-head"><span class="panel-title">What this data is — and is not</span></div>'
-        + '<div class="csd-isnot"><div><h4>It is</h4><ul>'
+      /* ---------------- is / is not: the How it's counted panel (ZTZ-80) ---------------- */
+      const howHtml = "<p><b>What this data is — and is not.</b></p><h3>It is</h3><ul>"
         // 2026-09-23 review: not every figure has a ± (movers a year, top/bottom-coded incomes,
         // and mover rates until the corrected margins load), so the sentence says "where"
         + "<li><b>A survey estimate</b> for the people living in each ZIP's area. <span>Survey figures carry a "
@@ -309,7 +304,7 @@ registerPage({
         + "<li><b>Movers a year = people</b>: population × mover rate, the same figure Seasonal Planning adds up.</li>"
         + "<li><b>Median income</b> is per household; <b>owner share</b> is the share of occupied homes lived in "
         + "by their owner.</li>"
-        + "</ul></div><div><h4>It is not</h4><ul>"
+        + "</ul><h3>It is not</h3><ul>"
         + "<li><b>Not ZIP-exact.</b> <span>A ZCTA (ZIP Code Tabulation Area) is the Census's drawing of a ZIP's "
         + "delivery area from census blocks. PO box, business and single-building ZIPs have no area at all — "
         + "checked against the 2020 census's own list of ZIP areas — so they show here as “PO box / business "
@@ -342,7 +337,7 @@ registerPage({
         + "<li><b>Not a household move count in a high-turnover area.</b> <span>ZIPs where 35%+ of 1,000+ "
         + "people moved in a year are campuses, bases and prisons, but also downtown rental cores. They are "
         + "labelled “High-turnover area”, and left in every total.</span></li>"
-        + "</ul></div></div></div>";
+        + "</ul>";
 
       /* ---------------- state tie-out ---------------- */
       h += '<div class="panel"><div class="panel-head"><span class="panel-title">Does it add up? Our ZIPs against the Census\'s own state totals</span></div>'
@@ -501,7 +496,7 @@ registerPage({
         + "from Georgia, so these links are <b>untested</b> and will likely only open from a US connection or a "
         + "VPN. Click a column heading to sort.</p></div>";
 
-      mine.innerHTML = h;
+      mine.innerHTML = head({ how: howHtml, chip: loaded ? "Loaded " + fmtDate(loaded) : "" }) + h;
 
       /* ---- explorer logic ---- */
       const COLS = [
@@ -683,10 +678,10 @@ registerPage({
       // answers that with a bare 404 "unknown dataset" -- which read as broken (2026-09-23, the
       // page shipped at :40 and its tables arrived with the next :00 run). Say what is happening.
       const msg = String(e && e.message || e);
-      mine.innerHTML = /unknown dataset|mart_census/.test(msg)
+      mine.innerHTML = head() + (/unknown dataset|mart_census/.test(msg)
         ? '<div class="panel">The Census tables are being built by the hourly refresh and are not '
           + "ready yet. They usually appear within the hour — reopen this page then.</div>"
-        : '<div class="panel">Could not load the Census data — ' + esc(msg) + "</div>";
+        : '<div class="panel">Could not load the Census data — ' + esc(msg) + "</div>");
     });
   },
 });

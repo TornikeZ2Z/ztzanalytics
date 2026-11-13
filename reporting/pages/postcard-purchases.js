@@ -28,35 +28,31 @@ registerPage({
     const STATES = ["NJ", "PA", "NY", "CT", "MA", "DE", "MD", "VA", "RI"];
     const MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const ymLbl = ym => MON[+ym.slice(5, 7)] + " " + ym.slice(0, 4);
+    const SUB = "What was bought, what it cost per card, what is on the shelf, and what the cards mailed brought back.";
 
     if (!document.getElementById("pce-style")) {
       const st = document.createElement("style");
       st.id = "pce-style";
       st.textContent = [
-        ".pce-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}",
-        ".pce-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}",
-        ".pce-kpi .l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}",
-        ".pce-kpi .v{font-size:22px;font-weight:800;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}",
-        ".pce-kpi .s{font-size:11.5px;color:var(--muted);margin-top:3px}",
-        ".pce-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}",
-        ".pce-chip{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer}",
-        ".pce-chip.on{border-color:var(--brand);color:var(--brand-d);background:var(--brand-glow)}",
+        // ZTZ-80: the tiles are the kit's (RSC.kpis), the Year / State row the kit's .rs-seg and
+        // .rs-tog, the buttons the kit's .rs-btn; what stays here is only what the kit cannot say
+        ".pce-states{display:flex;flex-wrap:wrap;gap:6px}",
+        ".pce-states .rs-tog{padding:7px 11px}",
+        "#pcePurch .rs-btn{padding:5px 11px}",
         ".pce-say{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 10px}",
         ".pce-say b{color:var(--ink)}",
         ".pce-line{margin-top:12px}",
-        ".pce-lno{display:inline-block;font-size:11px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:2px 9px;margin-right:8px;vertical-align:middle}",
+        ".pce-lno{display:inline-block;font-size:12px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:2px 9px;margin-right:8px;vertical-align:middle}",
         ".pce-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:5px 8px;font-size:12.5px;outline:0;width:84px;text-align:right}",
         ".pce-in:focus{border-color:var(--brand)} .pce-in.set{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--panel))}",
         ".pce-in.ok{border-color:var(--pos)} .pce-in.bad{border-color:var(--neg)} .pce-in.wide{width:100%;text-align:left}",
-        ".pce-split{font-size:11.5px;color:var(--muted)} .pce-split b{color:var(--ink)}",
+        ".pce-split{font-size:12px;color:var(--muted)} .pce-split b{color:var(--ink)}",
         ".pce-si{white-space:nowrap}",
         ".rs-table td.pce-splitc{min-width:180px;max-width:320px;line-height:1.7}",
         ".rs-table td.pce-note{min-width:200px;max-width:360px;font-size:12px;line-height:1.5}",
-        ".pce-btn{font-family:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}",
-        ".pce-btn:hover{border-color:var(--brand)} .pce-btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}",
         ".pce-dim{color:var(--faint)}",
         ".pce-row-before td{opacity:.5}",
-        ".pce-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap;vertical-align:1px}",
+        ".pce-tag{display:inline-block;font-size:12px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap;vertical-align:1px}",
         ".pce-tag.dim{background:color-mix(in srgb,var(--ink) 8%,var(--panel));color:var(--muted)}",
         ".pce-stock{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}",
         ".pce-stock .neg{color:var(--neg);font-weight:700}",
@@ -71,33 +67,25 @@ registerPage({
         ".pce-modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:min(740px,100%);max-height:92vh;overflow:auto;padding:20px 22px}",
         ".pce-modal .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}",
         ".pce-modal h3{margin:0 0 3px;font-size:18px;color:var(--ink);letter-spacing:-.2px} .pce-modal .sub{font-size:12.5px;color:var(--muted);line-height:1.5}",
-        ".pce-modal .amt{font-size:26px;font-weight:850;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap} .pce-modal .amt small{display:block;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;text-align:right}",
-        ".pce-modal .eyebrow{font-size:11px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 7px}",
+        ".pce-modal .amt{font-size:26px;font-weight:850;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap} .pce-modal .amt small{display:block;font-size:12px;font-weight:700;color:var(--faint);text-align:right}",
+        ".pce-modal .eyebrow{font-size:12px;font-weight:800;color:var(--faint);margin:12px 0 7px}",
         ".pce-sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px} @media (max-width:560px){.pce-sgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}",
         ".pce-tile{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:12px;padding:9px 10px 9px 12px;background:var(--panel-2);transition:border-color .12s,background .12s}",
         ".pce-tile.on{border-color:var(--brand);background:var(--brand-glow)} .pce-tile:focus-within{border-color:var(--brand)}",
-        ".pce-tile .st{font-weight:850;font-size:14px;color:var(--ink)} .pce-tile .st small{display:block;font-size:10.5px;font-weight:700;color:var(--brand-d);letter-spacing:.03em}",
-        ".pce-tile .sh{font-size:11px;color:var(--faint);text-align:right;margin-top:3px;min-height:13px}",
+        ".pce-tile .st{font-weight:850;font-size:14px;color:var(--ink)} .pce-tile .st small{display:block;font-size:12px;font-weight:700;color:var(--brand-d)}",
+        ".pce-tile .sh{font-size:12px;color:var(--faint);text-align:right;margin-top:3px;min-height:15px}",
         ".pce-tile input{width:88px}",
         ".pce-pool{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px dashed var(--line-2);border-radius:12px;padding:9px 12px;margin-top:8px}",
-        ".pce-pool .st{font-size:13px;font-weight:700;color:var(--muted)} .pce-pool .st small{display:block;font-weight:500;font-size:11px;color:var(--faint)}",
+        ".pce-pool .st{font-size:13px;font-weight:700;color:var(--muted)} .pce-pool .st small{display:block;font-weight:500;font-size:12px;color:var(--faint)}",
         ".pce-sum{display:flex;justify-content:space-between;align-items:center;gap:12px;background:color-mix(in srgb,var(--ink) 5%,var(--panel));border-radius:12px;padding:11px 14px;margin-top:12px;flex-wrap:wrap}",
         ".pce-sum .n{font-size:17px;font-weight:850;color:var(--ink)} .pce-sum .n small{font-size:12px;font-weight:600;color:var(--muted);margin-left:5px} .pce-sum .p{font-size:13px;color:var(--muted)} .pce-sum .p b{color:var(--ink);font-size:15px}",
         ".pce-modal .acts{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}",
         ".pce-msg{font-size:12px;color:var(--muted)} .pce-msg.bad{color:var(--neg);font-weight:700} .pce-msg.ok{color:var(--pos);font-weight:700}",
-        // DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, navy selected chips, nothing under 12px
-        "body.rs-app.light.v2 .pce-kpi{border-radius:10px;padding:14px 16px}",
-        "body.rs-app.light.v2 .pce-kpi .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}",
-        "body.rs-app.light.v2 .pce-kpi .v{font-size:24px;font-weight:600}",
-        "body.rs-app.light.v2 .pce-kpi .s{font-size:12.5px;color:var(--faint)}",
-        "body.rs-app.light.v2 .pce-chip{font-size:13px;font-weight:600;padding:6px 12px;color:var(--ink);border-color:var(--line)}",
-        "body.rs-app.light.v2 .pce-chip.on{background:#14301F;border-color:#14301F;color:#FFFFFF}",
+        // DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, nothing under 12px
         "body.rs-app.light.v2 .pce-say{font-size:13.5px}",
         "body.rs-app.light.v2 .pce-lno,body.rs-app.light.v2 .pce-tag{font-size:12px;font-weight:600;border-radius:6px;background:#F4FAE6;color:#2F6316}",
         "body.rs-app.light.v2 .pce-tag.dim{background:#F1F5F9;color:var(--muted)}",
         "body.rs-app.light.v2 .pce-split,body.rs-app.light.v2 .pce-tile .sh,body.rs-app.light.v2 .pce-pool .st small{font-size:12px}",
-        "body.rs-app.light.v2 .pce-btn{font-size:13px;font-weight:600;border-radius:8px;padding:6px 12px}",
-        "body.rs-app.light.v2 .pce-btn.pri{background:#14301F;border-color:#14301F}",
         "body.rs-app.light.v2 .pce-legend{font-size:13px}",
         "body.rs-app.light.v2 .pce-modal{border-radius:10px}",
         "body.rs-app.light.v2 .pce-modal h3{font-weight:600}",
@@ -111,8 +99,7 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    host.innerHTML = '<div class="rs-page-head"><h1>Post Card Expenditure</h1></div>' +
-      '<div class="rs-loading" style="padding:22px">Reading the purchases, the cards mailed and the returns…</div>';
+    host.innerHTML = RSC.loadingHtml("Post Card Purchases", "Reading the purchases, the cards mailed and the returns…");
 
     const hdr = { Authorization: "Bearer " + ZTZ.getToken() };
     const rowsOf = j => (j && j.rows) || [];
@@ -125,7 +112,7 @@ registerPage({
     ]);
     const SRV = stockSrv && !stockSrv.error && stockSrv.states ? stockSrv : null;   // the shelf as the bridge computes it (counts included)
     if (!month || !purchRows || !mailedRows) {
-      host.innerHTML = '<div class="rs-page-head"><h1>Post Card Expenditure</h1></div><div class="panel">' +
+      host.innerHTML = RSC.pageHeadHtml({ title: "Post Card Purchases", key: "postcard-purchases", sub: SUB }) + '<div class="panel">' +
         "The postcard tables are not built yet — they appear after the next hourly data refresh.</div>";
       return;
     }
@@ -253,7 +240,6 @@ registerPage({
         untyped: P.filter(p => !(qtyOf(p) > 0) && p.role !== "before").length };
     }
 
-    const kpi = (l, v, s) => '<div class="pce-kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + "</div>" : "") + "</div>";
     // cls omitted = a number; cls "" = text. `cls || "num"` turned every "" into "num", so every
     // text column (date, ledger line, description, split, note) rendered right-aligned (2026-09-27)
     const td = (v, cls) => '<td class="' + (cls == null ? "num nowrap" : cls) + '">' + v + "</td>";
@@ -261,16 +247,20 @@ registerPage({
 
     function paintTop() {
       K = calc();
-      host.querySelector("#pceKpis").innerHTML =
-        kpi("Cards mailed", fmtN(K.cards), "typed by Logistics per week") +
-        kpi("Paid to the vendor", money(K.spend), fmtN(K.P.length) + " payments · " + (K.untyped ? "<b>" + K.untyped + " without quantities</b>" : "all with quantities")) +
-        kpi("Price per card", K.price != null ? money2(K.price) : "—", K.bought ? fmtN(K.bought) + " cards bought, implied by reorders" : "type the quantities in line 1") +
-        kpi("In stock", SRV ? fmtN(Object.values(SRV.states).reduce((a, r) => a + (r.should || 0), 0)) : K.stock.fm ? fmtN(K.stock.left) : "—", SRV ? "the shelf today, counts included" : "shelf + latest buys − mailed since") +
-        (SRV && (SRV.counts || []).some(c => c.lost > 0) ? kpi("Lost", fmtN((SRV.counts || []).reduce((a, c) => a + Math.max(0, c.lost || 0), 0)), "counts short of the model" + (K.uc && K.stock.last && K.uc(K.stock.last) ? " · " + money((SRV.counts || []).reduce((a, c) => a + Math.max(0, c.lost || 0), 0) * K.uc(K.stock.last)) + " at unit cost" : "")) : "") +
-        kpi("Cost of cards mailed", K.cogs != null ? money(K.cogs) : "—", K.unknown ? "unknown until every mailed month has a unit cost" : "mailed × unit cost") +
-        kpi("Post card leads", fmtN(K.leads), fmtN(K.booked) + " booked") +
-        kpi("Post card revenue", money(K.rev), fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.revCosted / K.cogs) + " the cost" + (K.revOpen ? " (months with cards)" : "") : "—")) +
-        (K.openMonths.length ? kpi("Not costed", money(K.revOpen), fmtN(K.leadsOpen) + " leads, " + fmtN(K.jobsOpen) + " jobs in " + K.openMonths.length + " month" + (K.openMonths.length > 1 ? "s" : "") + " with no mailed record") : "");
+      /* SIX KIT TILES (ZTZ-80; there were up to nine): bought, price, shelf, mailed, its cost, and
+         what came back. Post card leads, Lost and Not costed fold into the one line under them. */
+      RSC.kpis(host.querySelector("#pceKpis"), [
+        { label: "Cards mailed", value: fmtN(K.cards), sub: "typed by Logistics per week" },
+        { label: "Paid to the vendor", value: money(K.spend), sub: fmtN(K.P.length) + " payments · " + (K.untyped ? K.untyped + " without quantities" : "all with quantities") },
+        { label: "Price per card", value: K.price != null ? money2(K.price) : "—", sub: K.bought ? fmtN(K.bought) + " cards bought, implied by reorders" : "type the quantities in line 1" },
+        { label: "In stock", value: SRV ? fmtN(Object.values(SRV.states).reduce((a, r) => a + (r.should || 0), 0)) : K.stock.fm ? fmtN(K.stock.left) : "—", sub: SRV ? "the shelf today, counts included" : "shelf + latest buys − mailed since" },
+        { label: "Cost of cards mailed", value: K.cogs != null ? money(K.cogs) : "—", sub: K.unknown ? "unknown until every mailed month has a unit cost" : "mailed × unit cost" },
+        { label: "Post card revenue", value: money(K.rev), sub: fmtN(K.jobs) + " jobs · " + (K.cogs > 0 ? x1(K.revCosted / K.cogs) + " the cost" + (K.revOpen ? " (months with cards)" : "") : "—") },
+      ]);
+      const lostN = SRV && (SRV.counts || []).some(c => c.lost > 0) ? (SRV.counts || []).reduce((a, c) => a + Math.max(0, c.lost || 0), 0) : 0;
+      host.querySelector("#pceMore").innerHTML = "Post card leads <b>" + fmtN(K.leads) + "</b>, " + fmtN(K.booked) + " booked" +
+        (lostN ? " · Lost <b>" + fmtN(lostN) + "</b> cards, counts short of the model" + (K.uc && K.stock.last && K.uc(K.stock.last) ? " · " + money(lostN * K.uc(K.stock.last)) + " at unit cost" : "") : "") +
+        (K.openMonths.length ? " · Not costed <b>" + money(K.revOpen) + "</b>: " + fmtN(K.leadsOpen) + " leads, " + fmtN(K.jobsOpen) + " jobs in " + K.openMonths.length + " month" + (K.openMonths.length > 1 ? "s" : "") + " with no mailed record" : "");
       paintStock();
       paintReturn();
     }
@@ -290,7 +280,8 @@ registerPage({
           td(lost ? (lost > 0 ? '<span class="neg">' + fmtN(lost) + "</span>" : "<span class=\"pce-dim\">found " + fmtN(-lost) + "</span>") : '<span class="pce-dim">—</span>') +
           td(r.latest_buy ? esc(r.latest_buy) + ' <span class="pce-dim">' + fmtN(r.latest_buy_qty) + "</span>" : '<span class="pce-dim">—</span>', "") + "</tr>"; };
       const tot = keys.reduce((a, st) => a + (SRV.states[st].should || 0), 0);
-      el.innerHTML = '<div class="pce-say"><b>On the shelf today</b> — ' + fmtN(tot) + " cards across the states. A state runs on the reorder rule (a buy is what it mailed until its next buy, about " + fmtN(SRV.shelf) + " left when it reorders) until Logistics counts it; from a count the balance runs from the counted number, and what the count fell short of the model is booked as <b>lost</b> in that month" +
+      // the reorder-rule paragraph that sat here is in How it's counted (ZTZ-80); the count stays
+      el.innerHTML = '<div class="pce-say"><b>On the shelf today</b> — ' + fmtN(tot) + " cards across the states" +
         (lostTot ? " — <b>" + fmtN(lostTot) + " cards lost so far</b>" : "") + ". Counts are typed on Post Card Expenditure (Logistics).</div>" +
         '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>State</th><th class="num">Should have</th><th>Basis</th><th class="num">Bought since</th><th class="num">Mailed since</th><th class="num">Lost</th><th>Latest buy</th></tr></thead><tbody>' +
         keys.map(row).join("") + "</tbody></table></div>";
@@ -300,16 +291,16 @@ registerPage({
     function paintPurchases() {
       const P = purch.filter(p => inYear(p.date.slice(0, 7)));
       host.querySelector("#pcePurch").innerHTML = P.length
-        ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Date</th><th>Company</th><th>Ledger line</th><th>Description</th><th class="num">Paid</th><th class="num">Cards bought<div class="pce-dim" style="font-weight:500;font-size:10.5px">implied by reorders</div></th><th class="num">$ / card</th><th>Split by state</th><th>Note</th><th></th></tr></thead><tbody>' +
+        ? '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Date</th><th>Company</th><th>Ledger line</th><th>Description</th><th class="num">Paid</th><th class="num">Cards bought<div class="pce-dim" style="font-weight:500;font-size:12px">implied by reorders</div></th><th class="num">$ / card</th><th>Split by state</th><th>Note</th><th></th></tr></thead><tbody>' +
           P.map(p => { const q = qtyOf(p), qt = qtyTyped(p), derived = p.splits.some(s => s.iq != null);
             const split = p.splits.length ? p.splits.map(s => '<span class="pce-si"><b>' + esc(s.state || "pooled") + "</b> " + fmtN(s.iq != null ? s.iq : s.qty) + (s.iq != null && s.iq !== s.qty ? ' <span class="pce-dim">(typed ' + fmtN(s.qty) + ")</span>" : "") + (s.basis === "latest buy" ? ' <span class="pce-tag dim">latest buy</span>' : "") + "</span>").join(" · ")
               : '<span class="pce-dim">' + (p.ledger ? esc(p.ledger) + " on the ledger · no quantity yet" : "no quantity yet") + "</span>";
             const tag = p.role === "opening" ? '<span class="pce-tag">opening stock</span>' : p.role === "before" ? '<span class="pce-tag dim">before the record</span>' : "";
             return '<tr data-row="' + esc(p.key) + '"' + (p.role === "before" ? ' class="pce-row-before"' : "") + ">" + td(esc(p.date) + tag, "nowrap") + td(esc(p.company || ""), "nowrap") + td(esc(p.provider), "nowrap") +
               td('<span class="pce-dim" title="' + esc(p.desc) + '">' + esc(p.desc.slice(0, 40)) + "</span>", "nowrap") +
-              td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" + (derived && qt !== q ? '<div class="pce-dim" style="font-size:11px">typed ' + fmtN(qt) + "</div>" : "") : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
+              td(money(p.amount)) + td(q ? "<b>" + fmtN(q) + "</b>" + (derived && qt !== q ? '<div class="pce-dim" style="font-size:12px">typed ' + fmtN(qt) + "</div>" : "") : '<span class="pce-dim">—</span>') + td(q && p.amount != null ? money2(p.amount / q) : "—") +
               td('<span class="pce-split">' + split + "</span>", "pce-splitc") + td('<span class="pce-dim">' + esc(p.note || "") + "</span>", "pce-note") +
-              td(canEdit ? '<button class="pce-btn" data-edit="' + esc(p.key) + '">' + (q ? "Edit" : "Add quantities") + "</button>" : "", "") + "</tr>"; }).join("") +
+              td(canEdit ? '<button type="button" class="rs-btn" data-edit="' + esc(p.key) + '">' + (q ? "Edit" : "Add quantities") + "</button>" : "", "") + "</tr>"; }).join("") +
           "</tbody></table></div>"
         : '<div class="pce-say">No postcard payments on the ledger in this selection.</div>';
       host.querySelectorAll("#pcePurch [data-edit]").forEach(b => b.onclick = () => openSplit(b.dataset.edit));
@@ -333,7 +324,7 @@ registerPage({
           ? '<label class="pce-pool" style="cursor:pointer"><span class="st">Counts as opening stock<small>paid before the mailed record began (' + esc(ymLbl(K.stock.fm)) + ') but still on the shelf then — in the balance and the unit cost</small></span><input type="checkbox" data-opening' + (p.role === "opening" ? " checked" : "") + "></label>"
           : "") +
         '<div style="margin-top:12px"><input class="pce-in wide" type="text" maxlength="500" data-note placeholder="note (optional)" value="' + esc(p.note || "") + '"></div>' +
-        '<div class="acts"><button class="pce-btn pri" data-save>Save</button><button class="pce-btn" data-cancel>Cancel</button><span class="pce-msg" data-msg></span></div></div>';
+        '<div class="acts"><button type="button" class="rs-btn pri" data-save>Save</button><button type="button" class="rs-btn" data-cancel>Cancel</button><span class="pce-msg" data-msg></span></div></div>';
       document.body.appendChild(mask);
       const inputs = [...mask.querySelectorAll("[data-st]")];
       const recalc = () => { const tot = inputs.reduce((t, i) => t + (num(i.value) || 0), 0);
@@ -419,23 +410,32 @@ registerPage({
     }
 
     function paintBar() {
+      // ZTZ-80: Year is one pick (the kit's .rs-seg), State any number (the kit's .rs-tog)
       host.querySelector("#pceBar").innerHTML =
-        '<span class="pce-say" style="margin:0">Year</span>' +
-        ['<span class="pce-chip' + (C.year === "all" ? " on" : "") + '" data-y="all">All</span>'].concat(years.map(y => '<span class="pce-chip' + (C.year === y ? " on" : "") + '" data-y="' + y + '">' + y + "</span>")).join("") +
-        '<span class="pce-say" style="margin:0 0 0 14px">State</span>' +
-        STATES.map(s => '<span class="pce-chip' + (C.states.includes(s) ? " on" : "") + '" data-s="' + s + '">' + s + "</span>").join("");
+        '<div class="rs-fld"><span>Year</span><div class="rs-seg">' +
+        [["all", "All"]].concat(years.map(y => [y, y])).map(([v, l]) => '<button type="button" class="' + (C.year === v ? "on" : "") + '" data-y="' + v + '">' + l + "</button>").join("") +
+        "</div></div>" +
+        '<div class="rs-fld"><span>State</span><div class="pce-states">' +
+        STATES.map(s => '<button type="button" class="rs-tog' + (C.states.includes(s) ? " on" : "") + '" data-s="' + s + '"><i></i>' + s + "</button>").join("") +
+        "</div></div>";
       const all = () => { remember(); paintBar(); paintPurchases(); paintTop(); };
       host.querySelectorAll("#pceBar [data-y]").forEach(el => el.onclick = () => { C.year = el.dataset.y; all(); });
       host.querySelectorAll("#pceBar [data-s]").forEach(el => el.onclick = () => { const s = el.dataset.s; C.states = C.states.includes(s) ? C.states.filter(x => x !== s) : C.states.concat(s); all(); });
     }
 
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head (its subtitle is the page's own one-line
+       question), one filter row, six kit tiles. The head's method paragraph, line 1's instructions
+       and the shelf's reorder rule move into How it's counted, worded as before. */
+    const howHtml = () => "<h3>How the cost is counted</h3><p>Postcards are bought in bulk and mailed over months, so the cost sits on the month the cards went out, not the day the vendor was paid. <b>Unit cost</b> = paid ÷ cards bought, cumulative to that month. <b>Cost of mailed</b> = cards mailed × unit cost. The return is every lead, booked job and closing whose source is <i>Post Card</i>, by the state of the lead.</p>" +
+      "<h3>Line 1: the purchases</h3><p>Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>. Payments from before the mailed record began are shown but stay out of the balance and the unit cost. The size that counts is <b>implied by reorders</b> (what the state mailed until its next buy, the typed size shown beside it); a state's latest buy keeps its typed size until the next one arrives.</p>" +
+      "<h3>On the shelf</h3><p>A state runs on the reorder rule (a buy is what it mailed until its next buy, about " + fmtN(SRV && SRV.shelf != null ? SRV.shelf : SHELF) + " left when it reorders) until Logistics counts it; from a count the balance runs from the counted number, and what the count fell short of the model is booked as <b>lost</b> in that month. Counts are typed on Post Card Expenditure (Logistics).</p>";
     host.innerHTML =
-      '<div class="rs-page-head"><h1>Post Card Purchases</h1>' +
-      '<p style="max-width:none">Postcards are bought in bulk and mailed over months, so the cost sits on the month the cards went out, not the day the vendor was paid. <b>Unit cost</b> = paid ÷ cards bought, cumulative to that month. <b>Cost of mailed</b> = cards mailed × unit cost. The return is every lead, booked job and closing whose source is <i>Post Card</i>, by the state of the lead.</p></div>' +
-      '<div class="pce-bar" id="pceBar"></div>' +
-      '<div class="pce-kpis" id="pceKpis"></div>' +
+      RSC.pageHeadHtml({ title: "Post Card Purchases", key: "postcard-purchases", sub: SUB, how: howHtml }) +
+      '<div class="rs-bar" id="pceBar"></div>' +
+      '<div class="rs-kpis" id="pceKpis"></div>' +
+      '<p class="pce-say" id="pceMore"></p>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">1</span>Purchases — every postcard payment on the bank ledger</div>' +
-      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several). The price per card and every cost below follow from it. A payment the ledger tags to a state is marked; an untagged one can be split or left <b>pooled</b>. Payments from before the mailed record began are shown but stay out of the balance and the unit cost. The size that counts is <b>implied by reorders</b> (what the state mailed until its next buy, the typed size shown beside it); a state\'s latest buy keeps its typed size until the next one arrives' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
+      '<div class="pce-say">Open a payment and type how many cards it bought, per state (one payment can cover several)' + (canEdit ? "" : " — <b>your access is read-only here</b>") + ".</div>" +
       '<div id="pcePurch"></div><div class="pce-stock" id="pceStock"></div></div>' +
       '<div class="panel pce-line"><div class="panel-title"><span class="pce-lno">2</span>The return, by state</div>' +
       '<div class="pce-grid"><div><div id="pceChart"></div></div><div><div class="pce-say" style="margin-bottom:4px"><b>What the numbers say</b></div><div id="pceRead"></div></div></div>' +

@@ -43,14 +43,10 @@ registerPage({
       const st = document.createElement("style");
       st.id = "pcx-style";
       st.textContent = [
-        ".pcx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}",
-        ".pcx-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}",
-        ".pcx-kpi .l{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}",
-        ".pcx-kpi .v{font-size:22px;font-weight:800;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}",
-        ".pcx-kpi .s{font-size:11.5px;color:var(--muted);margin-top:3px}",
+        // the head, the tiles (.rs-kpis) and the Save button (.rs-btn) are the kit's
         ".pcx-say{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 10px} .pcx-say b{color:var(--ink)}",
         ".pcx-line{margin-top:12px}",
-        ".pcx-lno{display:inline-block;font-size:11px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:2px 9px;margin-right:8px;vertical-align:middle}",
+        ".pcx-lno{display:inline-block;font-size:12px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:2px 9px;margin-right:8px;vertical-align:middle}",
         ".pcx-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:5px 8px;font-size:12.5px;outline:0;width:78px;text-align:right}",
         ".pcx-in:focus{border-color:var(--brand)} .pcx-in.set{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,var(--panel))}",
         ".pcx-in.ok{border-color:var(--pos)} .pcx-in.bad{border-color:var(--neg)}",
@@ -58,7 +54,7 @@ registerPage({
         ".pcx-tree{border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:1210px}",
         ".pcx-node{border-top:1px solid var(--line)} .pcx-node:first-child{border-top:0}",
         ".pcx-hd{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;background:var(--panel)}",
-        ".pcx-hd:hover{background:var(--panel-2)} .pcx-hd .car{width:14px;color:var(--faint);font-size:11px;transition:transform .12s} .pcx-node.open>.pcx-hd .car{transform:rotate(90deg)}",
+        ".pcx-hd:hover{background:var(--panel-2)} .pcx-hd .car{width:14px;color:var(--faint);font-size:12px;transition:transform .12s} .pcx-node.open>.pcx-hd .car{transform:rotate(90deg)}",
         ".pcx-hd .t{font-weight:800;color:var(--ink);font-size:14px} .pcx-hd.m .t{font-size:13px;font-weight:750} .pcx-hd .n{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)} .pcx-hd .n small{font-weight:500;color:var(--muted);margin-left:6px}",
         ".pcx-hd.m{padding-left:36px;border-top:1px solid var(--line)} .pcx-body{display:none} .pcx-node.open>.pcx-body{display:block}",
         ".pcx-node.open>.pcx-hd{background:var(--panel-2)}",
@@ -67,28 +63,23 @@ registerPage({
         ".pcx-weeks col.n{width:46px} .pcx-weeks col.w{width:250px} .pcx-weeks col.s{width:84px} .pcx-weeks col.t{width:100px}",
         ".pcx-weeks td.wk{text-align:center;font-weight:800;color:var(--faint);font-variant-numeric:tabular-nums;padding-left:6px}",
         ".pcx-weeks tr.now td.wk{color:var(--brand-d)}",
-        ".pcx-weeks th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:center;padding:8px 4px 6px;border-bottom:1px solid var(--line)} .pcx-weeks th.lbl{text-align:left;padding-left:8px} .pcx-weeks th:last-child{text-align:right;padding-right:10px}",
+        ".pcx-weeks th{font-size:12px;color:var(--faint);font-weight:700;text-align:center;padding:8px 4px 6px;border-bottom:1px solid var(--line)} .pcx-weeks th.lbl{text-align:left;padding-left:8px} .pcx-weeks th:last-child{text-align:right;padding-right:10px}",
         ".pcx-weeks td{padding:5px 4px;text-align:center;white-space:nowrap;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);font-variant-numeric:tabular-nums} .pcx-weeks tr:last-child td{border-bottom:0}",
         ".pcx-weeks td.lbl{text-align:left;color:var(--ink);font-weight:600;padding-left:8px;white-space:normal}",
         ".pcx-weeks th:last-child,.pcx-weeks td.tot{text-align:right;padding-right:10px;border-left:1px solid var(--line)}",
         ".pcx-weeks tbody tr:hover td{background:color-mix(in srgb,var(--ink) 3%,transparent)}",
         ".pcx-weeks .pcx-in{width:70px;text-align:center}",
         ".pcx-weeks tr.now td.lbl{color:var(--brand-d)} .pcx-weeks td.tot{font-weight:800;color:var(--ink)}",
-        ".pcx-weeks .sub{display:block;font-size:10.5px;color:var(--faint);font-weight:500;margin-top:1px}",
-        ".pcx-tag{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap}",
+        ".pcx-weeks .sub{display:block;font-size:12px;color:var(--faint);font-weight:500;margin-top:1px}",
+        ".pcx-tag{display:inline-block;font-size:12px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-glow);color:var(--brand-d);margin-left:6px;white-space:nowrap}",
         ".pcx-tag.dim{background:color-mix(in srgb,var(--ink) 8%,var(--panel));color:var(--muted)}",
         ".pcx-legacy td{color:var(--muted)} .pcx-legacy td.lbl{font-weight:600}",
         ".pcx-shelf table td .neg{color:var(--neg);font-weight:700} .pcx-shelf table td .pos{color:var(--pos);font-weight:700}",
-        ".pcx-btn{font-family:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:9px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer} .pcx-btn:hover{border-color:var(--brand)}",
         ".pcx-count{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}",
         ".pcx-msg{font-size:12px;color:var(--muted)} .pcx-msg.bad{color:var(--neg);font-weight:700} .pcx-msg.ok{color:var(--pos);font-weight:700}",
         ".pcx-dim{color:var(--faint)}",
         // ---- DESIGN V2 ("Calm finance"): the light look only; dark keeps every rule above ----
         // sentence-case labels at a readable size, radius 10, one weight for figures, neutral hover
-        "body.rs-app.light.v2 .pcx-kpi{border-radius:10px;padding:14px 16px}",
-        "body.rs-app.light.v2 .pcx-kpi .l{font-size:13px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}",
-        "body.rs-app.light.v2 .pcx-kpi .v{font-size:24px;font-weight:600;letter-spacing:-.3px}",
-        "body.rs-app.light.v2 .pcx-kpi .s{font-size:12.5px;color:var(--faint);margin-top:4px}",
         "body.rs-app.light.v2 .pcx-say{font-size:13px}",
         "body.rs-app.light.v2 .pcx-lno{font-size:12px;font-weight:600;background:#F4FAE6;color:#14301F}",
         "body.rs-app.light.v2 .pcx-in{font-size:13px}",
@@ -111,15 +102,21 @@ registerPage({
         "body.rs-app.light.v2 .pcx-tag{font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px;background:#F4FAE6;color:#2F6316}",
         "body.rs-app.light.v2 .pcx-tag.dim{background:#F1F5F9;color:#475569}",
         "body.rs-app.light.v2 .pcx-shelf table td .neg,body.rs-app.light.v2 .pcx-shelf table td .pos{font-weight:600}",
-        "body.rs-app.light.v2 .pcx-btn{font-size:13px;font-weight:600;border-radius:8px;padding:7px 13px;border-color:#CBD5E1;color:var(--ink)}",
-        "body.rs-app.light.v2 .pcx-btn:hover{border-color:#CBD5E1;background:#F8FAFC}",
         "body.rs-app.light.v2 .pcx-msg.bad,body.rs-app.light.v2 .pcx-msg.ok{font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }
 
-    host.innerHTML = '<div class="rs-page-head"><h1>Post Card Expenditure</h1></div>' +
-      '<div class="rs-loading" style="padding:22px">Reading the weeks, the months and the shelf…</div>';
+    host.innerHTML = RSC.loadingHtml("Post Card Expenditure", "Reading the weeks, the months and the shelf…");
+    // THE KIT HEAD (ZTZ-80). The Friday instructions that sat under the title are its
+    // "How it works" panel now, word for word; the read-only notice stays on the head's line.
+    const head = canEdit => RSC.pageHeadHtml({ title: "Post Card Expenditure", key: "postcard-expenditure",
+      subHtml: "Cards sent per state, week by week — and what should be on the shelf."
+        + (canEdit ? "" : " <b>Your access is read-only here.</b>"),
+      howTitle: "How it works",
+      how: "<h3>Every Friday</h3><p>Every Friday, write down how many postcards went out to each state that week. "
+        + "Open a year, then a month, and type into the week — a cell saves as you leave it (green = saved). "
+        + "This week and last week are open by default.</p>" });
 
     const hdr = { Authorization: "Bearer " + ZTZ.getToken() };
     const rowsOf = j => (j && j.rows) || [];
@@ -129,7 +126,7 @@ registerPage({
       fetch(ZTZ.API + "/api/_pcstock", { headers: hdr }).then(r => r.json()).catch(e => ({ error: String(e) })),
     ]);
     if (!weekRows || !monthRows) {
-      host.innerHTML = '<div class="rs-page-head"><h1>Post Card Expenditure</h1></div><div class="panel">' +
+      host.innerHTML = head(true) + '<div class="panel">' +
         "The postcard tables are not built yet — they appear after the next hourly data refresh.</div>";
       return;
     }
@@ -159,7 +156,7 @@ registerPage({
     const years = [...new Set(months.map(ym => ym.slice(0, 4)))].sort().reverse();
     const open = new Set([thisMon.slice(0, 4), lastMon.slice(0, 4), ymOf(thisMon), ymOf(lastMon)]);   // his default: this week and last week visible
 
-    const kpi = (l, v, s) => '<div class="pcx-kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + "</div>" : "") + "</div>";
+    const kpi = (l, v, s) => ({ label: l, value: v, sub: s || "" });   // a kit tile (RSC.kpis)
     const td = (v, cls) => '<td class="' + (cls || "") + '">' + v + "</td>";
 
     function paintKpis() {
@@ -167,12 +164,12 @@ registerPage({
       const ytd = months.filter(ym => ym.startsWith(y)).reduce((a, ym) => a + (monthHasWeeks(ym) ? monthFromWeeks(ym) : monthTot(ym)), 0);
       const shelf = SRV ? Object.values(SRV.states).reduce((a, r) => a + (r.should || 0), 0) : null;
       const lost = SRV ? (SRV.counts || []).reduce((a, c) => a + Math.max(0, c.lost || 0), 0) : null;
-      host.querySelector("#pcxKpis").innerHTML =
-        kpi("This week", fmtN(weekTot(thisMon)), "Week " + isoWeek(thisMon) + " · " + weekLbl(thisMon) + " · report on Fri " + dayLbl(fridayOf(thisMon))) +
-        kpi("Last week", fmtN(weekTot(lastMon)), "Week " + isoWeek(lastMon) + " · " + weekLbl(lastMon)) +
-        kpi("Sent this year", fmtN(ytd), "all states, " + y) +
-        kpi("On the shelf", shelf == null ? "—" : fmtN(shelf), SRV ? "what the states should hold today" : "shelf not available") +
-        (lost ? kpi("Lost", fmtN(lost), "counts short of the model") : "");
+      RSC.kpis(host.querySelector("#pcxKpis"), [
+        kpi("This week", fmtN(weekTot(thisMon)), "Week " + isoWeek(thisMon) + " · " + weekLbl(thisMon) + " · report on Fri " + dayLbl(fridayOf(thisMon))),
+        kpi("Last week", fmtN(weekTot(lastMon)), "Week " + isoWeek(lastMon) + " · " + weekLbl(lastMon)),
+        kpi("Sent this year", fmtN(ytd), "all states, " + y),
+        kpi("On the shelf", shelf == null ? "—" : fmtN(shelf), SRV ? "what the states should hold today" : "shelf not available"),
+      ].concat(lost ? [kpi("Lost", fmtN(lost), "counts short of the model")] : []));
     }
 
     // ================= line 1: the tree =================
@@ -253,7 +250,7 @@ registerPage({
         '<div class="rs-tablewrap pcx-shelf"><table class="rs-table"><thead><tr><th>State</th><th class="num">Should have</th><th>Basis</th><th class="num">Bought since</th><th class="num">Sent since</th><th>Last count</th><th class="num">Count now</th></tr></thead><tbody>' +
         keys.map(row).join("") + "</tbody></table></div>" +
         (canEdit ? '<div class="pcx-count"><span class="pcx-say" style="margin:0">Count date</span><input class="pcx-in" type="date" id="pcxCntDate" style="width:150px;text-align:left" value="' + esc(SRV.today) + '" max="' + esc(SRV.today) + '">' +
-          '<input class="pcx-in" type="text" id="pcxCntNote" maxlength="500" placeholder="note (optional)" style="width:260px;text-align:left"><button class="pcx-btn" id="pcxCntSave">Save the counts</button><span class="pcx-msg" id="pcxCntMsg"></span></div>' : "");
+          '<input class="pcx-in" type="text" id="pcxCntNote" maxlength="500" placeholder="note (optional)" style="width:260px;text-align:left"><button class="rs-btn" id="pcxCntSave">Save the counts</button><span class="pcx-msg" id="pcxCntMsg"></span></div>' : "");
       const btn = host.querySelector("#pcxCntSave");
       if (btn) btn.onclick = saveCounts;
     }
@@ -278,9 +275,8 @@ registerPage({
     }
 
     host.innerHTML =
-      '<div class="rs-page-head"><h1>Post Card Expenditure</h1>' +
-      '<p style="max-width:none">Every Friday, write down how many postcards went out to each state that week. Open a year, then a month, and type into the week — a cell saves as you leave it (green = saved). This week and last week are open by default.' + (canEdit ? "" : " <b>Your access is read-only here.</b>") + "</p></div>" +
-      '<div class="pcx-kpis" id="pcxKpis"></div>' +
+      head(canEdit) +
+      '<div class="rs-kpis" id="pcxKpis"></div>' +
       '<div class="panel pcx-line"><div class="panel-title"><span class="pcx-lno">1</span>Cards sent — by year, month and week</div>' +
       '<div class="pcx-say">A week runs Monday to Sunday and counts in the month it starts; <b>Wk</b> is the week number of the year (the week of Mon 14 Sep 2026 is 38). Months from before this grid show the vendor\'s monthly figure on one line; the first week you type in such a month takes over as the record for that month.</div>' +
       '<div class="pcx-tree" id="pcxTree"></div></div>' +

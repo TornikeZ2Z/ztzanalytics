@@ -55,9 +55,10 @@
       + ".bes-pg{display:flex;align-items:center;gap:10px;padding:12px 14px;"
       + "border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}"
       + ".bes-pg .rs-spacer{flex:1}"
-      + ".bes-tabs{display:flex;gap:8px;margin:14px 0 4px}"
-      + ".bes-weeks{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}"
-      + ".bes-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}"
+      // the survey week's own row (ZTZ-80): the Week picker with its one-line note beside it
+      + ".bes-wkbar{align-items:center;margin-top:12px}"
+      + ".bes-wkbar .bes-note{margin:0}"
+      + ".bes-sub{display:block;font-size:12px;color:var(--dim);margin-top:3px;white-space:nowrap}"
       + ".bes-note{font-size:12px;color:var(--muted);margin:6px 2px 0}"
       + ".bes tr.bes-day td{background:var(--panel-2);padding:9px 14px;border-top:1px solid var(--line-2)}"
       + ".bes tr.bes-day b{font-size:13.5px;color:var(--ink)}"
@@ -77,6 +78,19 @@
   }
 
   const PAGE = 25;
+  // "How it's counted": the description that sat over the tabs, word for word, and what each view is
+  const HOW_HTML = "<h3>What goes through Birdeye</h3>"
+    + "<p>What goes through <b>Birdeye</b>: review requests the moment a foreman hears "
+    + "a promise, the <b>weekly Monthly Survey</b> every Tuesday to customers who moved "
+    + "the week before last and filed no claim, and the <b>referral request</b> five days after "
+    + "a move the customer rated 10/10.</p>"
+    + "<h3>Sent</h3>"
+    + "<p>A sent row means Birdeye was asked, from the send ledger.</p>"
+    + "<h3>Survey coverage</h3>"
+    + "<p>Who was not asked, and why: every Zip to Zip job in a survey week and what happened to it, "
+    + "sent or the reason it was not (has a claim, no email, same email already surveyed, still waiting "
+    + "for its Tuesday). Weeks run Monday to Sunday by move date, and are sent on the Tuesday two weeks "
+    + "after the week began.</p>";
   const STATUSES = ["Sent", "Has a claim", "No email", "Same email already surveyed",
                     "Waiting for its Tuesday", "Not sent"];
 
@@ -101,7 +115,7 @@
       if (S.uq == null) { S.uq = ""; S.ucamp = "all"; S.upage = 0; }
 
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading the Birdeye send-outs…</div>';
+      host.innerHTML = RSC.loadingHtml("Birdeye Send-outs", "Loading the Birdeye send-outs…");
 
       let QUEUE = [];
       Promise.all([RS.load("birdeye_sent"), RS.load("birdeye_survey_status"),
@@ -120,11 +134,8 @@
       const d10 = v => { const s = String(v || ""); return s ? s.slice(0, 10) : "—"; };
       const dt16 = v => { const s = String(v || "").replace("T", " "); return s ? s.slice(0, 16) : "—"; };
 
-      function kpi(val, lab, sub, cls) {
-        return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(lab)
-          + '</div><div class="v">' + esc(val) + '</div><div class="s">'
-          + esc(sub) + "</div></div>";
-      }
+      // the kit's tile (ZTZ-80), from the same four arguments the page's hand-made copy took
+      const kpi = (val, lab, sub, cls) => ({ label: lab, value: esc(val), sub: sub, tone: cls || "" });
 
       function pager(total, page, pages, id) {
         const from = total ? page * PAGE + 1 : 0;
@@ -155,20 +166,20 @@
 
       function paint(sent, cov) {
         if (!alive()) return;
+        // THE PAGE STANDARD (ZTZ-80): the kit head with the three-line description moved into
+        // "How it's counted", then the three views as the kit's underline tabs (data-tab, so the
+        // click binding in wire() is unchanged).
         let html = '<div class="bes">'
-          + '<div class="rs-page-head"><h1>Birdeye Send-outs</h1>'
-          + "<p>What goes through <b>Birdeye</b>: review requests the moment a foreman hears "
-          + "a promise, the <b>weekly Monthly Survey</b> every Tuesday to customers who moved "
-          + "the week before last and filed no claim, and the <b>referral request</b> five days after "
-          + "a move the customer rated 10/10."
-          + '<span class="freshness"> · a sent row means Birdeye was asked, from the send ledger</span></p></div>';
+          + RSC.pageHeadHtml({ title: "Birdeye Send-outs", key: "birdeye-sends",
+              sub: "Every review request and survey sent through Birdeye — and, for the weekly survey, "
+                + "who was not asked and why.",
+              how: HOW_HTML });
 
-        html += '<div class="bes-tabs">'
-          + '<div class="rs-tog' + (S.tab === "coming" ? " on" : "") + '" data-tab="coming"><i></i>Coming up'
-          + (QUEUE.length ? " · " + QUEUE.length.toLocaleString() : "") + "</div>"
-          + '<div class="rs-tog' + (S.tab === "sent" ? " on" : "") + '" data-tab="sent"><i></i>Sent</div>'
-          + '<div class="rs-tog' + (S.tab === "coverage" ? " on" : "") + '" data-tab="coverage"><i></i>'
-          + "Survey coverage — who was not asked, and why</div></div>";
+        html += RSC.tabsHtml([
+          { id: "coming", label: "Coming up", count: QUEUE.length ? QUEUE.length.toLocaleString() : null },
+          { id: "sent", label: "Sent" },
+          { id: "coverage", label: "Survey coverage" },
+        ], S.tab, "tab");
 
         html += S.tab === "coming" ? comingView(QUEUE) : S.tab === "sent" ? sentView(sent) : coverageView(cov);
         html += "</div>";
@@ -203,16 +214,19 @@
         if (S.upage < 0) S.upage = 0;
         const shown = upList.slice(S.upage * PAGE, S.upage * PAGE + PAGE);
 
-        let h = '<div class="rs-kpis" style="--kpi-cols:4">'
-          + kpi(rows.length.toLocaleString(), "Queued in total", "customers the three automations will contact", "")
-          + kpi(n("referral-ask").toLocaleString(), "Referral requests", "daily 12:35 PM New Jersey · " + next("referral-ask"), n("referral-ask") ? "pos" : "")
-          + kpi(n("survey").toLocaleString(), "Monthly Survey", "Tuesdays 10:35 AM New Jersey · " + next("survey"), n("survey") ? "pos" : "")
-          + kpi(n("review-request").toLocaleString(), "Review requests", "within the hour of a foreman's answer", "")
-          + "</div>";
+        let h = RSC.kpisHtml([
+          kpi(rows.length.toLocaleString(), "Queued in total", "customers the three automations will contact", ""),
+          kpi(n("referral-ask").toLocaleString(), "Referral requests", "daily 12:35 PM New Jersey · " + next("referral-ask"), n("referral-ask") ? "pos" : ""),
+          kpi(n("survey").toLocaleString(), "Monthly Survey", "Tuesdays 10:35 AM New Jersey · " + next("survey"), n("survey") ? "pos" : ""),
+          kpi(n("review-request").toLocaleString(), "Review requests", "within the hour of a foreman's answer", ""),
+        ]);
         h += '<div class="rs-bar" style="margin-top:14px">'
           + '<label class="rs-fld"><span>Find</span>'
           + '<input class="rs-inp" id="besUQ" placeholder="Customer, email or job…" value="' + esc(S.uq) + '"></label>'
-          + CAMPS.map(([c, l]) => '<div class="rs-tog' + (S.ucamp === c ? " on" : "") + '" data-ucamp="' + c + '"><i></i>' + esc(l) + "</div>").join("")
+          // one of four, so the kit's segmented control (ZTZ-80), not four on/off toggles
+          + '<div class="rs-fld"><span>Automation</span><div class="rs-seg">'
+          + CAMPS.map(([c, l]) => '<button type="button"' + (S.ucamp === c ? ' class="on"' : "") + ' data-ucamp="' + c + '">' + esc(l) + "</button>").join("")
+          + "</div></div>"
           + '<span class="rs-spacer"></span>'
           + '<button class="rs-btn" id="besUpCsv">Download CSV · ' + upList.length + "</button></div>";
         let lastDay = null, body = "";
@@ -267,20 +281,22 @@
         if (S.page < 0) S.page = 0;
         const shown = sentList.slice(S.page * PAGE, S.page * PAGE + PAGE);
 
-        let h = '<div class="rs-kpis" style="--kpi-cols:4">'
-          + kpi(rows.length.toLocaleString(), "Sent in total", "every live send, both campaigns", "")
-          + kpi(surveys.toLocaleString(), "Monthly Survey", "weekly, Tuesdays", surveys ? "pos" : "")
-          + kpi(reviews.toLocaleString(), "Review requests", "when a foreman hears a promise", reviews ? "pos" : "")
-          + kpi(last7.toLocaleString(), "Last 7 days", "both campaigns", "")
-          + "</div>";
+        let h = RSC.kpisHtml([
+          kpi(rows.length.toLocaleString(), "Sent in total", "every live send, both campaigns", ""),
+          kpi(surveys.toLocaleString(), "Monthly Survey", "weekly, Tuesdays", surveys ? "pos" : ""),
+          kpi(reviews.toLocaleString(), "Review requests", "when a foreman hears a promise", reviews ? "pos" : ""),
+          kpi(last7.toLocaleString(), "Last 7 days", "both campaigns", ""),
+        ]);
 
         h += '<div class="rs-bar" style="margin-top:14px">'
           + '<label class="rs-fld"><span>Find</span>'
           + '<input class="rs-inp" id="besQ" placeholder="Customer, email or job…" value="' + esc(S.q) + '"></label>'
+          + '<div class="rs-fld"><span>Campaign</span><div class="rs-seg">'
           + ["all", "survey", "review-request", "referral-ask"].map(c =>
-              '<div class="rs-tog' + (S.campaign === c ? " on" : "") + '" data-camp="' + c + '"><i></i>'
+              '<button type="button"' + (S.campaign === c ? ' class="on"' : "") + ' data-camp="' + c + '">'
               + (c === "all" ? "All campaigns" : c === "survey" ? "Monthly Survey" : c === "referral-ask" ? "Referral requests" : "Review requests")
-              + "</div>").join("")
+              + "</button>").join("")
+          + "</div></div>"
           + '<span class="rs-spacer"></span>'
           + '<button class="rs-btn" id="besCsv">Download CSV · ' + sentList.length + "</button></div>";
 
@@ -300,7 +316,7 @@
       }
 
       // ---- SURVEY COVERAGE ----------------------------------------------------------------
-      let covList = [];
+      let covList = [], covWeeks = [], covCount = () => 0;
       function coverageView(rows) {
         const weeks = Array.from(new Set(rows.map(r => d10(r["Week Start"]))))
           .filter(w => w !== "—").sort().reverse();
@@ -312,6 +328,7 @@
         }
         const wk = rows.filter(r => d10(r["Week Start"]) === S.week);
         const count = st => wk.filter(r => r["Status"] === st).length;
+        covWeeks = weeks; covCount = count;
         const sendDate = wk.length ? d10(wk[0]["Send Date"]) : "—";
 
         const q = S.cq.trim().toLowerCase();
@@ -328,30 +345,29 @@
         if (S.cpage < 0) S.cpage = 0;
         const shown = covList.slice(S.cpage * PAGE, S.cpage * PAGE + PAGE);
 
-        let h = '<div class="bes-weeks">' + (weeks.length ? weeks.map(w =>
-            '<div class="rs-tog' + (S.week === w ? " on" : "") + '" data-week="' + esc(w) + '"><i></i>'
-            + "Moves from " + esc(w) + "</div>").join("")
-          : '<span class="dim">No survey weeks yet.</span>') + "</div>";
-        h += '<p class="bes-note">Week of moves starting <b>' + esc(S.week || "—") + "</b> · survey day <b>"
-          + esc(sendDate) + "</b> · Zip to Zip jobs on the closing sheet, by the job's last closing date.</p>";
+        // the week decides every tile below, so it sits above them: ONE picker where a row of
+        // week chips used to be (ZTZ-80), with the week's one-line note beside it
+        let h = '<div class="rs-bar bes-wkbar">' + (weeks.length ? '<div id="besWeek"></div>'
+          : '<span class="dim">No survey weeks yet.</span>')
+          + '<p class="bes-note">Week of moves starting <b>' + esc(S.week || "—") + "</b> · survey day <b>"
+          + esc(sendDate) + "</b> · Zip to Zip jobs on the closing sheet, by the job's last closing date.</p></div>";
 
-        h += '<div class="rs-kpis" style="--kpi-cols:6">'
-          + kpi(wk.length.toLocaleString(), "Jobs that week", "Zip to Zip closings", "")
-          + kpi(count("Sent").toLocaleString(), "Sent", "got the Monthly Survey", count("Sent") ? "pos" : "")
-          + kpi(count("Has a claim").toLocaleString(), "Has a claim", "skipped on purpose", "")
-          + kpi(count("No email").toLocaleString(), "No email", "cannot be asked", count("No email") ? "warn" : "")
-          + kpi(count("Same email already surveyed").toLocaleString(), "Same email", "that person was already asked", "")
-          + kpi((count("Waiting for its Tuesday") + count("Not sent")).toLocaleString(), "Not sent yet",
-                count("Not sent") ? count("Not sent") + " past their Tuesday" : "waiting for the send day",
-                count("Not sent") ? "warn" : "")
-          + "</div>";
+        h += RSC.kpisHtml([
+          kpi(wk.length.toLocaleString(), "Jobs that week", "Zip to Zip closings", ""),
+          kpi(count("Sent").toLocaleString(), "Sent", "got the Monthly Survey", count("Sent") ? "pos" : ""),
+          kpi(count("Has a claim").toLocaleString(), "Has a claim", "skipped on purpose", ""),
+          kpi(count("No email").toLocaleString(), "No email", "cannot be asked", count("No email") ? "warn" : ""),
+          kpi(count("Same email already surveyed").toLocaleString(), "Same email", "that person was already asked", ""),
+          kpi((count("Waiting for its Tuesday") + count("Not sent")).toLocaleString(), "Not sent yet",
+              count("Not sent") ? count("Not sent") + " past their Tuesday" : "waiting for the send day",
+              count("Not sent") ? "warn" : ""),
+        ]);
 
         h += '<div class="rs-bar" style="margin-top:14px">'
           + '<label class="rs-fld"><span>Find</span>'
           + '<input class="rs-inp" id="besCQ" placeholder="Customer, email, job or request…" value="' + esc(S.cq) + '"></label>'
-          + ["all"].concat(STATUSES).map(st =>
-              '<div class="rs-tog' + (S.status === st ? " on" : "") + '" data-st="' + esc(st) + '"><i></i>'
-              + esc(st === "all" ? "All" : st) + "</div>").join("")
+          // seven statuses: one kit picker (mounted in wire) instead of seven toggles
+          + '<div id="besSt"></div>'
           + '<span class="rs-spacer"></span>'
           + '<button class="rs-btn" id="besCovCsv">Download CSV · ' + covList.length + "</button></div>";
 
@@ -404,11 +420,18 @@
         host.querySelectorAll("[data-ucamp]").forEach(t => {
           t.onclick = () => { S.ucamp = t.dataset.ucamp; S.upage = 0; repaint(); };
         });
-        host.querySelectorAll("[data-week]").forEach(t => {
-          t.onclick = () => { S.week = t.dataset.week; S.cpage = 0; repaint(); };
+        // the coverage view's two pickers: the same state and the same pager reset the chips had
+        const wkHost = host.querySelector("#besWeek");
+        if (wkHost) RSC.localSelect(wkHost, {
+          label: "Week", required: true, value: S.week || "",
+          values: covWeeks.map(w => ({ v: w, l: "Moves from " + w })),
+          onChange: v => { S.week = v; S.cpage = 0; repaint(); },
         });
-        host.querySelectorAll("[data-st]").forEach(t => {
-          t.onclick = () => { S.status = t.dataset.st; S.cpage = 0; repaint(); };
+        const stHost = host.querySelector("#besSt");
+        if (stHost) RSC.localSelect(stHost, {
+          label: "Status", allLabel: "All", value: S.status === "all" ? "" : S.status,
+          values: STATUSES.map(st => ({ v: st, l: st, n: covCount(st) })),
+          onChange: v => { S.status = v || "all"; S.cpage = 0; repaint(); },
         });
         [["#besQ", "q", "page"], ["#besCQ", "cq", "cpage"], ["#besUQ", "uq", "upage"]].forEach(([sel, key, pg]) => {
           const box = host.querySelector(sel);

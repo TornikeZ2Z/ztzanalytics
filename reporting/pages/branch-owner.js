@@ -203,21 +203,22 @@ registerPage({
     const loadingCard = t => `<div class="panel" style="min-height:320px;display:grid;place-items:center">
       <div class="rs-loading"><b>${t}</b>Loading…</div></div>`;
 
-    const head = `
-      <div class="rs-page-head">
-        <h1>Branch Owner</h1>
-        <p>Results for a branch owner — someone who takes a cut when listed as a
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head with the opening paragraph in How
+       it's counted (worded as before), and ONE row of six tiles where there were two rows of four:
+       "Jobs (as branch owner)" folds into the revenue tile's line, "Margin before his cut" into
+       the gross margin tile's line. */
+    const head = RSC.pageHeadHtml({ title: "Branch Owner", key: "branch-owner",
+      sub: "A branch owner's SP-slot cut, and the gross profit his jobs leave after it.",
+      how: `<p>Results for a branch owner — someone who takes a cut when listed as a
            <b>Sales Person</b>, not a real salesperson (currently <b>Giorgi Kolbaia</b>).
            Counts <b>only his SP-slot cut</b>, never his foreman jobs. Gross profit is
-           after his cut and ties out with the Job P&amp;L page.
-           <span class="freshness">· read-only · respects the date/company filter</span></p>
-      </div>`;
+           after his cut and ties out with the Job P&amp;L page.</p>
+        <p>Read-only. Respects the date/company filter.</p>` });
 
     // ---- skeleton first: page paints instantly, each section fills in as its data lands ----
     host.innerHTML = head + `
       <div id="boOwnerPick" style="margin:0 0 12px"></div>
       <div class="rs-kpis" id="boKpis"><div class="rs-loading">Loading…</div></div>
-      <div class="rs-kpis" id="boProfitKpis"></div>
       <div id="boMoney"></div>
       <div class="rs-grid2" id="boGrid">
         <div id="boSlotTrend"></div>
@@ -251,17 +252,22 @@ registerPage({
 
     const totalBill = scoped.reduce((a, r) => a + num(r["Total Bill"]), 0);
     const totalCut  = scoped.reduce((a, r) => a + num(r["Branch Owner Cut"]), 0);
-    const owners = [...new Set(scoped.map(r => r["Branch Owner"]))];
     const avgPct = totalBill ? totalCut / totalBill : 0;
 
-    RSC.kpis(document.getElementById("boKpis"), [
-      { label: "Jobs (as branch owner)", value: fmtN(scoped.length), sub: owners.join(", ") },
-      { label: "Revenue of those jobs", value: moneyC(totalBill), sub: money(totalBill) },
+    // ONE row of six (ZTZ-80): the three cut tiles now, the three profit tiles when phase 2 lands
+    const kpiRow = p => RSC.kpis(document.getElementById("boKpis"), [
+      { label: "Revenue of his jobs", value: moneyC(totalBill),
+        // the owner's name was this line's old tile; the Branch owner picker above already says it
+        sub: fmtN(scoped.length) + " jobs as branch owner · " + money(totalBill) },
       { label: "His Cut", value: moneyC(totalCut), sub: money(totalCut) },
       { label: "Avg Cut %", value: pctS(avgPct), sub: "of revenue" },
-    ]);
-    document.getElementById("boProfitKpis").innerHTML =
-      `<div class="rs-loading">Calculating gross profit…</div>`;
+    ].concat(p ? [
+      { label: "Gross Profit", value: moneyC(p.op), sub: money(p.op) + " · after his cut" },
+      { label: "Gross Margin", value: pctS(p.opm),
+        sub: pctS(p.before) + " before his cut · his cut costs " + pctS(p.cutCost) + " of margin" },
+      { label: "Rest-of-business margin", value: pctS(p.rest), sub: p.vsRest },
+    ] : ["Gross Profit", "Gross Margin", "Rest-of-business margin"].map(l => ({ label: l, value: "…", sub: "Calculating gross profit…" }))));
+    kpiRow(null);
 
     // ---- (1) monthly trend: his cut + the revenue it came from (closing only) ----
     const byMonth = {};
@@ -369,9 +375,9 @@ registerPage({
           ".boe-big.his b{color:var(--brand-d)}",
           ".boe-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:4px 0 6px;background:var(--line)}",
           ".boe-stack i{display:block;height:100%}",
-          ".boe-key{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}.boe-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}",
+          ".boe-key{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.boe-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}",
           ".boe-rows{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(80px,1.4fr) 92px 58px;gap:6px 12px;align-items:center;font-size:13px}",
-          ".boe-rows .l{color:var(--ink)}.boe-rows .l small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
+          ".boe-rows .l{color:var(--ink)}.boe-rows .l small{display:block;color:var(--faint);font-size:12px;line-height:1.3}",
           ".boe-rows .bar{height:10px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}",
           ".boe-rows .bar i{position:absolute;top:0;bottom:0;border-radius:5px}",
           ".boe-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.boe-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
@@ -512,16 +518,10 @@ registerPage({
     const opmBefore = hp.bill ? opBefore / hp.bill : null;
     const cutMarginCost = hp.bill ? totalCut / hp.bill : 0;
 
-    RSC.kpis(document.getElementById("boProfitKpis"), [
-      { label: "Gross Profit", value: moneyC(hp.op), sub: money(hp.op) + " · after his cut" },
-      { label: "Gross Margin", value: pctS(hp.opm), sub: "of revenue" },
-      { label: "Margin before his cut", value: pctS(opmBefore),
-        sub: "his cut costs " + pctS(cutMarginCost) + " of margin" },
-      { label: "Rest-of-business margin", value: pctS(rp.opm),
-        sub: (hp.opm != null && rp.opm != null)
-          ? "his are " + (hp.opm >= rp.opm ? "+" : "") + pctS(hp.opm - rp.opm) + " vs rest"
-          : "all non-Giorgi jobs" },
-    ]);
+    kpiRow({ op: hp.op, opm: hp.opm, before: opmBefore, cutCost: cutMarginCost, rest: rp.opm,
+      vsRest: (hp.opm != null && rp.opm != null)
+        ? "his are " + (hp.opm >= rp.opm ? "+" : "") + pctS(hp.opm - rp.opm) + " vs rest"
+        : "all non-Giorgi jobs" });
 
     // ---- (2) his jobs vs the rest of the business — operational margin ----
     const cmpRows = [

@@ -52,10 +52,9 @@ registerPage({
       const st = document.createElement("style");
       st.id = "eav-style";
       st.textContent = [
-        ".eav-hero{font-size:20px;font-weight:600;line-height:1.35;margin:2px 0 14px;max-width:1000px;color:var(--ink)}",
-        ".eav-hero em{font-style:normal;color:var(--neg)}",
-        ".eav-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
-        ".eav-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0}",
+        // the head, the filter row (.rs-bar), the headline (.rs-headline), the KPI tiles, the search
+        // field (.rs-inp) and the claim pills (.rs-pill) are the kit's; only what it has no name for is here
+        ".eav-kv{font-size:18px}",
         ".eav-g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:14px}",
         ".eav-g2>.panel{min-width:0;margin:0}",
         "@media(max-width:1100px){.eav-g2{grid-template-columns:minmax(0,1fr)}}",
@@ -67,15 +66,15 @@ registerPage({
         ".eav-wf .c b{position:absolute;left:0;right:0;text-align:center;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}",
         ".eav-wf-l{display:flex;gap:12px;padding:6px 4px 0}.eav-wf-l span{flex:1;text-align:center;font-size:12px;color:var(--muted)}",
         ".eav-hm{border-collapse:separate;border-spacing:4px;width:100%;font-size:12.5px}",
-        ".eav-hm th{font-weight:600;color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;text-align:center}",
+        ".eav-hm th{font-weight:600;color:var(--faint);font-size:12px;padding:2px 6px;text-align:center}",
         ".eav-hm th.rh{text-align:right;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ink)}",
         ".eav-hm td{text-align:center;border-radius:7px;padding:8px 4px;background:var(--panel-2)}",
         ".eav-hm td b{display:block;font-size:14px;font-variant-numeric:tabular-nums}",
-        ".eav-hm td small{color:var(--muted);font-size:11px}",
+        ".eav-hm td small{color:var(--muted);font-size:12px}",
         ".eav-hm td.nil{color:var(--faint)}",
         ".eav-tabs{margin:0 0 12px}",
         ".eav-t{width:100%;border-collapse:collapse;font-size:13px}",
-        ".eav-t th{font-size:11.5px;font-weight:600;color:var(--faint);text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}",
+        ".eav-t th{font-size:12px;font-weight:600;color:var(--faint);text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}",
         ".eav-t th:first-child,.eav-t td:first-child{text-align:left}",
         ".eav-t td{text-align:right;padding:8px;border-bottom:1px solid var(--line-2);font-variant-numeric:tabular-nums;white-space:nowrap}",
         ".eav-t tr.pp{cursor:pointer}.eav-t tr.pp:hover td{background:var(--panel-2)}",
@@ -85,7 +84,7 @@ registerPage({
         ".eav-rv td{text-align:left}.eav-rv td:nth-child(6),.eav-rv td:nth-child(7),.eav-rv td:last-child{text-align:right}",
         ".eav-sb{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}",
         ".eav-sb i{display:inline-block;height:9px;border-radius:3px;background:var(--neg);opacity:.75}",
-        ".eav-drv{font-size:11.5px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}",
+        ".eav-drv{font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}",
         ".eav-up{color:var(--neg)}.eav-dn{color:var(--pos)}",
         ".eav-dr td{background:var(--panel-2)!important;padding:14px 16px!important;white-space:normal!important;text-align:left!important}",
         ".eav-dg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:20px}",
@@ -96,18 +95,14 @@ registerPage({
         ".eav-a{color:var(--brand);text-decoration:none;font-weight:600;margin-right:8px}.eav-a:hover{text-decoration:underline}",
         ".eav-btn{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;margin-left:4px}",
         ".eav-btn:hover{border-color:var(--brand);color:var(--brand)}",
-        ".eav-chip{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px}",
-        ".eav-chip.neg{background:rgba(185,28,28,.1);color:var(--neg)}.eav-chip.pos{background:rgba(21,128,61,.1);color:var(--pos)}",
-        ".eav-chip.mut{background:var(--panel-2);color:var(--faint)}",
         ".eav-more summary{cursor:pointer;font-weight:600;color:var(--brand);font-size:13px;margin:4px 0}",
         ".eav-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:12.5px;color:var(--faint)}",
         ".eav-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
-        "body.rs-app.light.v2 .eav-in{border-radius:999px;border-color:var(--line-2);height:36px;padding:0 14px;background:#FFFFFF}",
       ].join("");
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `<div class="rs-page-head"><h1>Estimate Accuracy</h1></div><div class="rs-loading" style="padding:22px">Reading the contracts…</div>`;
+    host.innerHTML = RSC.loadingHtml("Estimate Accuracy", "Reading the contracts…");
     const authed = (path, opt) => fetch(ZTZ.API + path, Object.assign({}, opt || {},
       { headers: Object.assign({ Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" }, (opt || {}).headers || {}) }))
       .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }));
@@ -204,17 +199,23 @@ registerPage({
       const surPct = pct(H.sur.length, H.det.length);
       const mult = H.rS != null && H.rO ? H.rS / H.rO : null;
       const hero = H.det.length
-        ? `${surPct}% of customers paid 20%+ more than they were quoted` + (mult && mult >= 1.3
-            ? `, and those jobs end in a claim <em>${mult >= 2.5 ? Math.round(mult) + "×" : mult.toFixed(1) + "×"} as often</em>.` : ".")
+        ? `<b>${surPct}%</b> of customers paid 20%+ more than they were quoted` + (mult && mult >= 1.3
+            ? `, and those jobs end in a claim <b>${mult >= 2.5 ? Math.round(mult) + "×" : mult.toFixed(1) + "×"} as often</b>.` : ".")
         : "No finished contracts in this window yet.";
-      let h = `<div class="rs-page-head"><h1>Estimate Accuracy</h1></div><div class="eav-bar" id="eavBar"></div>
-        <p class="eav-hero">${hero}</p>
-        <div class="rs-kpis" style="--kpi-cols:4">
-          <div class="kpi"><div class="l">Billed 20%+ over the quote</div><div class="v">${surPct == null ? "—" : surPct + "%"}</div><div class="s">${int(H.sur.length)} of ${int(H.det.length)} jobs with a final contract</div></div>
-          <div class="kpi"><div class="l">Extra over the quotes</div><div class="v">${usdK(H.extra)}</div><div class="s">${H.det.length ? usdS(H.extra / H.det.length) + " a job" : "—"}</div></div>
-          <div class="kpi"><div class="l">Claims when billed 20%+ over</div><div class="v" style="color:var(--neg)">${H.rS == null ? "—" : Math.round(H.rS * 1000) / 10 + "%"}</div><div class="s">vs ${H.rO == null ? "—" : Math.round(H.rO * 1000) / 10 + "%"} when within 20%</div></div>
-          <div class="kpi"><div class="l">Top claim reason on those jobs</div><div class="v" style="font-size:18px">${esc(H.top ? H.top[0] : "—")}</div><div class="s">${H.top ? int(H.top[1]) + " of " + int(H.clS) + " claims" : "no claims"}</div></div>
-        </div>
+      let h = `${RSC.pageHeadHtml({ title: "Estimate Accuracy", key: "estimate-accuracy",
+          sub: "Where do customers get a bigger bill than they were quoted, why, and who needs coaching?" })}
+        <div class="rs-bar" id="eavBar"></div>
+        ${RSC.headlineHtml(hero)}
+        ${RSC.kpisHtml([
+          { label: "Billed 20%+ over the quote", value: surPct == null ? "—" : surPct + "%",
+            sub: int(H.sur.length) + " of " + int(H.det.length) + " jobs with a final contract" },
+          { label: "Extra over the quotes", value: usdK(H.extra),
+            sub: H.det.length ? usdS(H.extra / H.det.length) + " a job" : "—" },
+          { label: "Claims when billed 20%+ over", tone: "neg", value: H.rS == null ? "—" : Math.round(H.rS * 1000) / 10 + "%",
+            sub: "vs " + (H.rO == null ? "—" : Math.round(H.rO * 1000) / 10 + "%") + " when within 20%" },
+          { label: "Top claim reason on those jobs", value: '<span class="eav-kv">' + esc(H.top ? H.top[0] : "—") + "</span>",
+            sub: H.top ? int(H.top[1]) + " of " + int(H.clS) + " claims" : "no claims" },
+        ])}
         <div class="eav-g2">${waterfall(H)}${heatmap(rs)}</div>
         <div class="panel"><div class="rs-seg eav-tabs" id="eavTabs">
           <button data-tab="sales" class="${S.tab === "sales" ? "on" : ""}">Sales people</button>
@@ -324,7 +325,7 @@ registerPage({
         : Math.abs(Math.log(cfFore(b) || 1)) - Math.abs(Math.log(cfFore(a) || 1))).slice(0, 8);
       const jl = worstJobs.map(r => `<tr><td><b>${esc(r.job)}</b></td><td>${esc(r.date.slice(5))}</td><td>${esc(r.cust)}</td>
         <td>${who === "rep" ? (r.estI ? int(r.estI) + " → " + int(r.actI) + " items" : "—") : (r.soldCF ? int(r.soldCF) + " → " + int(r.realCF) + " CF" : "—")}</td>
-        <td>${r.det ? usdS(r.extra) : "—"}</td><td>${r.claim ? '<span class="eav-chip neg">claim</span>' : ""}</td>
+        <td>${r.det ? usdS(r.extra) : "—"}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
         <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${r.sheet ? `<a class="eav-a" href="${esc(r.sheet)}" target="_blank" rel="noopener">Sheet</a>` : ""}</td></tr>`).join("");
       return `<div class="eav-dg"><div><h4>Pattern</h4><div class="eav-fact">${facts}</div></div>
         <div><h4>${who === "rep" ? "Biggest surprises" : "Biggest CF misses"}</h4><table class="eav-jl">${jl}</table></div></div>`;
@@ -339,9 +340,9 @@ registerPage({
       const rows = xs.map(r => {
         const ir = r.estI > 0 && r.actI > 0 ? r.actI / r.estI : null, typo = ir != null && itemsRatio(r) == null;
         return `<tr><td><b>${esc(r.job)}</b></td><td>${esc(r.date.slice(5))}</td><td>${esc(r.rep)}</td><td>${esc(r.cust)}</td>
-          <td>${r.estI ? int(r.estI) + " → " + int(r.actI) + " items" : "—"}${typo ? ' <span class="eav-chip mut">check figures</span>' : ""}</td>
+          <td>${r.estI ? int(r.estI) + " → " + int(r.actI) + " items" : "—"}${typo ? ' <span class="rs-pill mute">check figures</span>' : ""}</td>
           <td>${r.det ? usd(r.q) + " → " + usd(r.b) : '<span style="color:var(--faint)">no final bill yet</span>'}</td>
-          <td>${r.det ? `<b class="eav-up">${usdS(r.extra)}</b>` : ""}</td><td>${r.claim ? '<span class="eav-chip neg">claim</span>' : ""}</td>
+          <td>${r.det ? `<b class="eav-up">${usdS(r.extra)}</b>` : ""}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
           <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${CAN ? (typo ? `<button class="eav-btn" data-okfig="${esc(r.key)}">Figures right</button>` : "") + `<button class="eav-btn" data-exclude="${esc(r.key)}">Exclude</button>` : ""}</td></tr>`;
       }).join("");
       return `<div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">This week's review list</div><span class="rt">moves ${esc(from.slice(5))} – ${esc(last.slice(5))} · biggest surprises first</span></div>
@@ -362,7 +363,7 @@ registerPage({
         <td>${esc(r.rep)}</td><td>${esc(r.fore)}</td><td>${esc(r.som || "—")}</td>
         <td>${r.estI ? int(r.estI) + " → " + int(r.actI) : "—"}</td><td>${r.estCF ? int(r.estCF) + " → " + int(r.soldCF) + " → " + int(r.realCF) : "—"}</td>
         <td>${r.estH ? r.estH + " → " + r.billH : "—"}</td><td>${r.det ? usd(r.q) + " → " + usd(r.b) : "—"}</td>
-        <td>${r.det ? (surprised(r) ? `<b class="eav-up">${usdS(r.extra)}</b>` : usdS(r.extra)) : "—"}</td><td>${r.claim ? '<span class="eav-chip neg">claim</span>' : ""}</td>
+        <td>${r.det ? (surprised(r) ? `<b class="eav-up">${usdS(r.extra)}</b>` : usdS(r.extra)) : "—"}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
         <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${CAN ? `<button class="eav-btn" data-exclude="${esc(r.key)}">Exclude</button>` : ""}</td></tr>`).join("");
       const exN = ROWS.filter(isEx).length;
       return `<details class="panel eav-more" style="margin-top:14px" ${S.jobsOpen ? "open" : ""} id="eavJobs"><summary>All ${int(list.length)} jobs${exN ? " · " + exN + " excluded" : ""}</summary>
@@ -378,7 +379,7 @@ registerPage({
       if (window.RSC && RSC.dateRange) RSC.dateRange(fld("Move dates"), {
         get: () => ({ from: S.from, to: S.to }), set: (f, t) => { S.from = f; S.to = t; }, onChange: () => { S.page = 0; S.open = null; paint(); } });
       const q = document.createElement("input");
-      q.className = "eav-in"; q.placeholder = "find a job, customer, person…"; q.value = S.q; q.style.flex = "0 1 240px";
+      q.className = "rs-inp"; q.placeholder = "find a job, customer, person…"; q.value = S.q; q.style.flex = "0 1 240px";
       q.oninput = () => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = q.value; S.page = 0; S.jobsOpen = true; S._focus = 1; paint(); }, 300); };
       bar.appendChild(q);
       // the Filters button at the bar's right end, the "Filtered by" line right under the bar.

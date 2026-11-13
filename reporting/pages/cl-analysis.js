@@ -77,26 +77,23 @@ registerPage({
         ".cla-checks{display:flex;flex-direction:column;gap:7px;margin-top:4px}",
         ".cla-chk{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.5}",
         ".cla-chk span{flex:0 0 18px;height:18px;border-radius:999px;display:grid;"
-          + "place-items:center;font-size:11px;font-weight:800;margin-top:1px}",
+          + "place-items:center;font-size:12px;font-weight:800;margin-top:1px}",
         ".cla-chk.ok span{background:var(--pos-bg);color:var(--pos)}",
         ".cla-chk.ok div{color:var(--muted)}",
         ".cla-chk.bad span{background:var(--warn-bg);color:var(--warn)}",
         ".cla-chk.bad div{color:var(--ink);font-weight:650}",
         ".cla-over{color:var(--neg)!important;font-weight:800}",
-        ".cla-of{color:var(--faint);font-weight:400;font-size:11px}",
+        ".cla-of{color:var(--faint);font-weight:400;font-size:12px}",
         ".cla-foot{display:flex;align-items:center;gap:12px;padding:9px 2px 2px;"
           + "font-size:12px;color:var(--muted)}",
         ".cla-foot .rs-btn{padding:4px 10px;font-size:12px}",
         ".cla-foot > button[data-all]{margin-left:auto}",
         ".cla-pg{display:inline-flex;align-items:center;gap:8px}",
         ".cla-pg b{font-weight:700;color:var(--ink);min-width:52px;text-align:center}",
-        // the local filter bar
+        // .cla-bar was the local filter bar; that is the kit's .rs-bar now (ZTZ-80). The rule stays
+        // because the proposal's bar rows (.cla-bar further down) take their wrap from it.
         ".cla-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}",
-        ".cla-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
-          + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
-          + "transition:border-color .15s}",
-        ".cla-in:focus{border-color:var(--brand)}",
-        ".cla-count{font-size:12px;color:var(--faint);font-weight:600}",
+        ".cla-count{font-size:12px;color:var(--faint);font-weight:600;align-self:center}",
         // THE TOTALS ROW LIVES IN A TFOOT, so pagination (which rewrites the tbody alone)
         // can never page it away — the sum is always in sight under whatever page is open.
         ".rs-table tfoot td{font-weight:800;border-top:2px solid var(--line-2);"
@@ -111,8 +108,7 @@ registerPage({
         ".cla-led{display:flex;flex-wrap:wrap;gap:0;padding:18px 20px}",
         ".cla-led-g{flex:1 1 210px;min-width:0;padding:0 20px 0 0}",
         ".cla-led-g + .cla-led-g{padding-left:20px;border-left:1px solid var(--line-2)}",
-        ".cla-led-g>.l{font-size:10px;font-weight:800;letter-spacing:.09em;"
-          + "text-transform:uppercase;color:var(--faint)}",
+        ".cla-led-g>.l{font-size:12px;font-weight:800;color:var(--faint)}",
         ".cla-led-g>.v{font-size:clamp(24px,2vw,31px);font-weight:800;letter-spacing:-.8px;"
           + "line-height:1.15;margin-top:5px;font-variant-numeric:tabular-nums;color:var(--ink)}",
         ".cla-led-g>.v.warn{color:var(--warn)}",
@@ -122,8 +118,7 @@ registerPage({
         ".cla-led-g li b{color:var(--ink);font-weight:700}",
         ".cla-led-g li.over{color:var(--neg)}",
         ".cla-wf td:nth-child(3),.cla-wf td:nth-child(4){white-space:nowrap}",
-        ".cla-eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;"
-          + "color:var(--muted);margin-bottom:3px}",
+        ".cla-eyebrow{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:3px}",
         ".cla-wf-tot td{border-top:2px solid var(--line-2);background:var(--panel-2)}",
         // THE PROPOSAL IS ITS OWN VIEW, not a panel inside the analysis: the slides are the
         // document CL will be sent, so they are shown at reading size on a plain ground,
@@ -210,8 +205,6 @@ registerPage({
         ".cla-bar span.b{height:15px;background:#A9691B}",
         ".cla-bar span.b.now{background:#33566E}",
         ".cla-bar span.v{color:#3A3833;font-variant-numeric:tabular-nums;white-space:nowrap}",
-        ".cla-vh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}",
-        ".cla-vh .rs-hint{margin:0;flex:1 1 340px;min-width:0}",
         /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, ink figures (amber is for
            warnings only, so his cut is no longer painted as one), navy for what we keep, nothing
            under 12px. The proposal slides (.cla-slide) are the document CL is sent -- its own print
@@ -226,15 +219,13 @@ registerPage({
         "body.rs-app.light.v2 .cla-of{font-size:12px}",
         "body.rs-app.light.v2 .cla-chk{font-size:13px}",
         "body.rs-app.light.v2 .cla-chk span{font-size:12px}",
-        "body.rs-app.light.v2 .cla-in{border-radius:8px}",
         "body.rs-app.light.v2 .cla-wf-tot td{border-top:1px solid var(--line);background:#F8FAFC;font-weight:600}",
         "body.rs-app.light.v2 .cla-over{font-weight:600}",
       ].join("");
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `<div class="rs-page-head"><h1>CL Analysis</h1></div>
-      <div class="rs-loading" style="padding:22px">Reading the closings…</div>`;
+    host.innerHTML = RSC.loadingHtml("CL Analysis", "Reading the closings…");
 
     const all = await RS.load("closing");
     const rows = RS.filtered("closing", all).filter(r => r["Record Source"] === "closing");
@@ -255,8 +246,20 @@ registerPage({
     const isPeter = r => /peter/i.test(String(r["Sales Person"] || ""));
     const baseJobs = rows.filter(r => isCL(r) || isPeter(r));
 
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head on both views, the Analysis /
+       Proposal switch as the kit's underline tabs, one filter row; the paragraphs that sat over
+       the numbers (the head's, the finance view's, what comes off, the proposal's) move into How
+       it's counted, worded as before. */
+    const SUB = 'The jobs our <b>CL</b> partner brings us, sold under <b>Peter Montanaro</b>. Profit is already <b>net of his cut</b>.';
+    const HOW_CUT = `<h3>His cut</h3><p>The jobs our <b>CL</b> partner brings us — sold under <b>Peter Montanaro</b>. He takes
+             the deposit as his cut, and that cut is <b>already paid as his sales salary</b> and
+             already inside job expenses, so the profit below is <b>net of it</b> and is not
+             reduced again.</p>`;
+    const viewTabs = () => RSC.tabsHtml([{ id: "analysis", label: "Analysis" }, { id: "proposal", label: "Proposal for CL" }],
+      S.view, "cla-view");
+
     if (!baseJobs.length) {
-      host.innerHTML = `<div class="rs-page-head"><h1>CL Analysis</h1></div>
+      host.innerHTML = `${RSC.pageHeadHtml({ title: "CL Analysis", key: "cl-analysis", subHtml: SUB, how: HOW_CUT })}
         <div class="panel">No CL jobs in the current date and company filter.</div>`;
       return;
     }
@@ -721,15 +724,14 @@ registerPage({
 
     function paintProposal() {
       host.innerHTML = `
-        <div class="rs-page-head"><h1>CL Analysis</h1></div>
-        <div class="cla-bar" id="claViews"></div>
-        <div class="cla-vh">
-          <p class="rs-hint">The document we send CL: his jobs, his ticket, what he keeps, and the
+        ${RSC.pageHeadHtml({ title: "CL Analysis", key: "cl-analysis",
+          subHtml: `The document we send CL — <b>nothing about our margin</b>, always his full ${fmtN(baseJobs.length)} jobs.`,
+          how: `<h3>The proposal</h3><p>The document we send CL: his jobs, his ticket, what he keeps, and the
             volume each plan needs — <b>nothing about our margin</b>. Always his full
             ${fmtN(baseJobs.length)} jobs, never a filter. It is built from the same numbers as the
-            analysis, so the two can never disagree.</p>
-          <button class="rs-btn primary" id="clDeckPdf">Download PDF</button>
-        </div>
+            analysis, so the two can never disagree.</p>` + HOW_CUT,
+          actions: [{ html: '<button type="button" class="rs-btn pri" id="clDeckPdf">Download PDF</button>' }] })}
+        ${viewTabs()}
         ${econReady
           ? `<div class="cla-view">${deckHtml(deckData())}</div>`
           : `<div class="panel">The economics mart has not been built yet — it lands on the next
@@ -739,20 +741,12 @@ registerPage({
       if (b) b.onclick = deckPrint;
     }
 
-    /* The view switch, mounted into whichever view is on screen. */
+    /* The view switch: the kit's underline tabs (viewTabs) on whichever view is on screen. */
     function mountViews() {
-      const host2 = host.querySelector("#claViews");
-      if (!host2) return;
-      const seg = document.createElement("div");
-      seg.className = "rs-seg";
-      [["analysis", "Analysis"], ["proposal", "Proposal for CL"]].forEach(([k, label]) => {
-        const b = document.createElement("button");
-        b.textContent = label;
-        if (S.view === k) b.className = "on";
+      host.querySelectorAll("[data-cla-view]").forEach(b => {
+        const k = b.dataset.claView;
         b.onclick = () => { if (S.view !== k) { S.view = k; paint(); } };
-        seg.appendChild(b);
       });
-      host2.appendChild(seg);
     }
 
     function deckPrint() {
@@ -1033,18 +1027,33 @@ registerPage({
         <td></td>
         <td class="num">${money0(overPaid)}</td></tr>`;
 
+      // How it's counted for this view: the head's paragraph, then the two that sat over tables
+      const how = HOW_CUT
+        + (econReady ? `<h3>Finance view: the truck costs the sheet does not carry</h3><p>His cut is already out of every number here. What the sheet misses:
+              a rented truck has no rental line, an owned truck has no insurance or parking line,
+              its Fuel is whatever fill-up happened that day, and tolls are almost never entered.
+              Every rate below is our own books over the last 12 months &mdash; including the
+              7 mpg, which four separate readings of our WEX gallons against our own GPS miles
+              bracket between 6.3 and 8.0. <b>One exception, stated rather than buried:</b> the
+              rental truck carries a ${money0(175)} floor Tornike set, above the ${money0(123)}
+              our invoices measure &mdash; the invoice feed lags about two months and the billed
+              rate reads as contract pricing. Everything else is measured. The ${Math.round((CL_UPLIFT - 1) * 100)}%
+              allowance he asked for rides inside the fuel and toll lines rather than standing as
+              its own step; the truck line is not padded with it, because the ${money0(175)} floor
+              is already that cushion.</p>` : "")
+        + `<h3>What comes off: refunds, and the cap</h3><p>Two separate things leave the account. A <b>refund</b> is money that
+            went back to a customer after the job closed — not part of the bill, and not ours alone
+            to carry. <b>Above the cap</b> is money he was paid over the 30% the deal allows: on a
+            job billed $10,000 he may earn $3,000, and anything past that was never his to take.
+            From here on the 30% is enforced job by job, so this is a one-off correction, not a
+            recurring line.</p>`;
       host.innerHTML = `
-        <div class="rs-page-head"><h1>CL Analysis</h1>
-          <p>The jobs our <b>CL</b> partner brings us — sold under <b>Peter Montanaro</b>. He takes
-             the deposit as his cut, and that cut is <b>already paid as his sales salary</b> and
-             already inside job expenses, so the profit below is <b>net of it</b> and is not
-             reduced again.</p></div>
+        ${RSC.pageHeadHtml({ title: "CL Analysis", key: "cl-analysis", subHtml: SUB, how })}
+        ${viewTabs()}
 
-        <div class="cla-bar" id="claViews"></div>
-
-        <div class="cla-bar">
-          <input class="cla-in" id="claQ" style="flex:0 1 260px" placeholder="search job #, customer, state…"
-            value="${esc(S.q)}">
+        <div class="rs-bar">
+          <input class="rs-inp" id="claQ" style="flex:0 1 260px" placeholder="search job #, customer, state…"
+            aria-label="Search the jobs" value="${esc(S.q)}">
           <span id="claFmMount"></span>
           <span class="cla-count">${filtered
             ? `${fmtN(jobs.length)} of ${fmtN(baseJobs.length)} jobs`
@@ -1099,18 +1108,8 @@ registerPage({
           <div class="panel-head"><div>
             <div class="cla-eyebrow">Finance view</div>
             <div class="panel-title">Gross profit after the truck costs the closing sheet does not carry</div>
-            <div class="rs-hint">His cut is already out of every number here. What the sheet misses:
-              a rented truck has no rental line, an owned truck has no insurance or parking line,
-              its Fuel is whatever fill-up happened that day, and tolls are almost never entered.
-              Every rate below is our own books over the last 12 months &mdash; including the
-              7 mpg, which four separate readings of our WEX gallons against our own GPS miles
-              bracket between 6.3 and 8.0. <b>One exception, stated rather than buried:</b> the
-              rental truck carries a ${money0(175)} floor Tornike set, above the ${money0(123)}
-              our invoices measure &mdash; the invoice feed lags about two months and the billed
-              rate reads as contract pricing. Everything else is measured. The ${Math.round((CL_UPLIFT - 1) * 100)}%
-              allowance he asked for rides inside the fuel and toll lines rather than standing as
-              its own step; the truck line is not padded with it, because the ${money0(175)} floor
-              is already that cushion.</div>
+            <div class="rs-hint">His cut is already out of every number here. What the sheet misses, and how each
+              rate is measured, is in <b>How it's counted</b>.</div>
           </div><span class="rs-pill ${finAdj < profit ? "warn" : "ok"}">${money0(finAdj)} · ${pctS(billed ? finAdj / billed : null)} margin</span></div>
           <div class="rs-tablewrap"><table class="rs-table cla-wf">
             <thead><tr><th>Step</th><th>Basis</th><th class="num">Jobs</th>
@@ -1226,12 +1225,8 @@ registerPage({
           <div class="panel-head"><div class="panel-title">What comes off — refunds, and the cap</div>
             <div class="rs-spacer"></div>
             <span class="rs-pill ${(refHis + overPaid) > 0 ? "warn" : ""}">${money0(refHis + overPaid)} in total</span></div>
-          <p class="rs-hint">Two separate things leave the account. A <b>refund</b> is money that
-            went back to a customer after the job closed — not part of the bill, and not ours alone
-            to carry. <b>Above the cap</b> is money he was paid over the 30% the deal allows: on a
-            job billed $10,000 he may earn $3,000, and anything past that was never his to take.
-            From here on the 30% is enforced job by job, so this is a one-off correction, not a
-            recurring line.</p>
+          <p class="rs-hint">Two separate things leave the account: a <b>refund</b>, and money paid <b>above
+            the cap</b>. What each one is, is in <b>How it's counted</b>.</p>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>What</th><th class="num">Amount</th><th>Job</th></tr></thead>
             <tbody>
@@ -1339,7 +1334,7 @@ registerPage({
           el2.focus(); el2.setSelectionRange(el2.value.length, el2.value.length);
         }, 250);
       };
-      // the KIT dropdown, not a naked <select> — his call 2026-08-27. Local state, so it
+      // the KIT dropdown, not a naked select element — his call 2026-08-27. Local state, so it
       // never grows a chip in the global filter bar and "Clear all" cannot sweep it.
       RSC.localSelect(host.querySelector("#claFmMount"), {
         label: "Foreman", values: foremen, value: S.fm, allLabel: "All foremen",

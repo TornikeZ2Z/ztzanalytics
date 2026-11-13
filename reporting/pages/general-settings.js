@@ -41,8 +41,8 @@ registerPage({
         .gs-actions{margin-top:12px}
         .gs-empty{color:var(--faint);font-size:12px}
         div.gs-empty{margin-bottom:8px}
-        .gs-err{color:var(--neg);font-size:11.5px;font-weight:700;margin-left:10px}
-        .gs-meta{font-size:10.5px;color:var(--faint);margin-top:8px}
+        .gs-err{color:var(--neg);font-size:12px;font-weight:700;margin-left:10px}
+        .gs-meta{font-size:12px;color:var(--faint);margin-top:8px}
         .gs-load{padding:40px;text-align:center;color:var(--faint)}
         /* DESIGN V2 ("Calm finance"), v2 light only: nothing under 12px, quieter weights,
            the 8px control radius on the remove button */
@@ -85,9 +85,13 @@ registerPage({
       },
     };
 
-    host.innerHTML = '<div class="rs-page-head"><h1>General Translators</h1>'
-      + '<p>Values the system used to have hardcoded — now editable here. Changes apply on the next pipeline run (within ~6 hours); Money Flow foreman names refresh on the next rebuild.</p></div>'
-      + '<div id="gsBody"><div class="gs-load">Loading…</div></div>';
+    // THE PAGE STANDARD (ZTZ-80): the kit head; when a change takes effect is How it works
+    host.innerHTML = RSC.pageHeadHtml({ title: "General Translators", key: "general-settings",
+        sub: "Values the system used to have hardcoded — now editable here.",
+        howTitle: "How it works",
+        how: "<p>Values the system used to have hardcoded — now editable here. Changes apply on the next "
+          + "pipeline run (within ~6 hours); Money Flow foreman names refresh on the next rebuild.</p>" })
+      + '<div id="gsBody">' + RSC.loadingHtml("General Translators", "Loading…") + "</div>";
 
     var S = { data: null };
 

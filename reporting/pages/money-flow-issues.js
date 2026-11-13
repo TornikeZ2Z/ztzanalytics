@@ -21,17 +21,17 @@
     st.textContent = ""
       + ".mfi-tbl{width:100%;border-collapse:collapse}"
       + ".mfi-tbl th,.mfi-tbl td{padding:8px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}"
-      + ".mfi-tbl th{color:var(--faint);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}"
+      + ".mfi-tbl th{color:var(--faint);font-size:12px;font-weight:800;text-transform:none}"
       + ".mfi-tbl td.r,.mfi-tbl th.r{text-align:right;font-variant-numeric:tabular-nums}"
       + ".mfi-tbl tr:hover td{background:var(--panel-2)}"
       + ".mfi-leg{display:block;font-size:12px;color:var(--muted);white-space:nowrap}"
-      + ".mfi-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:750;white-space:nowrap}"
+      + ".mfi-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:750;white-space:nowrap}"
       + ".mfi-dup{background:rgba(176,42,55,.12);color:var(--neg,#b02a37)}"
       + ".mfi-chk{background:rgba(245,165,36,.16);color:#a06a00}"
       + ".mfi-kpi{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px}"
       + ".mfi-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 17px;min-width:170px}"
       + ".mfi-card b{display:block;font-size:21px;letter-spacing:-.4px}"
-      + ".mfi-card span{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}"
+      + ".mfi-card span{font-size:12px;font-weight:800;text-transform:none;color:var(--faint)}"
       + ".mfi-none{padding:24px;color:var(--faint)}"
       // DESIGN V2 "Calm finance" (2026-10-06): light theme only, look only. Kit table header,
       // neutral hover, square status pills, KPI label above an ink figure.
@@ -98,19 +98,20 @@
   var dup = groups.filter(function (g) { return g.identical; });
   var total = dup.reduce(function (a, g) { return a + g.extra; }, 0);
 
+  // ZTZ-80: the kit head; the explanation moved, word for word, into How it's counted
+  var head = RSC.pageHeadHtml({ title: "Issues in Money Flow", key: "mf-issues",
+    sub: "Closings with money recorded on more than one of their events.", chip: "2026 onwards · read-only",
+    how: "<p>One closing row can cover several calendar events: a long-distance departure and its arrival, or a job "
+      + "that ran over two days. Its net cash is owed <b>once</b>. These closings have money recorded on <b>more than "
+      + "one</b> leg, so the same cash may have been submitted twice. Every leg balances on its own, which is why "
+      + "nothing looks wrong anywhere else.</p><p>Read-only: fix them at the source.</p>" });
   if (!groups.length) {
-    host.innerHTML = '<h1>Issues in Money Flow</h1>'
+    host.innerHTML = head
       + '<div class="mfi-none">Nothing to review — no closing row has money recorded on more than one of its events.</div>';
     return;
   }
 
-  host.innerHTML = ""
-    + "<h1>Issues in Money Flow</h1>"
-    + '<p class="rs-hint">One closing row can cover several calendar events — an '
-    + 'long-distance departure and its arrival, or a job that ran over two days. Its net cash is owed '
-    + '<b>once</b>. These closings have money recorded on <b>more than one</b> leg, so the same cash may '
-    + 'have been submitted twice. Every leg balances on its own, which is why nothing looks wrong '
-    + 'anywhere else. Read-only — fix them at the source. <b>2026 onwards.</b></p>'
+  host.innerHTML = head
     + '<div class="mfi-kpi">'
     + '<div class="mfi-card"><b>' + dup.length + "</b><span>same amount twice</span></div>"
     + '<div class="mfi-card"><b>' + money(total) + "</b><span>possibly counted twice</span></div>"

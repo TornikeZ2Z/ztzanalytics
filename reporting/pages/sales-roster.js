@@ -85,11 +85,19 @@
       // this render still owns the content area: not superseded by a newer render of this page,
       // and not replaced by another page while a request was out
       const alive = () => tok === S.tok && !!host.querySelector('.srt[data-tok="' + tok + '"]');
-      const HEAD = '<div class="rs-page-head"><h1>Sales team</h1>'
-        + "<p>Who is on the sales team, and who gets the daily lead email. Ruso keeps this list.</p></div>";
+      // the kit head; what switching a rep off means lives in its "How it's counted" panel
+      const HOW = "<h3>Switching a rep off</h3>"
+        + "<p><b>Switching a rep off</b> means: they stop getting their own copy of the daily "
+        + "and monthly lead email, and their leads go to Ruso’s team email instead; reports group them under "
+        + "<b>Former reps</b> at the bottom of each rep table; their past leads and jobs still count in every "
+        + "total. Nothing is deleted — switch them back on at any time.</p>"
+        + "<h3>Emails</h3><p>A rep with no email gets no copy; only " + esc(DOMAIN) + " addresses are accepted.</p>";
+      const HEAD = RSC.pageHeadHtml({ title: "Sales team", key: "sales-roster",
+        sub: "Who is on the sales team, and who gets the daily lead email. Ruso keeps this list.",
+        how: HOW, howTitle: "How it works" });
       injectStyle();
-      host.innerHTML = '<div class="srt" data-tok="' + tok + '">' + HEAD
-        + '<div class="rs-loading" style="padding:22px">Reading the sales team…</div></div>';
+      host.innerHTML = '<div class="srt" data-tok="' + tok + '">'
+        + RSC.loadingHtml("Sales team", "Reading the sales team…") + "</div>";
 
       let data;
       try {
@@ -239,11 +247,6 @@
         host.querySelector(".srt").innerHTML = HEAD
           + '<div class="rs-kpis" id="srtKpis"></div>'
           + '<div class="panel"><div class="panel-head"><span class="panel-title">Reps</span></div>'
-          + '<p class="rs-hint"><b>Switching a rep off</b> means: they stop getting their own copy of the daily '
-          + "and monthly lead email, and their leads go to Ruso’s team email instead; reports group them under "
-          + "<b>Former reps</b> at the bottom of each rep table; their past leads and jobs still count in every "
-          + "total. Nothing is deleted — switch them back on at any time. A rep with no email gets no copy; "
-          + "only " + esc(DOMAIN) + " addresses are accepted.</p>"
           + '<p class="rs-hint">' + esc(who_note) + "</p>"
           + (data.stats_error ? '<p class="rs-hint">The lead and job numbers could not be read just now ('
             + esc(data.stats_error) + ") — the names and switches are current.</p>" : "")

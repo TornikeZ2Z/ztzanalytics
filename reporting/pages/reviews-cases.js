@@ -66,17 +66,10 @@ registerPage({
       st.textContent = [
         // Only what the kit cannot say; everything else is .panel/.rs-kpis/.rs-table/.rs-seg.
         ".rvc-mon{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}",
-        // the print button sits with the page title, right-aligned, and never squeezes
-        // the description text on a narrow window
-        ".rvc-pdf{float:right;margin:-2px 0 8px 16px}",
+        // (ZTZ-80: the PDF button is one of the kit head's actions, and the filter row and its
+        // search box are the kit's .rs-bar / .rs-inp, so their private copies are gone)
         ".rvc-mon:hover{text-decoration:underline}",
-        ".rvc-small{color:var(--faint);font-size:11.5px;white-space:nowrap}",
-        ".rvc-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
-        ".rvc-bar>.rvc-in{margin-bottom:1px}",
-        ".rvc-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
-          + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
-          + "transition:border-color .15s}",
-        ".rvc-in:focus{border-color:var(--brand)}",
+        ".rvc-small{color:var(--faint);font-size:12px;white-space:nowrap}",
         // a horizontal share bar: one colour per meaning, never per row
         ".rvc-share{display:grid;grid-template-columns:minmax(110px,200px) minmax(60px,1fr) auto;gap:10px;"
           + "align-items:center;padding:6px 0;border-bottom:1px solid var(--line-2)}",
@@ -95,15 +88,11 @@ registerPage({
         // what a section cannot follow among the panel's filters, said under its title (2026-10-15)
         ".rvc-nf{font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.5}",
         ".rvc-nf b{color:var(--ink);font-weight:600}",
-        ".rvc-stars{color:var(--warn);letter-spacing:1px}",
         // 1fr grid columns default to min-width:auto — a table inside forces the column
         // wider than the viewport (the classic grid blowout; measured 2385px vs 2048).
         ".rvc-grid>.panel{min-width:0}",
         // DESIGN V2 ("Calm finance"), light only: 12px floor, pill search, hairline rows,
         // 4px bar ends. Dark keeps every rule above.
-        "body.rs-app.light.v2 .rvc-small{font-size:12px}",
-        "body.rs-app.light.v2 .rvc-in{border-radius:999px;border-color:var(--line-2);height:36px;padding:0 14px;background:#FFFFFF}",
-        "body.rs-app.light.v2 .rvc-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}",
         "body.rs-app.light.v2 .rvc-share{border-bottom-color:#F1F5F9}",
         "body.rs-app.light.v2 .rvc-share .n{font-weight:500;color:var(--ink)}",
         "body.rs-app.light.v2 .rvc-share .t,body.rs-app.light.v2 .rvc-share .t i{border-radius:4px}",
@@ -112,8 +101,7 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `<div class="rs-page-head"><h1>Claims &amp; Negative Reviews</h1></div>
-      <div class="rs-loading" style="padding:22px">Reading both boards…</div>`;
+    host.innerHTML = RSC.loadingHtml("Claims & Negative Reviews", "Reading both boards…");
 
     const [nrAll, clAll, clLinks, rcAll] = await Promise.all([
       RS.load("negative_reviews_cases"), RS.load("claims_cases"),
@@ -202,7 +190,7 @@ registerPage({
     const clMonday = r => {
       const u = URLBY[String(r["Monday Item Id"] || "")];
       return /^https:\/\//i.test(String(u || ""))
-        ? `<a class="rvc-mon" href="${esc(u)}" target="_blank" rel="noopener">Open &#8599;</a>`
+        ? `<a class="rvc-mon" href="${esc(u)}" target="_blank" rel="noopener">Open</a>`
         : '<span class="rvc-small">&mdash;</span>';
     };
     const clReviewMatch = r => {
@@ -243,6 +231,13 @@ registerPage({
       + "a list that cannot follow a filter shows whole and says so under its title. A claim's state and company "
       + "are its job's. The negative-review board files every review under Zip to Zip, Tuji's listings included, "
       + "so Company there reads the board's own column.";
+    const HOW_HTML = "<h3>Matching the two boards</h3>"
+      + "<p>Matching is by request first, customer name as fallback.</p>"
+      + "<h3>Dates</h3>"
+      + "<p>Both boards read whole; the date filter is applied here, not in the warehouse. "
+      + "A review or claim with no date sits outside every date range and is counted separately.</p>"
+      + "<h3>Filters</h3>"
+      + "<p>" + esc(PF_NOTE) + "</p>";
 
     paint();
 
@@ -334,8 +329,8 @@ registerPage({
       return `<div class="rvc-pager">
         <span>${fmtN(Math.min(total, page * S.pageSize + 1))}–${fmtN(Math.min(total,
           (page + 1) * S.pageSize))} of ${fmtN(total)}</span>
-        <button class="rs-btn" data-pg="${key}:prev" ${page === 0 ? "disabled" : ""}>‹ Prev</button>
-        <button class="rs-btn" data-pg="${key}:next" ${page >= pages - 1 ? "disabled" : ""}>Next ›</button>
+        <button class="rs-btn" data-pg="${key}:prev" ${page === 0 ? "disabled" : ""}>Previous</button>
+        <button class="rs-btn" data-pg="${key}:next" ${page >= pages - 1 ? "disabled" : ""}>Next</button>
       </div>`;
     }
 
@@ -357,7 +352,7 @@ registerPage({
       const platRows = Object.entries(byPlat).sort((a, b) => b[1].n - a[1].n)
         .map(([p, b]) => [p, b.n,
           (b.open ? b.open + " open" : "") +
-          (b.starN ? (b.open ? " · " : "") + "★" + (b.starSum / b.starN).toFixed(1) : "")]);
+          (b.starN ? (b.open ? " · " : "") + "avg " + (b.starSum / b.starN).toFixed(1) + " stars" : "")]);
 
       // ---- claim reasons (singletons folded into Other for the chart, visible in the table)
       const byReason = {};
@@ -382,8 +377,8 @@ registerPage({
       const nrMatched = nr.map(r => ({ r, m: nrClaimMatch(r) })).filter(x => x.m);
       const clMatched = cl.map(r => ({ r, m: clReviewMatch(r) })).filter(x => x.m);
 
-      const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
-        <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
+      // the kit's tile (ZTZ-80), from the same four arguments the hand-made copy took
+      const kpi = (l, v, s, cls) => ({ label: l, value: v, sub: s || "", tone: cls || "" });
       const yearLabel = rangeLabel();
       const LST = listingRows();
       const lsum = k => LST.reduce((a, r) => a + (r[k] || 0), 0);
@@ -391,37 +386,39 @@ registerPage({
 
       const nrPageRows = nr.slice(S.nrPage * S.pageSize, (S.nrPage + 1) * S.pageSize);
       const clPageRows = cl.slice(S.clPage * S.pageSize, (S.clPage + 1) * S.pageSize);
+      // the score in words (ZTZ-80): "2 stars", not a run of star icons
       const starCell = r => {
         const st = stars(r["Review Score"]);
         return st.kind === "stars"
-          ? `<span class="rvc-stars">${"★".repeat(st.n)}</span>`
+          ? `<span class="nowrap">${st.n} star${st.n === 1 ? "" : "s"}</span>`
           : st.kind === "complaint" ? '<span class="rs-pill warn">complaint</span>'
           : '<span class="rs-pill mute">—</span>';
       };
 
       host.innerHTML = `
-        <div class="rs-page-head"><h1>Claims &amp; Negative Reviews</h1>
-          <p>Both boards from the warehouse — where the bad reviews land, what the claims are
-             about, and how much the two overlap. Matching is by request first, customer name
-             as fallback.</p>
-          <button class="rs-btn pri rvc-pdf" id="rvcPdf" title="a print sheet of this dashboard, to save as a PDF">Download PDF</button></div>
+        ${RSC.pageHeadHtml({ title: "Claims & Negative Reviews", key: "reviews-cases",
+          sub: "Both boards from the warehouse — where the bad reviews land, what the claims are about, "
+            + "and how much the two overlap.",
+          how: HOW_HTML,
+          actions: [{ html: '<button type="button" class="rs-btn pri rvc-pdf" id="rvcPdf" '
+            + 'title="a print sheet of this dashboard, to save as a PDF">Download PDF</button>' }] })}
 
-        <div class="rvc-bar" id="rvcBar"></div>
+        <div class="rs-bar" id="rvcBar"></div>
 
-        <div class="rs-kpis" style="--kpi-cols:6">
-          ${kpi("Negative reviews", fmtN(nr.length), yearLabel +
-            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, no date to place in the range)" : "") + pfTile("nr"))}
-          ${kpi("Still open", fmtN(nr.filter(r => String(r.Group).trim() === "Open").length),
-            "the rest are removed / closed", "warn")}
-          ${kpi("Claims", fmtN(cl.length), yearLabel + pfTile("cl"))}
-          ${kpi("Claims with a reason", pct(cl.filter(r =>
+        ${RSC.kpisHtml([
+          kpi("Negative reviews", fmtN(nr.length), yearLabel +
+            (nrUndated ? " · +" + fmtN(nrUndated) + " undated (removed, no date to place in the range)" : "") + pfTile("nr")),
+          kpi("Still open", fmtN(nr.filter(r => String(r.Group).trim() === "Open").length),
+            "the rest are removed / closed", "warn"),
+          kpi("Claims", fmtN(cl.length), yearLabel + pfTile("cl")),
+          kpi("Claims with a reason", pct(cl.filter(r =>
               String(r.Reason || "").trim()).length, cl.length),
-            fmtN(cl.filter(r => !String(r.Reason || "").trim()).length) + " unspecified")}
-          ${kpi("Reviews from claimants", pct(nrMatched.length, nr.length),
-            fmtN(nrMatched.length) + " of " + fmtN(nr.length) + " ever filed a claim", "warn")}
-          ${kpi("Claims that turned public", pct(clMatched.length, cl.length),
-            fmtN(clMatched.length) + " have a negative review")}
-        </div>
+            fmtN(cl.filter(r => !String(r.Reason || "").trim()).length) + " unspecified"),
+          kpi("Reviews from claimants", pct(nrMatched.length, nr.length),
+            fmtN(nrMatched.length) + " of " + fmtN(nr.length) + " ever filed a claim", "warn"),
+          kpi("Claims that turned public", pct(clMatched.length, cl.length),
+            fmtN(clMatched.length) + " have a negative review"),
+        ])}
 
         <div class="panel" id="rvcPnlListings">
           <div class="panel-head"><div class="panel-title">Public reviews by listing${S.state.size ? " — " + esc([...S.state].join(", ")) : ""}</div>
@@ -451,7 +448,7 @@ registerPage({
             ${nr.length ? shareRows(platRows, nr.length) :
               '<p class="rs-hint">No negative reviews in this window.</p>'}
             <div class="rvc-note">Platform families fold the per-state pages together
-              (Google Nj/Pa/Shafto… → Google). The raw label is on every case below.
+              (Google Nj/Pa/Shafto… all count as Google). The raw label is on every case below.
               Blank sources read as Unlabeled.</div>
           </div>
 
@@ -578,7 +575,7 @@ registerPage({
             + "A review or claim with no date sits outside every date range and is counted separately. "
             + "Matching between the two boards is by request number first, customer name as fallback.",
         // the "Filtered by" chips go too: the subtitle above already names every filter
-        drop: [".rvc-bar", ".rs-pchips", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
+        drop: ["#rvcBar", ".rs-pchips", ".rvc-pdf", ".rvc-pager", "[data-dl]", ".rvc-note"],
         // ONE THEME PER SHEET: the headline counts, then the two boards' own shapes, then
         // where they meet, then the cases behind them.
         pages: [
@@ -641,13 +638,18 @@ registerPage({
         });
       }
 
+      // the kit's labelled field (ZTZ-80), the same width the private .rvc-in box had
+      const qf = document.createElement("label");
+      qf.className = "rs-fld";
+      qf.innerHTML = "<span>Find</span>";
       const q = document.createElement("input");
-      q.className = "rvc-in"; q.placeholder = "find a customer, reason, platform…";
-      q.value = S.q; q.style.flex = "0 1 260px";
+      q.className = "rs-inp"; q.placeholder = "find a customer, reason, platform…";
+      q.value = S.q; q.style.width = "260px";
+      qf.appendChild(q);
       q.oninput = () => { clearTimeout(qTimer);
         qTimer = setTimeout(() => { S.q = q.value; S.nrPage = S.clPage = 0;
           S._focus = 1; paint(); }, 300); };
-      bar.appendChild(q);
+      bar.appendChild(qf);
       // the page's own Filters panel at the bar's right end, the "Filtered by" line under the bar.
       // Values from the loaded rows of whichever lists carry the field, the commonest first.
       const tally = (g, v) => { if (v) g[v] = (g[v] || 0) + 1; };

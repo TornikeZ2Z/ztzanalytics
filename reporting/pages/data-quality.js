@@ -28,28 +28,33 @@ registerPage({
   async render(host) {
     // Data Quality is now a HUB: warehouse checks + calendar coverage + request-# consistency as tabs
     // (the latter two register their render on window.DQ_SUB instead of as standalone pages).
-    // The tab bar is the kit's (.rs-tabs / .rs-tab), so this hub reads like every other
-    // merged page; the page no longer carries a tab sheet of its own.
+    // The tab bar is the kit's underline tabs (RSC.tabsHtml, the page standard ZTZ-80), so this
+    // hub reads like every other merged page; the page carries no tab sheet of its own.
     const TABS = [
       { key: "checks", label: "Warehouse checks", render: renderChecks },
       { key: "coverage", label: "Calendar Coverage", render: (window.DQ_SUB || {}).coverage },
       { key: "consistency", label: "Request # Consistency", render: (window.DQ_SUB || {}).consistency },
       { key: "mfissues", label: "Issues in Money Flow", render: (window.DQ_SUB || {}).mfissues },
     ];
-    host.innerHTML = `<div class="rs-tabs" id="dqTabs"></div><div id="dqContent"></div>`;
+    // ZTZ-80: the hub's own head on top, then the tabs; each tab's head is that view's title,
+    // a size down (rs.css .rs-hub .rs-hub-host), the same as the Reviews and Job Control hubs
+    host.innerHTML = `<div class="rs-hub">`
+      + RSC.pageHeadHtml({ title: "Data Quality", key: "data-quality-hub",
+          sub: "Rows that look wrong or unfinished, 2026 onwards. Fix them at the source." })
+      + `<div id="dqTabs"></div><div id="dqContent" class="rs-hub-host"></div></div>`;
     const content = host.querySelector("#dqContent");
     let active = "checks";
     const paintTabs = () => {
-      document.getElementById("dqTabs").innerHTML = TABS.map(t =>
-        `<button class="rs-tab ${t.key === active ? "on" : ""}" data-k="${t.key}">${RSC.esc(t.label)}</button>`).join("");
-      document.querySelectorAll("#dqTabs .rs-tab").forEach(b => b.onclick = () => go(b.getAttribute("data-k")));
+      document.getElementById("dqTabs").innerHTML =
+        RSC.tabsHtml(TABS.map(t => ({ id: t.key, label: t.label })), active, "k");
+      document.querySelectorAll("#dqTabs [data-k]").forEach(b => b.onclick = () => go(b.getAttribute("data-k")));
     };
     const go = async (k) => {
       active = k; paintTabs();
-      content.innerHTML = `<div class="rs-loading" style="padding:22px">Loading…</div>`;
       const t = TABS.find(t => t.key === k);
+      content.innerHTML = RSC.loadingHtml(t ? t.label : "Data Quality", "Loading…");
       if (t && typeof t.render === "function") await t.render(content);
-      else content.innerHTML = `<div class="rs-loading" style="padding:22px">This view isn't available.</div>`;
+      else content.innerHTML = RSC.emptyHtml({ title: "This view isn't available." });
     };
     paintTabs();
     await go("checks");
@@ -189,10 +194,6 @@ async function renderChecks(host) {
     if (!document.getElementById("dq-look")) {
       const st = document.createElement("style"); st.id = "dq-look";
       st.textContent = [
-        // The kit's older tab rule is the one control here it does not fully describe:
-        // unlike .rs-btn / .rs-seg it never sets font-family, so a bare <button> falls back
-        // to the UA font. Covered here so this hub keeps Inter; it belongs in rs.css.
-        "#dqTabs .rs-tab{font-family:inherit}",
         // A worklist reads badly at full monitor width: the count ends up a screen away from
         // the check it belongs to. So each CARD stays capped -- but the cards now sit in a
         // grid that uses the whole box, instead of one capped column with 700px of nothing
@@ -202,12 +203,10 @@ async function renderChecks(host) {
         // LEFT while the cards it belongs to sat CENTRED, 350px out of line with each other.)
         ".dq-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(620px,1fr));"
         + "gap:0 26px;align-items:start}",
-        // the heading is the kit's .rs-page-head; only the score-to-the-right row is ours
-        ".dq-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin:2px 2px 18px}",
-        ".dq-head p{max-width:640px;line-height:1.55}",
+        // the heading is the kit's page head (ZTZ-80); the score rides in its actions, on the right
         ".dq-score{margin-left:auto;text-align:right;flex:none}",
         ".dq-score b{display:block;font-size:30px;letter-spacing:-.8px;line-height:1.05;font-variant-numeric:tabular-nums}",
-        ".dq-score span{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}",
+        ".dq-score span{font-size:12px;font-weight:600;text-transform:none;color:var(--faint)}",
         ".dq-score.clean b{color:var(--pos)}",
         // THE CARD IS A KIT .panel. Only the accordion's own needs are layered on it: the
         // header row is full-bleed so its hover fills the card edge to edge, which the
@@ -227,7 +226,7 @@ async function renderChecks(host) {
         ".dq-dot.bad{background:var(--neg)}",
         ".dq-dot.warn{background:var(--warn)}",
         ".dq-dot.ok{background:var(--pos)}",
-        ".dq-caret{flex:none;color:var(--faint);font-size:11px;transition:transform .15s}",
+        ".dq-caret{flex:none;color:var(--faint);font-size:12px;transition:transform .15s}",
         ".dq-card.open .dq-caret{transform:rotate(90deg)}",
         // the description is a kit .rs-hint; the indent lines it up under the title, past the dot
         ".dq-desc{margin:0;padding:0 16px 12px 36px}",
@@ -250,14 +249,13 @@ async function renderChecks(host) {
       document.head.appendChild(st);
     }
     host.innerHTML = `
-      <div class="rs-page-head dq-head">
-        <div>
-          <h1>Warehouse checks</h1>
-          <p>Rows that look wrong or unfinished — fix them at the source sheet.
-             <b>2026 onwards</b>, read-only: this page never edits data.</p>
-        </div>
-        <div class="dq-score" id="dqScore"><b>…</b><span>rows to fix</span></div>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Warehouse checks", key: "data-quality",
+        sub: "Checks on the warehouse tables. Open one to see its rows.",
+        chip: "2026 onwards",
+        how: "<p>Rows that look wrong or unfinished — fix them at the source sheet. "
+          + "<b>2026 onwards</b>, read-only: this page never edits data.</p>",
+        // #dqScore is read by stillHere() and paintTotal(): keep the id
+        actions: [{ html: '<div class="dq-score" id="dqScore"><b>…</b><span>rows to fix</span></div>' }] })}
       <div id="dqChecks" class="dq-list"></div>`;
 
     const cont = document.getElementById("dqChecks");

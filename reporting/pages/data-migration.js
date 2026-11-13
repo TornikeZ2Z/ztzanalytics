@@ -34,10 +34,8 @@ const dmgRows = t => Number(
     .dmg-url{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted);
       word-break:break-all}
     .dmg-note{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:92ch}
-    .dmg-off{color:var(--neg);font-weight:800}
-    .dmg-on{color:var(--pos);font-weight:800}
     .dmg-x{display:inline-block;background:var(--panel-2);border:1px solid var(--line);
-      border-radius:999px;font-size:11.5px;font-weight:700;color:var(--muted);
+      border-radius:999px;font-size:12px;font-weight:700;color:var(--muted);
       padding:3px 10px;margin:2px 3px 2px 0}
     /* the catalog browser */
     .dmg-split{display:grid;grid-template-columns:330px 1fr;gap:14px;align-items:start}
@@ -50,14 +48,14 @@ const dmgRows = t => Number(
     .dmg-row.on{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--brand)}
     .dmg-row b{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;flex:1;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .dmg-row .n{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
-    .dmg-row .star{color:var(--warn);font-size:11px}
+    .dmg-row .n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+    .dmg-row .star{color:var(--warn);font-size:12px}
     .dmg-notebox{border-left:3px solid var(--warn);
       background:color-mix(in srgb,var(--warn) 7%,transparent);
       border-radius:0 10px 10px 0;padding:10px 14px;font-size:12.5px;line-height:1.6;
       color:var(--muted);margin:10px 0}
     .dmg-cols{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
-    .dmg-col{font-family:ui-monospace,Consolas,monospace;font-size:11px;
+    .dmg-col{font-family:ui-monospace,Consolas,monospace;font-size:12px;
       background:var(--panel-2);border:1px solid var(--line);border-radius:7px;
       padding:2px 8px;color:var(--muted)}
     .dmg-col b{color:var(--ink)}
@@ -74,28 +72,20 @@ const dmgRows = t => Number(
     .dmg-sample td.missc{color:var(--faint);text-align:center}
     .dmg-sample{max-height:52vh;overflow:auto;border:1px solid var(--line);
       border-radius:10px}
-    .dmg-sample table{border-collapse:collapse;font-size:11.5px;white-space:nowrap}
+    .dmg-sample table{border-collapse:collapse;font-size:12px;white-space:nowrap}
     .dmg-sample th{position:sticky;top:0;background:var(--panel-2);text-align:left;
-      padding:6px 10px;font-weight:800;font-size:10.5px;letter-spacing:.04em;
-      text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);z-index:1}
+      padding:6px 10px;font-weight:700;font-size:12px;
+      text-transform:none;color:var(--muted);border-bottom:1px solid var(--line);z-index:1}
     .dmg-sample td{padding:5px 10px;border-bottom:1px solid var(--line);
       max-width:280px;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
-    /* the exact-tables tab: KPI strip, grouped card grid, drawer detail */
-    .dmg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-      gap:10px;margin:0 0 12px}
-    .dmg-kpis .kpi{background:var(--panel);border:1px solid var(--line);
-      border-radius:13px;padding:13px 16px 11px}
-    .dmg-kpis .l{font-size:10.5px;font-weight:800;letter-spacing:.07em;
-      text-transform:uppercase;color:var(--faint);margin-bottom:5px}
-    .dmg-kpis .v{font-size:23px;font-weight:800;letter-spacing:-.4px;color:var(--ink);
-      font-variant-numeric:tabular-nums}
+    /* the exact-tables tab: the kit's tiles (ZTZ-80), grouped card grid, drawer detail */
     .dmg-kdim{font-size:13px;font-weight:600;color:var(--faint)}
     .dmg-leg{display:inline-block;width:22px;height:7px;border-radius:4px;
       vertical-align:1px;margin:0 3px 0 8px}
     .dmg-leg.f{background:var(--pos)}
     .dmg-leg.m{background:var(--neg)}
-    .dmg-ghead{font-size:11px;font-weight:800;letter-spacing:.09em;
-      text-transform:uppercase;color:var(--faint);margin:16px 2px 8px;
+    .dmg-ghead{font-size:13px;font-weight:700;
+      text-transform:none;color:var(--faint);margin:16px 2px 8px;
       display:flex;align-items:center;gap:10px}
     .dmg-ghead::after{content:'';flex:1;height:1px;background:var(--line)}
     .dmg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
@@ -111,17 +101,17 @@ const dmgRows = t => Number(
     .dmg-card .nm{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;
       font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;
       white-space:nowrap}
-    .dmg-card .mdl{font-family:ui-monospace,Consolas,monospace;font-size:11px;
+    .dmg-card .mdl{font-family:ui-monospace,Consolas,monospace;font-size:12px;
       color:var(--brand);margin:2px 0 8px}
     .dmg-card .big{font-size:21px;font-weight:800;letter-spacing:-.4px;
       color:var(--ink);font-variant-numeric:tabular-nums;margin-bottom:9px}
-    .dmg-card .big span{font-size:11px;font-weight:600;color:var(--faint);
+    .dmg-card .big span{font-size:12px;font-weight:600;color:var(--faint);
       letter-spacing:0}
     .dmg-card .covbar{display:flex;height:7px;border-radius:4px;overflow:hidden;
       background:var(--panel-2);border:1px solid var(--line)}
     .dmg-card .covbar i.f{background:var(--pos)}
     .dmg-card .covbar i.m{background:var(--neg)}
-    .dmg-card .covline{font-size:11.5px;color:var(--muted);margin-top:6px;
+    .dmg-card .covline{font-size:12px;color:var(--muted);margin-top:6px;
       font-variant-numeric:tabular-nums}
     .dmg-ov{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:60;
       display:flex;justify-content:flex-end;animation:dmgFade .15s ease}
@@ -147,7 +137,7 @@ const dmgRows = t => Number(
     .dmg-doc th{background:var(--panel-2)}
     .dmg-req{background:var(--panel);border:1px solid var(--line);border-radius:11px;
       padding:13px 16px;margin:10px 0}
-    .dmg-req .t{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    .dmg-req .t{font-size:12px;font-weight:800;text-transform:none;
       color:var(--muted);margin-bottom:6px}
     .dmg-req pre{font-family:ui-monospace,Consolas,monospace;font-size:12px;
       white-space:pre-wrap;word-break:break-all;margin:0;color:var(--ink)}
@@ -159,7 +149,6 @@ const dmgRows = t => Number(
        every number/label go to Plex with tabular figures. */
     body.rs-app.light.v2 .dmg-tok{font-weight:600;letter-spacing:0;border-radius:8px}
     body.rs-app.light.v2 .dmg-note{font-size:13px}
-    body.rs-app.light.v2 .dmg-off,body.rs-app.light.v2 .dmg-on{font-weight:600}
     body.rs-app.light.v2 .dmg-x{font-size:12px;font-weight:500;color:var(--muted);background:#F8FAFC}
     body.rs-app.light.v2 #dmgQ{text-align:left}
     /* the sample table must scroll inside its box, not widen the 1fr column off-screen */
@@ -183,11 +172,6 @@ const dmgRows = t => Number(
     body.rs-app.light.v2 .dmg-sample th.miss{background:#FEF2F2;color:var(--neg)}
     body.rs-app.light.v2 .dmg-sample td{border-bottom-color:#F1F5F9}
     body.rs-app.light.v2 .dmg-sample tr:hover td{background:#F8FAFC}
-    body.rs-app.light.v2 .dmg-kpis{gap:12px}
-    body.rs-app.light.v2 .dmg-kpis .kpi{background:#FFFFFF;border-radius:10px;padding:14px 16px}
-    body.rs-app.light.v2 .dmg-kpis .l{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
-      color:var(--muted);margin-bottom:4px}
-    body.rs-app.light.v2 .dmg-kpis .v{font-size:25px;font-weight:600;letter-spacing:-.3px}
     body.rs-app.light.v2 .dmg-kdim{font-weight:500}
     body.rs-app.light.v2 .dmg-ghead{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
       color:var(--ink);margin:20px 2px 10px}
@@ -260,7 +244,7 @@ const dmgRows = t => Number(
       const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g,
         c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading…</div>';
+      host.innerHTML = RSC.loadingHtml("Data Migration", "Loading…");
 
       const S = { tab: "access", admin: null, catalog: null, sel: null,
                   sample: null, doc: null, q: "" };
@@ -293,29 +277,31 @@ const dmgRows = t => Number(
             S.admin = st;
             paint();
           }))
-          .catch(e => { host.innerHTML = '<div class="panel">' + esc(e.message) + "</div>"; });
+          .catch(e => { host.innerHTML = RSC.pageHeadHtml({ title: "Data Migration", key: "data-migration" })
+            + '<div class="panel">' + esc(e.message) + "</div>"; });
       }
 
       function paint() {
         const d = S.admin;
+        // THE PAGE STANDARD (ZTZ-80): the kit head (the endpoint status is its chip, the
+        // description is How it works) and the five views as underline tabs. #dmgTabs stays
+        // as the wrapper the click binding below reads.
         host.innerHTML = `
-          <div class="rs-page-head"><h1>Data Migration</h1>
-            <p>ziptozip.app is filled from this warehouse through a read-only, fully
-               logged API. Four views: your controls, exactly what the developer's
-               token sees, the documentation he follows, and the tables shaped
-               field-for-field to his schema.</p></div>
-          <div class="rs-bar"><div class="rs-seg" id="dmgTabs">
-            <button data-t="access" class="${S.tab === "access" ? "on" : ""}">Access &amp; log</button>
-            <button data-t="see" class="${S.tab === "see" ? "on" : ""}">What Giorgi sees</button>
-            <button data-t="docs" class="${S.tab === "docs" ? "on" : ""}">How to call the API</button>
-            <button data-t="mig" class="${S.tab === "mig" ? "on" : ""}">The exact tables</button>
-            <button data-t="kept" class="${S.tab === "kept" ? "on" : ""}">Kept back</button>
-          </div>
-          <span class="rs-spacer"></span>
-          <span class="rs-hint">endpoint status:
-            <span class="${d.enabled ? "dmg-on" : "dmg-off"}">${d.enabled ? "ENABLED" : "OFF"}</span></span>
-          </div>
-          <div id="dmgBody"></div>`;
+          ${RSC.pageHeadHtml({ title: "Data Migration", key: "data-migration",
+            sub: "ziptozip.app is filled from this warehouse through a read-only, fully logged API.",
+            chip: "Endpoint status: " + (d.enabled ? "enabled" : "off"), chipTone: d.enabled ? "live" : "bad",
+            howTitle: "How it works",
+            how: "<p>ziptozip.app is filled from this warehouse through a read-only, fully "
+              + "logged API. Four views: your controls, exactly what the developer's "
+              + "token sees, the documentation he follows, and the tables shaped "
+              + "field-for-field to his schema.</p>" })}
+          <div id="dmgTabs">${RSC.tabsHtml([
+            { id: "access", label: "Access & log" },
+            { id: "see", label: "What Giorgi sees" },
+            { id: "docs", label: "How to call the API" },
+            { id: "mig", label: "The exact tables" },
+            { id: "kept", label: "Kept back" }], S.tab, "t")}</div>
+          <div id="dmgBody" style="margin-top:14px"></div>`;
         host.querySelectorAll("#dmgTabs [data-t]").forEach(b => {
           b.onclick = () => { S.tab = b.getAttribute("data-t"); paint(); };
         });
@@ -769,16 +755,11 @@ const dmgRows = t => Number(
         };
 
         body.innerHTML = `
-          <div class="dmg-kpis">
-            <div class="kpi"><div class="l">Tables built</div>
-              <div class="v">${built} <span class="dmg-kdim">of ${names.length}</span></div></div>
-            <div class="kpi"><div class="l">Rows ready to import</div>
-              <div class="v">${totRows.toLocaleString()}</div></div>
-            <div class="kpi"><div class="l">Their fields filled</div>
-              <div class="v">${totFilled} <span class="dmg-kdim">of ${totFields}</span></div></div>
-            <div class="kpi"><div class="l">Complete tables</div>
-              <div class="v">${complete}</div></div>
-          </div>
+          ${RSC.kpisHtml([
+            { label: "Tables built", value: built + ' <span class="dmg-kdim">of ' + names.length + "</span>" },
+            { label: "Rows ready to import", value: totRows.toLocaleString() },
+            { label: "Their fields filled", value: totFilled + ' <span class="dmg-kdim">of ' + totFields + "</span>" },
+            { label: "Complete tables", value: String(complete) }])}
           <div class="dmg-note" style="margin:2px 0 14px">Every card is one of THEIR
             Prisma models, filled field-for-field — their names, their enums, money in
             cents. The bar is their model:

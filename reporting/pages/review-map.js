@@ -50,7 +50,10 @@
       + ".rvm-loc:hover,.rvm-loc.on{border-color:var(--ink)}"
       + ".rvm-loc b{flex:1;font-size:13.5px}"
       + ".rvm-loc span{font-size:12px;color:var(--muted);text-align:right;line-height:1.3}"
-      + ".rvm-pin{background:#C2410C;color:#fff;border-radius:999px;padding:3px 9px;font:700 12px/1.2 inherit;"
+      // the font as four properties: "font:700 12px/1.2 inherit" is invalid CSS (inherit cannot sit
+      // inside the shorthand), so the whole declaration was dropped and the pins took Leaflet's font
+      + ".rvm-pin{background:#C2410C;color:#fff;border-radius:999px;padding:3px 9px;font-family:inherit;"
+      + "font-size:12px;font-weight:700;line-height:1.2;"
       + "box-shadow:0 1px 4px rgba(0,0,0,.3);white-space:nowrap;border:2px solid #fff}"
       + ".rvm-pin.sel{background:#14301F}"
       + ".rvm-pin.zero{background:#94A3B8;font-weight:600}"
@@ -69,7 +72,10 @@
       + ".rvm-edit-pages{margin:4px 0 0 0;padding:0;list-style:none;font-size:12.5px}"
       + ".rvm-edit-pages li{display:flex;gap:8px;align-items:center;padding:3px 0}"
       + ".rvm-edit-pages li a{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}"
-      + ".rvm-x{border:0;background:none;color:#B3261E;cursor:pointer;font-size:12.5px;padding:0 4px}";
+      + ".rvm-x{border:0;background:none;color:#B3261E;cursor:pointer;font-size:12.5px;padding:0 4px}"
+      // the Edit view's two headings sat at the browser's sizes; on the type scale now (ZTZ-80)
+      + ".rvm .panel h3{font-size:16px;font-weight:600}"
+      + ".rvm .panel h4{font-size:14px;font-weight:600}";
     document.head.appendChild(st);
   }
 
@@ -184,7 +190,11 @@
         const togo = M.list.reduce((a, p) => a + (p.togo || 0), 0);
         const reached = M.list.filter(p => p.reached).length;
         const needs = M.pages.filter(pg => pg.needs).length;
-        let h = '<div class="rvm">';
+        // a view of the Reviews hub: the hub draws the big head, this one sits a size down (ZTZ-80)
+        let h = '<div class="rvm">'
+          + RSC.pageHeadHtml({ title: "Review Map", key: "review-map",
+              sub: "Every page of ours on the smaller review sites, the reviews on each, and the target for "
+                + TARGET_DATE + "." });
         h += '<div class="rs-kpis" style="--kpi-cols:6">'
           + kpi(fmt(M.list.length), "Review sites", fmt(M.pages.length) + " pages of ours", "")
           + kpi(fmt(tot), "Reviews now", "the pages' latest known counts", "")

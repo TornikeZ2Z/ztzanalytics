@@ -57,11 +57,12 @@ registerPage({
                     "Rent, leases and insurance", "Other recurring"];
     const COS = ["Zip to Zip", "Tuji", "Both"];
 
-    host.innerHTML = `<div class="rs-loading"><div>Loading <b>recurring bank charges</b>…</div><div class="bar"><i></i></div></div>`;
+    const SUB = "Every recurring charge in the bank, by what it pays for.";
+    host.innerHTML = RSC.loadingHtml("Subscriptions", "Loading recurring bank charges…");
     const all = (await RS.load("subscription_charge")).map(r => ({ ...r, Date: d10(r.Date), amt: num(r.Amount) }));
     injectCss();
     if (!all.length) {
-      host.innerHTML = `<div class="sub"><div class="rs-page-head"><h1>Subscriptions</h1></div>
+      host.innerHTML = `<div class="sub">${RSC.pageHeadHtml({ title: "Subscriptions", key: "subscriptions", sub: SUB })}
         <section class="panel"><p class="sub-note">No recurring charges found in the bank data yet.</p></section></div>`;
       return;
     }
@@ -119,6 +120,15 @@ registerPage({
     const CAD = { monthly: "Monthly", quarterly: "Quarterly", yearly: "Yearly", upfront: "Yearly, paid up front",
                   used: "As used", several: "Several a month", once: "One charge" };
 
+    // How it's counted: the card that closed the page, word for word (ZTZ-80)
+    const howHtml = () => `<ul>
+          <li><b>The charges</b> are the bank's: the checking account, the credit card and the marketing card, from January 2024 to ${esc(fmtDay(END))} (the bank file is added once a month). Paying our own cards, transfers, Zelle and checks to people, payroll, taxes, card-processing fees, fuel, tolls, truck rental and repairs, packing material and supplies are never counted.</li>
+          <li><b>A vendor</b> comes from the vendor list, which reads the bank description (and the bank's own category for PayPal and ACH payments). Anything off the list that is charged about once a month at a steady amount in 4 of the last 12 months is added as <b>Other recurring</b>, marked <i>to review</i>.</li>
+          <li><b>Billed</b> follows the gaps between charges: monthly, quarterly, yearly; more than twice a month is <b>as used</b> for an ad platform (it bills at a spend threshold) and <b>several a month</b> for anything else (storage units, truck loans, phone lines). A latest charge at least 6× the vendor's usual amount and $1,000, with nothing after it for 60 days, is a <b>year paid up front</b>.</li>
+          <li><b>Active</b> means the next charge is not overdue on ${esc(fmtDay(END))}: 45 days for monthly and several a month, 120 for quarterly, 400 for yearly and paid up front. <b>Monthly cost</b> is what an active vendor cost over ${esc(last3.slice().reverse().map(mlabel).join(", "))} ÷ 3, its last 12 months ÷ 12 when it bills quarterly or yearly, or a twelfth of a year paid up front.</li>
+          <li><b>A price change</b> is a monthly charge whose latest amount is at least 5% and $5 away from the three before it.</li>
+        </ul>`;
+
     function paint() {
       const V = model(), inGrp = v => S.grp === "All" || v.group === S.grp;
       const vs = V.filter(inGrp);
@@ -136,10 +146,11 @@ registerPage({
         .filter(v => !S.q || (v.vendor + " " + v.what + " " + v.group).toLowerCase().includes(S.q))
         .sort((a, b) => b.monthly - a.monthly || b.y12 - a.y12 || (a.last.Date < b.last.Date ? 1 : -1));
 
-      const tab = (k, l, extra) => `<button type="button" class="${S.grp === k ? "on" : ""}" data-grp="${esc(k)}">${esc(l)}${extra ? ` <span>${extra}</span>` : ""}</button>`;
+      // a segment of a kit .rs-seg (company, status); the group tabs are the kit's underline tabs
       const chip = (attr, k, cur, l) => `<button type="button" class="${cur === k ? "on" : ""}" data-${attr}="${esc(k)}">${esc(l)}</button>`;
-      const status = v => !v.active ? `<span class="sub-pill off">stopped · last ${esc(fmtDay(v.last.Date))}</span>`
-        : v.isNew ? `<span class="sub-pill new">new since ${esc(fmtDay(v.first.Date))}</span>` : `<span class="sub-pill on">active</span>`;
+      // the kit's pills (ZTZ-80): active green, new the accent, stopped grey, to review amber
+      const status = v => !v.active ? `<span class="rs-pill mute">stopped · last ${esc(fmtDay(v.last.Date))}</span>`
+        : v.isNew ? `<span class="rs-pill info">new since ${esc(fmtDay(v.first.Date))}</span>` : `<span class="rs-pill ok">active</span>`;
       const chg = v => v.change ? ` <span class="sub-chg ${v.change.d > 0 ? "up" : "down"}" title="was ${esc(money(v.change.before))}">${v.change.d > 0 ? "▲" : "▼"} ${money(Math.abs(v.change.d))}</span>` : "";
       const detail = v => { const last12 = v.xs.slice(-12).reverse();
         return `<tr class="sub-det"><td colspan="7"><div class="sub-detbox">
@@ -148,21 +159,25 @@ registerPage({
           ${last12.map(r => `<tr><td>${esc(fmtDay(r.Date))}</td><td class="sub-desc">${esc(r.Description || "")}</td><td>${esc(r.Account || "")}</td><td class="num">${money(r.amt)}</td></tr>`).join("")}
           </tbody></table>${v.xs.length > 12 ? `<p class="sub-note">The latest 12 of ${v.xs.length.toLocaleString()} charges.</p>` : ""}</div></td></tr>`; };
 
+      /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head with the bank's last day as its chip,
+         the groups as the kit's underline tabs, then the company row, then the kit tiles. The "How
+         this is counted" card that closed the page moves, word for word, into How it's counted. */
       host.innerHTML = `
       <div class="sub">
-        <div class="rs-page-head"><h1>Subscriptions</h1>
-          <p>Every recurring charge in the bank, by what it pays for · bank data through ${esc(fmtDay(END))}</p></div>
-        <div class="sub-bar">
-          <div class="sub-chips" role="group" aria-label="Company">${COS.map(c => chip("co", c, S.co, c === "Both" ? "Both companies" : c)).join("")}</div>
+        ${RSC.pageHeadHtml({ title: "Subscriptions", key: "subscriptions", sub: SUB,
+          chip: "Bank data through " + fmtDay(END), how: howHtml })}
+        ${RSC.tabsHtml([{ id: "All", label: "All", count: money(moAll) + "/mo" }]
+          .concat(G.map(x => ({ id: x.g, label: x.g, count: money(x.mo) + "/mo" }))), S.grp, "grp")}
+        <div class="rs-bar">
+          <div class="rs-seg" role="group" aria-label="Company">${COS.map(c => chip("co", c, S.co, c === "Both" ? "Both companies" : c)).join("")}</div>
         </div>
-        <nav class="sub-tabs" aria-label="Subscription groups">${tab("All", "All", money(moAll) + "/mo")}${G.map(x => tab(x.g, x.g, money(x.mo) + "/mo")).join("")}</nav>
-        <div class="rs-kpis" style="--kpi-cols:5">
-          <div class="kpi"><div class="l">Monthly cost now</div><div class="v">${moneyK(mo)}</div><div class="s">${act.length} active · ${moneyK(mo * 12)} a year at this rate</div></div>
-          <div class="kpi"><div class="l">Paid in the last 12 months</div><div class="v">${moneyK(y12)}</div><div class="s">${esc(fmtDay(addDays(from12, 1)))} – ${esc(fmtDay(END))}</div></div>
-          <div class="kpi"><div class="l">Active</div><div class="v">${act.length}</div><div class="s">${act.filter(v => v.isNew).length} new in the last 90 days</div></div>
-          <div class="kpi"><div class="l">Stopped lately</div><div class="v">${stopped6.length}</div><div class="s">in the last 6 months · were ${moneyK(stopped6.reduce((s, v) => s + v.y12, 0))} over 12 months</div></div>
-          <div class="kpi"><div class="l">Price changes</div><div class="v">${changes.length}</div><div class="s">${ups.length} went up · +${money(ups.reduce((s, v) => s + v.change.d, 0))} a month</div></div>
-        </div>
+        ${RSC.kpisHtml([
+          { label: "Monthly cost now", value: moneyK(mo), sub: `${act.length} active · ${moneyK(mo * 12)} a year at this rate` },
+          { label: "Paid in the last 12 months", value: moneyK(y12), sub: `${fmtDay(addDays(from12, 1))} – ${fmtDay(END)}` },
+          { label: "Active", value: String(act.length), sub: `${act.filter(v => v.isNew).length} new in the last 90 days` },
+          { label: "Stopped lately", value: String(stopped6.length), sub: `in the last 6 months · were ${moneyK(stopped6.reduce((s, v) => s + v.y12, 0))} over 12 months` },
+          { label: "Price changes", value: String(changes.length), sub: `${ups.length} went up · +${money(ups.reduce((s, v) => s + v.change.d, 0))} a month` },
+        ])}
         ${S.grp === "All" ? `<section class="panel"><div class="panel-head"><span class="panel-title">By group</span></div>
           <div class="rs-tablewrap"><table class="rs-table">
             <thead><tr><th>Group</th><th class="num">Active</th><th class="num">Monthly cost now</th><th class="num">Share</th><th class="num">Last 12 months</th></tr></thead>
@@ -185,14 +200,14 @@ registerPage({
         <section class="panel"><div class="panel-head"><span class="panel-title">${S.grp === "All" ? "Every vendor" : esc(S.grp)}</span>
             <span class="sub-sub">${listed.length} shown · click a vendor for its charges</span></div>
           <div class="sub-bar">
-            <div class="sub-chips" role="group" aria-label="Status">${chip("show", "active", S.show, "Active")}${chip("show", "stopped", S.show, "Stopped")}${chip("show", "all", S.show, "All")}</div>
-            <input type="search" class="sub-q" id="subQ" placeholder="Search a vendor" aria-label="Search a vendor" value="${esc(S.q)}">
+            <div class="rs-seg" role="group" aria-label="Status">${chip("show", "active", S.show, "Active")}${chip("show", "stopped", S.show, "Stopped")}${chip("show", "all", S.show, "All")}</div>
+            <input type="search" class="rs-inp sub-q" id="subQ" placeholder="Search a vendor" aria-label="Search a vendor" value="${esc(S.q)}">
           </div>
           <div class="rs-tablewrap sub-scroll"><table class="rs-table">
             <thead><tr><th>Vendor</th><th>Billed</th><th class="num">Monthly cost</th><th class="num">Last charge</th><th class="num">Last 12 months</th><th class="num">Paying since</th><th class="num">Status</th></tr></thead>
             <tbody>${listed.map(v => { const k = v.group + "\u0001" + v.vendor;
               return `<tr class="sub-row${S.open.has(k) ? " open" : ""}" data-k="${esc(k)}" tabindex="0">
-                <td><b>${esc(v.vendor)}</b>${v.pattern ? ' <span class="sub-pill pat" title="recurs monthly, not on the vendor list yet">to review</span>' : ""}
+                <td><b>${esc(v.vendor)}</b>${v.pattern ? ' <span class="rs-pill warn" title="recurs monthly, not on the vendor list yet">to review</span>' : ""}
                   <div class="sub-sub">${esc(v.what)}${S.grp === "All" ? " · " + esc(v.group) : ""}</div></td>
                 <td>${CAD[v.cad]}</td>
                 <td class="num">${v.active && v.monthly ? `<b>${money(v.monthly)}</b>` : "—"}</td>
@@ -202,13 +217,6 @@ registerPage({
                 <td class="num">${status(v)}</td></tr>${S.open.has(k) ? detail(v) : ""}`; }).join("")
               || `<tr><td colspan="7" class="sub-note">Nothing here for ${esc(S.co === "Both" ? "both companies" : S.co)}.</td></tr>`}</tbody>
           </table></div></section>
-        <section class="panel sub-how"><div class="panel-head"><span class="panel-title">How this is counted</span></div><ul>
-          <li><b>The charges</b> are the bank's: the checking account, the credit card and the marketing card, from January 2024 to ${esc(fmtDay(END))} (the bank file is added once a month). Paying our own cards, transfers, Zelle and checks to people, payroll, taxes, card-processing fees, fuel, tolls, truck rental and repairs, packing material and supplies are never counted.</li>
-          <li><b>A vendor</b> comes from the vendor list, which reads the bank description (and the bank's own category for PayPal and ACH payments). Anything off the list that is charged about once a month at a steady amount in 4 of the last 12 months is added as <b>Other recurring</b>, marked <i>to review</i>.</li>
-          <li><b>Billed</b> follows the gaps between charges: monthly, quarterly, yearly; more than twice a month is <b>as used</b> for an ad platform (it bills at a spend threshold) and <b>several a month</b> for anything else (storage units, truck loans, phone lines). A latest charge at least 6× the vendor's usual amount and $1,000, with nothing after it for 60 days, is a <b>year paid up front</b>.</li>
-          <li><b>Active</b> means the next charge is not overdue on ${esc(fmtDay(END))}: 45 days for monthly and several a month, 120 for quarterly, 400 for yearly and paid up front. <b>Monthly cost</b> is what an active vendor cost over ${esc(last3.slice().reverse().map(mlabel).join(", "))} ÷ 3, its last 12 months ÷ 12 when it bills quarterly or yearly, or a twelfth of a year paid up front.</li>
-          <li><b>A price change</b> is a monthly charge whose latest amount is at least 5% and $5 away from the three before it.</li>
-        </ul></section>
       </div>`;
 
       /* ---------- wiring ---------- */
@@ -227,18 +235,26 @@ registerPage({
 
       /* ---------- the monthly chart ---------- */
       try {
-        const v2 = RS.isV2 && RS.isV2(), CAT = v2 && RS.V2 ? RS.V2.cat
-          : ["#b7e23b", "#5b8def", "#f2a541", "#2bb3a3", "#a77bf3", "#8a96a8", "#e46f6f", "#c9d36a"];
+        /* THE PORTAL'S PALETTE (ZTZ-80): greens, ink and grey only. RS.V2.cat carries a teal and a
+           purple, so this chart keeps its own order, chosen so that neighbours in a stack differ in
+           lightness (dark green, light green, mid green, ink, lime, grey). The rest of a stack is
+           grey: "Other recurring" among the groups; "Everything else" among a group's vendors takes
+           the lighter context grey, because a sixth vendor already holds the mid grey. Dark mode
+           keeps its old colours: the ink and the dark green would vanish on a dark ground. */
+        const v2 = RS.isV2 && RS.isV2();
+        const PAL = ["#14301F", "#A3CF3A", "#3F7D20", "#0F172A", "#B7E23B", "#94A3B8"];
+        const CAT = v2 ? PAL : ["#b7e23b", "#5b8def", "#f2a541", "#2bb3a3", "#a77bf3", "#8a96a8", "#e46f6f", "#c9d36a"];
+        const REST = v2 ? (S.grp === "All" ? "#94A3B8" : (RS.V2 && RS.V2.ctx) || "#94A3B8") : null;
         const months = []; for (let i = 23; i >= 0; i--) months.push(ymBack(endMonth, i));
         let series;
-        if (S.grp === "All") series = GROUPS.map(g => ({ l: g, f: r => r.Group === g }));
+        if (S.grp === "All") series = GROUPS.map(g => ({ l: g, f: r => r.Group === g, rest: g === "Other recurring" }));
         else {
           const top = vs.slice().sort((a, b) => b.y12 - a.y12 || b.total - a.total).slice(0, 6).map(v => v.vendor);
           series = top.map(n => ({ l: n, f: r => r.Group === S.grp && r.Vendor === n }));
-          if (vs.length > top.length) series.push({ l: "Everything else", f: r => r.Group === S.grp && !top.includes(r.Vendor) });
+          if (vs.length > top.length) series.push({ l: "Everything else", f: r => r.Group === S.grp && !top.includes(r.Vendor), rest: true });
         }
         const rows = all.filter(r => S.co === "Both" || r.Company === S.co);
-        const ds = series.map((s, i) => ({ label: s.l, backgroundColor: CAT[i % CAT.length], borderRadius: 2, maxBarThickness: 34,
+        const ds = series.map((s, i) => ({ label: s.l, backgroundColor: REST && s.rest ? REST : CAT[i % CAT.length], borderRadius: 2, maxBarThickness: 34,
           data: months.map(m => Math.round(rows.filter(r => r.Month === m && s.f(r)).reduce((t, r) => t + r.amt, 0))) }))
           .filter(d => d.data.some(v => v));
         new Chart(host.querySelector("#subMonth"), { type: "bar", data: { labels: months.map(mlabel), datasets: ds },
@@ -255,30 +271,18 @@ registerPage({
       const s = document.createElement("style"); s.id = "sub-css";
       s.textContent = `
         .sub-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 12px}
-        .sub-chips{display:flex;flex-wrap:wrap;gap:6px}
-        .sub-chips button,.sub-tabs button{font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);background:none;cursor:pointer;
-          border:1px solid var(--line);border-radius:999px;padding:5px 12px}
-        .sub-chips button.on,.sub-tabs button.on{color:var(--ink);border-color:var(--brand);background:rgba(132,204,22,.12)}
-        .sub-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
-        .sub-tabs button span{font-weight:400;color:var(--faint)}
         .sub-sub{font-size:12px;color:var(--faint);font-weight:400}
         .sub-note{font-size:12.5px;color:var(--muted);margin:8px 0 0;line-height:1.5}
-        .sub-q{font:inherit;font-size:12.5px;width:100%;max-width:260px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink)}
+        .sub-bar .sub-q{max-width:260px}
         .sub-scroll{max-height:640px;overscroll-behavior:contain}
         .sub-scroll thead th{position:sticky;top:0;z-index:2;background:var(--panel)}
-        .sub-row{cursor:pointer}.sub-row:hover td{background:rgba(132,204,22,.06)}.sub-row.open td{border-bottom-color:transparent}
-        .sub-det td{background:var(--panel2,rgba(0,0,0,.02))}
+        .sub-row{cursor:pointer}.sub-row:hover td{background:var(--panel-2)}.sub-row.open td{border-bottom-color:transparent}
+        .sub-det td{background:var(--panel-2)}
         .sub-detbox{padding:4px 2px 8px}.sub-detmeta{font-size:12.5px;color:var(--muted);margin:0 0 8px}
         .sub-mini{font-size:12.5px}.sub-desc{color:var(--muted);max-width:420px;overflow-wrap:anywhere}
-        .sub-pill{display:inline-block;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
-        .sub-pill.on{background:rgba(21,128,61,.12);color:#15803D}
-        .sub-pill.new{background:rgba(63,125,32,.14);color:#3F7D20}
-        .sub-pill.off{background:rgba(100,116,139,.14);color:var(--muted)}
-        .sub-pill.pat{background:rgba(180,83,9,.12);color:#B45309}
-        .sub-chg{font-size:12px;font-weight:600;white-space:nowrap}.sub-chg.up{color:#B91C1C}.sub-chg.down{color:#15803D}
+        .sub-row .rs-pill{white-space:nowrap}
+        .sub-chg{font-size:12px;font-weight:600;white-space:nowrap}.sub-chg.up{color:var(--neg)}.sub-chg.down{color:var(--pos)}
         .sub-lnk{font:inherit;font-weight:600;color:var(--ink);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
-        .sub-how ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.6}
-        .sub-how b{color:var(--ink)}
       `;
       document.head.appendChild(s);
     }

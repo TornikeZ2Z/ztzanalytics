@@ -92,7 +92,6 @@ registerPage({
       st.id = "sal-style";
       st.textContent = [
         // only what the kit cannot say; everything else is .rs-bar / .rs-table / .rs-kpis / .rs-pill
-        ".sal .rs-bar .rs-tabs{margin:0}",
         // five period chips do not fit a phone on one line; they wrap instead of pushing the page sideways
         ".sal .rs-bar .rs-seg{flex-wrap:wrap;max-width:100%}",
         ".sal .rs-bar .rs-inp{min-width:0;width:190px;max-width:100%}",
@@ -112,16 +111,15 @@ registerPage({
         ".sal td.sal-pc{white-space:nowrap}",
         ".sal td.sal-pc .sal-pills{flex-wrap:nowrap}",
         ".sal-pills{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:6px;vertical-align:middle}",
-        ".sal-pills .rs-pill{font-size:10.5px;padding:2px 8px}",
-        ".sal-sm{display:block;font-size:11.5px;color:var(--faint);font-weight:600;margin-top:2px}",
-        ".sal-th small{display:block;font-size:10px;letter-spacing:0;text-transform:none;"
+        ".sal-pills .rs-pill{font-size:12px;padding:2px 8px}",
+        ".sal-sm{display:block;font-size:12px;color:var(--faint);font-weight:600;margin-top:2px}",
+        ".sal-th small{display:block;font-size:12px;letter-spacing:0;text-transform:none;"
           + "color:var(--faint);font-weight:600;margin-top:2px}",
         // the person's jobs: a wide nested table scrolls inside its card, never the page
         ".sal-subwrap{overflow-x:auto}",
         ".sal-ev{display:flex;flex-wrap:wrap;gap:4px;min-width:140px}",
         ".sal-ev .sal-sm{flex-basis:100%;max-width:420px;white-space:normal}",
         ".sal-sold{font-size:12.5px;color:var(--muted);min-width:150px}",
-        ".sal-foot{margin-top:6px}",
         ".sal a.sal-link{color:var(--blue);font-weight:700;text-decoration:none}",
         ".sal a.sal-link:hover{text-decoration:underline}",
         // the tie-out and refund lines, folded to one (2026-09-25)
@@ -152,11 +150,24 @@ registerPage({
       document.head.appendChild(st);
     }
 
-    const head = `<div class="rs-page-head"><h1>Salaries</h1>
-      <p>What the closing sheet pays through its three salesperson slots, person by person:
-         estimators, salespeople and the branch owner, less the commission refunds took back.</p></div>`;
-    host.innerHTML = `<div class="sal">${head}
-      <div class="rs-loading" style="padding:22px">Reading the pay slots…</div></div>`;
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head, with Download CSV among its actions
+       and the long subtitle and the method footnote in How it's counted (worded as before); the
+       role tabs leave the control bar for the kit's underline tabs, so the bar is one row. */
+    function howHtml() {
+      return "<h3>What this page shows</h3><p>What the closing sheet pays through its three salesperson slots, person by person: "
+        + "estimators, salespeople and the branch owner, less the commission refunds took back.</p>"
+        + "<h3>Commission and refunds</h3><p>Commission as recorded on the closing sheet, by move date. Refunds are the "
+        + "refunds sheet's \"Sales Commission Reduced Amount\", by refund date, matched to the job by request "
+        + "number and taken off the salesperson the refunds sheet names; when nobody paid on that job "
+        + "answers to the name, off the job's paid salespeople by pay. Base pay and payment dates are not "
+        + "recorded in the warehouse, so this is pay earned, not pay paid.</p>"
+        + "<h3>The page's filters</h3><p>" + esc(PF_NOTE) + "</p>";
+    }
+    const headOf = actions => RSC.pageHeadHtml({ title: "Salaries", key: "salaries",
+      sub: "What the closing sheet pays each person through its three salesperson slots, less refunds.",
+      how: howHtml, actions });
+    const head = headOf();
+    host.innerHTML = `<div class="sal">${RSC.loadingHtml("Salaries", "Reading the pay slots…")}</div>`;
 
     let all;
     try {
@@ -364,7 +375,8 @@ registerPage({
             : `<div class="rs-hint">Nobody in this tab for ${esc(S.co || "all companies")}, ${esc(perTxt())}${S.q ? " matching “" + esc(S.q) + "”" : ""}.</div>`}
         </div>`;
 
-      host.innerHTML = `<div class="sal">${head}
+      host.innerHTML = `<div class="sal">${headOf([{ html: '<button type="button" class="rs-btn" id="salCsv">Download CSV</button>' }])}
+        ${RSC.tabsHtml(TABS.map(x => ({ id: x.key, label: x.label })), S.tab, "sal-tab")}
         <div class="rs-bar" id="salBar"></div>
         <div class="rs-kpis" id="salKpis"></div>
         ${tieFold(sj, whole)}${pfGap(["role"], "the tie-out and refund lines, which add every role up to the closing sheet.")}
@@ -372,11 +384,6 @@ registerPage({
         ${t.role === "Sales Person" ? loosePanel(whole) : ""}
         ${isAll ? loosePanel(whole) : ""}
         ${lookPanel(rs, isAll ? "All" : t.role)}
-        <p class="rs-hint sal-foot">Commission as recorded on the closing sheet, by move date. Refunds are the
-          refunds sheet's "Sales Commission Reduced Amount", by refund date, matched to the job by request
-          number and taken off the salesperson the refunds sheet names; when nobody paid on that job
-          answers to the name, off the job's paid salespeople by pay. Base pay and payment dates are not
-          recorded in the warehouse, so this is pay earned, not pay paid.</p>
       </div>`;
 
       mountBar();
@@ -561,7 +568,7 @@ registerPage({
           <td style="${cell}">${esc(dLabel(r.pay))}</td>
           ${td(fmtN(r.jobs))}${td(m0(r.rev))}${td(m0(r.cut))}${td(r.est ? m0(r.est) : "—")}${td(r.ref ? mS(r.ref) : "—")}
           ${td("<b>" + mS(r.net) + "</b>")}</tr>`).join("")}</tbody></table>
-        <p style="color:#5a6775;font-size:11px;margin-top:14px">Printed from the Salaries page, ${esc(new Date().toLocaleString())}.</p>
+        <p style="color:#5a6775;font-size:12px;margin-top:14px">Printed from the Salaries page, ${esc(new Date().toLocaleString())}.</p>
         </body></html>`;
       RSC.printDoc(html, { title: "Pay-period statement", width: "297mm", height: "210mm" });
     }
@@ -986,25 +993,16 @@ registerPage({
     function mountBar() {
       const bar = host.querySelector("#salBar");
       if (!bar) return;
-      const tabs = document.createElement("div");
-      tabs.className = "rs-tabs";
-      tabs.setAttribute("role", "tablist");
-      TABS.forEach(t => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "rs-tab" + (t.key === S.tab ? " on" : "");
-        b.setAttribute("role", "tab");
-        b.setAttribute("aria-selected", t.key === S.tab ? "true" : "false");
-        b.textContent = t.label;
+      // the role tabs: the kit's underline tabs above the bar (ZTZ-80), same click as before
+      host.querySelectorAll("[data-sal-tab]").forEach(b => {
         b.onclick = () => {
-          if (S.tab === t.key) return;
-          S.tab = t.key; S.open.clear(); S.sort = "net"; S.dir = -1;
-          try { history.replaceState(null, "", "#page=salaries&tab=" + t.key); } catch (e) { /* file:// */ }
+          const k = b.dataset.salTab;
+          if (S.tab === k) return;
+          S.tab = k; S.open.clear(); S.sort = "net"; S.dir = -1;
+          try { history.replaceState(null, "", "#page=salaries&tab=" + k); } catch (e) { /* file:// */ }
           paint();
         };
-        tabs.appendChild(b);
       });
-      bar.appendChild(tabs);
 
       const seg = document.createElement("div");
       seg.className = "rs-seg";
@@ -1060,12 +1058,9 @@ registerPage({
       const sp = document.createElement("div");
       sp.className = "rs-spacer";
       bar.appendChild(sp);
-      const csv = document.createElement("button");
-      csv.type = "button";
-      csv.className = "rs-btn";
-      csv.textContent = "Download CSV";
-      csv.onclick = () => downloadCsv(tab().roles || ALL_ROLES, tab().key);
-      bar.appendChild(csv);
+      // Download CSV sits in the page head's actions now (ZTZ-80); the click is the same
+      const csv = host.querySelector("#salCsv");
+      if (csv) csv.onclick = () => downloadCsv(tab().roles || ALL_ROLES, tab().key);
       // the Filters button ends the bar, as in the shell; the "Filtered by" line sits right under it
       const fields = pfFields();
       const apply = next => { S.pf = { state: [...next.state], job: [...next.job], role: [...next.role] }; setPF(); S.open.clear(); paint(); };

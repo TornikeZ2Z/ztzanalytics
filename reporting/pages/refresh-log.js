@@ -129,16 +129,16 @@ function rlInjectStyle() {
   .rl-engine{margin-top:18px;border-top:1px solid var(--line);padding-top:8px}
   .rl-engine>summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);padding:8px 0}
   .rl-engine>summary:hover{color:var(--ink)}
-  .rl-org{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
+  .rl-org{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);white-space:nowrap}
   .rl-org.sp{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent)}
   .rl-org.gs{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
   .rl-org.api{color:var(--purple);border-color:color-mix(in srgb,var(--purple) 45%,transparent)}
   .rl-org.xl{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
   .rl-org.portal{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
   .rl-org.cal{color:var(--muted)} .rl-org.oth{color:var(--faint)}
-  .rl-mode{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+  .rl-mode{font-size:12px;font-weight:800;text-transform:none}
   .rl-mode.live{color:var(--brand)} .rl-mode.ref{color:var(--faint)}
-  .rl-used{font-size:11.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rl-used{font-size:12px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* the control row and its buttons are the kit's (.rs-bar / .rs-btn / .rs-btn.pri). The only
      thing left is the status message: .rs-bar bottom-aligns its controls, and a one-line
      message beside two buttons wants to sit at their middle. */
@@ -150,23 +150,23 @@ function rlInjectStyle() {
   .rl-alert{background:color-mix(in srgb,var(--red) 8%,var(--panel));border:1px solid color-mix(in srgb,var(--red) 45%,transparent);border-radius:14px;padding:14px 17px;margin-bottom:16px}
   .rl-alert-h{font-weight:800;color:var(--red);font-size:13.5px;margin-bottom:8px}
   .rl-alert-r{font-size:12.5px;color:var(--ink);padding:6px 0;border-top:1px solid var(--line)}
-  .rl-alert-d{color:var(--muted);font-family:ui-monospace,monospace;font-size:11.5px}
-  .rl-alert-when{font-size:11px;color:var(--faint);margin-top:3px}
+  .rl-alert-d{color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}
+  .rl-alert-when{font-size:12px;color:var(--faint);margin-top:3px}
   .rl-covgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:4px 0 2px}
   .rl-cov{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-  .rl-cov .lbl{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .rl-cov .lbl{font-size:12px;font-weight:800;text-transform:none;color:var(--muted)}
   .rl-covsub{font-weight:600;letter-spacing:0;text-transform:none;color:var(--faint)}
   .rl-cov .rng{font-size:14px;font-weight:700;color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums}
   .rl-cov .rng .arw{color:var(--faint);margin:0 3px}
-  .rl-cov .meta{font-size:11.5px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
+  .rl-cov .meta{font-size:12px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
   /* the footnote under a card is a kit .rs-hint; only its spacing is page business */
   .rl-note{margin:10px 0 0}
   /* the live box is a kit .panel; all that is page-specific is the "something is happening
      right now" edge. Three classes, to out-weigh the border shorthand on body.rs-app .panel. */
   .panel.rl-live.on{border-color:var(--blue)}
   .rl-lvhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
-  .rl-lvsub{font-size:11.5px;color:var(--faint);font-weight:500}
-  .rl-lvcount{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .rl-lvsub{font-size:12px;color:var(--faint);font-weight:500}
+  .rl-lvcount{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
   .rl-lvcount .bad{color:var(--neg)}
   .rl-lvpulse{width:9px;height:9px;border-radius:50%;background:var(--line);flex:none}
   .rl-lvpulse.on{background:var(--blue);animation:rllive 1.25s ease-in-out infinite}
@@ -176,7 +176,7 @@ function rlInjectStyle() {
   .rl-lvfill{height:100%;background:var(--blue);border-radius:99px;transition:width .5s ease}
   .rl-lvnow{font-size:12.5px;color:var(--ink)}
   .rl-lvlist{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
-  .rl-lvcap{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .rl-lvcap{font-size:12px;font-weight:700;text-transform:none;color:var(--faint);margin-bottom:6px}
   .rl-lvrow{display:flex;align-items:center;gap:9px;font-size:12px;padding:2.5px 0}
   .rl-lvstep{color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rl-lvmeta{color:var(--faint);font-variant-numeric:tabular-nums}
@@ -202,7 +202,7 @@ function rlInjectStyle() {
   .rl-kpis .kpi.raw::before{background:var(--blue)}
   .rl-kpis .kpi.cur::before{background:var(--purple)}
   .rl-kpis .kpi.tot::before{background:var(--brand)}
-  .rl-sec{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:2px 0 13px}
+  .rl-sec{font-size:13px;font-weight:800;text-transform:none;color:var(--muted);margin:2px 0 13px}
   /* card headings are the kit's .panel-head / .panel-title; the subtitle beside the title and
      the total pinned to the right are the two pieces the kit has no name for */
   .rl-hsub{font-size:12.5px;color:var(--muted)}
@@ -213,9 +213,9 @@ function rlInjectStyle() {
      every 8px round status dot on the page into an 11px rounded square. */
   .rl-leg .rl-dot{width:11px;height:11px;border-radius:3px;flex:none}
   .rl-leg .rl-dot.raw{background:var(--blue)} .rl-leg .rl-dot.cur{background:var(--purple)}
-  .rl-leg .lk{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .rl-leg .lk{font-size:12px;font-weight:800;text-transform:none;color:var(--muted)}
   .rl-leg .lv{font-size:15px;font-weight:820;color:var(--ink);margin-left:2px;font-variant-numeric:tabular-nums}
-  .rl-leg .ls{font-size:11.5px;color:var(--faint);margin-left:4px}
+  .rl-leg .ls{font-size:12px;color:var(--faint);margin-left:4px}
   .rl-split{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--panel-2);border:1px solid var(--line)}
   .rl-split .seg{height:100%}
   .rl-split .seg.raw{background:var(--blue)}
@@ -236,12 +236,12 @@ function rlInjectStyle() {
   .rl-sghead{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;padding-bottom:6px;
              border-bottom:1px solid var(--line)}
   .rl-sghead b{font-size:13px;font-weight:800;letter-spacing:-.1px;color:var(--ink)}
-  .rl-sghead span{font-size:11.5px;color:var(--faint)}
+  .rl-sghead span{font-size:12px;color:var(--faint)}
   /* the chip that rides at the right end of a card heading. The chip itself is a kit
      .rs-pill; this only pushes it over. */
   .rl-hchip{margin-left:auto}
   /* how long since this feed actually brought something new -- the "did I forget" signal */
-  .rl-age{display:inline-block;margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.03em;
+  .rl-age{display:inline-block;margin-top:6px;font-size:12px;font-weight:800;
           padding:1px 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);
           color:var(--faint)}
   .rl-age.fresh{color:var(--brand-d);border-color:var(--brand)}
@@ -261,8 +261,8 @@ function rlInjectStyle() {
   .rl-flink:hover{text-decoration:underline}
   .rs-table tbody tr.rl-fr.old td{background:var(--neg-bg)}
   .rs-table tbody tr.rl-fr.warn td{background:var(--warn-bg)}
-  .rl-fkind{display:block;font-size:10px;color:var(--faint);margin-top:1px}
-  .rl-fnote{display:block;font-size:9.5px;color:var(--faint)}
+  .rl-fkind{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+  .rl-fnote{display:block;font-size:12px;color:var(--faint)}
   .rl-fdet{margin-top:12px}
   .rl-fdet summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);
                    user-select:none;padding:4px 0}
@@ -270,7 +270,7 @@ function rlInjectStyle() {
   /* the long explanation under a card is a kit .rs-hint; it only needs to sit at the bottom */
   .rl-fhelp{margin:12px 0 0}
   /* the per-feed reload switch */
-  .rl-sw{font-family:inherit;font-size:10px;font-weight:800;letter-spacing:.04em;
+  .rl-sw{font-family:inherit;font-size:12px;font-weight:800;
          padding:2px 9px;border-radius:999px;cursor:pointer;border:1px solid;background:transparent}
   .rl-sw.on{color:var(--brand-d);border-color:var(--brand)}
   body.rs-app:not(.light) .rl-sw.on{color:var(--brand)}
@@ -280,7 +280,7 @@ function rlInjectStyle() {
   .rs-table tbody tr.rl-fr.paused td{background:var(--panel-2);opacity:.72}
   .rl-fr.paused b{text-decoration:line-through;text-decoration-color:var(--faint)}
   .rl-sname{font-size:12.5px;font-weight:650;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:6px}
-  .rl-smeta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
+  .rl-smeta{font-size:12px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
   .rl-smeta b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
   .rl-run{background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-bottom:9px;overflow:hidden}
   .rl-rhead{display:flex;align-items:center;gap:13px;padding:12px 16px;cursor:pointer;user-select:none;transition:background .1s}
@@ -290,11 +290,11 @@ function rlInjectStyle() {
   .rl-rdate{font-weight:750;color:var(--ink);font-size:13.5px;font-variant-numeric:tabular-nums}
   .rl-rstats{margin-left:auto;display:flex;gap:18px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap}
   .rl-rstats .st b{color:var(--ink);font-weight:750;font-variant-numeric:tabular-nums}
-  .rl-rstats .st i{font-style:normal;font-weight:800;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;margin-right:5px}
+  .rl-rstats .st i{font-style:normal;font-weight:800;font-size:12px;text-transform:none;margin-right:5px}
   .rl-rstats .st.raw i{color:var(--blue)} .rl-rstats .st.cur i{color:var(--purple)}
   .rl-rbody{display:none;padding:2px 16px 16px;border-top:1px solid var(--line)}
   .rl-run.open .rl-rbody{display:block}
-  .rl-mini-t{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:14px 0 9px}
+  .rl-mini-t{font-size:13px;font-weight:800;text-transform:none;color:var(--muted);margin:14px 0 9px}
   /* DESIGN V2 ("Calm finance"). Only the v2 light look; dark keeps every rule above.
      Sentence-case labels at 12px+, flat 10px-radius surfaces, status pills in the kit's
      ok/warn/bad/neutral/info palette, green only where it means good (the verdict, the
@@ -990,19 +990,19 @@ registerPage({
   title: "Refresh Log",
   async render(host) {
     rlInjectStyle();
-    host.innerHTML = `<div class="rs-page-head">
-        <h1>Refresh Log</h1>
-        <p>How each data refresh ran — the raw source loads and the curation build, per run.
-          <span class="freshness">· the pipeline runs every hour</span></p>
-      </div>
-      <div class="rs-bar">
-        <button class="rs-btn" id="rlReload">↻ Reload this page's data</button>
-        <button class="rs-btn pri" id="rlRun">▶ Run a refresh now</button>
-        <span class="rl-runmsg" id="rlMsg"></span>
-      </div>
+    // THE PAGE STANDARD (ZTZ-80): the kit head; "runs every hour" is its chip, and the two
+    // buttons (same ids, wired below) plus their status line are its actions
+    host.innerHTML = `${RSC.pageHeadHtml({ title: "Refresh Log", key: "refresh-log",
+        sub: "How each data refresh ran — the raw source loads and the curation build, per run.",
+        chip: "The pipeline runs every hour",
+        actions: [
+          { html: '<span class="rl-runmsg" id="rlMsg"></span>' },
+          { html: '<button type="button" class="rs-btn" id="rlReload">↻ Reload this page\'s data</button>' },
+          { html: '<button type="button" class="rs-btn pri" id="rlRun">▶ Run a refresh now</button>' },
+        ] })}
       <div id="rlDaily"></div>
       <div id="rlLive"></div>
-      <div id="rlBody"><div class="rs-loading" style="padding:26px">Loading refresh history…</div></div>`;
+      <div id="rlBody">${RSC.loadingHtml("Refresh Log", "Loading refresh history…")}</div>`;
     const body = host.querySelector("#rlBody");
     // the daily-drop checklist fills on its own: a slow or failing feeds call never holds up the log
     ZTZ.api("/api/_feeds").then(j => {

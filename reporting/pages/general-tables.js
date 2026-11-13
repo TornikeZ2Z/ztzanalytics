@@ -45,7 +45,11 @@ registerPage({
       // DESIGN V2 ("Calm finance"), v2 light only: the card is all kit; just the weights
       + "body.rs-app.light.v2 .gt-wrap .rs-table td.gt-none{font-weight:600}"
       + "body.rs-app.light.v2 .gt-msg{font-size:13px;font-weight:500;color:var(--muted)}"
-      + "</style><div class='gt-wrap'><div id='gtBody'></div></div>";
+      // THE PAGE STANDARD (ZTZ-80): the page had no title at all; the kit head names it
+      + "</style><div class='gt-wrap'>"
+      + (RSC.pageHeadHtml ? RSC.pageHeadHtml({ title: "General Tables", key: "general-tables",
+          sub: "Reference tables the office owns — edited here, used everywhere." }) : "")
+      + "<div id='gtBody'></div></div>";
 
     function paint() {
       var body = host.querySelector("#gtBody");

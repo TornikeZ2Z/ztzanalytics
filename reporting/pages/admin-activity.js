@@ -121,9 +121,6 @@ const UA = (() => {
     st.id = "ua-style";
     st.textContent = [
       ".ua-wrap{max-width:var(--rs-row-max,1400px)}",
-      ".ua-note{margin:0 0 16px;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--blue);",
-      "background:var(--panel-2);border-radius:10px;font-size:12.5px;line-height:1.6;color:var(--muted)}",
-      ".ua-note b{color:var(--ink)}",
       // ---- the people list ----
       ".ua-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}",
       ".ua-card{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(190px,1fr) auto;gap:18px;align-items:center;",
@@ -134,11 +131,11 @@ const UA = (() => {
       ".ua-card.idle:hover{transform:none;border-color:var(--line)}",
       ".ua-who{display:flex;flex-direction:column;gap:3px;min-width:0}",
       ".ua-who b{font-size:14.5px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:7px}",
-      ".ua-who span{font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-      ".ua-tag{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;",
+      ".ua-who span{font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+      ".ua-tag{font-size:12px;font-weight:800;text-transform:none;",
       "padding:2px 6px;border-radius:5px;background:var(--blue-bg);color:var(--blue)}",
       ".ua-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}",
-      ".ua-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;",
+      ".ua-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;",
       "color:var(--muted);background:var(--panel-2);border:1px solid var(--line);",
       "border-radius:20px;padding:2px 9px 2px 6px;white-space:nowrap}",
       ".ua-chip i{width:7px;height:7px;border-radius:50%;flex:0 0 auto}",
@@ -149,17 +146,22 @@ const UA = (() => {
       ".ua-bar i{position:absolute;left:0;top:0;height:100%;border-radius:6px;display:block}",
       ".ua-bar i.gh{background:var(--line-2);opacity:.75}",
       ".ua-bar i.ac{background:var(--brand)}",
-      ".ua-mline{display:flex;align-items:baseline;gap:7px;margin-top:6px;font-size:11.5px;color:var(--faint);flex-wrap:wrap}",
+      ".ua-mline{display:flex;align-items:baseline;gap:7px;margin-top:6px;font-size:12px;color:var(--faint);flex-wrap:wrap}",
       ".ua-mline b{font-size:14px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}",
       ".ua-mline em{font-style:normal;color:var(--muted);font-variant-numeric:tabular-nums}",
       ".ua-right{text-align:right;display:flex;flex-direction:column;gap:3px;white-space:nowrap}",
       ".ua-right b{font-size:13px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}",
-      ".ua-right span{font-size:11px;color:var(--faint)}",
+      ".ua-right span{font-size:12px;color:var(--faint)}",
       ".ua-go{font-size:16px;color:var(--faint);margin-left:6px}",
       // ---- the drill-down ----
       ".ua-back{display:inline-flex;align-items:center;gap:7px;background:none;border:0;cursor:pointer;",
       "font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);padding:5px 0;margin-bottom:4px}",
       ".ua-back:hover{color:var(--ink)}",
+      // the person's name over their sessions: a section heading under the kit head, not a
+      // second page head (ZTZ-80: one head per page)
+      ".ua-dhead{margin:2px 0 14px}",
+      ".ua-dhead h2{font-size:20px;font-weight:600;margin:0 0 3px;color:var(--ink)}",
+      ".ua-dhead p{margin:0;font-size:13px;color:var(--muted)}",
       ".ua-sess{background:var(--panel);border:1px solid var(--line);border-radius:13px;",
       "box-shadow:var(--shadow);padding:15px 17px;margin-bottom:11px}",
       ".ua-shead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}",
@@ -170,8 +172,8 @@ const UA = (() => {
       ".ua-strip{display:flex;height:15px;border-radius:5px;overflow:hidden;gap:1.5px;margin-bottom:12px}",
       ".ua-strip i{display:block;height:100%;min-width:2px}",
       ".ua-ptab{width:100%;border-collapse:collapse;font-size:12.5px}",
-      ".ua-ptab th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.05em;",
-      "text-transform:uppercase;color:var(--faint);padding:0 10px 6px 0;border-bottom:1px solid var(--line)}",
+      ".ua-ptab th{text-align:left;font-size:12px;font-weight:700;",
+      "text-transform:none;color:var(--faint);padding:0 10px 6px 0;border-bottom:1px solid var(--line)}",
       ".ua-ptab th.r,.ua-ptab td.r{text-align:right}",
       ".ua-ptab td{padding:7px 10px 7px 0;border-bottom:1px solid var(--line);color:var(--ink);",
       "font-variant-numeric:tabular-nums}",
@@ -185,7 +187,6 @@ const UA = (() => {
       "@media(max-width:860px){.ua-card{grid-template-columns:1fr;gap:11px}.ua-right{text-align:left;flex-direction:row;gap:12px}}",
       // ---- DESIGN V2 ("Calm finance"): v2 light only, dark keeps everything above.
       // Flat 10px cards with no lift, sentence-case headers, nothing under 12px.
-      "body.rs-app.light.v2 .ua-note{font-size:13px;border-left-color:var(--brand);background:#FFFFFF}",
       "body.rs-app.light.v2 .ua-card{border-radius:10px;box-shadow:none;transition:border-color .12s}",
       "body.rs-app.light.v2 .ua-card:hover{transform:none;border-color:var(--line-2)}",
       "body.rs-app.light.v2 .ua-who b{font-weight:600}",
@@ -317,8 +318,8 @@ const UA = (() => {
     const from = d.page * d.per_page;
     body.innerHTML =
       `<button class="ua-back" id="uaBack">← Everyone</button>
-       <div class="rs-page-head" style="margin:2px 0 14px">
-         <h1 style="font-size:20px">${RSC.esc(name)}</h1>
+       <div class="ua-dhead">
+         <h2>${RSC.esc(name)}</h2>
          <p>${RSC.esc(d.email)}</p>
        </div>` +
       (sessions.length ? sessions.map(s => {
@@ -370,7 +371,7 @@ const UA = (() => {
     if (busy) return;
     busy = true;
     const body = host.querySelector("#uaBody");
-    body.innerHTML = `<div class="rs-loading" style="padding:26px">Loading sessions…</div>`;
+    body.innerHTML = RSC.loadingHtml("User Activity", "Loading sessions…");
     try {
       drill = await load("days=" + encodeURIComponent(days) +
         "&email=" + encodeURIComponent(email) + "&page=" + page);
@@ -384,7 +385,7 @@ const UA = (() => {
     if (busy) return;
     busy = true;
     const body = host.querySelector("#uaBody");
-    body.innerHTML = `<div class="rs-loading" style="padding:26px">Loading activity…</div>`;
+    body.innerHTML = RSC.loadingHtml("User Activity", "Loading activity…");
     try {
       data = await load("days=" + encodeURIComponent(days));
       drill = null;
@@ -404,22 +405,22 @@ registerPage({
   group: "settings",
   title: "User Activity",
   async render(host) {
-    if (!ME || !ME.admin) { host.innerHTML = `<div class="rs-loading">Admins only.</div>`; return; }
+    if (!ME || !ME.admin) {
+      host.innerHTML = RSC.pageHeadHtml({ title: "User Activity", key: "admin-activity" }) + RSC.emptyHtml({ title: "Admins only." });
+      return;
+    }
     UA.style();
     const WINDOWS = [["7", "7 days"], ["30", "30 days"], ["90", "90 days"], ["all", "All"]];
+    // THE PAGE STANDARD (ZTZ-80): the kit head; the "two numbers, never one" note that sat
+    // above the data is How it's counted, word for word
     host.innerHTML = `<div class="ua-wrap">
-      <div class="rs-page-head">
-        <h1>User Activity</h1>
-        <p>Who signed in, which reports they opened, and how much of that time they were
-          actually working.</p>
-      </div>
-      <div class="ua-note">
-        <b>Two numbers, never one.</b> <b>Open</b> is wall clock with the report on screen —
-        a tab left running counts. <b>Engaged</b> is the part of it the tab was visible
-        <i>and</i> being used. Judge by engaged; open is only there for the comparison.
-        Reports and time only: no filters, searches or records anyone looked at are stored.
-        History is kept for 12 months, then deleted.
-      </div>
+      ${RSC.pageHeadHtml({ title: "User Activity", key: "admin-activity",
+        sub: "Who signed in, which reports they opened, and how much of that time they were actually working.",
+        how: "<h3>Two numbers, never one</h3><p><b>Open</b> is wall clock with the report on screen — "
+          + "a tab left running counts. <b>Engaged</b> is the part of it the tab was visible "
+          + "<i>and</i> being used. Judge by engaged; open is only there for the comparison.</p>"
+          + "<h3>What is stored</h3><p>Reports and time only: no filters, searches or records anyone "
+          + "looked at are stored. History is kept for 12 months, then deleted.</p>" })}
       <div class="rs-bar">
         <div class="rs-seg" id="uaWin">${WINDOWS.map(([v, l]) =>
           `<button data-v="${v}"${v === UA.days() ? ' class="on"' : ""}>${l}</button>`).join("")}</div>
@@ -427,7 +428,7 @@ registerPage({
         <button class="rs-btn" id="uaReload">↻ Reload</button>
       </div>
       <div class="rs-kpis" id="uaKpis"></div>
-      <div id="uaBody"><div class="rs-loading" style="padding:26px">Loading activity…</div></div>
+      <div id="uaBody">${RSC.loadingHtml("User Activity", "Loading activity…")}</div>
     </div>`;
     host.querySelector("#uaWin").onclick = ev => {
       const b = ev.target.closest("button[data-v]");

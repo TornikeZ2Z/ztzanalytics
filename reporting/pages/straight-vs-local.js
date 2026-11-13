@@ -43,13 +43,19 @@
     st.textContent = `
     /* ---- the chain: because of this → this happens → therefore. The kit names bars,
        tables and pills; it does not name a ladder of reasoning, so this stays page-local.
-       The accent edge is written at body.rs-app specificity on purpose: body.rs-app .panel
-       already sets a 1px border, and a bare .svl-chain loses that cascade and never paints. */
-    body.rs-app .panel.svl-chain{border-left:4px solid var(--brand-d)}
+       ZTZ-80 (13 Nov 2026): it sits under the numbers as ONE collapsed card, so the verdict
+       and its figures are the first screen and the argument is one click away. The thick
+       accent edge went with it: a collapsed one-line card does not need a second signal. */
+    .svl-chain>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+    .svl-chain>summary::-webkit-details-marker{display:none}
+    .svl-chain>summary::before{content:"▸";color:var(--faint)}
+    .svl-chain[open]>summary::before{content:"▾"}
+    .svl-chain>summary .svl-sum{font-size:13px;color:var(--faint)}
+    .svl-chain[open]>summary{margin-bottom:6px}
     .svl-step{display:flex;gap:12px;align-items:flex-start;padding:9px 0;
       border-top:1px dashed var(--line)}
     .svl-step:first-of-type{border-top:none}
-    .svl-arrow{flex:0 0 auto;font-weight:800;color:var(--brand-d);margin-top:1px}
+    .svl-arrow{flex:0 0 auto;font-weight:600;color:var(--brand-d);margin-top:1px}
     .svl-because{font-size:13px;line-height:1.55}
     .svl-fact{font-size:12px;color:var(--muted)}
 
@@ -62,21 +68,17 @@
     /* ---- narrow adjustments to kit components ---- */
     /* a footnote that hangs UNDER its table instead of sitting above it */
     .svl-under{margin:10px 0 0}
-    /* the coverage card holds nothing but its hint */
-    .svl-foot{margin:0}
     /* three short columns: full width would strand the label a screen away from its number */
     .svl-fit{max-width:560px}
     /* the source note beside each measured input is a caption, not a column of data */
-    .svl-inputs td.src{font-size:11.5px}
+    .svl-inputs td.src{font-size:12px}
     /* the set-aside reasons are a list, not a table */
     .svl-list{margin:0;padding-left:18px;font-size:13px;line-height:1.7}
-    /* DESIGN V2 ("Calm finance", 2026-10-06): a hairline card like every other (no thick edge),
-       body text at reading size, nothing under 12px. Dark is untouched. */
-    body.rs-app.light.v2 .panel.svl-chain{border-left:1px solid var(--line)}
+    /* DESIGN V2 ("Calm finance", 2026-10-06): body text at reading size, nothing under 12px.
+       Dark is untouched. Sizes snapped to the page standard's scale (12/13/14/16/20/28). */
     body.rs-app.light.v2 .svl-arrow{font-weight:600;color:#3F7D20}
-    body.rs-app.light.v2 .svl-because,body.rs-app.light.v2 .svl-list{font-size:13.5px}
-    body.rs-app.light.v2 .svl-fact{font-size:12.5px;color:var(--faint)}
-    body.rs-app.light.v2 .svl-inputs td.src{font-size:12px}
+    body.rs-app.light.v2 .svl-because,body.rs-app.light.v2 .svl-list{font-size:14px}
+    body.rs-app.light.v2 .svl-fact{font-size:12px;color:var(--faint)}
     body.rs-app.light.v2 .svl-good,body.rs-app.light.v2 .svl-bad{font-weight:600}
     `;
     document.head.appendChild(st);
@@ -102,20 +104,25 @@ registerPage({
     const WINDOWS = ["peak month-end", "peak", "month-end", "ordinary"];
     const LONG_HAUL_DAYS = 5;
     const MIN_JOBS = 5;
+    // the page head's one-line question: the registered subtitle, whose second sentence
+    // ("every figure is operational profit") opens How it's counted
+    const SUB = "Does a Straight earn more operational profit than the local work its foreman " +
+                "would have done?";
 
     /* a header cell is right-aligned by carrying the kit's .num, never by an inline style */
     const th = (labels, isNum) => labels.map((h, i) =>
       '<th' + (isNum(i) ? ' class="num"' : '') + '>' + h + '</th>').join("");
 
     injectStyle();
-    host.innerHTML = '<div class="panel">Loading…</div>';
+    host.innerHTML = RSC.loadingHtml("Straight vs Local");
 
     return RS.load("straight_tradeoff").then(async all => {
       // No filtering, deliberately: this page is a standing conclusion, not a dashboard.
       // A leftover date range once emptied it entirely (BARE_CHROME hides the global bar).
       const rows = all;
       if (!rows.length) {
-        host.innerHTML = '<div class="panel">No Straight jobs on record.</div>';
+        host.innerHTML = RSC.pageHeadHtml({ title: "Straight vs Local", key: "straight-vs-local",
+          sub: SUB }) + RSC.emptyHtml({ title: "No Straight jobs on record." });
         return;
       }
 
@@ -197,9 +204,10 @@ registerPage({
         (fact ? '<div class="svl-fact">' + fact + '</div>' : '') + '</div></div>';
 
       const chain =
-        '<div class="panel svl-chain">' +
-        '<div class="panel-head"><div class="panel-title">The chain — why the verdict is ' +
-        'what it is</div></div><div>' +
+        '<details class="panel svl-chain">' +
+        '<summary><span class="panel-title">The chain — why the verdict is ' +
+        'what it is</span><span class="svl-sum">step by step, one measured number per link</span>' +
+        '</summary><div>' +
         step('A Straight departs, so its foreman is <b>off the local board</b> until he is ' +
              'genuinely back on local work.',
              'Measured absence, not planned trip days — recovery counts. Median: <b>' +
@@ -240,7 +248,7 @@ registerPage({
              (cap && cap.stop && !cap.stop.found ? 'Checked against demand directly: there ' +
               'is <b>no demand level</b> at which the capacity effect alone forces a stop.' :
               '')) +
-        '</div></div>';
+        '</div></details>';
 
       /* ---------- THE WORKING: every number the verdict rests on, with its n ---------- */
       // Tornike 2026-08-19: "be more analytical... show literally how we calculated why we
@@ -457,21 +465,66 @@ registerPage({
         }).join("") +
         '</tbody></table></div></div>';
 
+      /* the coverage footnote and the page's subtitle are method, so they moved into How it's
+         counted (ZTZ-80), word for word; the verdict rule is the one verdict() applies */
       const coverage =
-        '<div class="panel"><div class="rs-hint svl-foot">Covers <b>' + rows.length +
+        '<p>Covers <b>' + rows.length +
         '</b> Straight jobs — every one on the books, all companies, 2024 onward. Not ' +
         'filtered: a standing conclusion, not a slice. "Operational profit" = the job’s ' +
         'takings minus its own crew, materials, fuel, tolls, hotel and other expenses from ' +
         'the closing contract (plus the second contract or combined-trip costs where they ' +
         'exist). Sales commission is excluded on both sides, so it cannot tilt the ' +
-        'comparison.</div></div>';
+        'comparison.</p>';
+      const how =
+        '<p>Does a self-driven long-distance move earn more operational profit than the ' +
+        'local work its foreman would have done? Every figure on this page is operational ' +
+        'profit.</p>' +
+        '<h3>What it covers</h3>' + coverage +
+        '<h3>The verdict per window</h3><p><b>Take it</b> when the median job is ahead of ' +
+        'the local board and fewer than 35% are behind. <b>Block or reprice</b> only when ' +
+        'even the better outcomes (the upper quartile) earn less than staying local — one ' +
+        'catastrophic job in five is a claim to investigate, not a reason to stop selling. ' +
+        'Anything between is <b>price it up</b>; under ' + MIN_JOBS + ' usable jobs is ' +
+        '<b>not enough data</b>.</p>' +
+        '<h3>Why the verdict is what it is</h3><p>The chain under the numbers walks it ' +
+        'step by step, one measured number per link.</p>';
 
-      host.innerHTML = chain + working + policyCard + stress + daysCard +
+      /* ---------- THE FIRST SCREEN (ZTZ-80 Redo): head, the verdict as one sentence, six
+         tiles. Every figure is one the chain and the tables below already compute. ---------- */
+      const tone = v => v == null ? "" : v >= 0 ? "pos" : "neg";
+      const offAll = policies[0];
+      const head = RSC.pageHeadHtml({ title: "Straight vs Local", key: "straight-vs-local",
+        sub: SUB, chip: rows.length + " Straight jobs · 2024 onward", how: how });
+      const headline = RSC.headlineHtml(
+        '<b>Never block the calendar — price the days.</b> Typical Straights net <b>' +
+        signed(medShortNet) + '</b> per job after the local profit they displace; long hauls (' +
+        LONG_HAUL_DAYS + '–10 days away) net <b>' + signed(medLongNet) + '</b>' +
+        (dayRate != null ? ', because each excess day costs <b>' + money(dayRate) +
+          '</b> of his local profit.' : '.'));
+      const tiles = RSC.kpisHtml([
+        { label: "Typical Straight, net", value: signed(medShortNet), tone: tone(medShortNet),
+          sub: "median per job, under " + LONG_HAUL_DAYS + " days away" },
+        { label: "Long haul, net", value: signed(medLongNet), tone: tone(medLongNet),
+          sub: "median per job, " + LONG_HAUL_DAYS + "–10 days away" },
+        { label: "Day charge", value: dayRate != null ? money(dayRate) : "—",
+          sub: "his median local profit per excess day" },
+        { label: "Turning all Straight off", tone: offAll.net > 0 ? "neg" : "pos",
+          value: (offAll.net > 0 ? "costs " : "saves ") + money(Math.abs(offAll.net)),
+          sub: "computed job by job, 2024 → today" },
+        { label: "Median time away", value: n1(medGone) + " days",
+          sub: "measured absence — recovery counts" },
+        { label: "Straight jobs measured", value: use.length + " of " + rows.length,
+          sub: "the rest set aside with stated reasons" },
+      ]);
+
+      // the verdict and its policy arithmetic first, then the tables that back it, then the
+      // measured inputs, the stress-test and the evidence
+      host.innerHTML = head + headline + tiles + chain + policyCard + daysCard +
         table(longStats, "Long hauls — " + LONG_HAUL_DAYS + "+ days away",
               "Where the question actually bites. All figures are operational profit.") +
         table(allStats, "Every Straight job",
               "For contrast: the typical job is short, so it keeps its lead.") +
-        setAside + evidence + coverage;
+        working + stress + setAside + evidence;
     });
   },
 });

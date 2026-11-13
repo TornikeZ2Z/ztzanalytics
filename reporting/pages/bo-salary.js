@@ -53,75 +53,89 @@
       if (!document.getElementById("bos-css")) {
         const st = document.createElement("style"); st.id = "bos-css";
         st.textContent = [
+          /* ZTZ-80 Redo (13 Nov 2026): the result first (headline + kit tiles), the deal's inputs
+             under it in ONE collapsed card whose summary line carries the shares, the prose in
+             How it's counted. Type snapped to 12/13/14/16/20, weights to 400/600. */
+          ".bos-deal>summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}",
+          ".bos-deal>summary::-webkit-details-marker{display:none}",
+          ".bos-deal>summary::before{content:'\u25B8';color:var(--faint)}",
+          ".bos-deal[open]>summary::before{content:'\u25BE'}",
+          ".bos-deal[open]>summary{margin-bottom:12px}",
+          ".bos-dsum{font-size:13px;color:var(--muted)}",
           ".bos-ctl{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end}",
-          ".bos-fld{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}",
-          ".bos-fld small{font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint);font-size:11.5px}",
-          ".bos-in{width:84px;text-align:right;font:inherit;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;padding:5px 8px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink)}",
-          ".bos-in:focus{outline:2px solid var(--brand-d);outline-offset:1px;border-color:var(--brand-d)}",
+          ".bos-fld{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}",
+          ".bos-fld small{font-weight:400;color:var(--faint);font-size:12px}",
+          /* the kit's number field (.rs-num) draws the box; this only sizes it */
+          ".bos-in{width:84px;text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;padding:5px 8px}",
           ".bos-say{font-size:13px;color:var(--muted);margin:4px 0 12px;max-width:110ch;line-height:1.5}",
           ".bos-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}",
           "@media (max-width:1100px){.bos-wrap{grid-template-columns:1fr}}",
           ".bos-head{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 12px}",
-          ".bos-big{display:flex;flex-direction:column}.bos-big b{font-size:24px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}.bos-big span{font-size:12px;color:var(--muted)}",
+          ".bos-big{display:flex;flex-direction:column}.bos-big b{font-size:20px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.bos-big span{font-size:12px;color:var(--muted)}",
           ".bos-big.his b{color:var(--brand-d)}",
           ".bos-stack{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:4px 0 6px;background:var(--line)}.bos-stack i{display:block;height:100%}",
-          ".bos-key{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}.bos-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}",
+          ".bos-key{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.bos-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}",
           ".bos-rows{display:grid;grid-template-columns:minmax(140px,1.2fr) minmax(60px,1fr) 92px 58px;gap:6px 12px;align-items:center;font-size:13px;margin-top:16px}",
-          ".bos-rows .l{color:var(--ink)}.bos-rows .l small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
+          ".bos-rows .l{color:var(--ink)}.bos-rows .l small{display:block;color:var(--faint);font-size:12px;line-height:1.3}",
           ".bos-rows .bar{height:10px;border-radius:5px;background:var(--line);position:relative;overflow:hidden}.bos-rows .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:5px}",
           ".bos-rows .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.bos-rows .p{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}",
-          ".bos-rows .tot{font-weight:800;padding-top:6px;border-top:1px solid var(--line)}",
+          ".bos-rows .tot{font-weight:600;padding-top:6px;border-top:1px solid var(--line)}",
           /* the crew is the only row whose MEANING changes between the cards, so it is the only one marked */
-          ".bos-rows .bos-crew{font-weight:700}",
-          ".bos-who{display:block;font-style:normal;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}",
+          ".bos-rows .bos-crew{font-weight:600}",
+          ".bos-who{display:block;font-style:normal;font-size:12px;color:var(--muted);font-weight:600}",
           ".bos-rows .bos-crew.alt .bos-who{color:var(--warn)}",
           /* the mix: Local / Straight / Regular side by side, the same three on both cards */
           ".bos-mix{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 2px}",
           ".bos-m{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}",
-          ".bos-m b{font-size:12px;color:var(--ink)}.bos-m span{font-size:12.5px;color:var(--ink);font-variant-numeric:tabular-nums}",
-          ".bos-m small{display:block;font-size:10.5px;color:var(--faint);font-weight:600}",
-          ".bos-m .his{color:var(--brand-d);font-weight:700}.bos-m.off{opacity:.55}.bos-m.off span{color:var(--faint)}",
-          ".bos-up{color:var(--pos);font-weight:700}.bos-dn{color:var(--neg);font-weight:700}",
-          ".bos-tbl td small{display:block;color:var(--faint);font-size:11px;line-height:1.3}",
-          ".bos-tbl tfoot td{font-weight:800;border-top:2px solid var(--line-2)}",
+          ".bos-m b{font-size:12px;font-weight:600;color:var(--ink)}.bos-m span{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}",
+          ".bos-m small{display:block;font-size:12px;color:var(--faint);font-weight:400}",
+          ".bos-m .his{color:var(--brand-d);font-weight:600}.bos-m.off{opacity:.55}.bos-m.off span{color:var(--faint)}",
+          ".bos-up{color:var(--pos);font-weight:600}.bos-dn{color:var(--neg);font-weight:600}",
+          ".bos-tbl td small{display:block;color:var(--faint);font-size:12px;line-height:1.3}",
+          ".bos-tbl tfoot td{font-weight:600;border-top:2px solid var(--line-2)}",
           ".bos-verdict{font-size:14px;line-height:1.55;margin:0 0 4px;max-width:110ch}",
           // DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, calmer weights, nothing under 12px
-          "body.rs-app.light.v2 .bos-fld{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}",
-          "body.rs-app.light.v2 .bos-fld small{font-size:12px}",
-          "body.rs-app.light.v2 .bos-in{border-radius:8px;background:#FFFFFF;font-weight:600}",
-          "body.rs-app.light.v2 .bos-in:focus{outline-color:#3F7D20;border-color:#3F7D20}",
-          "body.rs-app.light.v2 .bos-big b{font-weight:600}",
+          "body.rs-app.light.v2 .bos-fld{font-size:13px;font-weight:400;color:var(--muted)}",
           "body.rs-app.light.v2 .bos-big.his b,body.rs-app.light.v2 .bos-m .his{color:#0F766E}",
           "body.rs-app.light.v2 .bos-key{font-size:13px}",
-          "body.rs-app.light.v2 .bos-rows{font-size:13.5px}",
-          "body.rs-app.light.v2 .bos-rows .l small,body.rs-app.light.v2 .bos-tbl td small,body.rs-app.light.v2 .bos-m small{font-size:12px;font-weight:500}",
+          "body.rs-app.light.v2 .bos-rows{font-size:14px}",
+          "body.rs-app.light.v2 .bos-rows .l small,body.rs-app.light.v2 .bos-tbl td small,body.rs-app.light.v2 .bos-m small{font-size:12px;font-weight:400}",
           "body.rs-app.light.v2 .bos-rows .bar,body.rs-app.light.v2 .bos-stack{background:#F1F5F9}",
-          "body.rs-app.light.v2 .bos-rows .tot,body.rs-app.light.v2 .bos-tbl tfoot td{font-weight:600}",
-          "body.rs-app.light.v2 .bos-who{font-size:12px;letter-spacing:0;text-transform:none;font-weight:600}",
           "body.rs-app.light.v2 .bos-m{border-radius:10px}",
-          "body.rs-app.light.v2 .bos-up,body.rs-app.light.v2 .bos-dn{font-weight:600}",
         ].join("");
         document.head.appendChild(st);
       }
 
-      host.innerHTML =
-        '<div class="rs-page-head"><h1>Branch Owner Salary Comparison</h1>' +
-        '<p>What the branch owner earns today, beside the alternative where he takes <b>a share of the bill and pays the crew himself</b> — ' +
-        'by job type, per job, and projected into 2027. Built to answer one question: <b>where would he make more money?</b> ' +
-        '<span class="freshness">· read-only · the comparison respects the date/company filter, the projection uses all history</span></p></div>' +
-        '<div id="bosOwnerPick" style="margin:0 0 12px"></div>' +
-        '<div class="panel"><div class="panel-head"><span class="panel-title">The deal being tested</span></div>' +
-        '<div class="bos-say">He takes this share of the total bill and <b>the crew comes out of it</b>. We stop paying the crew and his cut, and still carry everything else — ' +
-        'truck, fuel, tolls, materials, carrier fees and our delivery legs’ costs, card fees, claims, the salespeople’s commission and marketing at 10% of the bill. ' +
-        '<b>Nothing typed here is saved.</b></div>' +
-        '<div class="bos-ctl" id="bosCtl"></div></div>' +
-        '<div id="bosCards"><div class="panel" style="margin-top:14px"><div class="rs-loading">Loading…</div></div></div>' +
-        '<div id="bosWhere"></div><div id="bosProj"></div>';
+      /* THE PAGE STANDARD (ZTZ-80 Redo, 13 Nov 2026): the kit head, the owner pick as the one
+         filter row, the result (today against the alternative) as a headline and six kit tiles,
+         then the deal's inputs folded into one card. The head's paragraph and the deal's prose
+         moved into How it's counted, word for word. */
+      const TITLE = "Branch Owner Salary Comparison";
+      const head = RSC.pageHeadHtml({ title: TITLE, key: "bo-salary",
+        sub: "Where would the branch owner make more money: his cut today, or a share of the bill paying the crew himself?",
+        chip: "Read-only",
+        how: '<p>What the branch owner earns today, beside the alternative where he takes <b>a share of the bill and pays the crew himself</b> — ' +
+          'by job type, per job, and projected into 2027. Built to answer one question: <b>where would he make more money?</b></p>' +
+          '<p>Read-only. The comparison respects the date/company filter; the projection uses all history.</p>' +
+          '<h3>The deal being tested</h3>' +
+          '<p>He takes this share of the total bill and <b>the crew comes out of it</b>. We stop paying the crew and his cut, and still carry everything else — ' +
+          'truck, fuel, tolls, materials, carrier fees and our delivery legs’ costs, card fees, claims, the salespeople’s commission and marketing at 10% of the bill. ' +
+          '<b>Nothing typed here is saved.</b></p>' });
+      host.innerHTML = RSC.loadingHtml(TITLE, "Loading…");
 
-      if (!E) { document.getElementById("bosCards").innerHTML =
-        '<div class="panel"><div class="rs-loading">The branch-owner cost model did not load — reload the page.</div></div>'; return; }
+      if (!E) { host.innerHTML = head +
+        RSC.emptyHtml({ title: "The branch-owner cost model did not load — reload the page." }); return; }
 
       const [martAll, closingAll] = await Promise.all([RS.load("mart_branch_owner_jobs"), RS.load("closing")]);
+      host.innerHTML = head +
+        '<div id="bosOwnerPick" style="margin:0 0 12px"></div>' +
+        '<p class="rs-headline" id="bosHl" hidden></p>' +
+        '<div class="rs-kpis" id="bosKpis"></div>' +
+        '<details class="panel bos-deal" id="bosDeal"><summary><span class="panel-title">The deal being tested</span>' +
+        '<span class="bos-dsum" id="bosDealSum"></span></summary>' +
+        '<div class="bos-ctl" id="bosCtl"></div></details>' +
+        '<div id="bosCards"></div>' +
+        '<div id="bosWhere"></div><div id="bosProj"></div>';
       /* one branch owner at a time (his ask 2026-09-24), shared with the Branch Owner page; the
          comparison and the projection both read only the picked owner's jobs */
       const owner = E.owner(martAll);
@@ -133,14 +147,14 @@
       /* ---- the controls: drawn once, never repainted, so typing keeps its focus ---- */
       const ctl = document.getElementById("bosCtl");
       ctl.innerHTML = TYPES.map(t =>
-        '<label class="bos-fld">' + esc(t) + ' — his share, %<input class="bos-in" data-share="' + esc(t) +
+        '<label class="bos-fld">' + esc(t) + ' — his share, %<input class="rs-num bos-in" data-share="' + esc(t) +
         '" type="number" min="0" max="100" step="0.5" value="' + STATE.share[t] + '"><small id="bosEven-' +
         t.replace(/\W/g, "") + '"></small></label>').join("") +
-        '<label class="bos-fld">Of his Regular-typed long hauls, really Straight, %<input class="bos-in" id="bosStrPct" type="number" min="0" max="100" step="5" value="' + STATE.straightPct +
+        '<label class="bos-fld">Of his Regular-typed long hauls, really Straight, %<input class="rs-num bos-in" id="bosStrPct" type="number" min="0" max="100" step="5" value="' + STATE.straightPct +
         '"><small id="bosStrNote"></small></label>' +
-        '<label class="bos-fld">Long distance: other expenses that are crew pay, %<input class="bos-in" id="bosLdCrew" type="number" min="0" max="100" step="5" value="' + STATE.ldCrewPct +
+        '<label class="bos-fld">Long distance: other expenses that are crew pay, %<input class="rs-num bos-in" id="bosLdCrew" type="number" min="0" max="100" step="5" value="' + STATE.ldCrewPct +
         '"><small id="bosLdNote"></small></label>' +
-        '<label class="bos-fld">Marketing, % of bill<input class="bos-in" value="' + (E.MKT_PCT * 100) + '" disabled><small>fixed — ours, never his</small></label>';
+        '<label class="bos-fld">Marketing, % of bill<input class="rs-num bos-in" value="' + (E.MKT_PCT * 100) + '" disabled><small>fixed — ours, never his</small></label>';
       ctl.querySelectorAll("input[data-share]").forEach(i => { i.oninput = () => {
         STATE.share[i.dataset.share] = i.value === "" ? 0 : Math.max(0, Math.min(100, +i.value)); paint(); }; });
       const spi = document.getElementById("bosStrPct");
@@ -190,11 +204,24 @@
       const INK = "#334155", LIME = RS.isV2() ? RS.V2.navy : "rgba(132,204,22,.85)", HIS = "#0f766e", GREY = "#94a3b8", AMB = RS.isV2() ? RS.V2.warn : "#d97706";
 
       function paint() {
+        paintDealSum();
         if (!J.length) { document.getElementById("bosCards").innerHTML =
-          '<div class="panel" style="margin-top:14px"><div class="rs-loading">No branch-owner jobs in the current filter range.</div></div>';
-          document.getElementById("bosWhere").innerHTML = ""; }
+          RSC.emptyHtml({ title: "No branch-owner jobs in the current filter range." });
+          document.getElementById("bosWhere").innerHTML = "";
+          const hl = document.getElementById("bosHl"); hl.innerHTML = ""; hl.hidden = true;
+          document.getElementById("bosKpis").innerHTML = ""; }
         else { paintCards(); paintWhere(); }
         paintProjection();
+      }
+
+      /* the folded deal card's summary line: the shares being tested, so the headline's "at these
+         shares" can be read without opening it */
+      function paintDealSum() {
+        const el = document.getElementById("bosDealSum");
+        if (!el) return;
+        el.textContent = TYPES.map(t => t.replace(" Moving", "") + " " + STATE.share[t] + "%").join(" \u00b7 ") +
+          " of the bill" + ((+STATE.straightPct || 0) > 0 ? " \u00b7 " + STATE.straightPct + "% of Regular-typed long hauls priced as Straight" : "") +
+          " \u00b7 nothing typed here is saved";
       }
 
       /* ================= 1 + 2: today, and the alternative, side by side ================= */
@@ -268,6 +295,18 @@
             '"></i>his net ' + pc(hisV) + '</span><span><i style="background:' + LIME + '"></i>our profit ' + pc(oursV) + "</span></div>" +
           mixFor(today) +
           '<div class="bos-rows">' + rowsFor(today) + "</div></div>";
+
+        const dir = v => v > 0 ? "up" : v < 0 ? "down" : "flat";
+        RSC.kpis(document.getElementById("bosKpis"), [
+          { label: "Revenue", value: money(W.bill), sub: fmtN(W.n) + " jobs" + (byOwner.length ? " \u00b7 " + byOwner.join(", ") : "") },
+          { label: "His cut today", value: money(W.his), sub: pc(W.his) + " of the bill \u00b7 " + money(W.n ? W.his / W.n : 0) + " a job" },
+          { label: "His net, alternative", value: money(A.hisNet), sub: "after the crew \u00b7 " + money(W.n ? A.hisNet / W.n : 0) + " a job",
+            delta: { text: money(Math.abs(A.hisDelta)) + " vs today", dir: dir(A.hisDelta), good: A.hisDelta === 0 ? null : A.hisDelta > 0 } },
+          { label: "Our profit today", value: money(W.ours), sub: pc(W.ours) + " of the bill" },
+          { label: "Our profit, alternative", value: money(A.ours), sub: pc(A.ours) + " of the bill",
+            delta: { text: money(Math.abs(A.oursDelta)) + " vs today", dir: dir(A.oursDelta), good: A.oursDelta === 0 ? null : A.oursDelta > 0 } },
+          { label: "Crew, the line that moves", value: money(W.c.crew), sub: pc(W.c.crew) + " of the bill \u00b7 we pay it today, he would under the alternative" },
+        ]);
 
         document.getElementById("bosCards").innerHTML = '<div class="bos-wrap">' +
           card(1, "Today \u2014 he is paid a cut, we pay the crew", W.his,
@@ -353,12 +392,15 @@
         const live = groups.filter(g => g.W.n > 0);
         const best = live.slice().sort((x, y) => y.a.hisDelta / y.W.n - x.a.hisDelta / x.W.n)[0];
         const worst = live.slice().sort((x, y) => x.a.hisDelta / x.W.n - y.a.hisDelta / y.W.n)[0];
-        const verdict = !live.length ? "" :
-          '<p class="bos-verdict">At these shares he ends <b>' + (A.hisDelta >= 0 ? "ahead" : "behind") + " by " + money(Math.abs(A.hisDelta)) + "</b> over these " + fmtN(A.W.n) + " jobs. " +
+        const hl = !live.length ? "" :
+          "At these shares he ends <b>" + (A.hisDelta >= 0 ? "ahead" : "behind") + " by " + money(Math.abs(A.hisDelta)) + "</b> over these " + fmtN(A.W.n) + " jobs. " +
           (best && worst && best !== worst
             ? "He gains most on <b>" + esc(best.t) + "</b> (" + signed(best.a.hisDelta / best.W.n) + " a job) and " + (worst.a.hisDelta < 0 ? "loses" : "gains least") + " on <b>" + esc(worst.t) +
-              "</b> (" + signed(worst.a.hisDelta / worst.W.n) + " a job). " : "") +
-          "The deciding number is the <b>crew’s share of the bill</b>: a share of the bill only beats a cut where the crew is light against the ticket — long hauls and big local jobs — and loses on labour-heavy small ones.</p>";
+              "</b> (" + signed(worst.a.hisDelta / worst.W.n) + " a job)." : "");
+        const hlEl = document.getElementById("bosHl");
+        if (hlEl) { hlEl.innerHTML = hl; hlEl.hidden = !hl; }
+        const verdict = !live.length ? "" :
+          '<p class="bos-verdict">The deciding number is the <b>crew’s share of the bill</b>: a share of the bill only beats a cut where the crew is light against the ticket — long hauls and big local jobs — and loses on labour-heavy small ones.</p>';
         document.getElementById("bosWhere").innerHTML =
           '<div class="panel" style="margin-top:14px"><div class="panel-head"><span class="panel-title">Where he would make more money — by job type, and per job</span></div>' + verdict +
           '<div class="bos-say">The <b>break-even share</b> is where he earns exactly what he does today: it has to cover his current cut <i>plus the crew we stop paying</i>. ' +
@@ -428,7 +470,7 @@
           'because the sheet’s own split is not reliable year to year. Money per job is his own average. ' +
           'It assumes he keeps running the same slice of our work — a baseline to argue from, not a promise.</div>' +
           '<div class="bos-ctl" style="margin-bottom:12px">' +
-            '<label class="bos-fld">Growth on the baseline, %<input class="bos-in" id="bosGrowth" type="number" step="5" value="' + STATE.growth + '"><small>0 = the same slice of our work</small></label></div>' +
+            '<label class="bos-fld">Growth on the baseline, %<input class="rs-num bos-in" id="bosGrowth" type="number" step="5" value="' + STATE.growth + '"><small>0 = the same slice of our work</small></label></div>' +
           '<div class="rs-kpis" id="bosProjKpis"></div><div id="bosProjChart"></div>' +
           '<div class="rs-tablewrap" style="margin-top:12px"><table class="rs-table bos-tbl" data-name="' + nextY + ' by job type"><thead><tr><th>Job type</th><th class="num">Jobs</th><th class="num">Revenue</th>' +
           '<th class="num">His pay — today’s deal</th><th class="num">His pay — alternative</th><th class="num">Difference</th><th class="num">Our profit — today’s deal</th><th class="num">Our profit — alternative</th></tr></thead><tbody>' +

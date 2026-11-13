@@ -53,11 +53,12 @@
       + ".prv-c a{color:var(--blue);text-decoration:none;font-weight:600}"
       + ".prv-c a:hover{text-decoration:underline}"
       + ".prv-c .sep{color:var(--faint);margin:0 6px}"
-      + ".prv-sub{display:block;font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap}"
+      + ".prv-sub{display:block;font-size:12px;color:var(--dim);margin-top:3px;white-space:nowrap}"
       + ".prv-edit{display:inline-flex;gap:6px;align-items:center}"
       + ".prv-em{min-width:210px;padding:3px 7px;font-size:12px}"
       + ".prv-save{padding:3px 10px;font-size:12px}"
-      + ".prv-pen{border:0;background:none;cursor:pointer;color:var(--faint);font-size:12px;padding:0 4px}"
+      + ".prv-pen{border:0;background:none;cursor:pointer;color:var(--faint);font:inherit;font-size:12px;"
+      + "font-weight:600;padding:0 4px;margin-left:4px}"
       + ".prv-pen:hover{color:var(--blue)}"
       // DESIGN V2: no text under 12px; meta lines in the v2 meta grey
       + "body.rs-app.light.v2 .prv-sub{font-size:12px;color:var(--faint)}"
@@ -87,9 +88,9 @@
       });
 
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading the follow-up list…</div>';
+      host.innerHTML = RSC.loadingHtml("Promised Reviews", "Loading the follow-up list…");
 
-      // ⭐ THE MART, PLUS THE OVERRIDES IT HAS NOT ABSORBED YET -- AND THE SECOND ONE COMES
+      // THE MART, PLUS THE OVERRIDES IT HAS NOT ABSORBED YET -- AND THE SECOND ONE COMES
       // FROM A LIVE ENDPOINT, NOT `RS.load`. The mart is rebuilt hourly, so between a save and
       // that rebuild it still reports the OLD empty address and the row reads "needs an email"
       // over something somebody just typed -- the same defect he reported on LD Planning.
@@ -194,7 +195,7 @@
         return '<span class="prv-c">'
           + '<a href="mailto:' + esc(m) + '">' + esc(m) + "</a>"
           + '<button class="prv-pen" data-job="' + job
-          + '" title="Change this address">✎</button>'
+          + '" title="Change this address">Edit</button>'
           + (tel ? '<span class="sep">·</span>' + tel : "") + "</span>";
       }
 
@@ -235,14 +236,18 @@
         // RESTORED. Retiring the hand-off tab, I cut from the old `logSorted` line down
         // to here -- and the page head sat between them, so `html` lost its declaration
         // and the page died with "html is not defined". Shipped it, saw it, fixing it.
+        // THE PAGE STANDARD (ZTZ-80): one short line under the name -- inside the Reviews hub
+        // this head sits a size down under the hub's own -- and the rest in "How it's counted".
         let html = '<div class="prv">'
-          + '<div class="rs-page-head"><h1>Promised Reviews</h1>'
-          + "<p>Customers whose foreman reported that they would write a review later. "
-          // NOT "every night" -- there is no scheduler. His ruling 2026-09-07: the
-          // trigger is the foreman's own submission, seconds after he answers.
-          + "The moment a foreman answers, that customer is sent a review form by "
-          + "<b>Birdeye</b>, <b>each job once, and never again</b>."
-          + '<span class="freshness"> · a row here means the form actually went, from the ledger</span></p></div>';
+          + RSC.pageHeadHtml({ title: "Promised Reviews", key: "promised-reviews",
+              sub: "Customers whose foreman reported that they would write a review later.",
+              // NOT "every night" -- there is no scheduler. His ruling 2026-09-07: the
+              // trigger is the foreman's own submission, seconds after he answers.
+              how: "<h3>When they are asked</h3>"
+                + "<p>The moment a foreman answers, that customer is sent a review form by "
+                + "<b>Birdeye</b>, <b>each job once, and never again</b>.</p>"
+                + "<h3>Request sent</h3>"
+                + "<p>A row marked <i>request sent</i> means the form actually went, from the ledger.</p>" });
 
         const asked = rows.filter(r => r.sentAt).length;
         const reviewed = rows.filter(r => r.status === "Reviewed").length;
@@ -256,16 +261,16 @@
         // fallback is matching reviewer names to customer names, which is the fuzzy match
         // that nearly merged two different salespeople -- and here it would err in the
         // flattering direction. A rate nobody can stand behind still gets quoted.
-        html += '<div class="rs-kpis" style="--kpi-cols:4">'
-          + kpi(rows.length.toLocaleString(), "Promised a review",
-                "every promise a foreman has relayed", "")
-          + kpi(asked.toLocaleString(), "Request sent",
-                waiting + " still waiting to be asked", asked ? "pos" : "warn")
-          + kpi(reviewed.toLocaleString(), "Have reviewed",
-                "a review exists for that job", reviewed ? "pos" : "")
-          + kpi(noEmail.toLocaleString(), "No email",
-                "cannot be asked until somebody fills one in", noEmail ? "warn" : "")
-          + "</div>";
+        html += RSC.kpisHtml([
+          { label: "Promised a review", value: rows.length.toLocaleString(),
+            sub: "every promise a foreman has relayed" },
+          { label: "Request sent", value: asked.toLocaleString(),
+            sub: waiting + " still waiting to be asked", tone: asked ? "pos" : "warn" },
+          { label: "Have reviewed", value: reviewed.toLocaleString(),
+            sub: "a review exists for that job", tone: reviewed ? "pos" : "" },
+          { label: "No email", value: noEmail.toLocaleString(),
+            sub: "cannot be asked until somebody fills one in", tone: noEmail ? "warn" : "" },
+        ]);
 
         {
           html += '<div class="rs-bar" style="margin-top:14px">'
@@ -303,12 +308,6 @@
         html += "</div>";
         host.innerHTML = html;
         wire(rows, list);
-      }
-
-      function kpi(val, lab, sub, cls) {
-        return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(lab)
-          + '</div><div class="v">' + esc(val) + '</div><div class="s">'
-          + esc(sub) + "</div></div>";
       }
 
       // Writes the address, then REPAINTS FROM THE ANSWER rather than assuming it worked.

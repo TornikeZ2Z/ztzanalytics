@@ -45,10 +45,9 @@
     // kit does not name -- plus a handful of one-line adjustments TO kit components.
     st.textContent = ""
       + ".rf{font-variant-numeric:tabular-nums}"
-      // six tiles across one row -- the column count RSC.kpis would have computed for six
-      + ".rf .rs-kpis{--kpi-cols:6}"
-      // six tiles across means a narrow label box, and the kit ellipsizes -- which cut
-      // his own Georgian phrase to "არ ვა…". These labels wrap instead.
+      // (the tile count is RSC.kpisHtml's now: four tiles, four columns -- ZTZ-80)
+      // a narrow label box and the kit ellipsizes -- which once cut his own Georgian phrase
+      // to "არ ვა…". These labels wrap instead.
       + ".rf .rs-kpis .kpi .l{white-space:normal;overflow:visible;text-overflow:clip}"
       // the kit paints every tile value in --ink; a good / ruled-out count wants its own tone
       + ".rf .rs-kpis .kpi.pos .v{color:var(--pos)}"
@@ -104,7 +103,7 @@ registerPage({
      * A missing score is not a failure, it is missing evidence — 391 customers whose closing
      * recorded no rating. They cannot be certified good, so they are out of the default list,
      * but one switch in the bar brings them back: silently dropping a fifth of a call sheet
-     * with no way to see it would be its own kind of lie. The counts are stated in the hint. */
+     * with no way to see it would be its own kind of lie. The counts are stated in "How it's counted". */
     function gate(r) {
       var sat = r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
         ? null : +r["Satisfaction Score"];
@@ -126,7 +125,7 @@ registerPage({
       return { v: "ok", why: [] };
     }
     injectStyle();
-    host.innerHTML = '<div class="panel">Loading five-star reviewers…</div>';
+    host.innerHTML = RSC.loadingHtml("List of Possible Referrals", "Loading five-star reviewers…");
 
     RS.load("referral_candidates").then(function (rows) {
       rows = (rows || []).map(function (r) {
@@ -183,7 +182,7 @@ registerPage({
       }
 
       // the gate, applied as a FILTER: only the good ones, plus the unrated when the
-      // switch is on. Kept apart from the other filters so the hint can count what the
+      // switch is on. Kept apart from the other filters so the How panel can count what the
       // gate alone removed FROM THIS VIEW -- "720 more are left out" has to mean 720 of
       // the rows the company/source/size filters already agreed to show.
       function gateLetsIn(r) {
@@ -229,20 +228,35 @@ registerPage({
         var nNos = others.filter(function (r) { return r._g.v === "nos"; }).length;
         var pctOf = function (n) { return v.length ? Math.round(n / v.length * 100) + "%" : "—"; };
 
+        /* THE PAGE STANDARD (ZTZ-80): the two paragraphs that sat inside the list card, and the
+           freshness tail of the old subtitle, now live in "How it's counted", word for word.
+           Built on every paint, so its counts always describe this view. */
+        var howHtml = "<h3>Who is on the list</h3>"
+          + "<p>Five-star reviewers whose move also went right — they rated it "
+          + "<b>10/10</b> on the closing and the bill stayed close to the quote. "
+          + (nBad ? "<b>" + nBad + "</b> more five-star customers are left out: they rated the move "
+             + "below 10, or the bill ran 25%+ over the quote. " : "")
+          + (nNos ? "<b>" + nNos + "</b> have no rating on their closing"
+             + (S.unrated ? " and are included here." : " — switch on <i>Include unrated moves</i> to see them.") : "")
+          + "</p>"
+          + "<h3>The automatic referral email</h3>"
+          + "<p>The automatic referral email no longer needs a review: since 30 Sep 2026 it goes to "
+          + "every Zip to Zip customer who rated the move 10/10, has no claim and whose bill stayed close to the quote, "
+          + "5 days after the move. This list is the five-star reviewers among them.</p>"
+          + "<h3>Dates and contact details</h3>"
+          + "<p>Reviews since 2025. Every date on this page is the MOVE date. "
+          + "Contact details come from the lead the move was booked on, so a blank email or phone means the lead "
+          + "was created without one"
+          + (unmatched ? "; " + unmatched + " could not be matched to a lead at all and carry the name and request number only" : "")
+          + ".</p>"
+          + "<h3>Uncounted reviews</h3>"
+          + "<p>Rows marked <i>uncounted</i> are reviews the platform later filtered; the customer still wrote them, "
+          + "so they still belong on a referral list.</p>";
+
         var html = '<div class="rf">'
-          + '<div class="rs-page-head"><h1>List of Possible Referrals</h1>'
-          + "<p>Customers who left a <b>five-star review</b> — with the email and phone "
-          + "their lead carried. <b>Newest move first.</b>"
-          + '<span class="freshness"> · reviews since 2025 · every date on this page is the '
-          + "MOVE date · contact details come from the lead the move was booked on</span></p></div>"
-          + '<div class="rs-kpis">'
-          + kpi(v.length.toLocaleString(), "People to ask",
-                "five-star reviewers whose move went right", "pos")
-          + kpi(fiveTotal.toLocaleString(), "Five-star reviews",
-                "written by these customers between them", "")
-          + kpi(withMail.toLocaleString(), "With an email", pctOf(withMail) + " of the list", "pos")
-          + kpi(withPhone.toLocaleString(), "With a phone", pctOf(withPhone) + " of the list", "pos")
-          + "</div>"
+          + RSC.pageHeadHtml({ title: "List of Possible Referrals", key: "referral-candidates",
+              sub: "Customers who left a five-star review, with the email and phone their lead carried. Newest move first.",
+              chip: "Reviews since 2025", how: howHtml })
           + '<div class="rs-bar">'
           // the kit's date picker (RSC.dateRange), mounted in wire(). It keeps ITS RANGE
           // HERE, in this page's own state -- the global slicer's dateBar would write into
@@ -261,22 +275,19 @@ registerPage({
           + '<div id="rfFilt" style="margin-left:auto"></div>'
           + "</div>"
           + '<div id="rfChips"></div>'
+          // the tiles follow the bar: every count below is the filtered list (ZTZ-80 order)
+          + RSC.kpisHtml([
+              { label: "People to ask", value: v.length.toLocaleString(),
+                sub: "five-star reviewers whose move went right", tone: "pos" },
+              { label: "Five-star reviews", value: fiveTotal.toLocaleString(),
+                sub: "written by these customers between them" },
+              { label: "With an email", value: withMail.toLocaleString(),
+                sub: pctOf(withMail) + " of the list", tone: "pos" },
+              { label: "With a phone", value: withPhone.toLocaleString(),
+                sub: pctOf(withPhone) + " of the list", tone: "pos" },
+            ])
           + '<div class="panel"><div class="panel-head"><div class="panel-title">The list</div>'
-          + '<span class="n">' + v.length + "</span></div>"
-          + '<div class="rs-hint">The automatic referral email no longer needs a review: since 30 Sep 2026 it goes to '
-          + "every Zip to Zip customer who rated the move 10/10, has no claim and whose bill stayed close to the quote, "
-          + "5 days after the move. This list is the five-star reviewers among them. </div>"
-          + '<div class="rs-hint">Five-star reviewers whose move also went right — they rated it '
-          + "<b>10/10</b> on the closing and the bill stayed close to the quote. "
-          + (nBad ? "<b>" + nBad + "</b> more five-star customers are left out: they rated the move "
-             + "below 10, or the bill ran 25%+ over the quote. " : "")
-          + (nNos ? "<b>" + nNos + "</b> have no rating on their closing"
-             + (S.unrated ? " and are included here." : " — switch on <i>Include unrated moves</i> to see them.") + " " : "")
-          + "Contact details come from the lead the move was booked on, so a blank email or phone means the lead "
-          + "was created without one"
-          + (unmatched ? "; " + unmatched + " could not be matched to a lead at all and carry the name and request number only" : "")
-          + ". Rows marked <i>uncounted</i> are reviews the platform later filtered; the customer still wrote them, "
-          + "so they still belong on a referral list.</div>";
+          + '<span class="n">' + v.length + "</span></div>";
 
         if (!v.length) {
           html += '<div class="rf-note">Nothing matches these filters.</div></div></div>';
@@ -301,10 +312,11 @@ registerPage({
                 + (r.Phone ? '<td class="nowrap">' + esc(r.Phone) + "</td>"
                            : '<td class="nowrap dim">—</td>')
                 + '<td class="nowrap muted">' + esc(r.Platforms || "—") + "</td>"
-                + "<td>" + (r["Counted"]
-                    ? '<span class="rs-pill ok">★ ' + r["Five Star Reviews"] + "</span>"
-                    : '<span class="rs-pill warn" title="the platform later filtered this review; the customer still wrote it">★ '
-                      + r["Five Star Reviews"] + " · uncounted</span>") + "</td>"
+                // the count as plain text; only an UNCOUNTED review carries a pill, because only
+                // that one says something (ZTZ-80: no star icon on every row)
+                + '<td class="nowrap">' + r["Five Star Reviews"] + (r["Counted"] ? ""
+                    : ' <span class="rs-pill warn" title="the platform later filtered this review; the customer still wrote it">'
+                      + "uncounted</span>") + "</td>"
                 + (r["Satisfaction Score"] == null || r["Satisfaction Score"] === ""
                     ? '<td class="nowrap dim">not rated</td>'
                     : "<td>" + esc(String(r["Satisfaction Score"])) + "/10</td>")
@@ -328,11 +340,6 @@ registerPage({
         html += "</div></div>";
         host.innerHTML = html;
         wire(v);
-      }
-
-      function kpi(val, lab, sub, cls) {
-        return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(lab)
-          + '</div><div class="v">' + esc(val) + '</div><div class="s">' + esc(sub) + "</div></div>";
       }
 
       function copyList(items, btn, word) {

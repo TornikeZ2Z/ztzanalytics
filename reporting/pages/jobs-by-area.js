@@ -46,13 +46,11 @@
       + ".jba-grp td{border-top:2px solid var(--line-2)}"
       + ".jba-st{font-weight:750;color:var(--ink)}"
       + ".jba-rank{display:inline-block;min-width:18px;color:var(--faint);font-weight:800}"
-      // the running month, wherever it appears
-      + ".jba-part{color:var(--warn);font-weight:700}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: share bars in the accent, 600 weights
       + "body.rs-app.light.v2 .jba-bar{background:#F1F5F9}"
       + "body.rs-app.light.v2 .jba-bar i{background:#3F7D20}"
       + "body.rs-app.light.v2 .jba-grp td{border-top:1px solid #CBD5E1}"
-      + "body.rs-app.light.v2 :is(.jba-st,.jba-rank,.jba-part){font-weight:600}";
+      + "body.rs-app.light.v2 :is(.jba-st,.jba-rank){font-weight:600}";
     document.head.appendChild(st);
   }
 
@@ -97,7 +95,17 @@ registerPage({
        never in localStorage. It narrows every number here, the totals and shares with it. */
     if (!(S.states instanceof Set)) S.states = new Set();
     injectStyle();
-    host.innerHTML = '<div class="jba"><div class="panel">Loading jobs…</div></div>';
+    // THE KIT HEAD. What a job is (it used to sit as a paragraph over the tables) lives in its
+    // "How it's counted" panel, word for word.
+    const HEAD = RSC.pageHeadHtml({ title: "Jobs by Area", key: "jobs-by-area",
+      sub: "How many jobs we did — for the season and month by month, per state, and the " +
+           "top counties inside each state.",
+      how: '<h3>What a job is</h3><p>A job is a <b>closing</b> — the same thing the Monthly Report '
+        + "counts, so the two always agree. A move that came back (storage out, a split "
+        + "load, a re-delivery) is work done twice and counts twice. A job belongs to the "
+        + "month it was <b>done</b> in and to the state and county it was <b>picked up</b> "
+        + "from. All three sections below are sums over the same jobs.</p>" });
+    host.innerHTML = '<div class="jba">' + RSC.loadingHtml("Jobs by Area", "Loading jobs…") + "</div>";
     const mine = host.querySelector(".jba");
     // #content is ONE element reused by every report: if the reader navigates away while
     // the mart is still loading, this render must not paint over whatever they opened next
@@ -115,7 +123,7 @@ registerPage({
         county: r.County || "County unknown", jobs: +r.Jobs || 0,
       }));
       if (!rows.length) {
-        mine.innerHTML = '<div class="panel">No jobs found — the mart may not be built yet '
+        mine.innerHTML = HEAD + '<div class="panel">No jobs found — the mart may not be built yet '
           + "(run sources=curated) or there is nothing to show.</div>";
         return;
       }
@@ -157,38 +165,9 @@ registerPage({
         const prev = sumOf(prevMonths, S.co).reduce((a, r) => a + r.jobs, 0);
         const delta = prev ? Math.round((doneNow / prev - 1) * 100) : null;
 
-        const kpi = (val, lab, sub, cls) =>
-          '<div class="kpi' + (cls ? " " + cls : "") + '"><div class="l">' + esc(lab)
-          + '</div><div class="v">' + esc(val) + '</div><div class="s">' + sub + "</div></div>";
-
-        // the kit caps a tile row at six and balances the rest into equal rows
-        const nT = months.length + 1;
-        const kpiCols = Math.ceil(nT / Math.ceil(nT / 6));
-
-        let h = '<div class="rs-kpis" style="--kpi-cols:' + kpiCols + '">'
-          + kpi(fmtN(total), label,
-                delta == null
-                  ? "jobs done in these months"
-                  : (partial.length
-                      ? '<span class="' + (delta >= 0 ? "up" : "down") + '">'
-                        + (delta >= 0 ? "+" : "") + delta + "%</span> on the same "
-                        + (done.length === 1 ? "month" : done.length + " months")
-                        + " last year — " + MON[partial[0].mo] + " is still running and is "
-                        + "left out of both sides"
-                      : '<span class="' + (delta >= 0 ? "up" : "down") + '">'
-                        + (delta >= 0 ? "+" : "") + delta + "%</span> vs "
-                        + fmtN(prev) + " a year earlier"))
-          + months.map(m => kpi(fmtN(byMonth[m.yr + "-" + m.mo] || 0),
-              MON[m.mo] + (SEASONS[S.season].spans ? " " + m.yr : ""),
-              isPartial(m)
-                ? '<span class="jba-part">still running — ' + TODAY.slice(8, 10)
-                  + " days so far</span>"
-                : esc(total ? pct(byMonth[m.yr + "-" + m.mo] || 0, total) + " of the season"
-                            : "—"))).join("")
-          + "</div>";
-
-        /* ---- the bar ---- */
-        h += '<div class="rs-bar">'
+        /* ---- the head, then the bar: the standard's order (head, filters, tiles) ---- */
+        let h = HEAD
+          + '<div class="rs-bar">'
           + '<div class="rs-fld"><span>Season</span><div class="rs-seg" id="jbaSeason">'
           + Object.keys(SEASONS).map(k => '<button data-s="' + k + '"'
               + (k === S.season ? ' class="on"' : "") + ">" + esc(SEASONS[k].lab)
@@ -198,12 +177,30 @@ registerPage({
           + (cos.length > 1 ? '<div id="jbaCo"></div>' : "")
           + '<div id="jbaFilt" style="margin-left:auto"></div>'
           + "</div>"
-          + '<div id="jbaChips"></div>'
-          + '<p class="rs-hint">A job is a <b>closing</b> — the same thing the Monthly Report '
-          + "counts, so the two always agree. A move that came back (storage out, a split "
-          + "load, a re-delivery) is work done twice and counts twice. A job belongs to the "
-          + "month it was <b>done</b> in and to the state and county it was <b>picked up</b> "
-          + "from. All three sections below are sums over the same jobs.</p>";
+          + '<div id="jbaChips"></div>';
+
+        // THE KIT TILES (RSC.kpisHtml caps a row at six and balances the rest into equal rows).
+        // The year-on-year change is the tile's delta (the kit's arrow carries the sign, as on
+        // Source Analysis); the running month is a warn tile.
+        const sign = delta === 0 ? "± 0%" : Math.abs(delta) + "%";
+        h += RSC.kpisHtml([{
+            label: label, value: fmtN(total),
+            delta: delta == null ? null : { text: sign, dir: delta > 0 ? "up" : delta < 0 ? "down" : "flat",
+              good: delta > 0 ? true : delta < 0 ? false : null },
+            sub: delta == null
+              ? "jobs done in these months"
+              : (partial.length
+                  ? "on the same " + (done.length === 1 ? "month" : done.length + " months")
+                    + " last year — " + MON[partial[0].mo] + " is still running and is "
+                    + "left out of both sides"
+                  : "vs " + fmtN(prev) + " a year earlier") }]
+          .concat(months.map(m => ({
+            label: MON[m.mo] + (SEASONS[S.season].spans ? " " + m.yr : ""),
+            value: fmtN(byMonth[m.yr + "-" + m.mo] || 0),
+            tone: isPartial(m) ? "warn" : "",
+            sub: isPartial(m)
+              ? "still running — " + TODAY.slice(8, 10) + " days so far"
+              : (total ? pct(byMonth[m.yr + "-" + m.mo] || 0, total) + " of the season" : "—") }))));
 
         if (!v.length) {
           h += '<div class="panel">Nothing in this slice — no jobs for '
@@ -334,7 +331,7 @@ registerPage({
       paint();
     }).catch(e => {
       if (!alive()) return;
-      mine.innerHTML = '<div class="panel">Could not load the jobs — '
+      mine.innerHTML = HEAD + '<div class="panel">Could not load the jobs — '
         + esc(e && e.message || e) + "</div>";
     });
   },

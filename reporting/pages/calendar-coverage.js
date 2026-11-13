@@ -37,7 +37,7 @@
         #ccSearch:focus{border-color:var(--brand)}
         .cc-tbl{width:100%;border-collapse:collapse}
         .cc-tbl th,.cc-tbl td{padding:8px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--line)}
-        .cc-tbl th{color:var(--faint);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+        .cc-tbl th{color:var(--faint);font-size:12px;font-weight:800;text-transform:none}
         .cc-tbl tr:hover td{background:var(--panel-2)}
         .cc-tbl td.r,.cc-tbl th.r{text-align:right}
         .cc-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;cursor:pointer;
@@ -47,7 +47,7 @@
         .cc-chip.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent)}
         .cc-chip b{font-variant-numeric:tabular-nums}
         .cc-chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
-        .cc-reason-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+        .cc-reason-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
         /* DESIGN V2: sentence-case table header, neutral hover, navy-tint chips, flat cards */
         body.rs-app.light.v2 #ccSearch{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}
         body.rs-app.light.v2 #ccSearch:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}
@@ -65,16 +65,16 @@
     }
 
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Calendar Coverage</h1>
-        <p>Which closing jobs are linked to a <b>Google-Calendar</b> event, and which aren't. <b>2026 onwards.</b>
-           A job is connected via <b>Request #</b> (Job Code for Peter), duplicates broken by move date; a
-           2nd entry of the same job (e.g. a delivery leg) links as a <b>sibling</b>, and a job whose branch tag
-           differs between the calendar and the closing sheet is recovered as a <b>branch-fix</b> (same customer,
-           same day). Every unconnected job is tagged with <b>why</b> — click a reason below to drill in. Most gaps
-           are older jobs the calendar never tracked; recent coverage is near-complete.
-           <span class="freshness">· read-only · respects the date/company filter</span></p>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Calendar Coverage", key: "calendar-coverage",
+        // ZTZ-80: one line on top; the method moved, word for word, into How it's counted
+        sub: "Which closing jobs are linked to a Google Calendar event, and which aren't.",
+        chip: "2026 onwards · read-only",
+        how: "<p>A job is connected via <b>Request #</b> (Job Code for Peter), duplicates broken by move date; a "
+          + "2nd entry of the same job (e.g. a delivery leg) links as a <b>sibling</b>, and a job whose branch tag "
+          + "differs between the calendar and the closing sheet is recovered as a <b>branch-fix</b> (same customer, "
+          + "same day).</p><p>Every unconnected job is tagged with <b>why</b>: click a reason below to drill in. Most gaps "
+          + "are older jobs the calendar never tracked; recent coverage is near-complete.</p>"
+          + "<p>Read-only, and it respects the date and company filter.</p>" })}
       <div class="rs-kpis" id="ccKpis"><div class="rs-loading">Loading…</div></div>
       <div id="ccChart"></div>
       <div id="ccMethod"></div>
@@ -148,7 +148,7 @@
     const mCard = (color, label, n, meaning) => `<div class="cc-mcard" style="flex:1;min-width:190px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
         <div style="font-size:23px;font-weight:800;color:${color};font-variant-numeric:tabular-nums">${fmtN(n)}</div>
         <div style="font-size:13px;font-weight:650">${label}</div>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${meaning}</div></div>`;
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${meaning}</div></div>`;
     // v2: the two recovery routes are categories, not verdicts -> categorical tones, read at render time
     const v2 = RS.isV2();
     const C_LEG = v2 ? RS.V2.cat[3] : "#e0a458", C_XBR = v2 ? RS.V2.cat[1] : "#6aa6e8", C_NONE = v2 ? RS.V2.faint : "#9aa0aa";

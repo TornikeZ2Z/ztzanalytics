@@ -38,7 +38,7 @@ registerPage({
     const moneyK = v => Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : (Math.abs(v) >= 1e3 ? "$" + Math.round(v / 1e3) + "k" : "$" + Math.round(v));
     const fmtN = RS.fmtN;
     const esc = s => RSC.esc(s == null ? "" : String(s));
-    host.innerHTML = `<div class="rs-loading" style="padding:30px">Reading the calendar…</div>`;
+    host.innerHTML = RSC.loadingHtml("Month Outlook", "Reading the calendar…");
     const all = await RS.load("month_outlook");
     const months = [...new Set(all.map(r => r["Month"]))].sort();
     const S = window.__MO_STATE = window.__MO_STATE || { month: months[0], co: "", city: "" };
@@ -64,26 +64,23 @@ registerPage({
     const style = `<style id="mo-style">
       .mo-wrap{max-width:1280px}
       .mo-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 14px}
-      .mo-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
-      .mo-seg button{appearance:none;border:0;background:none;font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:7px 14px;cursor:pointer}
-      .mo-seg button.on{background:var(--brand);color:var(--brand-ink)}
       .mo-hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
       .mo-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
       .mo-card.total{border:2px solid var(--brand)}
-      .mo-card .k{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+      .mo-card .k{font-size:12px;font-weight:800;color:var(--muted)}
       .mo-card .v{font-size:26px;font-weight:800;margin-top:4px;letter-spacing:-.5px}
       .mo-card .s{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
       .mo-card .s b{color:var(--ink)}
       .mo-up{color:var(--green, #2e7d32);font-weight:800}.mo-dn{color:var(--red);font-weight:800}
-      .mo-sec{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px}
-      .mo-days{display:flex;align-items:flex-end;gap:3px;height:150px;border-bottom:1px solid var(--line);padding-top:16px}
+      .mo-sec{font-size:13px;font-weight:800;color:var(--muted);margin:22px 0 8px}
+      .mo-days{display:flex;align-items:flex-end;gap:3px;height:150px;border-bottom:1px solid var(--line);padding-top:20px}
       .mo-day{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%;position:relative;min-width:0}
       .mo-day i{display:block;border-radius:3px 3px 0 0}
-      .mo-day .n{position:absolute;top:-15px;left:0;right:0;text-align:center;font-size:10px;font-weight:700;color:var(--muted)}
+      .mo-day .n{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
       .mo-day.wk{background:color-mix(in srgb,var(--line) 35%,transparent)}
       .mo-day.today{outline:2px solid var(--brand);outline-offset:1px}
-      .mo-dlab{display:flex;gap:3px}.mo-dlab span{flex:1;text-align:center;font-size:9.5px;color:var(--faint);min-width:0}
-      .mo-leg{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+      .mo-dlab{display:flex;gap:3px}.mo-dlab span{flex:1;text-align:center;font-size:12px;color:var(--faint);min-width:0}
+      .mo-leg{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
       .mo-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
       .mo-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
       .mo-hb{display:grid;grid-template-columns:110px minmax(0,1fr) 120px;gap:8px;align-items:center;font-size:12.5px;padding:4px 0}
@@ -92,7 +89,7 @@ registerPage({
       .mo-hb .r{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
       .mo-hb .r b{color:var(--ink)}
       .mo-tbl{width:100%;border-collapse:collapse;font-size:13px}
-      .mo-tbl th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 8px;border-bottom:2px solid var(--line)}
+      .mo-tbl th{text-align:left;font-size:12px;font-weight:800;color:var(--muted);padding:7px 8px;border-bottom:2px solid var(--line)}
       .mo-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
       .mo-tbl .r{text-align:right;font-variant-numeric:tabular-nums}
       .mo-note{font-size:12px;color:var(--faint);line-height:1.55;margin-top:8px}
@@ -110,9 +107,6 @@ registerPage({
       /* DESIGN V2 ("Calm finance", 2026-10-06) -- MonthOutlook.dc.html: white cards, sentence-case
          labels, pill month toggle, the blue total card, one delta format. Dark is untouched. */
       body.rs-app.light.v2 .mo-bar{gap:8px;margin:4px 0 18px}
-      body.rs-app.light.v2 .mo-seg{border-color:var(--line);border-radius:999px}
-      body.rs-app.light.v2 .mo-seg button{font-size:13.5px;font-weight:500;color:var(--muted);padding:8px 16px;min-height:36px}
-      body.rs-app.light.v2 .mo-seg button.on{background:#14301F;color:#FFFFFF;font-weight:600}
       body.rs-app.light.v2 .mo-card{border-color:var(--line);border-radius:10px;box-shadow:none;padding:16px 18px}
       body.rs-app.light.v2 .mo-card.total{border:1px solid #DCEFB0;background:#F4FAE6}
       body.rs-app.light.v2 .mo-card .k{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
@@ -271,20 +265,40 @@ registerPage({
             ${line(`${esc(moName(pm && pm.mo))} <span class="mo-br-n">final</span>`, pm, false)}
           </div>
         </div>
-        <div class="mo-note">Leads = Moveboard requests whose requested move date is in ${esc(moName(S.month, true))}, without bad leads
+        <div class="mo-note">${offFilters.length ? `<b>Not filtered by ${offFilters.join(" or ")}:</b> Moveboard and the calendar name them differently. ` : ""}Moveboard as of ${esc(asOfDay(cur.asOf))}, ${esc(String(cur.asOf || "").slice(11, 16))} NY.</div>`;
+      };
+      /* ZTZ-80 (the page standard): the definitions that sat under the strip and under the page
+         move to How it's counted, worded as before; the panel reads the month and filters on screen. */
+      const leadHow = () => {
+        const cur = leadPh("leads");
+        if (!cur) return "";
+        const long = S.month ? new Date(+S.month.slice(0, 4), +S.month.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" }) : "";
+        return `<h3>Booking rate by move date</h3><p>Leads = Moveboard requests whose requested move date is in ${esc(long)}, without bad leads
           (dead, archive, spam, video estimate); booked = Confirmed${cur.cx ? `, so the ${fmtN(cur.cx)} cancelled after booking count as not booked` : ""}.
           "By" a date = the same point a year or a month earlier: only the leads that existed, and the ones confirmed, by that
-          moment (a booking cancelled since then is missed there).
-          ${offFilters.length ? `<b>Not filtered by ${offFilters.join(" or ")}:</b> Moveboard and the calendar name them differently. ` : ""}Moveboard as of ${esc(asOfDay(cur.asOf))}, ${esc(String(cur.asOf || "").slice(11, 16))} NY.</div>`;
+          moment (a booking cancelled since then is missed there).</p>
+          <p>The strip follows Company, State, City and Local / Long distance. Source and Sales person do not reach it:
+          Moveboard and the calendar name them differently.</p>`;
       };
+      const builtAt = String((all[0] || {})["Built At"] || "").replace("T", " ").slice(0, 16);
+      const builtChip = builtAt ? "Built " + new Date(+builtAt.slice(0, 4), +builtAt.slice(5, 7) - 1, +builtAt.slice(8, 10))
+        .toLocaleString("en-US", { month: "short", day: "numeric" }) + ", " + builtAt.slice(11, 16) + " UTC" : "";
+      const howHtml = () => `<h3>What this page shows</h3><p>How ${esc(label)} ends <b>if nothing more is booked</b>: the days already
+          worked (closing sheets), plus every job still on the calendar. New bookings will add to it &mdash; this is the floor,
+          not a forecast.</p>
+        <h3>Gross profit</h3><p>Gross profit = the closing sheet's Profit per Job; for estimated jobs, the same share of revenue as past jobs of that type
+          (about ${mg ? Math.round(mg * 100) : "—"}%). Increase and profit share are learned from the last 180 days of calendar jobs matched to their closings.
+          Built ${esc(builtAt)} UTC.</p>
+        ${leadHow()}
+        <h3>Local / Long distance</h3><p>${esc(PF_NOTE)}</p>`;
 
       host.innerHTML = style + `<div class="mo-wrap">
-        <div class="rs-page-head"><h1>Month Outlook</h1>
-          <p>How ${esc(label)} ends <b>if nothing more is booked</b>: the days already worked (closing sheets), plus every job
-          still on the calendar. New bookings will add to it &mdash; this is the floor, not a forecast.</p></div>
+        ${RSC.pageHeadHtml({ title: "Month Outlook", key: "month-outlook",
+          subHtml: `How ${esc(label)} ends <b>if nothing more is booked</b> &mdash; the floor, not a forecast.`,
+          chip: builtChip, how: howHtml })}
         <div class="mo-bar">
-          <div class="mo-seg" id="moMonth">${months.map(mm => `<button data-v="${mm}" class="${mm === S.month ? "on" : ""}">${esc(new Date(+mm.slice(0, 4), +mm.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" }))}</button>`).join("")}</div>
-          <div class="mo-seg" id="moCo">${[["", "All"], ["Zip to Zip", "Zip to Zip"], ["Tuji", "Tuji"]].map(([v, l]) => `<button data-v="${v}" class="${v === S.co ? "on" : ""}">${l}</button>`).join("")}</div>
+          <div class="rs-seg" id="moMonth">${months.map(mm => `<button type="button" data-v="${mm}" class="${mm === S.month ? "on" : ""}">${esc(new Date(+mm.slice(0, 4), +mm.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" }))}</button>`).join("")}</div>
+          <div class="rs-seg" id="moCo">${[["", "All"], ["Zip to Zip", "Zip to Zip"], ["Tuji", "Tuji"]].map(([v, l]) => `<button type="button" data-v="${v}" class="${v === S.co ? "on" : ""}">${l}</button>`).join("")}</div>
           <div id="moCity"></div><span class="rs-spacer"></span><div id="moFilt"></div>
         </div>
         <div class="mo-hero">
@@ -321,9 +335,6 @@ registerPage({
             <td>${esc(String(r["Day"]).slice(5, 10))}</td><td>${esc(r["Customer"] || "—")}</td><td>${esc(r["State"] || "—")}</td>
             <td>${esc(r["Source"] || "—")}</td><td>${esc(r["Sales Person"] || "—")}</td><td>${r["Lead Days"] != null ? esc(r["Lead Days"]) + " d" : "—"}</td>
             <td class="r">${money(num(r["Revenue"]))}</td><td>${+r["Is Estimate"] ? '<span class="rs-pill warn">estimate</span>' : '<span class="rs-pill ok">closed</span>'}</td></tr>`).join("")}</tbody></table></div></details>
-        <div class="mo-note">Gross profit = the closing sheet's Profit per Job; for estimated jobs, the same share of revenue as past jobs of that type
-          (about ${mg ? Math.round(mg * 100) : "—"}%). Increase and profit share are learned from the last 180 days of calendar jobs matched to their closings.
-          Built ${esc(String((all[0] || {})["Built At"] || "").slice(0, 16))} UTC.</div>
       </div>`;
       host.querySelectorAll("#moMonth button").forEach(b => b.onclick = () => { S.month = b.dataset.v; S.city = ""; paint(); });
       host.querySelectorAll("#moCo button").forEach(b => b.onclick = () => { S.co = b.dataset.v; paint(); });

@@ -51,15 +51,12 @@ registerPage({
       st.textContent = [
         // Only what the kit cannot say. Everything else is .panel / .rs-table / .rs-kpis.
         ".crw-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}",
-        ".crw-bar>.crw-in{margin-bottom:1px}",
-        ".crw-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);"
-          + "border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;"
-          + "transition:border-color .15s;min-width:0}",
-        ".crw-in:focus{border-color:var(--brand)}",
+        // the search field is the kit's .rs-inp
+        ".crw-bar>.rs-inp{margin-bottom:1px}",
         ".crw-count{font-size:12px;color:var(--faint);font-weight:600;margin-left:auto}",
         // the role a row belongs to, as a colour you learn once
-        ".crw-role{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.05em;"
-          + "text-transform:uppercase;padding:2px 7px;border-radius:5px;white-space:nowrap}",
+        ".crw-role{display:inline-block;font-size:12px;font-weight:800;"
+          + "padding:2px 7px;border-radius:5px;white-space:nowrap}",
         ".crw-role.foreman{background:var(--brand-bg,var(--panel-2));color:var(--brand)}",
         ".crw-role.driver{background:var(--pos-bg);color:var(--pos)}",
         ".crw-role.helper{background:var(--panel-2);color:var(--muted)}",
@@ -104,7 +101,7 @@ registerPage({
           + "min-height:3px;transition:opacity .12s}",
         ".crw-spark i:hover{opacity:.7}",
         ".crw-spark i.dim{background:var(--line-2)}",
-        ".crw-trip{font-size:10.5px;font-weight:800;color:var(--blue);white-space:nowrap}",
+        ".crw-trip{font-size:12px;font-weight:800;color:var(--blue);white-space:nowrap}",
         ".crw-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;"
           + "margin-top:12px;font-size:12.5px;color:var(--faint)}",
         ".crw-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}",
@@ -122,8 +119,6 @@ registerPage({
     function v2Css() {
       const V = "body.rs-app.light.v2 ";
       return [
-        V + ".crw-in{border-radius:999px;border-color:var(--line);padding:0 14px;height:36px;font-size:13px}",
-        V + ".crw-in:focus{border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}",
         V + ".crw-count{font-size:12.5px;font-weight:500}",
         V + ".crw-role{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
           + "border-radius:6px;padding:2px 8px}",
@@ -159,12 +154,15 @@ registerPage({
       ];
     }
 
-    host.innerHTML = `<div class="rs-page-head"><h1>Crew Salaries</h1></div>
-      <div class="rs-loading" style="padding:22px">Reading the payroll…</div>`;
+    host.innerHTML = RSC.loadingHtml("Crew Salaries", "Reading the payroll…");
+    // THE KIT HEAD (ZTZ-80): the name and the page's one line
+    const HEAD = RSC.pageHeadHtml({ title: "Crew Salaries", key: "crew-salaries",
+      sub: "Every person who worked a truck and what they were paid for it — foreman, driver "
+        + "and helper in one place, with tips kept separate from wage." });
 
     const all = await RS.load("mart_crew_salary");
     if (!all || !all.length) {
-      host.innerHTML = `<div class="rs-page-head"><h1>Crew Salaries</h1></div>
+      host.innerHTML = `${HEAD}
         <div class="panel">The crew salary mart has not been built yet — it lands on the next
           pipeline run.</div>`;
       return;
@@ -300,30 +298,28 @@ registerPage({
       const pageRows = S.showAll ? sorted
         : sorted.slice(S.page * S.pageSize, (S.page + 1) * S.pageSize);
 
-      const kpi = (l, v, s, cls) => `<div class="kpi ${cls || ""}">
-        <div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || ""}</div></div>`;
+      // the kit's tiles (RSC.kpisHtml escapes label and sub itself, so nothing is escaped twice)
+      const kpi = (l, v, s, cls) => ({ label: l, value: v, sub: s || "", tone: cls || "" });
 
       host.innerHTML = `
-        <div class="rs-page-head"><h1>Crew Salaries</h1>
-          <p>Every person who worked a truck and what they were paid for it — foreman, driver
-             and helper in one place, with tips kept separate from wage.</p></div>
+        ${HEAD}
 
         <div class="crw-bar" id="crwBar"></div><div id="crwChips"></div>
 
-        <div class="rs-kpis" style="--kpi-cols:6">
-          ${kpi("People paid", fmtN(people.length),
-                esc(S.pf.role.length ? S.pf.role.join(", ") : "all roles") + " · " + fmtN(mKeys.length) + " month" + (mKeys.length === 1 ? "" : "s"))}
-          ${kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs"
-                + (tripLegs ? " · +" + fmtN(tripLegs) + " trip leg" + (tripLegs === 1 ? "" : "s") : ""))}
-          ${kpi("Total paid", m0(pay), m0(pay / (jobs || 1)) + " a job")}
-          ${kpi("Wage", m0(salary), pct(pay ? salary / pay : null) + " of it", "pos")}
-          ${kpi("Tips", m0(tip), m0(rs.reduce((a, r) => a + (num(r["Tip Customer"]) || 0), 0))
+        ${RSC.kpisHtml([
+          kpi("People paid", fmtN(people.length),
+                (S.pf.role.length ? S.pf.role.join(", ") : "all roles") + " · " + fmtN(mKeys.length) + " month" + (mKeys.length === 1 ? "" : "s")),
+          kpi("Jobs covered", fmtN(jobs), fmtN(rs.length) + " person-jobs"
+                + (tripLegs ? " · +" + fmtN(tripLegs) + " trip leg" + (tripLegs === 1 ? "" : "s") : "")),
+          kpi("Total paid", m0(pay), m0(pay / (jobs || 1)) + " a job"),
+          kpi("Wage", m0(salary), pct(pay ? salary / pay : null) + " of it", "pos"),
+          kpi("Tips", m0(tip), m0(rs.reduce((a, r) => a + (num(r["Tip Customer"]) || 0), 0))
                 + " customers · " + m0(rs.reduce((a, r) => a + (num(r["Tip Company"]) || 0), 0))
-                + " company", "warn")}
-          ${kpi("Hours", fmtN(Math.round(hours)),
+                + " company", "warn"),
+          kpi("Hours", fmtN(Math.round(hours)),
                 hours ? m0(rs.reduce((a, r) => a + (num(r["Is Trip"]) ? 0 : num(r.Salary) || 0), 0)
-                        / hours) + " a paid hour (day-rate trips excluded)" : "—")}
-        </div>
+                        / hours) + " a paid hour (day-rate trips excluded)" : "—"),
+        ])}
 
         ${roles.length > 1 ? `
         <div class="panel">
@@ -452,7 +448,7 @@ registerPage({
         onChange: v => { S.co = v; S.page = 0; paint(); } });
 
       const q = document.createElement("input");
-      q.className = "crw-in"; q.placeholder = "find a person…"; q.value = S.q;
+      q.className = "rs-inp"; q.placeholder = "find a person…"; q.value = S.q;
       q.style.flex = "0 1 190px";
       q.oninput = () => { clearTimeout(qTimer);
         qTimer = setTimeout(() => { S.q = q.value; S._focus = 1; S.page = 0; paint(); }, 300); };

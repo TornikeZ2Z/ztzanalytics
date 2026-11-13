@@ -17,17 +17,20 @@ registerPage({
     var S = { data: null, open: {}, filter: "all" };
     try { S.filter = localStorage.getItem("ttd-filter") || "all"; } catch (e) { /* private mode */ }
 
+    // THE PAGE STANDARD (ZTZ-80): the kit head; the full description sits behind "About this page"
     host.innerHTML = '<div class="ttd">'
-      + '<div class="rs-page-head"><h1>Things to do</h1>'
-      + "<p>The dispatch flow of the ERP, topic by topic in the order a job lives it — from the "
-      + "22 Sep walkthrough with Bacho. Open an item for the detail; answer its question right "
-      + "there.</p></div>"
+      + RSC.pageHeadHtml({ title: "Things to do", key: "things-to-do",
+          sub: "The dispatch flow of the ERP, topic by topic in the order a job lives it.",
+          howTitle: "About this page",
+          how: "<p>The dispatch flow of the ERP, topic by topic in the order a job lives it — from the "
+            + "22 Sep walkthrough with Bacho. Open an item for the detail; answer its question right "
+            + "there.</p>" })
       + '<div class="ttd-bar"><div class="ttd-sum" id="ttdSum"></div>'
       + '<div class="rs-seg" id="ttdFilter" role="tablist" aria-label="Show">'
       + '<button role="tab" data-f="all">Everything</button>'
       + '<button role="tab" data-f="ask">Needs an answer</button>'
       + '<button role="tab" data-f="p1">P1 only</button></div></div>'
-      + '<div id="ttdBody"><div class="ttd-empty">Loading…</div></div></div>';
+      + '<div id="ttdBody">' + RSC.loadingHtml("Things to do", "Loading…") + "</div></div>";
 
     host.querySelectorAll("#ttdFilter [data-f]").forEach(function (b) {
       b.onclick = function () {
@@ -231,7 +234,7 @@ registerPage({
           font-size:12.5px;font-weight:650;color:var(--brand-ink);background:var(--brand)}
         .ttd-tt{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
         .ttd-tt h2{margin:0;font-size:16px;font-weight:650;color:var(--ink)}
-        .ttd-tt span{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+        .ttd-tt span{font-size:12px;color:var(--faint);text-transform:none}
         .ttd-ct{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
         .ttd-list{display:flex;flex-direction:column}
         .ttd-it{border-bottom:1px solid var(--line-2)}
@@ -241,11 +244,11 @@ registerPage({
         .ttd-row:hover{background:var(--panel-2)}
         .ttd-row:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
         .ttd-mk{flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--faint);
-          display:grid;place-items:center;font-size:11px;font-weight:700;line-height:1}
+          display:grid;place-items:center;font-size:12px;font-weight:700;line-height:1}
         .ttd-mk.ask{border-color:var(--amber);color:var(--amber);background:var(--warn-bg)}
         .ttd-mk.ready{border-color:var(--blue);background:var(--blue-bg)}
         .ttd-mk.done{border-color:var(--pos);color:var(--pos);background:var(--pos-bg)}
-        .ttd-p{flex:none;font-size:11px;font-weight:650;padding:1px 6px;border-radius:4px;
+        .ttd-p{flex:none;font-size:12px;font-weight:650;padding:1px 6px;border-radius:4px;
           color:var(--muted);background:var(--panel-2);border:1px solid var(--line)}
         .ttd-p.p1{color:var(--neg);background:var(--neg-bg);border-color:transparent}
         .ttd-ti{flex:1;min-width:0;color:var(--ink);font-size:14px}
@@ -267,7 +270,7 @@ registerPage({
           background:var(--panel);padding:10px 12px}
         .ttd-q.ok{border-left-color:var(--pos)}
         .ttd-qh{display:flex;gap:8px;align-items:baseline;margin:0 0 3px}
-        .ttd-qk{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;
+        .ttd-qk{font-size:12px;font-weight:650;text-transform:none;
           color:var(--amber)}
         .ttd-q.ok .ttd-qk{color:var(--pos)}
         .ttd-qa{font-size:12px;color:var(--muted)}

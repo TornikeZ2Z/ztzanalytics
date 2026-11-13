@@ -59,7 +59,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
   var render = async function render(host) {
     var esc = RSC.esc, N = RS.fmtN;
     var TYPE = { morning: { l: "Morning", c: "t-blue" }, pre: { l: "Pre-start · Yelp", c: "t-red" }, mid: { l: "Mid-job", c: "t-amber" }, final: { l: "Final", c: "t-green" } };
-    // inline SVG icons, portal-style (the h1 star is already one) — no emoji glyphs as UI icons
+    // inline SVG icons, portal-style — no emoji glyphs as UI icons
     var I_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
     var I_EYE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
     var I_REFRESH = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 3v6h-6"/></svg>';
@@ -71,10 +71,6 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
            gutters at zoom — the page looked pushed right). Settings keeps its tuned editor width. */
         ".rrp{max-width:none;margin:0;padding:2px 4px 40px}",
         ".rrp.rrp-vlinks{max-width:1120px;margin:0 auto}",
-        ".rrp-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;justify-content:space-between;margin-bottom:14px}",
-        ".rrp-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}",
-        ".rrp-star{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--brand),var(--brand-d));color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}",
-        ".rrp-head p{margin:3px 0 0;color:var(--muted);font-size:13px;max-width:640px;line-height:1.5}",
         /* buttons/KPIs/segments are the kit's (.rs-btn, .rs-kpis/.kpi, .rs-seg) — the page only
            aligns inline icons and colours the KPI tone variants */
         ".rrp .rs-btn svg{vertical-align:-2px;margin-right:2px}",
@@ -82,12 +78,12 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp .rs-kpis .kpi.pos .v{color:var(--pos)}",
         ".rrp .rs-kpis .kpi.warn .v{color:var(--warn)}",
         ".rrp-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}",
-        ".rrp-filters select,.rrp-filters input{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:7px 10px}",
-        ".rrp-filters input{min-width:170px}",
+        // the search box is the kit's .rs-inp; the page only narrows it
+        ".rrp-filters .rs-inp{min-width:170px}",
         ".rrp-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}",
         /* kit tables ride inside this page's cards, which carry their own border — unbox the wrap */
         ".rrp .rrp-card .rs-tablewrap{border:0;border-radius:0}",
-        ".pill{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:3px 8px;border-radius:999px;white-space:nowrap}",
+        ".pill{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.02em;padding:3px 8px;border-radius:999px;white-space:nowrap}",
         ".t-blue{background:var(--blue-bg);color:var(--blue)}.t-amber{background:var(--warn-bg);color:var(--warn)}.t-green{background:var(--pos-bg);color:var(--pos)}.t-red{background:var(--neg-bg);color:var(--neg)}",
         ".s-sent{background:var(--pos-bg);color:var(--pos)}.s-skip{background:var(--warn-bg);color:var(--warn)}.s-err{background:var(--neg-bg);color:var(--neg)}",
         ".rrp-empty{background:var(--panel);border:1px dashed var(--line-2);border-radius:14px;padding:34px;text-align:center;color:var(--muted);font-size:14px}",
@@ -95,17 +91,17 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp .hidden{display:none!important}",
         /* first-ever visit skeleton: nothing cached yet and the relay cold-starts ~40s */
         ".rrp-skel{display:flex;flex-direction:column;gap:10px}",
-        ".rrp-skel i{display:block;border:1px solid var(--line);border-radius:13px;background:linear-gradient(100deg,var(--panel) 40%,var(--panel-2) 50%,var(--panel) 60%);background-size:200% 100%;animation:rrp-shimmer 1.3s linear infinite}",
-        "@keyframes rrp-shimmer{from{background-position:130% 0}to{background-position:-70% 0}}",
+        // a solid placeholder that breathes with the kit's own skeleton pulse (rs.css rsPulse), no gradient
+        ".rrp-skel i{display:block;border:1px solid var(--line);border-radius:13px;background:var(--panel-2);animation:rsPulse 1.4s ease-in-out infinite}",
         ".rrp-skelrow{display:flex;gap:10px}",
         ".rrp-skelrow i{flex:1;height:84px}",
         ".rrp-dayhead{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;margin:16px 0 9px;padding:2px 0}",
         ".rrp-dayhead .rrp-daychev{color:var(--faint);font-size:12px;width:14px}",
         ".rrp-dayhead h3{margin:0;font-size:15px;font-weight:800}",
-        ".rrp-dayhead span{font-size:11.5px;color:var(--faint);font-weight:700}",
+        ".rrp-dayhead span{font-size:12px;color:var(--faint);font-weight:700}",
         ".rrp-dayhead:hover h3{color:var(--brand)}",
-        ".rrp-noid{font-size:9.5px;font-weight:800;color:var(--warn);background:var(--warn-bg);padding:2px 6px;border-radius:6px;white-space:nowrap}",
-        ".rrp-stage{font-size:10px;font-weight:700;letter-spacing:.01em;padding:3px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}",
+        ".rrp-noid{font-size:12px;font-weight:800;color:var(--warn);background:var(--warn-bg);padding:2px 6px;border-radius:6px;white-space:nowrap}",
+        ".rrp-stage{font-size:12px;font-weight:700;letter-spacing:.01em;padding:3px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}",
         ".rrp-stage b{font-weight:800;font-variant-numeric:tabular-nums}",
         ".rrp-stage.st-sent{background:var(--pos-bg);color:var(--pos);border-color:transparent}",
         ".rrp-stage.st-sched{background:var(--blue-bg);color:var(--blue);border-color:transparent}",
@@ -117,9 +113,9 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-jobevents{border-top:1px solid var(--line);background:var(--panel-2)}",
         ".rrp-fgroup{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}",
         ".rrp-fhead{display:grid;grid-template-columns:34px 1fr auto;gap:11px;align-items:center;padding:12px 15px}",
-        ".rrp-favatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand-d));color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex:0 0 auto}",
+        ".rrp-favatar{width:34px;height:34px;border-radius:50%;background:var(--brand);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;flex:0 0 auto}",
         ".rrp-fname{font-weight:800;font-size:14.5px}",
-        ".rrp-fmeta{font-size:11.5px;color:var(--faint);font-weight:700;white-space:nowrap;justify-self:end;text-align:right}",
+        ".rrp-fmeta{font-size:12px;color:var(--faint);font-weight:700;white-space:nowrap;justify-self:end;text-align:right}",
         ".rrp-morning{border-top:1px solid var(--line)}",
         // The 1fr sat on the customer name, throwing the Mid/Final pills ~1800px away from
         // the job they belong to. jobRow emits three children (L778-781), so a fourth empty
@@ -127,24 +123,24 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-jrhead{display:grid;grid-template-columns:16px minmax(0,440px) auto minmax(0,1fr);gap:11px;align-items:center;padding:10px 15px;cursor:pointer;border-top:1px solid var(--line)}",
         ".rrp-jrhead:hover{background:var(--panel-2)}",
         ".rrp-jrchev{color:var(--faint);font-size:12px;text-align:center}",
-        ".rrp-jrc{font-size:13px}.rrp-jrc small{display:block;color:var(--faint);font-size:11px;margin-top:1px}",
+        ".rrp-jrc{font-size:13px}.rrp-jrc small{display:block;color:var(--faint);font-size:12px;margin-top:1px}",
         ".rrp-jrstages{display:flex;gap:5px;justify-self:start;flex-wrap:wrap;justify-content:flex-start}",
         /* classed, token-based Yelp badge — the old inline light-only pink vanished in dark theme */
-        ".rrp-yelp{display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;background:var(--neg-bg);color:var(--neg);font-size:10.5px;font-weight:800;letter-spacing:.03em;white-space:nowrap}",
+        ".rrp-yelp{display:inline-block;margin-left:7px;padding:1px 8px;border-radius:999px;background:var(--neg-bg);color:var(--neg);font-size:12px;font-weight:800;letter-spacing:.03em;white-space:nowrap}",
         ".rrp-evrow{display:flex;align-items:center;gap:12px;padding:9px 15px 9px 20px;border-top:1px solid var(--line);font-size:12.5px}",
         ".rrp-evrow:first-child{border-top:0}",
         ".rrp-evrow .tm{font-variant-numeric:tabular-nums;color:var(--muted);min-width:60px}",
-        ".rrp-evlnk{flex:1;color:var(--faint);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        ".rrp-evlnk{flex:1;color:var(--faint);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".rrp-msg{margin:0 15px 10px 20px}",
-        ".rrp-msg summary{cursor:pointer;font-size:11.5px;font-weight:700;color:var(--brand);list-style:none;padding:5px 0;width:fit-content}",
+        ".rrp-msg summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--brand);list-style:none;padding:5px 0;width:fit-content}",
         ".rrp-msg summary::-webkit-details-marker{display:none}",
         ".rrp-msg summary svg{vertical-align:-2px}",
         ".rrp-msg summary:hover{text-decoration:underline}",
         ".rrp-msgbody{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.55;color:var(--ink);white-space:normal;word-break:break-word}",
         ".rrp-msgbody a{color:var(--blue)}",
-        ".rrp-msgnote{color:var(--muted);font-size:11.5px;margin-bottom:8px}",
+        ".rrp-msgnote{color:var(--muted);font-size:12px;margin-bottom:8px}",
         ".rrp-linkchips{display:flex;flex-wrap:wrap;gap:7px}",
-        ".rrp-linkchip{font-size:11.5px;font-weight:700;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:5px 10px;color:var(--blue);text-decoration:none}",
+        ".rrp-linkchip{font-size:12px;font-weight:700;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:5px 10px;color:var(--blue);text-decoration:none}",
         ".rrp-linkchip:hover{border-color:var(--blue)}.rrp-linkchip.off{color:var(--faint)}",
         ".rrp-pager{display:flex;align-items:center;gap:10px;padding:10px 15px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);font-weight:700}",
         ".rrp-pager .sp{margin-right:auto;font-weight:600}",
@@ -170,7 +166,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "@media(max-width:1120px){.rrp-set{grid-template-columns:minmax(0,1fr)}}",
         ".rrp-sec{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow)}",
         ".rrp-sech{display:flex;align-items:flex-start;gap:12px;padding:15px 17px 13px;border-bottom:1px solid var(--line)}",
-        ".rrp-secn{flex:0 0 auto;width:24px;height:24px;border-radius:8px;background:var(--brand-glow);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}",
+        ".rrp-secn{flex:0 0 auto;width:24px;height:24px;border-radius:8px;background:var(--brand-glow);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}",
         "body.rs-app.light .rrp-secn{color:var(--brand-d)}",
         ".rrp-sect{min-width:0}",
         ".rrp-sect h4{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}",
@@ -180,11 +176,11 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-st{border-top:1px solid var(--line);padding:13px 0 11px}",
         ".rrp-st:first-child{border-top:0}",
         ".rrp-sth{display:flex;align-items:center;gap:11px;margin-bottom:9px}",
-        ".rrp-stchip{flex:0 0 auto;min-width:34px;text-align:center;font-size:11.5px;font-weight:800;letter-spacing:.03em;padding:4px 9px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink)}",
+        ".rrp-stchip{flex:0 0 auto;min-width:34px;text-align:center;font-size:12px;font-weight:800;letter-spacing:.03em;padding:4px 9px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line-2);color:var(--ink)}",
         ".rrp-goal{flex:1;min-width:0;display:flex;align-items:center;gap:9px}",
         ".rrp-goalbar{flex:1;height:5px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden;min-width:60px}",
         ".rrp-goalbar i{display:block;height:100%;background:var(--brand);border-radius:999px}",
-        ".rrp-goaltx{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}",
+        ".rrp-goaltx{font-size:12px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}",
         /* location row — the ACTIVE one carries a lime rail + tint, so 'which link is live' reads at a glance */
         ".rrp-loc{display:grid;grid-template-columns:18px 148px minmax(0,1fr) 28px;gap:10px;align-items:center;padding:7px 10px 7px 8px;border-radius:10px;border:1px solid transparent;margin-top:5px;position:relative}",
         ".rrp-loc:hover{background:var(--panel-2)}",
@@ -223,9 +219,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rrp-reason input[readonly]{opacity:.7;cursor:default;background:var(--panel-2)}",
         ".rrp-reason .del{border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:15px;border-radius:7px;padding:4px}",
         ".rrp-reason .del:hover{color:var(--red)}",
-        ".rrp-lockpill{font-size:9.5px;font-weight:800;color:var(--faint);text-align:center;text-transform:uppercase;letter-spacing:.04em}",
+        ".rrp-lockpill{font-size:12px;font-weight:800;color:var(--faint);text-align:center;text-transform:none;}",
         ".rrp-clock{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}",
-        ".rrp-headright{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}",
         /* ---------- live preview ---------- */
         /* overflow:visible (was hidden): the state pick is now a kit localSelect whose popover
            must escape the aside; no child paints a background at the rounded corners, so
@@ -234,26 +229,23 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "@media(max-width:1120px){.rrp-pv{position:static}}",
         ".rrp-pvh{padding:14px 16px 12px;border-bottom:1px solid var(--line)}",
         ".rrp-pvh h4{margin:0;font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}",
-        ".rrp-pvh h4 em{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);padding:2px 7px;border-radius:999px}",
-        ".rrp-pvh p{margin:4px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}",
+        ".rrp-pvh h4 em{font-style:normal;font-size:12px;font-weight:800;text-transform:none;color:var(--blue);background:color-mix(in srgb,var(--blue) 15%,transparent);padding:2px 7px;border-radius:999px}",
+        ".rrp-pvh p{margin:4px 0 0;font-size:12px;color:var(--muted);line-height:1.5}",
         ".rrp-pvctl{display:flex;gap:7px;padding:11px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}",
-        ".rrp-pvseg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:9px;padding:2px}",
-        ".rrp-pvseg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;font-weight:800;padding:5px 10px;border-radius:7px;cursor:pointer}",
-        ".rrp-pvseg button.on{background:var(--brand);color:var(--brand-ink)}",
         ".rrp-pvbody{padding:15px 16px 17px;background:var(--panel-2)}",
         /* RENAMED from .rrp-msg 2026-07-25: that name already belongs to the send-log <details>
            panels above, and this display:flex leaked into them — two unrelated components were
            fighting over one class, last one wins. */
         ".rrp-pvmsg{display:flex;gap:10px;align-items:flex-start}",
-        ".rrp-msgav{flex:0 0 auto;width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--brand),var(--brand-d));color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}",
+        ".rrp-msgav{flex:0 0 auto;width:28px;height:28px;border-radius:7px;background:var(--brand);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}",
         ".rrp-msgb{min-width:0;flex:1}",
         ".rrp-msgn{font-size:12px;font-weight:800;margin-bottom:3px}",
-        ".rrp-msgn span{font-size:9.5px;font-weight:700;color:var(--faint);margin-left:5px;text-transform:uppercase;letter-spacing:.04em}",
+        ".rrp-msgn span{font-size:12px;font-weight:700;color:var(--faint);margin-left:5px;text-transform:none;}",
         ".rrp-bub{background:var(--panel);border:1px solid var(--line);border-radius:4px 12px 12px 12px;padding:11px 13px;font-size:12.5px;line-height:1.6;color:var(--ink);white-space:pre-wrap;word-break:break-word}",
         ".rrp-bub b{font-weight:800}",
         ".rrp-bub a{color:var(--blue);text-decoration:none}",
         ".rrp-bub .warn{color:var(--red);font-weight:800}",
-        ".rrp-pvfoot{padding:10px 16px 13px;font-size:11px;color:var(--faint);line-height:1.5;border-top:1px solid var(--line)}",
+        ".rrp-pvfoot{padding:10px 16px 13px;font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--line)}",
         /* ---------- sticky save bar ---------- */
         /* Sticky action bar. It floats OVER same-coloured cards, so it needs to read as a separate
            layer: translucent + blur + a real lift shadow, never a flat panel-on-panel rectangle. */
@@ -274,8 +266,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rx-top{display:flex;gap:26px;align-items:center;flex-wrap:wrap}",
         ".rx-big b,.rx-rate b{display:block;font-size:34px;font-weight:800;letter-spacing:-1px;"
           + "line-height:1;font-variant-numeric:tabular-nums}",
-        ".rx-big span,.rx-rate span{font-size:11px;color:var(--faint);font-weight:700;"
-          + "text-transform:uppercase;letter-spacing:.07em;display:block;margin-top:6px;line-height:1.5}",
+        ".rx-big span,.rx-rate span{font-size:12px;color:var(--faint);font-weight:700;"
+          + "text-transform:none;display:block;margin-top:6px;line-height:1.5}",
         ".rx-rate{text-align:right}",
         ".rx-rate b{color:var(--brand)}",
         ".rx-funnel{flex:1 1 320px;min-width:0}",
@@ -295,8 +287,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
           + "display:flex;flex-direction:column-reverse;position:relative}",
         ".rx-dcol i{display:block;width:100%}",
         ".rx-dcol i.rv{background:var(--pos)} .rx-dcol i.ex{background:var(--warn)}",
-        ".rx-day span{font-size:10.5px;color:var(--faint);font-weight:700}",
-        ".rx-day em{font-style:normal;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}",
+        ".rx-day span{font-size:12px;color:var(--faint);font-weight:700}",
+        ".rx-day em{font-style:normal;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}",
         ".rx-hero .rrp-fresh{border:0;background:transparent;border-radius:0;margin:14px 0 0;"
           + "padding:12px 0 0;border-top:1px solid var(--line-2)}",
         // the by-foreman list: a share row per man, the reason as a quiet pill
@@ -312,7 +304,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".rx-frow .v{font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}",
         ".rx-frow .ch{color:var(--faint);text-align:right}",
         ".rx-age{display:inline-block;min-width:34px;text-align:center;border-radius:6px;"
-          + "padding:2px 6px;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;"
+          + "padding:2px 6px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;"
           + "background:var(--panel-2);color:var(--muted)}",
         ".rx-age.warn{background:var(--warn-bg);color:var(--warn)}",
         ".rx-age.neg{background:var(--neg-bg);color:var(--neg)}",
@@ -328,7 +320,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-cardhd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 10px}",
         ".ra-cardhd.pad{padding:13px 15px 9px;margin:0}",
         ".ra-cardhd h4{margin:0;font-size:15px;font-weight:750;letter-spacing:-.1px}",
-        ".ra-hint{padding:9px 15px 12px;font-size:11.5px;color:var(--faint);border-top:1px solid var(--line)}",
+        ".ra-hint{padding:9px 15px 12px;font-size:12px;color:var(--faint);border-top:1px solid var(--line)}",
         ".ra-none{color:var(--faint);padding:14px;font-size:12.5px}",
         ".ra-none-i{color:var(--faint);font-style:italic}",
         // the reason bar gains a % column, so the grid gets a 4th track
@@ -337,7 +329,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-nf{font-size:12.5px;color:var(--muted);line-height:1.5;margin:6px 2px 10px}",
         ".ra-nf b{color:var(--ink);font-weight:600}",
 
-        ".ra-pct{font-style:normal;font-size:11px;font-weight:700;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}",
+        ".ra-pct{font-style:normal;font-size:12px;font-weight:700;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}",
         ".ra-ftbl tbody tr{cursor:pointer}",
         ".ra-ftbl tr.on td{background:var(--panel-2)}",
         ".ra-ftbl tr.on td{font-weight:800}",
@@ -364,7 +356,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         ".ra-dot{color:var(--faint);margin:0 6px}",
         ".ra-done td{opacity:.6}",
         ".s-wait{background:var(--warn-bg);color:var(--warn)}",
-        ".rrp-aka{font-size:10.5px;font-weight:700;color:var(--faint);background:var(--panel-2);" +
+        ".rrp-aka{font-size:12px;font-weight:700;color:var(--faint);background:var(--panel-2);" +
           "border:1px solid var(--line-2);border-radius:999px;padding:1px 7px;white-space:nowrap}",
         ".rrp-exform{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}",
         ".rrp-exform input{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:5px 8px}",
@@ -376,10 +368,8 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
            four reminder TYPES are categories, so in v2 they stop borrowing green/red: Morning =
            info, Mid-job = neutral, Final = navy tint, Pre-start · Yelp = warn (it IS a caution:
            no link goes out). Dark keeps every rule above. */
-        // head + identity marks
-        "body.rs-app.light.v2 .rrp-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}",
-        "body.rs-app.light.v2 .rrp-head p{font-size:14.5px;line-height:1.55;margin-top:6px}",
-        "body.rs-app.light.v2 .rrp-star,body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{background:#14301F;color:#FFFFFF}",
+        // identity marks
+        "body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{background:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .rrp-favatar,body.rs-app.light.v2 .rrp-msgav{font-weight:600}",
         "body.rs-app.light.v2 .rrp-clock{font-size:12.5px;font-weight:500;border-radius:8px}",
         // surfaces
@@ -393,8 +383,6 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-fresh b{font-weight:600}",
         "body.rs-app.light.v2 .rrp-fresh .dot{box-shadow:none}",
         "body.rs-app.light.v2 .rrp-fresh .dot.stale{background:#B45309;box-shadow:none}",
-        // filters
-        "body.rs-app.light.v2 .rrp-filters select,body.rs-app.light.v2 .rrp-filters input{border-radius:999px;height:36px;padding:0 14px;font-size:13px;background:#FFFFFF}",
         // pills: radius 6, 12px 600, the status palette
         "body.rs-app.light.v2 .rrp .pill{font-size:12px;font-weight:600;letter-spacing:0;border-radius:6px}",
         "body.rs-app.light.v2 .rrp .t-blue{background:#F4FAE6;color:#2F6316}",
@@ -449,9 +437,6 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
         "body.rs-app.light.v2 .rrp-pvh h4{font-size:15px;font-weight:600}",
         "body.rs-app.light.v2 .rrp-pvh h4 em{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;background:#F4FAE6;color:#2F6316;border-radius:6px}",
         "body.rs-app.light.v2 .rrp-pvh p{font-size:12.5px}",
-        "body.rs-app.light.v2 .rrp-pvseg{background:#FFFFFF;border-radius:999px}",
-        "body.rs-app.light.v2 .rrp-pvseg button{font-size:12.5px;font-weight:600;border-radius:999px;color:var(--ink)}",
-        "body.rs-app.light.v2 .rrp-pvseg button.on{background:#14301F;color:#FFFFFF}",
         "body.rs-app.light.v2 .rrp-msgn{font-size:13px;font-weight:600}",
         "body.rs-app.light.v2 .rrp-msgn span{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0}",
         "body.rs-app.light.v2 .rrp-bub{font-size:13px}",
@@ -765,7 +750,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       return hay.indexOf(RRP.fq.toLowerCase()) >= 0;
     }
     function logFilters() {
-      return '<div class="rrp-filters"><input id="rrpQ" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
+      return '<div class="rrp-filters"><input id="rrpQ" class="rs-inp" type="text" placeholder="Search foreman / customer / job…" value="' + esc(RRP.fq) + '"></div>';
     }
     function fmtT(iso) {
       if (window.RS && RS.fmtTz) return RS.fmtTz(iso);
@@ -1553,7 +1538,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
                 repaintWork();
               }, function (e) {
                 go.disabled = false; go.textContent = "Save";
-                var w = f.querySelector(".rrp-exerr") || (function () { var d = document.createElement("div"); d.className = "rrp-exerr"; d.style.cssText = "color:var(--neg);font-size:11px;font-weight:700;margin-top:4px"; f.appendChild(d); return d; })();
+                var w = f.querySelector(".rrp-exerr") || (function () { var d = document.createElement("div"); d.className = "rrp-exerr"; d.style.cssText = "color:var(--neg);font-size:12px;font-weight:700;margin-top:4px"; f.appendChild(d); return d; })();
                 w.textContent = "Couldn't save (" + (e && e.message || e) + ") — nothing recorded.";
               });
           };
@@ -1780,7 +1765,7 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       return '<aside class="rrp-pv"><div class="rrp-pvh"><h4>What the foreman gets <em>preview</em></h4>'
         + "<p>Built from your edits above — it updates as you type.</p></div>"
         + '<div class="rrp-pvctl"><span data-pvstate></span>'
-        + '<span class="rrp-pvseg"><button data-pvmode="reg"' + (RRP.pvYelp ? "" : ' class="on"') + ">Regular</button>"
+        + '<span class="rs-seg"><button data-pvmode="reg"' + (RRP.pvYelp ? "" : ' class="on"') + ">Regular</button>"
         + '<button data-pvmode="yelp"' + (RRP.pvYelp ? ' class="on"' : "") + ">Yelp</button></span></div>"
         + '<div class="rrp-pvbody" id="rrpPvBody">' + pvBodyHtml(RRP.draft) + "</div>"
         + '<div class="rrp-pvfoot">Yelp customers never get a Yelp link — the bot warns the foreman an hour before the job and asks them to request the review verbally.</div></aside>';
@@ -1795,9 +1780,13 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
 
     // ---------- paint + wire ----------
     // per-page header (each of the 3 split pages sets RRP.view via its registerPage wrapper)
+    // THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): one short line per view (inside the Reviews hub the
+    // view head sits a size down under the hub's own); a second sentence goes to How it's counted.
     var HEAD = {
       log: { t: "Send Reminders", p: "The Slack nudges the bot sends foremen to collect reviews — today’s jobs, what went out, and what got skipped." },
-      response: { t: "Response Analysis", p: "Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons. Statistics run from yesterday back; you can still log a reason for a job up to a week old." },
+      response: { t: "Response Analysis", p: "Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons.",
+                  how: "<p>Why reviews were missed — every recent job the bot asked about, whether the foreman explained, and the reasons.</p>"
+                    + "<p>Statistics run from yesterday back; you can still log a reason for a job up to a week old.</p>" },
       links: { t: "Review URLs and Reasons", p: "Which review link the bot sends per delivery state, the extra platforms, and the “why no review?” reasons foremen can pick." }
     };
     // true first-ever visit (no cache at all): shaped placeholders instead of a bare "Loading…"
@@ -1826,18 +1815,15 @@ registerPage({ id: "review-settings", group: "reviews", title: "Review URLs and 
       var body = bodyHtml();
       var hd = HEAD[RRP.view] || HEAD.log;
 
-      /* Response Analysis wears the portal's STANDARD page head (his ask 2026-09-01 — match
-         the Claims & Negative Reviews face). The bot-branded head with the star, the NJ
-         clock and the header Refresh stays on Send Reminders and Settings, where schedule
-         times make the clock earn its place; on the stats page the fresh bar already owns
-         refresh, so the header button would be a duplicate. */
-      var headHtml = RRP.view === "response"
-        ? '<div class="rs-page-head"><h1>' + esc(hd.t) + "</h1><p>" + esc(hd.p) + "</p></div>"
-        : '<div class="rrp-head"><div>'
-          + '<h1><span class="rrp-star"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.3l-6.2 3.7 1.6-7L2 9.2l7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.8 1.6 7z"/></svg></span>' + esc(hd.t) + '</h1>'
-          + '<p>' + esc(hd.p) + '</p></div>'
-          + '<div class="rrp-headright"><div class="rrp-clock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + I_CLOCK + '<span id="rrpClockTx">' + esc(nowLabel()) + "</span></div>"
-          + '<button class="rs-btn" id="rrpRefresh">' + I_REFRESH + " Refresh</button></div></div>";
+      /* All three views wear the kit head now (ZTZ-80; Response Analysis has since 2026-09-01,
+         to match Claims & Negative Reviews). The NJ clock and the header Refresh stay on Send
+         Reminders and Settings as the head's actions, where schedule times make the clock earn
+         its place; on the stats page the fresh bar already owns refresh, so the header button
+         would be a duplicate. The bot-branded star mark went with the old head. */
+      var headHtml = RSC.pageHeadHtml({ title: hd.t, key: "rrp-" + (RRP.view || "log"), sub: hd.p, how: hd.how || null,
+        actions: RRP.view === "response" ? [] : [
+          { html: '<div class="rrp-clock" title="Reminders fire on New Jersey time — compare a job’s scheduled time to this">' + I_CLOCK + '<span id="rrpClockTx">' + esc(nowLabel()) + "</span></div>" },
+          { html: '<button class="rs-btn" id="rrpRefresh">' + I_REFRESH + " Refresh</button>" }] });
       root.innerHTML = headHtml + '<div id="rrpBody">' + body + "</div>";
       var rf = root.querySelector("#rrpRefresh"); if (rf) rf.onclick = function () {
         RRP.data = null; RRP._fmap = null; RRP.dataFresh = false; RRP.draft = null; RRP.draftSrc = null; RRP.goals = null; render(host);

@@ -186,16 +186,24 @@
       .sort(function (a, b) { return b.n - a.n; });
   }
 
+  /* THE PAGE STANDARD (ZTZ-80): the kit head. The paragraph that sat over the table (untagged
+     links, no submission date, which source a tag decides, tags with no rule) moved word for
+     word into How it's counted; it is rebuilt on every paint, so its numbers follow the filters. */
+  var SUB = "Every submission on the website form, the campaign link it arrived through, "
+    + "and what became of the lead.";
+  function head(how) {
+    return RSC.pageHeadHtml({ title: "Website Forms & UTM", key: "utm-campaigns", sub: SUB, how: how });
+  }
+
   function render(host) {
     injectStyle();
     if (S.rows.length) { paint(host); return; }
-    host.innerHTML = '<div class="rs-page-head"><h1>Website Forms &amp; UTM</h1>'
-      + "<p>Loading website form submissions…</p></div>";
+    host.innerHTML = head() + RSC.loadingHtml("Website Forms & UTM", "Loading website form submissions…");
     RS.load("web_form_lead").then(function (rows) {
       S.rows = rows || [];
       paint(host);
     }).catch(function (e) {
-      host.innerHTML = '<div class="rs-page-head"><h1>Website Forms &amp; UTM</h1></div>'
+      host.innerHTML = head()
         + '<div class="rs-hint">Couldn’t load — ' + esc(e.message) + "</div>";
     });
   }
@@ -219,21 +227,38 @@
     var isCamp = S.view === "campaign";
     var COLS = isCamp ? CAMP_COLS : SUB_COLS;
 
-    host.innerHTML = '<div class="wfu">'
-      + '<div class="rs-page-head"><h1>Website Forms &amp; UTM</h1>'
-      + "<p>Every submission on the website form, the campaign link it arrived through, "
-      + "and what became of the lead.</p></div>"
+    var how = "<h3>An untagged link is not an organic visit</h3><p>" + pc(tagged.length, view.length)
+      + " of these submissions arrived on a tagged link — tagging is recent and still partial, "
+      + "so the campaign view counts only the tagged ones rather than showing a "
+      + "<i>(none)</i> bucket that would read as the biggest campaign we run.</p>"
+      + "<h3>The export carries no submission date</h3><p>Only the move date the customer asked "
+      + "for, so every month here is the matched lead’s Moveboard create date and the "
+      + fmtN(view.length - leads.length) + " submissions with no lead sit outside every month.</p>"
+      + "<h3>Tag set the source</h3><p>A tag decides the lead’s source only where nothing above it did: <b>Returned</b>, "
+      + "<b>Recommended</b>, a referral form, a <b>phone match</b> on a tracked number, and "
+      + "<b>Post Card</b> all rank higher (his ruling 2026-09-05 — a phone that rang a "
+      + "tracked number is the harder evidence). So <b>Tag set the source</b> below counts "
+      + "the leads the tag actually decided, not every lead that carried one.</p>"
+      + (unmappedKeys.length
+          ? "<h3>Tags with no rule</h3><p>"
+            + unmappedKeys.map(function (u) {
+                return "<b>" + esc(u) + "</b> (" + fmtN(unmapped[u]) + ")";
+              }).join(", ")
+            + " — tagged, but <code>utm_source_map</code> has no rule for "
+            + (unmappedKeys.length === 1 ? "it" : "them") + ", so "
+            + (unmappedKeys.length === 1 ? "it decides" : "they decide") + " nothing. "
+            + "Add a row to that table and the next rebuild picks it up.</p>"
+          : "");
 
-      + '<div class="rs-kpis" id="wfuKpis"></div>'
+    host.innerHTML = '<div class="wfu">'
+      + head(how)
+
+      // the standard's order (ZTZ-80): the two views as underline tabs, the one filter row, then
+      // the tiles -- the tiles count what the filters keep, so the filters come first
+      + RSC.tabsHtml(VIEWS.map(function (v) { return { id: v[0], label: v[1] }; }), S.view, "view")
 
       + '<div class="rs-bar" id="wfuBar">'
-      + '<div class="rs-seg" id="wfuSeg">'
-      + VIEWS.map(function (v) {
-          return "<button" + (S.view === v[0] ? ' class="on"' : "") + ' data-v="'
-            + v[0] + '">' + esc(v[1]) + "</button>";
-        }).join("")
-      + "</div>"
-      /* localSelect mounts -- the kit slicer replaced the native <select>s; it carries its own
+      /* localSelect mounts -- the kit slicer replaced the native dropdowns; it carries its own
          label, so there is no .rs-fld wrapper. The Filters button lands at the bar's right end. */
       + '<div id="wfuMonth"></div><div id="wfuTagged"></div><div id="wfuLead"></div>'
       + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="wfuQ" '
@@ -243,34 +268,11 @@
       + '<button class="rs-btn pri" id="wfuCsv">Download CSV</button>'
       + "</div>"
 
+      + '<div class="rs-kpis" id="wfuKpis"></div>'
+
       + '<div class="panel"><div class="panel-head">'
       + '<div class="panel-title">' + (isCamp ? "Campaigns" : "Submissions") + "</div>"
       + '<span class="rs-pill mute">' + fmtN(isCamp ? camps.length : view.length) + "</span></div>"
-
-      + '<div class="rs-hint">'
-      + "<b>An untagged link is not an organic visit.</b> " + pc(tagged.length, view.length)
-      + " of these submissions arrived on a tagged link — tagging is recent and still partial, "
-      + "so the campaign view counts only the tagged ones rather than showing a "
-      + "<i>(none)</i> bucket that would read as the biggest campaign we run. "
-      + "<b>The export carries no submission date</b>, only the move date the customer asked "
-      + "for, so every month here is the matched lead’s Moveboard create date and the "
-      + fmtN(view.length - leads.length) + " submissions with no lead sit outside every month. "
-      + "A tag decides the lead’s source only where nothing above it did: <b>Returned</b>, "
-      + "<b>Recommended</b>, a referral form, a <b>phone match</b> on a tracked number, and "
-      + "<b>Post Card</b> all rank higher (his ruling 2026-09-05 — a phone that rang a "
-      + "tracked number is the harder evidence). So <b>Tag set the source</b> below counts "
-      + "the leads the tag actually decided, not every lead that carried one."
-      + (unmappedKeys.length
-          ? ' <span class="rs-pill warn">no rule</span> '
-            + unmappedKeys.map(function (u) {
-                return "<b>" + esc(u) + "</b> (" + fmtN(unmapped[u]) + ")";
-              }).join(", ")
-            + " — tagged, but <code>utm_source_map</code> has no rule for "
-            + (unmappedKeys.length === 1 ? "it" : "them") + ", so "
-            + (unmappedKeys.length === 1 ? "it decides" : "they decide") + " nothing. "
-            + "Add a row to that table and the next rebuild picks it up."
-          : "")
-      + "</div>"
 
       + '<div class="rs-tablewrap rs-fit" id="wfuTbl">'
       + '<table class="rs-table rs-sticky rs-fixed"><colgroup>'
@@ -386,8 +388,8 @@
     bar.parentNode.insertBefore(
       RSC.filterChips(null, { fields: pfFields, selected: S.pf, onChange: pfApply }), bar.nextSibling);
 
-    host.querySelectorAll("#wfuSeg button").forEach(function (b) {
-      b.onclick = function () { S.view = b.dataset.v; S.page = 0; paint(host); };
+    host.querySelectorAll(".rs-utab[data-view]").forEach(function (b) {
+      b.onclick = function () { S.view = b.dataset.view; S.page = 0; paint(host); };
     });
     var q = host.querySelector("#wfuQ");
     var t = null;

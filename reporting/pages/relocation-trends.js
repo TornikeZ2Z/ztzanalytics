@@ -64,8 +64,8 @@
       + ".rlc-mon .pair i{display:block;width:44%;border-radius:3px 3px 0 0;min-height:2px}"
       + ".rlc-mon .pair i.a{background:color-mix(in srgb,var(--ink) 22%,transparent)}"
       + ".rlc-mon .pair i.b{background:var(--brand)}"
-      + ".rlc-mon .lbl{font-size:10px;color:var(--faint);font-weight:700}"
-      + ".rlc-key{display:flex;gap:14px;align-items:center;font-size:11.5px;color:var(--muted);"
+      + ".rlc-mon .lbl{font-size:12px;color:var(--faint);font-weight:700}"
+      + ".rlc-key{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);"
       + "margin-top:8px}"
       + ".rlc-key b{display:inline-block;width:10px;height:10px;border-radius:3px;"
       + "margin-right:5px;vertical-align:-1px}"
@@ -74,7 +74,7 @@
       + "background:color-mix(in srgb,var(--ink) 9%,transparent);overflow:hidden}"
       + ".rlc-bar i{display:block;height:100%;border-radius:3px;background:var(--brand)}"
       // the delta chip: the whole point of the page is what CHANGED
-      + ".rlc-d{font-size:11.5px;font-weight:800;white-space:nowrap}"
+      + ".rlc-d{font-size:12px;font-weight:800;white-space:nowrap}"
       + ".rlc-d.up{color:var(--pos)}.rlc-d.dn{color:var(--neg)}.rlc-d.flat{color:var(--faint)}"
       // the panel nobody may skip
       + ".rlc-warn{border:1px solid var(--warn);background:var(--warn-bg);border-radius:13px;"
@@ -86,7 +86,7 @@
       + ".rlc-warn li b{color:var(--ink)}"
       + ".rlc-warn li.no b{color:var(--neg)}"
       + ".rlc-fig{font-size:22px;font-weight:800;letter-spacing:-.4px;color:var(--ink)}"
-      + ".rlc-sub{font-size:11.5px;color:var(--faint);margin-top:2px}"
+      + ".rlc-sub{font-size:12px;color:var(--faint);margin-top:2px}"
       + ".rlc-two{display:flex;gap:26px;flex-wrap:wrap}"
       + ".rlc-two>div{min-width:150px}"
       // DESIGN V2 "Calm finance" (2026-10-06), light only: last year in a pale blue, this year
@@ -142,7 +142,7 @@
       if (!(S.sizes instanceof Set)) S.sizes = new Set();
 
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading the relocation data…</div>';
+      host.innerHTML = RSC.loadingHtml("Relocation Trends", "Loading the relocation data…");
 
       RS.load("relocation").then(rows => {
         if (!alive()) return;
@@ -334,29 +334,17 @@
           const milesNow = median(cur.map(r => r.miles));
           const aheadNow = median(cur.map(r => r.ahead));
 
+          // THE PAGE STANDARD (ZTZ-80): the kit head, then the one filter row, then the tiles.
+          // The head's line is the day-matching promise, word for word as it was.
           let html = '<div class="rlc">'
-            + '<div class="rs-page-head"><h1>Relocation Trends</h1>'
-            + "<p>The answers behind the trend report. <b>Every year-over-year on this page "
-            + "is day-matched</b> — " + (S.window === "match"
-                ? "both years are cut at " + cutoff().replace("-", "/") + ", so a partial "
-                  + "year is never set against a whole one"
-                : "<b>you have switched to full years, and " + S.year + " is not finished</b>")
-            + '.<span class="freshness"> · completed jobs · the company\'s own storage '
-            + "facility is excluded</span></p></div>";
-
-          // ---- the tiles
-          html += '<div class="rs-kpis" style="--kpi-cols:5">'
-            + kpi(num(cur.length), "Jobs completed",
-                  delta(cur.length, prev.length, { counts: true }) + " vs " + S.base, "")
-            + kpi(num(curMoves), "Moves",
-                  "a split job is one move on two days", "")
-            + kpi(pct(interNow, interDen) + "%", "Crossed a state line",
-                  "was " + pct(interWas, interWasDen) + "% in " + S.base, "")
-            + kpi(money(billNow), "Median invoice",
-                  delta(billNow, billWas) + " vs " + S.base + " · before tip", "")
-            + kpi(aheadNow == null ? "—" : Math.round(aheadNow) + " days", "Booked ahead",
-                  "median, from enquiry to move day", "")
-            + "</div>";
+            + RSC.pageHeadHtml({ title: "Relocation Trends", key: "relocation-trends",
+                subHtml: "The answers behind the trend report. <b>Every year-over-year on this page "
+                  + "is day-matched</b> — " + (S.window === "match"
+                      ? "both years are cut at " + cutoff().replace("-", "/") + ", so a partial "
+                        + "year is never set against a whole one"
+                      : "<b>you have switched to full years, and " + S.year + " is not finished</b>")
+                  + '.<span class="freshness"> · completed jobs · the company\'s own storage '
+                  + "facility is excluded</span>" });
 
           // ---- the controls
           html += '<div class="rs-bar">'
@@ -383,6 +371,20 @@
               + "collapse in every category. Switch back to like-for-like before quoting "
               + "anything.</div>";
           }
+
+          // ---- the tiles
+          html += '<div class="rs-kpis" style="--kpi-cols:5">'
+            + kpi(num(cur.length), "Jobs completed",
+                  delta(cur.length, prev.length, { counts: true }) + " vs " + S.base, "")
+            + kpi(num(curMoves), "Moves",
+                  "a split job is one move on two days", "")
+            + kpi(pct(interNow, interDen) + "%", "Crossed a state line",
+                  "was " + pct(interWas, interWasDen) + "% in " + S.base, "")
+            + kpi(money(billNow), "Median invoice",
+                  delta(billNow, billWas) + " vs " + S.base + " · before tip", "")
+            + kpi(aheadNow == null ? "—" : Math.round(aheadNow) + " days", "Booked ahead",
+                  "median, from enquiry to move day", "")
+            + "</div>";
 
           // ---- when people moved
           html += '<div class="panel"><div class="panel-head">'
@@ -539,7 +541,7 @@
 
         function wire(cur) {
           if (!alive()) return;
-          // the three dropdowns are kit slicers (RSC.localSelect) — no native <select> on
+          // the three dropdowns are kit slicers (RSC.localSelect) — no native select on
           // the portal. Option values stay the exact strings the old options carried.
           const y = host.querySelector("#rlcYear");
           if (y) RSC.localSelect(y, {

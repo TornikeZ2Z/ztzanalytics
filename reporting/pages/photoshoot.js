@@ -22,8 +22,10 @@ registerPage({
       ].join("");
       document.head.appendChild(st);
     }
-    host.innerHTML = `<div class="rs-page-head"><h1>Photoshoot Confirmation</h1></div>
-      <div class="psc-bar">Photographers use this page without signing in — send them this link:
+    // the kit head (ZTZ-80): the name and its one line; the link to hand out stays right under it
+    host.innerHTML = RSC.pageHeadHtml({ title: "Photoshoot Confirmation", key: "photoshoot",
+        sub: "Photographers use this page without signing in." }) + `
+      <div class="psc-bar">Send them this link:
         <code>${RSC.esc(url)}</code>
         <button class="rs-btn" id="pscCopy" type="button">Copy link</button>
         <a class="rs-btn" href="${RSC.esc(url)}" target="_blank" rel="noopener">Open in a new tab</a></div>

@@ -49,7 +49,7 @@ registerPage({
     const mlabel = ym => { const [y, m] = ym.split("-"); return RS.monthName(+m).slice(0, 3) + " " + y.slice(2); };
     const fmtDay = s => { const d = new Date(s + "T00:00:00"); return isNaN(d) ? s : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); };
 
-    host.innerHTML = `<div class="rs-loading"><div>Loading <b>flat-rate and hourly jobs</b>…</div><div class="bar"><i></i></div></div>`;
+    host.innerHTML = RSC.loadingHtml("Flat Rate Analysis", "Loading flat-rate and hourly jobs…");
     const [all, reqs] = await Promise.all([RS.load("flat_rate_jobs"), RS.load("flat_rate_requests")]);
     injectCss();
 
@@ -97,7 +97,8 @@ registerPage({
 
     /* ---------- paint ---------- */
     if (!F.length) {
-      host.innerHTML = `<div class="flr"><div class="rs-page-head"><h1>Flat Rate Analysis</h1></div>
+      host.innerHTML = `<div class="flr">${RSC.pageHeadHtml({ title: "Flat Rate Analysis", key: "flat-rate",
+          sub: "Flat-rate against hourly Local Moving jobs · Zip to Zip" })}
         <section class="panel"><p class="flr-note">No flat-rate Local Moving jobs since January 2026 yet.</p></section></div>`;
       return;
     }
@@ -164,18 +165,28 @@ registerPage({
     }
     const qF = quote(F), qH = quote(H);
 
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head, the kit tiles; the "How this is
+       counted" card that closed the page moves, word for word, into How it's counted. "What it
+       says" stays where it is: it is this page's headline. */
+    const howHtml = `<ul>
+          <li><b>Flat rate</b> is a job the closing sheet marks Is Flat Rate, or whose contract is a FLAT RATE job (they agree on almost every job). Only Zip to Zip sells them, and the sheet has marked them since January 2026. The first flat job closed ${esc(fmtDay(firstFlat))}.</li>
+          <li><b>Hourly</b> is every other Zip to Zip Local Moving closing since January, labor-only jobs (labor work, loading or unloading help, packing days) left out.</li>
+          <li><b>Money</b> is the Job P&L's: the bill, crew pay, sales commission, ads (the source's month spend ÷ its jobs), and the margin before fixed costs — after the crew, truck, fuel, ads and fees, with an owned truck counted as fixed.</li>
+          <li><b>Hours</b> are the hours the contract paid the crew (labor or the minimum, plus travel); a crew-hour is one man for one hour.</li>
+        </ul>`;
     host.innerHTML = `
       <div class="flr">
-        <div class="rs-page-head"><h1>Flat Rate Analysis</h1>
-          <p>Flat-rate against hourly Local Moving jobs · Zip to Zip · ${esc(fmtDay(months[0] + "-01"))} – ${esc(fmtDay(jobs.map(r => r["Date"]).sort().pop()))} ·
-            the first flat job closed ${esc(fmtDay(firstFlat))}</p></div>
-        <div class="rs-kpis" style="--kpi-cols:5">
-          <div class="kpi"><div class="l">Flat-rate jobs</div><div class="v">${sF.n.toLocaleString()}</div><div class="s">${pct(sF.n, sF.n + sH.n)} of local jobs · ${sH.n.toLocaleString()} hourly</div></div>
-          <div class="kpi"><div class="l">Flat-rate revenue</div><div class="v">${moneyK(sF.bill)}</div><div class="s">${money(sF.bill / sF.n)} a job · hourly ${money(sH.bill / sH.n)}</div></div>
-          <div class="kpi"><div class="l">Price against hourly</div><div class="v">${signPct(cB, cE)}</div><div class="s">${signK(cB - cE)} over the same hours billed hourly</div></div>
-          <div class="kpi"><div class="l">Margin before fixed costs</div><div class="v">${pct(sF.pre, sF.bill)}</div><div class="s">hourly ${pct(sH.pre, sH.bill)}</div></div>
-          <div class="kpi"><div class="l">Booking rate</div><div class="v">${bF.rate != null ? (bF.rate * 100).toFixed(1) + "%" : "—"}</div><div class="s">of good flat-rate leads · hourly ${bH.rate != null ? (bH.rate * 100).toFixed(1) + "%" : "—"}</div></div>
-        </div>
+        ${RSC.pageHeadHtml({ title: "Flat Rate Analysis", key: "flat-rate",
+          sub: `Flat-rate against hourly Local Moving jobs · Zip to Zip · ${fmtDay(months[0] + "-01")} – ${fmtDay(jobs.map(r => r["Date"]).sort().pop())}`,
+          how: howHtml })}
+        ${RSC.kpisHtml([
+          { label: "Flat-rate jobs", value: sF.n.toLocaleString(), sub: `${pct(sF.n, sF.n + sH.n)} of local jobs · ${sH.n.toLocaleString()} hourly` },
+          { label: "Flat-rate revenue", value: moneyK(sF.bill), sub: `${money(sF.bill / sF.n)} a job · hourly ${money(sH.bill / sH.n)}` },
+          { label: "Price against hourly", value: signPct(cB, cE), sub: `${signK(cB - cE)} over the same hours billed hourly` },
+          { label: "Margin before fixed costs", value: pct(sF.pre, sF.bill), sub: `hourly ${pct(sH.pre, sH.bill)}` },
+          { label: "Booking rate", value: bF.rate != null ? (bF.rate * 100).toFixed(1) + "%" : "—",
+            sub: `of good flat-rate leads · hourly ${bH.rate != null ? (bH.rate * 100).toFixed(1) + "%" : "—"}` },
+        ])}
         <section class="panel"><div class="panel-head"><span class="panel-title">What it says</span></div>
           <ul class="flr-say">
             <li><b>The price works on short jobs.</b> Flat jobs billed ${money(cB)} where the same hours would have billed ${money(cE)} hourly — <b>${signK(cB - cE)} (${signPct(cB, cE)})</b>. ${won.length} of ${cmp.length} came out ahead; jobs of ${LONG} hours or less made ${signK(shortSum)}, while the ${longJobs.length} that ran longer lost ${moneyK(-longSum).replace("−", "")}${longSum > 0 ? " (they made money too)" : ""}.</li>
@@ -256,12 +267,6 @@ registerPage({
               <td class="num">${pct(q.within, q.n, 0)}</td><td class="num">${pct(q.over, q.n, 0)}</td><td class="num">${pct(q.under, q.n, 0)}</td><td class="num">${q.med != null ? q.med.toFixed(2) + "×" : "—"}</td></tr>`).join("")}</tbody>
           </table></div>
           <p class="flr-note">The quote is the Moveboard request's (its top end when it is a range). A flat bill can still move with add-ons agreed on the day.</p></section>
-        <section class="panel flr-how"><div class="panel-head"><span class="panel-title">How this is counted</span></div><ul>
-          <li><b>Flat rate</b> is a job the closing sheet marks Is Flat Rate, or whose contract is a FLAT RATE job (they agree on almost every job). Only Zip to Zip sells them, and the sheet has marked them since January 2026.</li>
-          <li><b>Hourly</b> is every other Zip to Zip Local Moving closing since January, labor-only jobs (labor work, loading or unloading help, packing days) left out.</li>
-          <li><b>Money</b> is the Job P&L's: the bill, crew pay, sales commission, ads (the source's month spend ÷ its jobs), and the margin before fixed costs — after the crew, truck, fuel, ads and fees, with an owned truck counted as fixed.</li>
-          <li><b>Hours</b> are the hours the contract paid the crew (labor or the minimum, plus travel); a crew-hour is one man for one hour.</li>
-        </ul></section>
       </div>`;
 
     /* ---------- charts ---------- */
@@ -302,9 +307,7 @@ registerPage({
         .flr-vs td:first-child{color:var(--muted)}
         .flr-thin td{opacity:.55}
         .flr-neg{color:var(--ink)}
-        .flr-subhead{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:18px 0 6px}
-        .flr-how ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.6}
-        .flr-how b{color:var(--ink)}
+        .flr-subhead{font-size:13px;font-weight:600;color:var(--ink);margin:18px 0 6px}
       `;
       document.head.appendChild(s);
     }

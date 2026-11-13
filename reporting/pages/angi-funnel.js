@@ -146,7 +146,7 @@
       + ".agf-pg{display:inline-flex;align-items:center;gap:8px}"
       + ".agf-pg b{font-weight:800;color:var(--ink);min-width:62px;text-align:center;"
       + "font-variant-numeric:tabular-nums}"
-      + ".agf-tip{font-size:11.5px;color:var(--faint)}"
+      + ".agf-tip{font-size:12px;color:var(--faint)}"
       + ".agf-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
       // DESIGN V2: no text under 12px; the pager figure at v2 weight; the empty state is the
       // kit's dashed-card state from the component sheet
@@ -187,7 +187,7 @@
 
   function render(host) {
     injectStyle();
-    host.innerHTML = '<div class="rs-loading" style="padding:22px">Reading Angi leads…</div>';
+    host.innerHTML = RSC.loadingHtml("Angi Lead Funnel", "Reading Angi leads…");
     RS.load("angi_lead").then(function (d) {
       S.rows = (d && (d.rows || d)) || [];
       S.opts = null;
@@ -251,15 +251,47 @@
     var revenue = won.reduce(function (a, r) { return a + (num(r["Revenue"]) || 0); }, 0);
     var pc = function (n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; };
 
-    host.innerHTML = '<div class="agf">'
-      + '<div class="rs-page-head"><h1>Angi Lead Funnel</h1>'
-      + "<p>Every Angi lead from arrival to outcome — the lead-level detail Angi asked for.</p>"
-      + "</div>"
+    /* THE PAGE STANDARD (ZTZ-80): the seven-line paragraph that sat above the table is the
+       "How it's counted" panel now, word for word, rebuilt on every paint so its figures are
+       always this view's. */
+    var howHtml = "<h3>Contact</h3>"
+      + "<p><b>Contact is not the bottleneck</b> — we reach "
+      + pc(connected.length, tracked.length) + " of the leads we can see. The gap is the mix: "
+      + "studios and urban ZIPs convert far below the rest.</p>"
+      + "<h3>Where a reason comes from</h3>"
+      + "<p>A reason drawn from a recorded call "
+      + 'is marked <span class="rs-pill ok">call</span>, one the sales rep typed as the '
+      + 'lead’s disposition <span class="rs-pill info">rep</span>, and one inferred '
+      + 'only from our CRM status <span class="rs-pill mute">crm</span>, the weakest of '
+      + "the three.</p>"
+      + "<h3>Angi's own lead number</h3>"
+      + "<p><b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
+      + "be reconciled against their system."
+      + (angiThrough
+          ? " Angi's own file is a periodic drop, so coverage THINS over the most recent weeks "
+            + "— the newest lead it reaches is <b>" + esc(angiThrough) + "</b>. This table is "
+            + "sorted newest-first, which makes the first page the most sparsely matched one."
+          : "")
+      + "</p>"
+      + (untracked
+          ? "<h3>No call record</h3><p>Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
+            + " leads before it have no call record, are not counted as unreached, and read "
+            + "<b>No call record</b> rather than <i>Never called</i>.</p>"
+          : "")
+      + (dupes
+          ? "<h3>Duplicate leads</h3><p>" + fmtN(dupes) + " row" + (dupes === 1 ? " shares" : "s share")
+            + " a customer and a date with another — one lead landing in <b>both Moveboard "
+            + "accounts</b> (Zip to Zip and Tuji), or one customer entered twice in one. "
+            + "Nothing is dropped; switch <b>Duplicate leads</b> in the filter row for the deduplicated count.</p>"
+          : "");
 
-      + '<div class="rs-kpis" id="agfKpis"></div>'
+    host.innerHTML = '<div class="agf">'
+      + RSC.pageHeadHtml({ title: "Angi Lead Funnel", key: "angi-funnel",
+          sub: "Every Angi lead from arrival to outcome — the lead-level detail Angi asked for.",
+          how: howHtml })
 
       + '<div class="rs-bar">'
-      /* localSelect mounts — the kit slicer replaces the native <select>; it renders its own
+      /* localSelect mounts — the kit slicer replaces the native select; it renders its own
          label chip, so the old .rs-fld label wrapper collapses to a bare mount div. */
       + FILTERS.map(function (f) {
           return '<div data-k="' + esc(f[0]) + '"></div>';
@@ -275,36 +307,12 @@
       + "</div>"
       + '<div id="agfChips"></div>'
 
+      // the tiles follow the bar: every one of them counts the filtered view (ZTZ-80 order)
+      + '<div class="rs-kpis" id="agfKpis"></div>'
+
       + '<div class="panel"><div class="panel-head">'
       + '<div class="panel-title">Leads</div>'
       + '<span class="rs-pill mute">' + fmtN(view.length) + "</span></div>"
-
-      + '<div class="rs-hint"><b>Contact is not the bottleneck</b> — we reach '
-      + pc(connected.length, tracked.length) + " of the leads we can see. The gap is the mix: "
-      + "studios and urban ZIPs convert far below the rest. A reason drawn from a recorded call "
-      + 'is marked <span class="rs-pill ok src">call</span>, one the sales rep typed as the '
-      + 'lead’s disposition <span class="rs-pill info src">rep</span>, and one inferred '
-      + 'only from our CRM status <span class="rs-pill mute src">crm</span>, the weakest of '
-      + 'the three. '
-      + "<b>" + pc(withId, view.length) + "</b> carry Angi's own lead number, so those rows can "
-      + "be reconciled against their system."
-      + (angiThrough
-          ? " Angi's own file is a periodic drop, so coverage THINS over the most recent weeks "
-            + "— the newest lead it reaches is <b>" + esc(angiThrough) + "</b>. This table is "
-            + "sorted newest-first, which makes the first page the most sparsely matched one."
-          : "")
-      + (untracked
-          ? " Call tracking starts <b>1 Mar 2025</b>; the " + fmtN(untracked)
-            + " leads before it have no call record, are not counted as unreached, and read "
-            + "<b>No call record</b> rather than <i>Never called</i>."
-          : "")
-      + (dupes
-          ? " " + fmtN(dupes) + " row" + (dupes === 1 ? " shares" : "s share")
-            + " a customer and a date with another — one lead landing in <b>both Moveboard "
-            + "accounts</b> (Zip to Zip and Tuji), or one customer entered twice in one. "
-            + "Nothing is dropped; switch <b>Duplicate leads</b> above for the deduplicated count."
-          : "")
-      + "</div>"
 
       /* .rs-fit sizes the scroller to the VIEWPORT so the pinned header has a scrolling
          ancestor to stick against; .rs-sticky is required with it, because under

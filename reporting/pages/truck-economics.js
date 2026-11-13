@@ -49,47 +49,37 @@
     st.textContent = `
     /* the shared kit (assets/rs.css) carries cards, KPI tiles, bars, tables, pills and
        segments. Only what the kit has no word for lives here. */
-    .tec-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    .tec-eyebrow{font-size:12px;font-weight:800;text-transform:none;
       color:var(--muted);margin-bottom:3px}
     .tec-eyebrow + .panel-title{margin-bottom:5px}
     .tec-note{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:92ch}
     .tec-good{color:var(--pos)} .tec-bad{color:var(--neg)} .tec-warn{color:var(--warn)}
-    .rs-kpis .kpi .v.tec-good{color:var(--pos)}
-    .rs-kpis .kpi .v.tec-bad{color:var(--neg)}
-    .rs-kpis .kpi .v.tec-warn{color:var(--warn)}
-    /* the verdict banner — the page's whole point in one sentence */
-    .tec-verdict{background:color-mix(in srgb,var(--brand-d) 8%,transparent);
-      border:1px solid color-mix(in srgb,var(--brand-d) 32%,transparent);
-      border-left:5px solid var(--brand);border-radius:13px;padding:16px 19px;margin:2px 0 16px}
-    .tec-verdict b{font-size:16px;letter-spacing:-.2px}
-    .tec-verdict .sub{font-size:13px;color:var(--muted);line-height:1.65;margin-top:6px}
+    /* ZTZ-80 (13 Nov 2026): the green verdict banner became the kit headline (its first line)
+       plus How it's counted (its paragraph); the tiles are the kit's, toned by RSC.kpis */
     /* the demand histogram: one bar per trucks-needed level */
     .tec-hist{display:flex;align-items:flex-end;gap:3px;height:150px;margin:10px 0 4px}
     .tec-hist .b{flex:1 1 0;min-width:6px;background:var(--brand);border-radius:3px 3px 0 0;
       position:relative;transition:background .12s}
     .tec-hist .b.over{background:var(--neg)}
     .tec-hist .b:hover{filter:brightness(1.15)}
-    .tec-hlab{display:flex;gap:3px;font-size:10px;color:var(--faint);
+    .tec-hlab{display:flex;gap:3px;font-size:12px;color:var(--faint);
       font-variant-numeric:tabular-nums}
     .tec-hlab span{flex:1 1 0;min-width:6px;text-align:center}
     .tec-vendors{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
     .tec-vend{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:var(--panel)}
-    .tec-vend .n{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    .tec-vend .n{font-size:12px;font-weight:800;text-transform:none;
       color:var(--muted)}
     .tec-vend .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
-    .tec-vend .s{font-size:11.5px;color:var(--faint);margin-top:1px}
+    .tec-vend .s{font-size:12px;color:var(--faint);margin-top:1px}
     .tec-fields{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 14px}
-    .tec-fields .l{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    .tec-fields .l{font-size:12px;font-weight:800;text-transform:none;
       color:var(--muted);margin-bottom:5px}
-    .tec-fields .h{font-size:11.5px;color:var(--faint);margin-top:4px;max-width:230px;line-height:1.45}
-    /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, a white verdict card with an
-       accent tint instead of a thick bar, nothing under 12px. Dark is untouched. */
+    .tec-fields .h{font-size:12px;color:var(--faint);margin-top:4px;max-width:230px;line-height:1.45}
+    /* DESIGN V2 ("Calm finance", 2026-10-06): sentence-case labels, nothing under 12px.
+       Dark is untouched. */
     body.rs-app.light.v2 .tec-eyebrow,body.rs-app.light.v2 .tec-vend .n,body.rs-app.light.v2 .tec-fields .l{
       font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
     body.rs-app.light.v2 .tec-note{font-size:13.5px}
-    body.rs-app.light.v2 .tec-verdict{background:#F4FAE6;border:1px solid #DCEFB0;border-left:1px solid #DCEFB0;border-radius:10px}
-    body.rs-app.light.v2 .tec-verdict b{font-weight:600;color:#14301F}
-    body.rs-app.light.v2 .tec-verdict .sub{font-size:13.5px}
     body.rs-app.light.v2 .tec-hist .b{background:#14301F}
     body.rs-app.light.v2 .tec-hlab{font-size:12px}
     body.rs-app.light.v2 .tec-vend{border-radius:10px}
@@ -127,7 +117,7 @@
       const pct = v => (v == null || isNaN(v)) ? "—" : (Math.round(+v * 1000) / 10) + "%";
 
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading…</div>';
+      host.innerHTML = RSC.loadingHtml("Truck Economics");
 
       let S = { from: null, to: null, buy: Object.assign({}, BUY) };
       try {
@@ -288,30 +278,15 @@
           const histMax = Math.max(1, ...M.hist.map(h => h.days));
           const fleetR = Math.round(M.working);   // the line that matters is capacity
 
-          host.innerHTML = `
-            <div class="rs-page-head">
-              <h1>Truck Economics</h1>
-              <p>Owning versus renting, measured on our own closings and our own card
+          /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the kit head, the period row, the verdict
+             as one headline sentence, the kit tiles. The head's paragraph and the banner's
+             explanation moved into How it's counted, word for word; it is rebuilt on every
+             paint, so it always reads the period on screen. */
+          const how = `<p>Owning versus renting, measured on our own closings and our own card
                  spend. Every job names the truck that did it — a fleet number or a rental
                  company — so a truck-day is a fact here, not an estimate.</p>
-            </div>
-
-            <div class="rs-bar">
-              <div class="rs-fld"><span>Period</span></div>
-              <span id="tecFrom"></span><span id="tecTo"></span>
-              <span class="rs-spacer"></span>
-              <span class="rs-hint">${M.months} month${M.months === 1 ? "" : "s"} ·
-                ${fmtN(M.jobs)} jobs</span>
-            </div>
-
-            <div class="tec-verdict">
-              <b>${M.best > workR
-                    ? `Own more trucks that run: about ${M.best} pay for themselves and
-                       only ${workR} were on the road.`
-                    : `We pay for ${n1(M.fleet)} trucks and dispatch ${workR}. About
-                       ${M.best} earn their keep at this demand.`}</b>
-              <div class="sub">
-                A rented truck-day cost <b>${money1(M.rentPerDay)}</b>; a day on a truck we
+            <h3>This period</h3>
+            <p>A rented truck-day cost <b>${money1(M.rentPerDay)}</b>; a day on a truck we
                 own cost <b>${money1(M.ownPerDay)}</b> — but that owned figure carries the
                 whole fleet's insurance, financing and parking spread over the days trucks
                 actually moved, so it is the price of OWNING CAPACITY, not of using it.
@@ -321,31 +296,40 @@
                 <b>${money(M.rentTotal)}</b>.
                 ${M.idle >= 1 ? `<b>${n1(M.idle)} trucks are paid for and not working</b> —
                   that is ${money(M.idle * M.ownPerTruckYear * (M.months / 12))} of this
-                  period's cost buying no capacity at all.` : ""}
-              </div>
+                  period's cost buying no capacity at all.` : ""}</p>`;
+          const rentSub = fmtN(M.rentalDays) + " rental truck-days · " + money(M.rentTotal)
+            + (M.lagMonths.length ? " · " + M.lagMonths.map(ymLabel).join(", ")
+              + " priced out — rental days with no card spend yet" : "");
+          host.innerHTML = `
+            ${RSC.pageHeadHtml({ title: "Truck Economics", key: "truck-economics",
+              sub: "Owning versus renting: what a truck-day costs each way, and how many trucks we should own.",
+              how: how })}
+
+            <div class="rs-bar">
+              <div class="rs-fld"><span>Period</span></div>
+              <span id="tecFrom"></span><span id="tecTo"></span>
+              <span class="rs-spacer"></span>
+              <span class="rs-hint">${M.months} month${M.months === 1 ? "" : "s"} ·
+                ${fmtN(M.jobs)} jobs</span>
             </div>
 
-            <div class="rs-kpis">
-              <div class="kpi"><span class="k">Cost of a rented truck-day</span>
-                <span class="v tec-bad">${money1(M.rentPerDay)}</span>
-                <span class="s">${fmtN(M.rentalDays)} rental truck-days ·
-                  ${money(M.rentTotal)}${M.lagMonths.length
-                    ? " · " + M.lagMonths.map(ymLabel).join(", ") +
-                      " priced out — rental days with no card spend yet"
-                    : ""}</span></div>
-              <div class="kpi"><span class="k">Cost of an owned truck-day</span>
-                <span class="v tec-good">${money1(M.ownPerDay)}</span>
-                <span class="s">${fmtN(M.ownedDays)} owned truck-days ·
-                  ${money(M.ownedTotal)} all-in</span></div>
-              <div class="kpi"><span class="k">One owned truck, per year</span>
-                <span class="v">${money(M.ownPerTruckYear)}</span>
-                <span class="s">insurance, parking, repairs, financing, fuel ÷
-                  ${n1(M.fleet)} trucks paid for</span></div>
-              <div class="kpi"><span class="k">Trucks worth owning</span>
-                <span class="v ${M.best > fleetR ? "tec-warn" : "tec-good"}">${M.best}</span>
-                <span class="s">${workR} on the road · ${n1(M.fleet)} paid for ·
-                  demand peaked at ${M.maxNeed}</span></div>
-            </div>
+            ${RSC.headlineHtml(M.best > workR
+                    ? `Own more trucks that run: about <b>${M.best}</b> pay for themselves and
+                       only <b>${workR}</b> were on the road.`
+                    : `We pay for <b>${n1(M.fleet)}</b> trucks and dispatch <b>${workR}</b>. About
+                       <b>${M.best}</b> earn their keep at this demand.`)}
+
+            ${RSC.kpisHtml([
+              { label: "Cost of a rented truck-day", value: money1(M.rentPerDay), tone: "neg",
+                sub: rentSub, title: rentSub },
+              { label: "Cost of an owned truck-day", value: money1(M.ownPerDay), tone: "pos",
+                sub: fmtN(M.ownedDays) + " owned truck-days · " + money(M.ownedTotal) + " all-in" },
+              { label: "One owned truck, per year", value: money(M.ownPerTruckYear),
+                sub: "insurance, parking, repairs, financing, fuel ÷ " + n1(M.fleet) + " trucks paid for" },
+              { label: "Trucks worth owning", value: M.best,
+                tone: M.best > fleetR ? "warn" : "pos",
+                sub: workR + " on the road · " + n1(M.fleet) + " paid for · demand peaked at " + M.maxNeed },
+            ])}
 
             <div class="panel">
               <div class="tec-eyebrow">Where the rental money goes</div>
@@ -434,24 +418,19 @@
                   <input class="rs-num" id="tecMaint" type="number" step="500"
                          value="${S.buy.maint}" style="width:130px"></div>
               </div>
-              <div class="rs-kpis">
-                <div class="kpi"><span class="k">It would work</span>
-                  <span class="v">${fmtN((M.nextTruck.days / M.months) * 12)} days/yr</span>
-                  <span class="s">at this period's demand</span></div>
-                <div class="kpi"><span class="k">Renting it replaces</span>
-                  <span class="v tec-good">${money(M.buyDisplacedYear)}/yr</span>
-                  <span class="s">at ${money1(M.rentPerDay)} a rental day</span></div>
-                <div class="kpi"><span class="k">Running cost</span>
-                  <span class="v">${money(M.buyYear)}/yr</span>
-                  <span class="s">insurance + parking + repairs</span></div>
-                <div class="kpi"><span class="k">Pays for itself in</span>
-                  <span class="v ${M.paybackMonths && M.paybackMonths <= 36
-                    ? "tec-good" : "tec-warn"}">${M.paybackMonths
-                      ? n1(M.paybackMonths) + " months" : "never"}</span>
-                  <span class="s">${M.buyNet > 0
-                    ? money(M.buyNet) + " a year better than renting"
-                    : "renting is cheaper at this demand"}</span></div>
-              </div>
+              ${RSC.kpisHtml([
+                { label: "It would work", value: fmtN((M.nextTruck.days / M.months) * 12) + " days/yr",
+                  sub: "at this period's demand" },
+                { label: "Renting it replaces", value: money(M.buyDisplacedYear) + "/yr", tone: "pos",
+                  sub: "at " + money1(M.rentPerDay) + " a rental day" },
+                { label: "Running cost", value: money(M.buyYear) + "/yr",
+                  sub: "insurance + parking + repairs" },
+                { label: "Pays for itself in",
+                  value: M.paybackMonths ? n1(M.paybackMonths) + " months" : "never",
+                  tone: M.paybackMonths && M.paybackMonths <= 36 ? "pos" : "warn",
+                  sub: M.buyNet > 0 ? money(M.buyNet) + " a year better than renting"
+                    : "renting is cheaper at this demand" },
+              ])}
               <div class="tec-note" style="margin-top:12px"><b>The +2 pair, priced
                 together:</b> the second truck works only ${fmtN((M.truck2.days / M.months) * 12)}
                 days/yr (demand must reach ${Math.round(M.working) + 2} trucks), so the pair
