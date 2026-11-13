@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="d16d2391f157f04d46dc4465b87398fdb0c1205f">
+<meta name="ztz-ref" content="1cb660a279e3cf040e3416fdf1abe111e375b082">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -87,7 +87,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/portal.css?v=2">
-<link rel="stylesheet" href="assets/rs.css?v=42">
+<link rel="stylesheet" href="assets/rs.css?v=43">
 <style>
 /* collapsible sidebar groups + nested hub sub-items */
 #nav .g-title{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between}
@@ -421,6 +421,7 @@ const PLANNED = [];  // all 16 General Overview pages are built
    `subnav: false` = one sidebar item, the views switch on the page (his mockup). */
 const MERGED = [
   { id: "job-control", group: "logistics", title: "Job Control", icon: "clipboard", subnav: false,
+    sub: "Fuel, trucks, packing and late arrivals, foreman by foreman.",
     tabs: [["fuel-control", "Fuel Control"], ["truck-control", "Truck Control"],
            ["packing-control", "Packing Control"], ["foreman-late", "Late Arrivals"]] },
   /* REVIEWS (Quality Team, 10 Nov 2026, his pick from the usage-based proposal): the review pages
@@ -428,6 +429,7 @@ const MERGED = [
      tab whose page belongs to another group too is shown there as itself (buildNav), and opening
      it from there renders it alone unless the user holds it through Quality Team (navigate). */
   { id: "quality-reviews", group: "reviews", title: "Reviews", icon: "star", subnav: false,
+    sub: "Reviews by foreman, why jobs got none, reminders and the reviews customers promised.",
     tabs: [["review-performance", "Performance"], ["response-analysis", "Reasons"],
            ["reviews-reminders", "Reminders"], ["promised-reviews", "Promised"], ["review-settings", "Settings"],
            ["review-map", "Review Map"]] },
@@ -563,10 +565,12 @@ function hubTab(m) {
 function mergedPage(m) {
   return { id: m.id, group: m.group, title: m.title, async render(host) {
     const active = hubTab(m);
-    host.innerHTML = `<div class="rs-tabs">` + hubTabs(m).map(([tid, label]) =>
-      `<button class="rs-tab ${tid === active ? "on" : ""}" data-t="${tid}">${RSC.esc(label)}</button>`).join("") +
-      `</div><div id="mergedHost"></div>`;
-    host.querySelectorAll(".rs-tab").forEach(b => b.onclick = () => {
+    // THE PAGE STANDARD (ZTZ-80): the hub's own head (Job Control had no title at all) and underline
+    // tabs; a view's own head sits under the tabs as that view's title (rs.css .rs-hub)
+    host.innerHTML = `<div class="rs-hub">` + RSC.pageHeadHtml({ title: m.title, key: m.id, sub: m.sub || "" })
+      + RSC.tabsHtml(hubTabs(m).map(([tid, label]) => ({ id: tid, label })), active, "t")
+      + `<div id="mergedHost"></div></div>`;
+    host.querySelectorAll(".rs-utab[data-t]").forEach(b => b.onclick = () => {
       // navigate() (not a bare re-render) so the hash keeps hub:tab — copied links
       // land on THIS tab, not the hub's first one (C32).
       mergedActiveTab[m.id] = b.dataset.t; navigate(m.id);
@@ -2475,7 +2479,7 @@ registerPage({
 <script src="pages/customer-experience.js?v=3"></script>
 <script src="pages/labor-analysis.js?v=3"></script>
 <script src="pages/post-card-analysis.js?v=5"></script>
-<script src="pages/monthly-report.js?v=124"></script>
+<script src="pages/monthly-report.js?v=125"></script>
 <script src="pages/seasonal-report.js?v=23"></script>
 <script src="pages/leads-vs-moveboard.js?v=9"></script>
 <script src="pages/source-analysis.js?v=6"></script>
@@ -2488,9 +2492,9 @@ registerPage({
 <script src="pages/estimate-accuracy.js?v=11"></script>
 <script src="pages/things-to-do.js?v=4"></script>
 <script src="pages/bugs-requests.js?v=2"></script>
-<script src="pages/conversations.js?v=13"></script>
+<script src="pages/conversations.js?v=14"></script>
 <script src="pages/source-trace.js?v=30"></script>
-<script src="pages/marketing-overview.js?v=37"></script>
+<script src="pages/marketing-overview.js?v=38"></script>
 <script src="pages/roi-core.js?v=3"></script>
 <script src="pages/source-report.js?v=17"></script>
 <script src="pages/marketing-roi.js?v=3"></script>
@@ -2523,7 +2527,7 @@ registerPage({
 <script src="pages/salaries.js?v=9"></script>
 <script src="pages/branch-owner.js?v=13"></script>
 <script src="pages/bo-salary.js?v=5"></script>
-<script src="pages/crew-pay-compare.js?v=18"></script>
+<script src="pages/crew-pay-compare.js?v=19"></script>
 <script src="pages/day-closing.js?v=12"></script>
 <script src="pages/money-flow.js?v=82"></script>
 <script src="pages/ld-planning.js?v=85"></script>
@@ -2547,10 +2551,10 @@ registerPage({
 <script src="pages/foreman-closings.js?v=23"></script>
 <script src="pages/general-settings.js?v=8"></script>
 <script src="pages/admin-activity.js?v=5"></script>
-<script src="pages/review-performance.js?v=33"></script>
+<script src="pages/review-performance.js?v=34"></script>
 <script src="pages/reminders.js?v=54"></script>
 <script src="pages/surveys.js?v=16"></script>
-<script src="pages/email-automations.js?v=8"></script>
+<script src="pages/email-automations.js?v=9"></script>
 <script src="pages/reviews-cases.js?v=19"></script>
 <script src="pages/claims-analysis.js?v=33"></script>
 <script src="pages/sales-of-the-month.js?v=8"></script>

@@ -29,7 +29,7 @@
       + ".eam-seg button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;padding:8px 14px;cursor:pointer;min-height:36px}"
       + ".eam-seg button+button{border-left:1px solid var(--line)}"
       + ".eam-seg button.on{background:var(--ink);color:var(--panel);font-weight:700}"
-      + ".eam-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 16px}"
+      + ".eam-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 16px}"
       + ".eam-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px}"
       + ".eam-lc{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:18px;align-items:center}"
       + "@media (max-width:900px){.eam-lc{grid-template-columns:minmax(0,1fr)}}"
@@ -55,14 +55,14 @@
       + ".eam-wrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;align-items:start}"
       + "@media (max-width:1000px){.eam-wrap{grid-template-columns:minmax(0,1fr)}}"
       + ".eam-rail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;position:sticky;top:12px}"
-      + ".eam-rh{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 8px 4px}"
+      + ".eam-rh{font-size:12.5px;font-weight:600;color:var(--muted);margin:10px 8px 4px}"
       + ".eam-ri{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:8px 10px;cursor:pointer;"
       + "font:inherit;color:var(--ink);margin-bottom:2px;min-height:44px}"
       + ".eam-ri:hover{background:var(--panel-2)}.eam-ri.on{background:rgba(127,163,43,.16);box-shadow:inset 3px 0 0 var(--brand)}"
       + ".eam-ri .r1{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13.5px;font-weight:700}"
       + ".eam-ri .r2{display:block;font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
       + ".eam-ri.dim .r1{color:var(--muted);font-weight:600}"
-      + ".eam-mk{font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:99px;white-space:nowrap}"
+      + ".eam-mk{font-size:12px;font-weight:700;padding:1px 7px;border-radius:99px;white-space:nowrap}"
       + ".eam-mk.done{background:rgba(22,163,74,.12);color:#166534}.eam-mk.fix{background:rgba(220,38,38,.12);color:#991b1b}"
       + ".eam-mk.todo{background:var(--panel-2);color:var(--muted)}"
       + ".eam-main{min-width:0}"
@@ -409,13 +409,19 @@
           + (a.kind !== "survey" ? '<div style="margin-top:6px"><button class="eam-link" data-open="' + a.id + '">Open</button></div>' : "");
       }
       function listView() {
-        let h = '<div class="eam-top"><div class="eam-seg" role="tablist">'
-          + '<button type="button" role="tab" aria-selected="' + (S.tab === "autos") + '" class="' + (S.tab === "autos" ? "on" : "") + '" data-tab="autos">Automations</button>'
-          + '<button type="button" role="tab" aria-selected="' + (S.tab === "single") + '" class="' + (S.tab === "single" ? "on" : "") + '" data-tab="single">Single sends</button></div>'
-          + '<span style="flex:1"></span><label class="eam-help" for="eamDays" style="margin:0">Numbers for</label>'
-          + '<select class="rs-inp" id="eamDays" style="width:auto">' + [[30, "the last 30 days"], [90, "the last 90 days"], [365, "the last 12 months"], [3650, "all time"]]
-            .map(o => '<option value="' + o[0] + '"' + (S.days === o[0] ? " selected" : "") + ">" + o[1] + "</option>").join("") + "</select>"
-          + '<button class="rs-btn pri" id="eamNew">' + (S.tab === "autos" ? "New automation" : "New single send") + "</button></div>";
+        // THE PAGE STANDARD (ZTZ-80): the kit head (the page had no title), underline tabs, and the
+        // period as the kit's own control instead of a native dropdown
+        let h = RSC.pageHeadHtml({ title: "Email Automations", key: "email-automations",
+            sub: "Emails that go to customers on their own, and one-off sends.",
+            actions: [{ html: '<button class="rs-btn pri" id="eamNew">' + (S.tab === "autos" ? "New automation" : "New single send") + "</button>" }],
+            how: "<p>Each automation picks who is due from the warehouse every day. <b>Ask first</b> fills a queue that someone "
+              + "reviews and sends; <b>Send by itself</b> goes out at a set hour, up to a daily cap.</p>"
+              + "<h3>The numbers</h3><p>Sent, delivered, clicked, answered, bounced and unsubscribed come from Resend for the "
+              + "period you pick. Opens show only once open tracking is on.</p>"
+              + "<h3>Nobody gets two emails too close together</h3><p>The gap between two of our emails counts every automation "
+              + "and the survey.</p>" })
+          + RSC.tabsHtml([{ id: "autos", label: "Automations" }, { id: "single", label: "Single sends" }], S.tab)
+          + '<div class="eam-top"><div id="eamDays"></div></div>';
         if (S.listErr) return h + '<div class="panel">Could not load: ' + esc(S.listErr) + ' <button class="rs-btn" data-retry="1" style="margin-left:10px">Try again</button></div>';
         if (!S.list) return h + '<div class="panel">Loading…</div>';
         const L = S.list, opensOn = L.tracking === "on";
@@ -681,8 +687,7 @@
           + '<label class="l">Sending</label><div class="eam-opts">'
           + '<button type="button" class="eam-opt' + (!auto ? " on" : "") + '" data-mode="ask" aria-pressed="' + !auto + '"><b>Ask first</b><span>The queue fills by itself; someone looks at it and presses Send.</span></button>'
           + '<button type="button" class="eam-opt' + (auto ? " on" : "") + '" data-mode="auto" aria-pressed="' + auto + '"><b>Send by itself</b><span>Goes out every day at a set hour to everyone due.</span></button></div>'
-          + (auto ? '<div class="eam-chips" style="margin-top:10px;gap:10px"><label class="l" for="eamHour" style="margin:0">Every day at</label><select id="eamHour" style="width:auto">'
-            + Array.from({ length: 24 }, (_, i) => '<option value="' + i + '"' + (+s.run_hour === i ? " selected" : "") + ">" + hourLab(i) + "</option>").join("") + "</select>"
+          + (auto ? '<div class="eam-chips" style="margin-top:10px;gap:10px"><label class="l" style="margin:0">Every day at</label><div id="eamHour"></div>'
             + '<label class="l" for="eamCap" style="margin:0">at most</label><input type="number" min="1" max="300" id="eamCap" value="' + esc(s.daily_cap) + '" style="width:90px"><span class="eam-help" style="margin:0">a day</span></div>' : "")
           + '<label class="l">Don\'t email people we emailed in the last</label>' + chips("gap_days", s.gap_days, GAP, 60)
           + '<p class="eam-help">Counts every automation and the survey, so nobody gets two of our emails too close together.</p>'
@@ -794,7 +799,10 @@
         // list
         $$("[data-tab]").forEach(b => { b.onclick = () => { S.tab = b.dataset.tab; say(""); paint(); }; });
         $$("[data-retry]").forEach(b => { b.onclick = () => loadList(); });
-        const days = $("#eamDays"); if (days) days.onchange = () => { S.days = +days.value; S.waiting = {}; loadList(); };
+        const days = $("#eamDays");
+        if (days) RSC.localSelect(days, { label: "Numbers for", required: true, value: String(S.days),
+          values: [["30", "the last 30 days"], ["90", "the last 90 days"], ["365", "the last 12 months"], ["3650", "all time"]].map(o => ({ v: o[0], l: o[1] })),
+          onChange: v => { S.days = +v; S.waiting = {}; loadList(); } });
         const nw = $("#eamNew"); if (nw) nw.onclick = () => openItem(S.tab === "autos" ? "auto" : "single", null);
         $$("[data-open]").forEach(b => { b.onclick = () => { const a = (S.list.automations || []).find(x => x.id === +b.dataset.open); if (a) openItem("auto", a); }; });
         $$("[data-review]").forEach(b => { b.onclick = () => {
@@ -842,7 +850,10 @@
         $$("[data-schn]").forEach(i => { i.oninput = () => { if (i.value === "") return; S.draft.schedule[i.dataset.schn] = Math.max(0, +i.value || 0); dirty(); paintRail();
           root.querySelectorAll('[data-sch^="' + i.dataset.schn + ':"]').forEach(c => c.classList.remove("on")); }; });
         $$("[data-mode]").forEach(b => { b.onclick = () => { S.draft.mode = b.dataset.mode; dirty(); paintMain(); paintRail(); paintHead(); }; });
-        const hr = $("#eamHour"); if (hr) hr.onchange = () => { S.draft.schedule.run_hour = +hr.value; dirty(); };
+        const hr = $("#eamHour");
+        if (hr) RSC.localSelect(hr, { label: "", required: true, value: String(+S.draft.schedule.run_hour || 0),
+          values: Array.from({ length: 24 }, (_, i) => ({ v: String(i), l: hourLab(i) })),
+          onChange: v => { S.draft.schedule.run_hour = +v; dirty(); } });
         const cap = $("#eamCap"); if (cap) cap.oninput = () => { S.draft.schedule.daily_cap = Math.max(1, Math.min(300, +cap.value || 1)); dirty(); };
         // queue
         $$("[data-qtab]").forEach(b => { b.onclick = () => { S.qtab = b.dataset.qtab; say(""); paintMain(); }; });

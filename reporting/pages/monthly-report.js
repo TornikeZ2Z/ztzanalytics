@@ -891,12 +891,15 @@ async function renderMonthly(host, MRCFG) {
         `.mrx-info:hover{border-color:#14301F;color:#14301F}`,
         `.mrx-info.on{background:#14301F;border-color:#14301F;color:#FFFFFF}`,
         `.mrx-loaderr{border:1px solid #FECACA;border-radius:10px}`,
-        `.mrx-cover{background:#FFFFFF;color:#0F172A;border:1px solid #E2E8F0;border-radius:10px;padding:20px 22px}`,
+        // THE PAGE STANDARD (ZTZ-80): the cover reads as the kit's page head -- the title first, the report line under it,
+        // the actions on the right, the pickers as the filter row -- and stays one element, so the PDF keeps its cover
+        `.mrx-cover{background:transparent;color:#0F172A;border:0;border-radius:0;padding:0 0 4px;display:flex;flex-direction:column}`,
         `.mrx-cover .mrx-accent{display:none}`,
-        `.mrx-eyebrow{font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}`,
-        `.mrx-h1{font-size:26px;font-weight:700;letter-spacing:-.35px;color:#0F172A;margin:4px 0 6px}`,
-        `.mrx-cvsub{color:#64748B;font-size:13px;font-weight:400}`,
-        `.mrx-cvactions{top:18px;right:20px}`,
+        `.mrx-eyebrow{order:2;font-size:14px;font-weight:400;letter-spacing:0;text-transform:none;color:#475569;margin-top:4px}`,
+        `.mrx-h1{order:1;font-size:24px;font-weight:600;letter-spacing:-.2px;color:#0F172A;margin:0;padding-right:260px}`,
+        `.mrx-cover .mrx-cvpick{order:4;margin:14px 0 6px}`,`.mrx-cover .mrx-cvfilt{order:5}`,
+        `.mrx-cvsub{order:3;color:#64748B;font-size:13px;font-weight:400;margin-top:2px}`,
+        `.mrx-cvactions{top:0;right:0}`,
         `.mrx-print{background:#14301F;color:#FFFFFF;border-radius:8px;font-weight:600;padding:9px 16px}`,
         `.mrx-print:hover{background:#1E40AF}`,
         `.mrx-print2{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;font-weight:600}`,
@@ -932,13 +935,13 @@ async function renderMonthly(host, MRCFG) {
         `.mrx-tocstep b{font-family:inherit;font-weight:600;border-color:#E2E8F0}`,
         `.mrx-tocstep button{color:#475569}`,
         `.mrx-tocstep button:hover{background:#F1F5F9;color:#0F172A}`,
-        `.mrx-parth{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;box-shadow:none;padding:20px 24px;margin:40px 0 20px}`,
+        `.mrx-parth{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;box-shadow:none;padding:14px 20px;margin:32px 0 16px}`,
         `.mrx-parth::before{display:none}`,
-        `.mrx-parth .pt{font-size:26px;font-weight:700;letter-spacing:-.4px;color:#0F172A}`,
+        `.mrx-parth .pt{font-size:20px;font-weight:600;letter-spacing:-.2px;color:#0F172A}`,
         `.mrx-parth .ps{font-size:14.5px;font-weight:400;color:#475569;opacity:1;letter-spacing:0}`,
         `.mrx-parth .pnum{font-family:inherit;gap:4px}`,
-        `.mrx-parth .pn-n{font-weight:700;font-size:40px;letter-spacing:-1px;color:#14301F;opacity:1;font-variant-numeric:tabular-nums}`,
-        `.mrx-parth .pn-s{font-weight:500;font-size:15px;color:#64748B;opacity:1}`,
+        `.mrx-parth .pn-n{font-weight:600;font-size:24px;letter-spacing:-.4px;color:#14301F;opacity:1;font-variant-numeric:tabular-nums}`,
+        `.mrx-parth .pn-s{font-weight:500;font-size:14px;color:#64748B;opacity:1}`,
         `.mrx-badge{border-radius:8px;background:#14301F;font-family:inherit;font-weight:600;font-size:14px;width:32px;height:32px;flex-basis:32px}`,
         `.mrx-badge.mrx-hero{background:#3F7D20;color:#FFFFFF}`,
         `.mrx-sec-ic svg{stroke:#0F172A}`,
@@ -1603,8 +1606,8 @@ async function renderMonthly(host, MRCFG) {
       cover.innerHTML = `
         <div class="mrx-accent"></div>
         <div class="mrx-cvactions">
-          <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">⬇ Download PDF</button>
-          <button class="mrx-print2" id="mrPrint2" title="Browser print — selectable text">🖨 Print</button>
+          <button class="mrx-print" id="mrPrint" title="Download a polished PDF (no print dialog)">Download PDF</button>
+          <button class="mrx-print2" id="mrPrint2" title="Browser print — selectable text">Print</button>
         </div>
         <div class="mrx-eyebrow">${esc(TEAM ? TEAM + " — Monthly Review" : "Monthly Business Review")} · ${esc(CO)}</div>
         <div class="mrx-h1">Report for ${monLbl}</div>

@@ -57,9 +57,12 @@ var RP_BANDS = [
 ];
 // DESIGN V2: the same five bands in the v2 good/bad tones (red = below goal, green = above,
 // the 100% band neutral). `tint` marks the pale bands whose drawer headline reads in ink.
+// ZTZ-80 (13 Nov 2026): the table read as a wall of solid red, so red stopped meaning "look here".
+// Below 50% is a strong red TINT with dark-red text, 50–99% an amber tint: still red = below goal,
+// now readable row by row. Only ≥200% stays a solid fill.
 var RP_BANDS_V2 = [
-  { max: 50,       bg: "#B91C1C", fg: "#FFFFFF", label: "Below 50%" },
-  { max: 100,      bg: "#FEE2E2", fg: "#991B1B", label: "50–99%", tint: true },
+  { max: 50,       bg: "#FECACA", fg: "#7F1D1D", label: "Below 50%", tint: true },
+  { max: 100,      bg: "#FEF3C7", fg: "#92400E", label: "50–99%", tint: true },
   { max: 100.0001, bg: "#F1F5F9", fg: "#475569", label: "100%", tint: true },
   { max: 200,      bg: "#DCFCE7", fg: "#166534", label: "101–199%", tint: true },
   { max: Infinity, bg: "#15803D", fg: "#FFFFFF", label: "≥200%" },
@@ -204,7 +207,7 @@ registerPage({
         .rp-time .rs-slicer.rs-form .rs-slicer-btn:hover{background:var(--panel)}
         .rp-time .rs-slicer.rs-form .rs-slicer-btn .val{flex:none;font-weight:700;color:var(--ink)}
         .rp-time .rs-slicer.rs-form .rs-slicer-pop{left:0;right:auto;width:auto;min-width:150px}
-        .rp-range{font-size:11px;color:var(--muted);white-space:nowrap}
+        .rp-range{font-size:12px;color:var(--muted);white-space:nowrap}
 
         /* ---- the matrix. A kit table reads left-aligned rows of text; this one is a heat
            grid: every cell is a coloured band, two columns are frozen, the header sorts. ---- */
@@ -218,7 +221,7 @@ registerPage({
            sticky foreman column and the cell padding are unchanged. */
         .rp-mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
         .rp-mx th,.rp-mx td{padding:0;text-align:center;white-space:nowrap;box-sizing:border-box}
-        .rp-mx thead th{background:var(--panel-2);color:var(--faint);font-size:10.5px;font-weight:800;text-transform:uppercase;
+        .rp-mx thead th{background:var(--panel-2);color:var(--faint);font-size:12px;font-weight:800;text-transform:none;
           letter-spacing:.03em;padding:8px 6px;position:sticky;top:0;border-bottom:1px solid var(--line);cursor:pointer;z-index:1}
         .rp-mx thead th:hover{color:var(--ink)}
         .rp-mx thead th.srt{color:var(--brand)}
@@ -229,10 +232,10 @@ registerPage({
         .rp-mx thead th.tot{z-index:3}
         .rp-mx td.tot .rp-cell{cursor:default}
         .rp-cell{display:block;margin:2px;padding:7px 5px;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer;line-height:1.26;min-width:78px}
-        .rp-cell small{display:block;font-weight:600;opacity:.82;font-size:10.5px}
+        .rp-cell small{display:block;font-weight:600;opacity:.82;font-size:12px}
         .rp-cell.na{cursor:default}
         .rp-cell.sel{outline:2px solid var(--ink);outline-offset:-2px}
-        .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:11px;color:var(--muted);padding:9px 2px 4px}
+        .rp-legend{display:flex;flex-wrap:wrap;gap:9px;font-size:12px;color:var(--muted);padding:9px 2px 4px}
         .rp-legend span{display:inline-flex;align-items:center;gap:5px}.rp-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
 
         /* ---- the drill-down drawer ---- */
@@ -254,7 +257,7 @@ registerPage({
         .rp-dhd .big b{font-size:26px;font-weight:800;letter-spacing:-.02em}
         .rp-dhd .big em{font-style:normal;font-size:12.5px;color:var(--muted)}
         .rp-dbody{overflow-y:auto;padding:12px 16px 40px;flex:1}
-        .rp-sec{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin:6px 2px 8px}
+        .rp-sec{font-size:12px;font-weight:800;text-transform:none;letter-spacing:.04em;color:var(--faint);margin:6px 2px 8px}
         /* where the reviews came from: one bar per platform — a chart, not a table */
         .rp-roll{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
         .rp-roll .row{display:flex;align-items:center;gap:8px;font-size:12px}
@@ -269,18 +272,18 @@ registerPage({
         .rp-jc .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
         .rp-jc .jn{font-weight:800;font-size:13px}
         .rp-jc .cust{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
-        .rp-jc .meta{font-size:11.5px;color:var(--muted);margin:5px 0 7px;display:flex;gap:10px;flex-wrap:wrap}
+        .rp-jc .meta{font-size:12px;color:var(--muted);margin:5px 0 7px;display:flex;gap:10px;flex-wrap:wrap}
         .rp-jc .meta b{color:var(--ink);font-weight:700}
         /* platform chips keep #fff on purpose: the background is Google blue or Yelp red — a
            fixed brand colour, not a token — so the text on it must not follow the theme */
         .rp-plats{display:flex;flex-wrap:wrap;gap:5px}
-        .rp-plat{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;
+        .rp-plat{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;
           color:#fff;line-height:1.3}
         .rp-plat b{font-weight:800}
-        .rp-expl{font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
+        .rp-expl{font-size:12px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
         .rp-expl b{color:var(--ink)}
         /* a dashed "fill in what is missing" affordance, not a kit action button */
-        .rp-exbtn{margin-top:8px;border:1px dashed var(--line-2);background:transparent;color:var(--brand);font-size:11.5px;
+        .rp-exbtn{margin-top:8px;border:1px dashed var(--line-2);background:transparent;color:var(--brand);font-size:12px;
           font-weight:700;border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit}
         .rp-exbtn:hover{border-color:var(--brand)}
         .rp-exform{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:6px}
@@ -309,14 +312,14 @@ registerPage({
         .rp-bdcard.p1{--mdl:#d4a017} .rp-bdcard.p2{--mdl:#9aa3ad} .rp-bdcard.p3{--mdl:#b0703a}
         @media (min-width:761px){.rp-bdcard.p1{order:2} .rp-bdcard.p2{order:1} .rp-bdcard.p3{order:3}
           .rp-bdcard.p1{transform:translateY(-6px)}}
-        .rp-bdpl{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--mdl)}
+        .rp-bdpl{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:none;color:var(--mdl)}
         .rp-bdnm{font-size:15px;font-weight:800;color:var(--ink);line-height:1.25}
         .rp-bdrv{font-size:24px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:3px}
-        .rp-bdrv small{font-size:11.5px;font-weight:700;color:var(--muted);margin-left:5px}
-        .rp-bdmt{font-size:11.5px;color:var(--muted);font-weight:600}
+        .rp-bdrv small{font-size:12px;font-weight:700;color:var(--muted);margin-left:5px}
+        .rp-bdmt{font-size:12px;color:var(--muted);font-weight:600}
         .rp-bdpz{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;width:44px}
-        .rp-bdpz i{font-style:normal;font-size:11px;color:var(--faint);font-weight:700}
-        .rp-bdidle{font-size:11.5px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
+        .rp-bdpz i{font-style:normal;font-size:12px;color:var(--faint);font-weight:700}
+        .rp-bdidle{font-size:12px;color:var(--faint);margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);line-height:1.6}
         @media (max-width:640px){.rp-wrap{max-height:calc(100vh - var(--pg-chrome, 300px))}}
 
         /* ================= DESIGN V2 ("Calm finance") — light theme only =================
@@ -648,7 +651,7 @@ registerPage({
               go.disabled = false; go.textContent = "Save reason";
               var w = f.querySelector(".rp-exerr") || f.insertAdjacentElement("beforeend", Object.assign(document.createElement("div"), { className: "rp-exerr" }));
               w.textContent = "Couldn't save (" + (e && e.message || e) + ") — nothing was recorded. Try again.";
-              w.style.cssText = "color:var(--neg);font-size:11.5px;font-weight:700;margin-top:6px";
+              w.style.cssText = "color:var(--neg);font-size:12px;font-weight:700;margin-top:6px";
             });
         };
       });
@@ -730,7 +733,7 @@ registerPage({
           <div class="meta"><span>${esc(shortD(String(r["Job Date"] || "").slice(0, 10)))}</span>
             <span>${esc(r["Job Source"] || "—")}</span>
             <span><b>${money(r["Estimate Bill"])}</b> → <b>${money(r["Actual Bill"])}</b>${dpct != null ? ` <span style="color:${dpct > 0 ? "var(--warn)" : "var(--muted)"}">(${dpct > 0 ? "+" : ""}${dpct}%)</span>` : ""}</span>
-            ${r["Closing Filed"] === "No" ? '<span style="color:var(--faint);font-size:11px">closing sheet pending</span>' : billPill(r["Bill Increase Category"])}</div>
+            ${r["Closing Filed"] === "No" ? '<span style="color:var(--faint);font-size:12px">closing sheet pending</span>' : billPill(r["Bill Increase Category"])}</div>
           ${revHtml}${fexpl}${expl}
           ${canExplain ? `<button type="button" class="rp-exbtn" data-exbtn="${i}">✍ Explain why there's no review</button>` : ""}</div>`;
       }).join("");
@@ -1254,7 +1257,7 @@ registerPage({
         return `<span style="font-weight:700;color:${c}">${esc(t || "—")}</span>`; };
       var rowsH = shown.map(r => `<tr>
           <td class="nowrap muted">${esc(supDate(r))}</td>
-          <td class="nowrap strong">${esc(r["Job No"] || "—")}<br><span style="color:var(--faint);font-weight:400;font-size:11px">${esc(r["Customer"] || "")}</span></td>
+          <td class="nowrap strong">${esc(r["Job No"] || "—")}<br><span style="color:var(--faint);font-weight:400;font-size:12px">${esc(r["Customer"] || "")}</span></td>
           <td class="nowrap">${esc(r["Foreman"] || "—")}</td>
           <td>${typeTag(r["Support Intervention Type"])}</td>
           <td>${esc(r["Support Intervention Reason"] || "—")}</td>

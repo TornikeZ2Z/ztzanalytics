@@ -175,7 +175,7 @@ registerPage({
     const savedSet = Object.assign({}, PLAN, saved.value || {});
     const cfg = () => S.draft ? Object.assign({}, savedSet, S.draft) : savedSet;
 
-    host.innerHTML = `<div class="rs-loading"><div>Loading <b>a year of crew pay</b>…</div><div class="bar"><i></i></div></div>`;
+    host.innerHTML = RSC.loadingHtml("Crew Salary Reconciliation", "Loading a year of crew pay…");
     const all = await RS.load("crew_pay_compare");
     injectCss();
 
@@ -185,24 +185,24 @@ registerPage({
     const TABS = [["actual", "Actual"], ["pct", "Flat rate"], ["hourly", "Hourly + travel"], ["custom", "Custom job"], ["settings", "Settings"]];
     function paint() {
       const c = cfg();
+      const SC = scenarios(c);
+      // THE PAGE STANDARD (ZTZ-80): the kit head and underline tabs. Each tab's "How pay works" (his ask,
+      // 23 Oct) is whole in the head's panel instead of a block above the numbers; Settings has none.
+      const ex = S.tab !== "settings";
       host.innerHTML = `
         <div class="cpc">
-          <div class="rs-page-head"><h1>Crew Salary Reconciliation</h1>
-            <p>A year of crew pay — what we actually paid, and the two final options on the same jobs — and any one job under all three ·
-              Zip to Zip jobs · ${esc(fmtDay(c.from))} – ${esc(fmtDay(c.to))}</p></div>
-          <div class="rs-tabs cpc-tabs">${TABS.map(([k, l]) =>
-            (k === "settings" && S.draft ? `<span class="cpc-sub cpc-unsaved">unsaved changes</span>` : "")
-            + `<button class="rs-tab ${S.tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
+          ${RSC.pageHeadHtml({ title: "Crew Salary Reconciliation", key: "crew-pay-compare",
+            sub: "A year of crew pay: what we paid, and the two final options on the same jobs.",
+            chip: "Zip to Zip · " + fmtDay(c.from) + " – " + fmtDay(c.to),
+            how: ex ? () => explain(S.tab, c, SC) : null, howTitle: ex ? explainTitle(S.tab) : null })}
+          ${RSC.tabsHtml(TABS.map(([k, l]) => ({ id: k, label: k === "settings" && S.draft ? "Settings · unsaved" : l })), S.tab)}
           <div id="cpcStrip"></div>
-          <div id="cpcExplain"></div>
           <div id="cpcLevers"></div>
           <div id="cpcBody"></div>
         </div>`;
       host.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; paint(); });
       const body = host.querySelector("#cpcBody");
-      const SC = scenarios(c);
       paintStrip(host.querySelector("#cpcStrip"), SC);
-      host.querySelector("#cpcExplain").innerHTML = S.tab === "settings" ? "" : explain(S.tab, c, SC);
       paintLevers(host.querySelector("#cpcLevers"), c);
       if (S.tab === "pct") paintModel(body, c, SC, SC.pct);
       else if (S.tab === "hourly") paintModel(body, c, SC, SC.hourly);
@@ -533,8 +533,9 @@ registerPage({
         hourly: `Today's hourly structure, with travel and the job paid apart. <b>Travel</b> — the real drive, from the GPS miles at <b>${num(c.travelMph)} mph</b> (never less than today's table pays): foreman <b>${$(c.hrTravelForeman)}</b>, driver ${$(c.hrTravelDriver)}, helper ${$(c.hrTravelHelper)} an hour. <b>The job</b>: foreman <b>${$(c.hrJobForeman)} + ${$(c.hrBonusForeman)}</b> bonus, driver ${$(c.hrJobDriver)} + ${$(c.hrBonusDriver)}, helper ${$(c.hrJobHelper)} + ${$(c.hrBonusHelper)} an hour; the bonus part is withheld on a job with a claim. <b>Packing</b>: the foreman ${num(c.hrFmPackPct)}% of materials sold, and a ${num(c.hrCrewPackPct)}% pool split over the driver and helpers. Everything else as today — stairs, bulky items, reviews, hoisting/storage/junk, long-distance day pay. Tips stay with the crew.`,
         custom: `Enter a job — the crew, the job hours, the base-leg miles and the bill — and see what each seat earns today and under both options, with the working under every amount. Today's pay uses this year's average rates (Settings can change them); start from a real job to fill everything in.`,
       };
-      return `<section class="cpc-explain"><div class="cpc-ex-h">How pay works ${key === "actual" ? "today" : key === "custom" ? "on one job" : "in this option"}</div><p>${T[key]}</p></section>`;
+      return `<p>${T[key]}</p>`;
     }
+    function explainTitle(key) { return "How pay works " + (key === "actual" ? "today" : key === "custom" ? "on one job" : "in this option"); }
     function paintModel(body, c, SC, P) {
       const isA = !P, key = isA ? "actual" : P.key, N = isA ? (x => x.T) : P.N, tot = isA ? SC.A : P.total;
       const label = isA ? "Actual" : P.label, nj = Object.keys(SC.jobs).length, parts = madeOf(SC, key);
@@ -1217,7 +1218,8 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
       if (document.getElementById("cpc-css")) return;
       const s = document.createElement("style"); s.id = "cpc-css";
       s.textContent = `
-        .cpc-tabs{margin-bottom:16px}
+        .cpc .rs-utabs{margin-bottom:16px}
+        .cpc .rs-utab[data-tab="settings"]{margin-left:auto}
         .cpc-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
         @media(max-width:1200px){.cpc-grid{grid-template-columns:1fr}}
         .cpc-grid>*{min-width:0}
@@ -1242,7 +1244,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:12px}
         .cpc-f{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
         .cpc-f>span{font-size:12.5px;color:var(--muted)}
-        .cpc-f em{font-style:normal;font-size:11.5px;color:var(--warn);min-height:14px}
+        .cpc-f em{font-style:normal;font-size:12px;color:var(--warn);min-height:14px}
         .cpc-in{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);overflow:hidden}
         .cpc-in:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}
         .cpc-in.chg{border-color:var(--warn)}
@@ -1286,8 +1288,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-ln{font-size:13px;line-height:1.65;color:var(--muted);font-variant-numeric:tabular-nums;min-width:240px}
         .cpc-ln b{color:var(--ink)}
         .cpc-ln .cpc-tot{color:var(--ink);font-weight:700;border-top:1px solid var(--line);margin-top:4px;padding-top:3px}
-        .cpc-unsaved{align-self:center;margin-left:8px;color:var(--warn)}
-        .cpc-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 16px}
+                .cpc-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 16px}
         @media(max-width:900px){.cpc-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
         .cpc-sc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;font:inherit;cursor:pointer;
           background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--ink)}
@@ -1305,8 +1306,6 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-hb b{font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
         .cpc-hb em{font-style:normal;font-size:12px;color:var(--faint)}
         .cpc-hold tr.click{cursor:pointer}
-        .cpc-tabs .rs-tab[data-tab="settings"],.cpc-tabs .cpc-unsaved{margin-left:auto}
-        .cpc-tabs .cpc-unsaved+.rs-tab{margin-left:0}
         .cpc-levers{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 16px}
         .cpc-lvrow{display:flex;flex-wrap:wrap;gap:10px 14px}
         .cpc-lv{display:flex;flex-direction:column;gap:4px}
@@ -1321,10 +1320,6 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-bandt .cpc-in input{width:62px}
         .cpc-rates{font-size:18px}
         .cpc-jobrule{margin:0 0 10px}
-        .cpc-explain{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:0;padding:12px 16px;margin:0 0 16px}
-        .cpc-ex-h{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
-        .cpc-explain p{margin:0;font-size:14px;line-height:1.65;color:var(--muted)}
-        .cpc-explain b{color:var(--ink)}
         .cpc-seats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:12px;margin-top:10px}
         .cpc-seat{display:flex;flex-direction:column;gap:3px;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
         .cpc-seat>span{font-size:12.5px;color:var(--muted);font-weight:600}
@@ -1335,7 +1330,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
         .cpc-cjck{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:12px;font-size:13px;color:var(--muted)}
         .cpc-ck{display:flex;align-items:center;gap:6px;cursor:pointer}
         .cpc-cjt td{vertical-align:top}
-        .cpc-cjt td .cpc-sub{font-size:11.5px;line-height:1.4;margin-top:2px;white-space:normal}
+        .cpc-cjt td .cpc-sub{font-size:12px;line-height:1.4;margin-top:2px;white-space:normal}
         .cpc-cjt tfoot td.cpc-best{color:var(--brand)}
         .cpc-knobs{align-items:stretch;gap:16px 28px}
         .cpc-knobt{flex:1 1 460px;min-width:0}

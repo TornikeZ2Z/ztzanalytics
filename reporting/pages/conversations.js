@@ -50,7 +50,7 @@ const CONV = (() => {
     .cnv-hit:hover{background:var(--brand-glow)}
     .cnv-hit.on{background:var(--brand-glow);border-color:var(--brand)}
     .cnv-hit b{display:block;font-size:13.5px}
-    .cnv-hit span{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+    .cnv-hit span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
     .cnv-pills{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
     /* the count chips are <i> elements, so the kit pill would arrive italic */
     .cnv-pills .rs-pill{font-style:normal;color:var(--muted)}
@@ -69,7 +69,7 @@ const CONV = (() => {
     .cnv-ev{max-width:min(760px,86%)}
     .cnv-ev.out{align-self:flex-end}
     .cnv-ev.in{align-self:flex-start}
-    .cnv-head{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+    .cnv-head{font-size:12px;color:var(--muted);margin-bottom:4px}
     .cnv-ev.out .cnv-head{text-align:right}
     .cnv-body{border:1px solid var(--line);border-radius:12px;padding:10px 13px;background:var(--bg)}
     .cnv-ev.out .cnv-body{border-color:var(--blue)}
@@ -80,15 +80,15 @@ const CONV = (() => {
     .cnv-miss .cnv-ico{color:var(--neg)}
     .cnv-txt{font-size:13.5px;white-space:pre-wrap;line-height:1.45}
     .cnv-tbtn{margin-left:auto;background:none;border:1px solid var(--line);color:var(--purple);
-      border-radius:7px;padding:3px 9px;font-size:11.5px;cursor:pointer;white-space:nowrap}
+      border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
     .cnv-tbtn:hover{border-color:var(--purple)}
     .cnv-tr{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
     .cnv-sum{font-size:12.5px;color:var(--ink);background:var(--panel);border-left:3px solid var(--purple);
       padding:7px 10px;border-radius:0 8px 8px 0;margin-bottom:9px;line-height:1.5}
-    .cnv-sum h5{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--purple)}
+    .cnv-sum h5{margin:0 0 3px;font-size:12.5px;font-weight:600;color:var(--ink)}
     .cnv-utt{display:grid;grid-template-columns:52px 108px 1fr;gap:8px;font-size:12.5px;padding:3px 0;
       line-height:1.45}
-    .cnv-utt .t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px}
+    .cnv-utt .t{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
     .cnv-utt .s{color:var(--blue);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cnv-utt.them .s{color:var(--warn)}
     /* the find row sits on its own line of the lead header: flex-basis 100% rather
@@ -104,7 +104,7 @@ const CONV = (() => {
     .cnv-tbtn .n{color:var(--warn);font-weight:600}
     .cnv-empty{color:var(--muted);text-align:center;padding:70px 20px;font-size:14px}
     .cnv-x{align-self:center;width:min(760px,86%);opacity:.95}
-    .cnv-day{align-self:center;font-size:11px;color:var(--muted);background:var(--bg);
+    .cnv-day{align-self:center;font-size:12px;color:var(--muted);background:var(--bg);
       border:1px solid var(--line);border-radius:999px;padding:2px 12px}
 
     /* DESIGN V2 ("Calm finance"). Prefixed with the body only, never a page wrapper: the
@@ -501,11 +501,15 @@ registerPage({
   async render(host) {
     CONV.injectStyle();
     host.innerHTML = `
-      <div class="rs-page-head">
-        <h1>Conversations</h1>
-        <p>Every call and text with a customer, in one thread — with the transcript of each recorded call.
-          <span class="freshness">· transcripts exist for recorded calls from 19 Jun 2026 onward</span></p>
-      </div>
+      ${RSC.pageHeadHtml({ title: "Conversations", key: "conversations",
+        sub: "Every call and text with a customer, in one thread.",
+        chip: "Transcripts from Jun 19, 2026",
+        // ZTZ-80: the page standard -- the method moves out of the head into How it's counted
+        how: "<p>Every call and text with a customer, in one thread, with the transcript of each recorded call.</p>"
+          + "<h3>Transcripts</h3><p>RingSense transcribes recorded calls. Transcripts exist for calls from <b>19 Jun 2026</b> onward; "
+          + "older calls show without one.</p>"
+          + "<h3>Finding a customer</h3><p>Search by the customer's name, a phone number or a job number. Pick a lead on the "
+          + "left to read the whole conversation.</p>" })}
       <div class="cnv-wrap">
         <div class="panel cnv-side">
           <div class="rs-bar cnv-search">
