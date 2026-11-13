@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="906eceb5ef899bdc3007e3bdef6403bdec514443">
+<meta name="ztz-ref" content="5756e7605aea335690c60292490548e1c275cd92">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -214,6 +214,9 @@ const GROUPS = [
   // each page decides a specific operational trade-off rather than monitoring a metric.
   { key: "different", title: "Different Analysis" },
   { key: "reviews",   title: "Quality Team" },
+  // Shift Supervisors (2026-11-13, ZTZ-92, his ask): the two shift supervisors' group, one shared login (info@ for
+  // now) and one page, Customer Lookup. The group auto-hides for everyone else, like every other group.
+  { key: "shift-supervisors", title: "Shift Supervisors" },
   // Support was deleted 2026-09-23: every page it held was a retired slice, so it was empty.
   // Tech Team (2026-09-10): the ERP work and the website plumbing. IT Requests was removed
   // 2026-09-23. The group is ADMIN-ONLY until somebody is given the "tech" tile, and that
@@ -309,6 +312,8 @@ const GROUP_OVERRIDE = {
   // Tako's two maps (10 Nov 2026, ZTZ-56 / ZTZ-57)
   // the Competitor Map is listed under Marketing too (12 Nov, ZTZ-68, his pick): its Content gaps tab is Sophie's
   "review-map": "reviews", "competitor-map": ["reviews", "marketing"],
+  // SHIFT SUPERVISORS (13 Nov 2026, ZTZ-92): one search over the leads and the calls
+  "customer-lookup": "shift-supervisors",
 };
 const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
   return Array.isArray(g) ? g : [g]; };
@@ -328,6 +333,7 @@ const NAV_ORDER = {
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
   "admin-activity": 5.5,
+  "customer-lookup": 1,
   "marketing-overview": 6.5, "partnership-strategy": 6.55, "target-map": 6.6, "source-report": 7, "marketing-roi": 7.1, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
   "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
@@ -367,7 +373,7 @@ const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
 /* page id / planned title → icon key */
 const PAGE_ICONS = {
   "jobs-vs-hours": "activity", "yoy-diff": "trend", "leads-analysis": "funnel",
-  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass", "job-pnl": "receipt", "flat-rate": "gauge", "subscriptions": "receipt", "fixed-costs": "calendar", "bonus-system": "dollar",
+  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass", "job-pnl": "receipt", "flat-rate": "gauge", "subscriptions": "receipt", "fixed-costs": "calendar", "customer-lookup": "search", "bonus-system": "dollar",
   "Analysis by Category": "compass", "Sales Person Analysis": "user",
   "sales-person-analysis": "user",
   "Ads Analysis": "megaphone", "CallRail": "phone", "Forman": "tool",
@@ -908,6 +914,7 @@ const PAGE_DATASETS = {
   "flat-rate": [],   // the whole flat-rate year on purpose; no global bar
   "subscriptions": [],   // its own company chips and every month of the bank; no global bar
   "fixed-costs": [],     // its own month picker; the payments come through /api/_fixed (ZTZ-88)
+  "customer-lookup": [], // its own search; the leads and calls come through /api/_lookup (ZTZ-92)
   "bonus-system": [],    // its own year tabs; no global bar
   "yoy-diff": ["closing"],
   "leads-analysis": ["moveboard"],
@@ -1309,7 +1316,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "job-pnl", "flat-rate", "fixed-costs", "subscriptions", "bonus-system", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
+  "area-plan", "truck-economics", "job-pnl", "flat-rate", "fixed-costs", "customer-lookup", "subscriptions", "bonus-system", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
   // Target Map (2026-10-19): Seasonal Planning locked to its map
   "target-map"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
@@ -1413,6 +1420,7 @@ const NAV_TITLES = {
   "flat-rate": "Flat Rate Analysis",
   "subscriptions": "Subscriptions",
   "fixed-costs": "Fixed Costs",
+  "customer-lookup": "Customer Lookup",
   "bonus-system": "Bonus System",
   "insights": "Recommendations",
   "financial-overview": "Financial Overview",
@@ -1484,6 +1492,7 @@ const SEARCH_ALIASES = {
   "bonus-system": "bonus system bonuses budget gross profit kpi manager peer hr score index level raise training salary department gvantsa",
   "subscriptions": "subscriptions recurring monthly charges bank card software saas tools marketing ads agencies ai phones rent lease insurance vendors price increase cancel",
   "fixed-costs": "fixed costs monthly payments schedule left to pay paid due financing loan toyota rent lease insurance cash bank",
+  "customer-lookup": "customer lookup search find lead customer phone job number email calls texts transcripts shift supervisors",
   "analysis-by-category": "analysis by category custom breakdown categories explorer yoy diff year over year comparison annual vs last year",
   // ("insights" hidden for now — Tornike 2026-07-13: recommendations page needs rework)
   // Sales
@@ -2130,6 +2139,7 @@ const REPORT_LABELS = {
   "flat-rate": "Flat Rate Analysis (flat vs hourly local moves)",
   "subscriptions": "Subscriptions (recurring bank charges by group)",
   "fixed-costs": "Fixed Costs (monthly payments: paid, left to pay, matched to the bank)",
+  "customer-lookup": "Customer Lookup (leads, calls and transcripts; quote and final bill only)",
   "insights": "Insights & Recommendations",
   // Sales
   "sales-funnel": "Lead Funnel & Conversion",
@@ -2231,6 +2241,8 @@ const ACL_DEPTS = [
   { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations", "review-map"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
+  // Shift Supervisors (2026-11-13, ZTZ-92): Customer Lookup only. MUST mirror DEPT_REPORTS["shift-supervisors"].
+  { id: "shift-supervisors", label: "Shift Supervisors", icon: "search", reports: ["customer-lookup"] },
   { id: "explorer",  label: "Data Explorer — the separate Data Management app", icon: "archive", reports: ["explorer"] },
 ];
 /* A department that ALSO grants other departments, permanently, for today's holders and
@@ -2501,6 +2513,7 @@ registerPage({
 <script src="pages/things-to-do.js?v=5"></script>
 <script src="pages/bugs-requests.js?v=2"></script>
 <script src="pages/conversations.js?v=14"></script>
+<script src="pages/customer-lookup.js?v=1"></script>
 <script src="pages/source-trace.js?v=32"></script>
 <script src="pages/marketing-overview.js?v=39"></script>
 <script src="pages/roi-core.js?v=3"></script>
