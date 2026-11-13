@@ -398,22 +398,13 @@ registerPage({
      *     The badge text is written in capitals in confLab(); it is lower-cased and given a
      *     capital first letter here in CSS, so the wording itself is not touched.
      *   - Uppercase micro-labels become sentence-case labels; no type below 12px.
-     *   - The kit's control bar (.rs-fld label / .rs-seg / .rs-tog / .rs-inp / .rs-btn) has no
-     *     v2 rules in rs.css yet, so its v2 pill shapes are restated here inside .pk. */
+     * THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): the tiles, the view tabs and the control bar's
+     * buttons are the kit's own now (rs.css has their v2 shapes), so the copies of them that
+     * lived here are gone; sentence case and the 12px floor hold for every theme, not only v2. */
     function v2Css() {
       var V = "body.rs-app.light.v2 ";
       return ""
-        + V + ".pk," + V + ".pk-draw{--t1:26px;--t4:12.5px;--t5:12px;--t6:12px}"
-        // tiles: label first, figure, sub -- the v2 card, by order, not by new markup
-        + V + ".pk-kpi{display:flex;flex-direction:column;border-radius:10px;padding:14px 16px}"
-        + V + ".pk-kpi span{order:-1;margin:0 0 4px;font-size:13px;font-weight:500;letter-spacing:0;"
-        + "text-transform:none;color:#475569}"
-        + V + ".pk-kpi b{font-weight:600;letter-spacing:-.3px}"
-        + V + ".pk-kpi small{font-size:12.5px;color:#64748B;margin-top:4px}"
-        // view tabs: pills, selected navy
-        + V + ".pk-tabs button{border-radius:999px;font-weight:600;font-size:13px;padding:8px 15px;color:#475569}"
-        + V + ".pk-tabs button:hover{background:#F1F5F9;color:var(--ink)}"
-        + V + ".pk-tabs button.on{background:#14301F;color:#FFFFFF}"
+        + V + ".pk," + V + ".pk-draw{--t4:12.5px;--t5:12px;--t6:12px}"
         // the foreman file header + sections
         + V + ".pk-pcard{border-radius:10px;border-left-width:4px}"
         + V + ".pk-av{background:#14301F;color:#FFFFFF;font-weight:600}"
@@ -426,7 +417,7 @@ registerPage({
         + V + ".pk-sec h4{font-size:15px;font-weight:600}"
         + V + ".pk .rs-table td.pk-neg," + V + ".pk .rs-table td.pk-pos{font-weight:600}"
         + V + ".pk .rs-table tr.pk-sig td{background:#FEF2F2}"
-        + V + ".pk-mhead{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+        + V + ".pk-mhead{font-size:12.5px;font-weight:600;color:#475569}"
         + V + ".pk-mbar{height:8px;border-radius:4px;background:#F1F5F9}"
         + V + ".pk-mbar i{border-radius:4px}"
         + V + ".pk-tbl a," + V + ".pk-q a{color:#2F6316;font-weight:600}"
@@ -437,26 +428,23 @@ registerPage({
         + V + ".pk-card.sel{border-color:#3F7D20;box-shadow:0 0 0 1px #3F7D20}"
         + V + ".pk-name{font-weight:600}"
         + V + ".pk-sub{font-size:12.5px;color:#64748B}"
-        + V + ".pk-pill{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;"
-        + "padding:2px 8px;border-radius:6px;border:0}"
+        + V + ".pk-pill{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;border:0}"
         + V + ".v-review .pk-pill{background:#FEE2E2;color:#991B1B}"
         + V + ".v-look .pk-pill{background:#FEF3C7;color:#92400E}"
         + V + ".v-ok .pk-pill{background:#DCFCE7;color:#166534}"
         + V + ".v-thin .pk-pill{background:#F1F5F9;color:#475569}"
-        + V + ".pk-conf{display:inline-block;font-size:12px;font-weight:600;letter-spacing:0;"
-        + "text-transform:lowercase;padding:1px 8px;border-radius:6px;background:#FFFFFF;"
+        + V + ".pk-conf{font-size:12px;font-weight:600;padding:1px 8px;border-radius:6px;background:#FFFFFF;"
         + "border:1px solid #CBD5E1;color:#475569}"
-        + V + ".pk-conf::first-letter{text-transform:uppercase}"
         + V + ".pk-conf.c-strong{background:#FFFFFF;border:1.5px solid var(--ink);color:var(--ink)}"
         + V + ".pk-conf.c-weak{background:#FFFFFF;border:1px solid #94A3B8;color:#334155}"
         + V + ".pk-conf.c-thin{background:#FFFFFF;border:1px dashed #94A3B8}"
-        + V + ".pk-b label{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
+        + V + ".pk-b label{font-size:12px;font-weight:500;color:#64748B}"
         + V + ".pk-b label b{color:var(--ink);font-weight:600}"
         + V + ".pk-track{background:#F1F5F9;border-color:var(--line)}"
         + V + ".pk-track i{background:#94A3B8}"
         // side rail
         + V + ".pk-rail{border-radius:10px}"
-        + V + ".pk-rail h4{font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}"
+        + V + ".pk-rail h4{font-size:15px;font-weight:600;color:var(--ink)}"
         + V + ".pk-row b{font-weight:600}"
         + V + ".pk-q:hover{color:#2F6316}"
         + V + ".pk-q em{color:#B91C1C}"
@@ -467,33 +455,17 @@ registerPage({
         + V + ".pk-x{border-radius:8px;border-color:#CBD5E1}"
         + V + ".pk-x:hover{background:#F8FAFC;color:var(--ink)}"
         + V + ".pk-read{border-radius:10px}"
-        + V + ".pk-read h5{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:#475569}"
+        + V + ".pk-read h5{font-size:13px;font-weight:600;color:#475569}"
         + V + ".pk-cause b{background:#F1F5F9;color:#475569;font-size:12px}"
         + V + ".pk-cause span i{font-weight:600}"
-        + V + ".pk-tbl th{font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;"
+        + V + ".pk-tbl th{font-size:12.5px;font-weight:600;"
         + "color:#475569;background:#F8FAFC;border-bottom-color:var(--line)}"
         + V + ".pk-tbl td{border-bottom-color:#F1F5F9}"
         + V + ".pk-tbl tr:hover td{background:#F8FAFC}"
         + V + ".pk-tbl tr.f td{background:#FEF2F2}"
         + V + ".pk-spark div{border-radius:4px 4px 0 0}"
         + V + ".pk-sparkx{font-size:12px}"
-        + V + ".pk-empty{border-radius:10px;font-size:13.5px}"
-        // the kit control bar, in v2 shapes
-        + V + ".pk .rs-fld>span{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#64748B}"
-        + V + ".pk .rs-inp{background:#FFFFFF;border-color:var(--line);border-radius:999px;height:36px;padding:0 14px}"
-        + V + ".pk .rs-inp:hover{border-color:#CBD5E1}"
-        + V + ".pk .rs-inp:focus{border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}"
-        + V + ".pk .rs-seg{background:#FFFFFF;border:1px solid var(--line);border-radius:999px;padding:3px}"
-        + V + ".pk .rs-seg button{border-radius:999px;font-weight:600;color:#475569;padding:6px 13px}"
-        + V + ".pk .rs-seg button:hover:not(.on){background:#F8FAFC;color:var(--ink)}"
-        + V + ".pk .rs-seg button.on{background:#14301F;color:#FFFFFF;font-weight:600}"
-        + V + ".pk .rs-tog{border-radius:999px;border-color:var(--line);font-weight:600;color:#475569}"
-        + V + ".pk .rs-tog:hover{border-color:#CBD5E1}"
-        + V + ".pk .rs-tog.on{background:#F4FAE6;border-color:#C9E68A;color:#14301F}"
-        + V + ".pk .rs-tog.on i{background:#14301F}"
-        + V + ".pk .rs-btn," + V + ".pk-draw .rs-btn{border-radius:8px;font-weight:600;color:var(--ink);border-color:#CBD5E1}"
-        + V + ".pk .rs-btn:hover:not(:disabled)," + V + ".pk-draw .rs-btn:hover:not(:disabled){background:#F8FAFC;"
-        + "border-color:#CBD5E1;color:var(--ink)}";
+        + V + ".pk-empty{border-radius:10px;font-size:13.5px}";
     }
 
     /* ================================================================ style
@@ -503,21 +475,11 @@ registerPage({
      * can never borrow the visual weight of a strong one.
      */
     host.innerHTML = '<style id="pkCss">'
-      + ".pk{--t1:27px;--t2:15px;--t3:13.5px;--t4:12.5px;--t5:12px;--t6:10.5px;max-width:none;"
+      // the type steps: the tiles and the view tabs are the kit's (RSC.kpisHtml, RSC.tabsHtml), so
+      // these size only the page's own objects; nothing under 12px (ZTZ-80)
+      + ".pk{--t2:15px;--t3:13.5px;--t4:12.5px;--t5:12px;--t6:12px;max-width:none;"
       + "font-variant-numeric:tabular-nums}"
-      + ".pk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px}"
-      + ".pk-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 16px}"
-      + ".pk-kpi b{display:block;font-size:var(--t1);letter-spacing:-.6px;line-height:1.1}"
-      + ".pk-kpi span{display:block;font-size:var(--t6);font-weight:800;letter-spacing:.07em;"
-      + "text-transform:uppercase;color:var(--faint);margin-top:5px}"
-      + ".pk-kpi small{display:block;font-size:var(--t5);color:var(--muted);margin-top:3px}"
-      + ".pk-kpi.neg b{color:var(--neg)} .pk-kpi.warn b{color:var(--warn)} .pk-kpi.pos b{color:var(--pos)}"
-      // ---- tabs + the foreman file ----
-      + ".pk-tabs{display:flex;gap:4px;margin:2px 0 16px}"
-      + ".pk-tabs button{font:inherit;font-size:13.5px;font-weight:750;color:var(--muted);background:transparent;"
-      + "border:0;border-radius:10px;padding:9px 16px;cursor:pointer}"
-      + ".pk-tabs button:hover{background:var(--panel-2);color:var(--ink)}"
-      + ".pk-tabs button.on{background:var(--brand);color:var(--brand-ink)}"
+      // ---- the foreman file ----
       + ".pk-dim{font-size:var(--t4);color:var(--faint)}"
       + ".pk-dim2{font-size:var(--t5);color:var(--faint);line-height:1.55;margin:0 0 10px;display:block}"
       + ".pk-pcard{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;"
@@ -536,7 +498,9 @@ registerPage({
       + ".pk-pscore b{display:block;font-size:42px;font-weight:800;letter-spacing:-1.5px;line-height:1}"
       + ".pk-pscore b.na{color:var(--faint)}"
       + ".pk-pscore span{display:block;font-size:var(--t3);font-weight:800;margin-top:4px}"
-      + ".pk-pscore small{display:block;font-size:var(--t6);font-weight:800;letter-spacing:.06em;color:var(--faint);margin-top:3px}"
+      // the certainty line under the score is confLab()'s capitals too: sentence case, like the badge
+      + ".pk-pscore small{display:block;font-size:var(--t6);font-weight:800;color:var(--faint);margin-top:3px;text-transform:lowercase}"
+      + ".pk-pscore small::first-letter{text-transform:uppercase}"
       + ".pk-sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}"
       + ".pk-sec h4{margin:0 0 4px;font-size:var(--t2);font-weight:800}"
       + ".pk-sec h4 .pk-dim{font-weight:600;margin-left:6px}"
@@ -559,7 +523,7 @@ registerPage({
       + ".pk-mrow{display:grid;grid-template-columns:120px 60px 90px 92px 92px 1fr;gap:10px;align-items:center;"
       + "padding:7px 2px;border-bottom:1px solid var(--line);font-size:var(--t4)}"
       + ".pk-mrow:last-child{border-bottom:0}"
-      + ".pk-mhead{font-size:var(--t6);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);border-bottom:1px solid var(--line)}"
+      + ".pk-mhead{font-size:var(--t6);font-weight:800;color:var(--faint);border-bottom:1px solid var(--line)}"
       + ".pk-mrow .r{text-align:right}.pk-mrow .neg b{color:var(--neg)}"
       + ".pk-mbar{position:relative;height:9px;border-radius:5px;background:var(--panel-2);overflow:visible;min-width:80px}"
       + ".pk-mbar i{display:block;height:100%;border-radius:5px}"
@@ -573,8 +537,8 @@ registerPage({
       // THE CONTROL BAR COMES FROM THE KIT. .rs-bar / .rs-fld / .rs-sel / .rs-inp / .rs-seg /
       // .rs-tog / .rs-btn used to be copied out here under pk- names; they are one vocabulary
       // now, and the only thing this page still says about the bar is where it sits — under
-      // the KPI strip, which carries no bottom margin of its own.
-      + ".pk .rs-bar{margin:16px 0 10px}"
+      // the view tabs (ZTZ-80's order: head, tabs, the one filter row, then the tiles).
+      + ".pk .rs-bar{margin:12px 0 10px}"
       // the job-check "what to check" column: a reason line that may wrap, beside numbers
       // that may not
       + ".pk-why{font-size:var(--t5);color:var(--muted);line-height:1.45;min-width:220px;max-width:380px;white-space:normal}"
@@ -584,7 +548,7 @@ registerPage({
       + ".pk-tbl a,.pk-q a{color:var(--blue);text-decoration:none;font-weight:700;"
       + "font-size:var(--t5);white-space:nowrap}"
       + ".pk-tbl a:hover,.pk-q a:hover{text-decoration:underline}"
-      + "a.pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}"
+      + "a.pk-fid{font-family:ui-monospace,Consolas,monospace;font-size:12px}"
       // the board
       + ".pk-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}"
       + "@media(max-width:1100px){.pk-grid{grid-template-columns:minmax(0,1fr)}}"
@@ -604,24 +568,26 @@ registerPage({
       + ".pk-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}"
       + ".pk-name{font-size:var(--t2);font-weight:750;letter-spacing:-.2px}"
       + ".pk-sub{font-size:var(--t5);color:var(--faint);margin-left:auto;text-align:right;white-space:nowrap}"
-      + ".pk-pill{font-size:var(--t6);font-weight:800;letter-spacing:.05em;text-transform:uppercase;"
+      + ".pk-pill{font-size:var(--t6);font-weight:800;"
       + "padding:3px 8px;border-radius:999px;border:1px solid}"
       + ".v-review .pk-pill{color:var(--neg);border-color:var(--neg);background:var(--neg-bg)}"
       + ".v-look .pk-pill{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}"
       + ".v-ok .pk-pill{color:var(--pos);border-color:var(--pos);background:var(--pos-bg)}"
       + ".v-thin .pk-pill{color:var(--faint);border-color:var(--line-2)}"
-      // CERTAINTY = TEXTURE. same neutral ink, different fill; never competes with severity.
-      + ".pk-conf{font-size:var(--t6);font-weight:800;letter-spacing:.05em;padding:3px 8px;border-radius:999px;"
-      + "border:1px solid var(--line-2);color:var(--muted)}"
-      + ".pk-conf.c-strong{color:var(--ink);border-color:var(--ink);"
-      + "background:repeating-linear-gradient(135deg,transparent 0 3px,color-mix(in srgb,var(--ink) 22%,transparent) 3px 6px)}"
-      + ".pk-conf.c-weak{background:repeating-linear-gradient(135deg,transparent 0 5px,"
-      + "color-mix(in srgb,var(--muted) 16%,transparent) 5px 7px)}"
+      // CERTAINTY = TEXTURE, carried by the BORDER (no hatching: the standard allows no gradients,
+      // and v2 made the same move first) -- solid ink (strong), solid grey (weak), dashed (thin).
+      // Same neutral ink throughout, so it never competes with severity. confLab() writes the
+      // badge in capitals; it reads in sentence case here, so the wording itself is not touched.
+      + ".pk-conf{display:inline-block;font-size:var(--t6);font-weight:800;padding:3px 8px;border-radius:999px;"
+      + "border:1px solid var(--line-2);color:var(--muted);text-transform:lowercase}"
+      + ".pk-conf::first-letter{text-transform:uppercase}"
+      + ".pk-conf.c-strong{color:var(--ink);border:1.5px solid var(--ink)}"
+      + ".pk-conf.c-weak{border-color:var(--faint);color:var(--ink)}"
       + ".pk-conf.c-thin{border-style:dashed}"
       // the peer-delta bars: fleet median is the centre line, the foreman is the marker
       + ".pk-bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px 16px;margin-top:12px}"
       + ".pk-b label{display:flex;justify-content:space-between;font-size:var(--t6);color:var(--faint);"
-      + "text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:4px}"
+      + "font-weight:700;margin-bottom:4px}"
       + ".pk-b label b{color:var(--muted);font-weight:800}"
       + ".pk-track{position:relative;height:7px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px}"
       + ".pk-track i{position:absolute;top:-1px;bottom:-1px;width:2px;background:var(--line-2);left:50%}"
@@ -630,8 +596,7 @@ registerPage({
       + ".pk-track.na{opacity:.35}"
       // side rail
       + ".pk-rail{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}"
-      + ".pk-rail h4{margin:0 0 10px;font-size:var(--t6);font-weight:800;letter-spacing:.08em;"
-      + "text-transform:uppercase;color:var(--faint)}"
+      + ".pk-rail h4{margin:0 0 10px;font-size:var(--t6);font-weight:800;color:var(--faint)}"
       + ".pk-row{display:flex;justify-content:space-between;gap:10px;font-size:var(--t4);padding:5px 0;"
       + "border-bottom:1px solid var(--line)}"
       + ".pk-row:last-child{border-bottom:0}"
@@ -665,7 +630,7 @@ registerPage({
       // severity accent the earlier .pk-read rule promises
       + ".pk-read{background:var(--panel);border:1px solid var(--line);border-radius:12px;"
       + "padding:14px 16px;margin-bottom:14px;border-left-width:4px}"
-      + ".pk-read h5{margin:0 0 8px;font-size:var(--t6);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}"
+      + ".pk-read h5{margin:0 0 8px;font-size:var(--t6);color:var(--faint)}"
       + ".pk-read p{margin:0 0 9px;font-size:var(--t3);line-height:1.6;color:var(--ink)}"
       + ".pk-read p:last-child{margin-bottom:0}"
       + ".pk-cause{display:flex;gap:10px;font-size:var(--t4);line-height:1.55;padding:8px 0;border-top:1px solid var(--line)}"
@@ -673,7 +638,7 @@ registerPage({
       + "font-size:var(--t6);display:grid;place-items:center;margin-top:1px}"
       + ".pk-cause span{color:var(--muted)}.pk-cause span i{font-style:normal;color:var(--ink);font-weight:650}"
       + ".pk-tbl{width:100%;border-collapse:collapse;font-size:var(--t4)}"
-      + ".pk-tbl th{text-align:right;font-size:var(--t6);letter-spacing:.05em;text-transform:uppercase;"
+      + ".pk-tbl th{text-align:right;font-size:var(--t6);"
       + "color:var(--faint);font-weight:800;padding:6px 8px;border-bottom:1px solid var(--line-2);position:sticky;top:0;background:var(--bg)}"
       + ".pk-tbl th:first-child,.pk-tbl td:first-child{text-align:left}"
       + ".pk-tbl td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}"
@@ -684,7 +649,7 @@ registerPage({
       + ".pk-spark div{flex:1;border-radius:2px 2px 0 0;background:var(--line-2);position:relative;min-height:2px}"
       + ".pk-spark div.hot{background:var(--neg)} .pk-spark div.mid{background:var(--warn)}"
       + ".pk-spark div.cool{background:var(--pos)}"
-      + ".pk-sparkx{display:flex;gap:3px;font-size:8.5px;color:var(--faint);margin-top:3px}"
+      + ".pk-sparkx{display:flex;gap:3px;font-size:12px;color:var(--faint);margin-top:3px}"
       + ".pk-sparkx span{flex:1;text-align:center}"
       + ".pk-empty{padding:34px;text-align:center;color:var(--faint);font-size:var(--t3);"
       + "background:var(--panel);border:1px solid var(--line);border-radius:14px}"
@@ -698,8 +663,51 @@ registerPage({
     var scrim = host.querySelector("#pkScrim");
     var draw = host.querySelector("#pkDraw");
 
+    /* ================================================================ the head
+     * THE PAGE STANDARD (ZTZ-80): one short head with the page's one-line question; the reading
+     * instructions that used to sit above the cards and the job lists open from its "How it's
+     * counted", word for word, for the view on screen. HOWV holds the figures they quote, as the
+     * last paint computed them. */
+    var HOWV = { tests: 0, foremen: 0, jobs: null };
+    function headHtml() {
+      return RSC.pageHeadHtml({ title: "Packing Control", key: "packing-control",
+        sub: "The packing each load actually needed, against what the crew sold — and who is out of line with everyone else.",
+        how: howPacking });
+    }
+    function howPacking() {
+      var h = "<p>Every measure is a comparison with the other foremen, never against a fixed target.</p>";
+      if (S.view === "jobs") {
+        var J = HOWV.jobs;
+        return h + "<h3>Job check</h3><p><b>Expected</b> is what this load would sell at the fleet’s median rate"
+          + (J ? " (" + usd(J.medUnit, 2) + "/unit from " + J.n + " priced jobs"
+              + (J.widened ? " — the whole book, since this window is too thin to price alone" : "")
+              + "; $" + (J.med100 == null ? "—" : Math.round(J.med100)) + "/100 CF when a load has no unit count)" : "")
+          + ". A job can sit below it and be fine, so the verdict only turns red when the shortfall is worth a phone "
+          + "call. Grey notes — a mattress without a cover, boxes without tape — are worth an eyebrow, not a verdict: "
+          + "the fleet itself only covers about half its mattresses. A row opens the foreman’s file at that job "
+          + "where he has one.</p>";
+      }
+      if (S.view === "future") {
+        return h + "<h3>Upcoming jobs</h3><p>This is the pre-job check: the goods the calendar "
+          + "lists, and the packing already on the quote. Open the event, look at the load, and "
+          + "check what the crew sells against it — before the truck leaves, not a week after. "
+          + "A job from the past week that never reached the office sheet stays listed here, "
+          + "marked — those are the ones most worth chasing.</p>";
+      }
+      return h + "<h3>Reading the board</h3><p>Every measure on a card is a comparison with "
+        + "the other foremen on the same measure, over the window selected above — nothing here is scored "
+        + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
+        + "Customers packing their own things is normal and legitimate; it lands at random, so it cannot "
+        + "explain a shortfall that is one man's, consistent, and present on separate signals at once. That is "
+        + "what the certainty badge tests. " + HOWV.tests + " comparisons were run across " + HOWV.foremen
+        + " foremen, and a badge is only awarded to readings that survive a false-discovery correction over all "
+        + "of them — without it, a simulation of a fleet where nobody was doing anything wrong still put an "
+        + "innocent name on the board most of the time. <b>A high score is a reason to review, not proof of "
+        + "anything.</b></p>";
+    }
+
     /* ================================================================ data */
-    main.innerHTML = '<div class="pk-empty">Loading packing records…</div>';
+    main.innerHTML = RSC.loadingHtml("Packing Control", "Loading packing records…");
     RS.load("fct_packing_job").then(function (rows) {
       S.rows = (rows || []).map(function (r) {
         // the bridge ships DECIMALs as strings; every comparison below is numeric
@@ -727,7 +735,7 @@ registerPage({
       invalidate();
       paint();
     }).catch(function (e) {
-      main.innerHTML = '<div class="pk-empty">Could not load packing records — ' + esc(e && e.message || e) + "</div>";
+      main.innerHTML = headHtml() + '<div class="pk-empty">Could not load packing records — ' + esc(e && e.message || e) + "</div>";
     });
 
     function invalidate() { S.memo = null; S.memoKey = ""; }
@@ -792,37 +800,34 @@ registerPage({
 
       /* THE PAGE SAYS WHAT IT IS. It opened straight onto five bare numbers with no title and
        * no sentence — every other report in the portal introduces itself, and in a room full of
-       * people this one arrived mid-thought (Tornike, before presenting it, 2026-08-12). */
-      var html = '<div class="rs-page-head"><h1>Packing Control</h1>'
-        + "<p>The packing each load actually needed, against what the crew sold — and who is "
-        + "out of line with everyone else."
-        + '<span class="freshness"> · every measure is a comparison with the other foremen, '
-        + "never against a fixed target</span></p></div>"
-        + '<div class="pk-tabs">'
-        + '<button data-v="board" class="' + (S.view === "board" ? "on" : "") + '">The board</button>'
-        + '<button data-v="jobs" class="' + (S.view === "jobs" ? "on" : "") + '">Job check</button>'
-        + '<button data-v="profile" class="' + (S.view === "profile" ? "on" : "") + '">Foreman profile</button>'
-        + '<button data-v="future" class="' + (S.view === "future" ? "on" : "") + '">Upcoming jobs · '
-        + rows.filter(isUpcoming).length + "</button>"
-        + "</div>";
+       * people this one arrived mid-thought (Tornike, before presenting it, 2026-08-12).
+       * THE PAGE STANDARD (ZTZ-80): the kit head (a size down under Job Control's tabs) with its
+       * one-line question, the views as underline tabs carrying the same data-v ids, ONE filter
+       * row, then the tiles; the reading instructions are in its "How it's counted" (howPacking). */
+      var html = headHtml()
+        + RSC.tabsHtml([
+            { id: "board", label: "The board" },
+            { id: "jobs", label: "Job check" },
+            { id: "profile", label: "Foreman profile" },
+            { id: "future", label: "Upcoming jobs", count: rows.filter(isUpcoming).length },
+          ], S.view, "v");
 
       // the future view has no use for last month's totals; the job-check view carries
-      // its own per-verdict counters instead
-      if (S.view === "board" || S.view === "profile")
-      html += '<div class="pk-kpis">'
-        + kpi(usd(sold), "Packing sold", here.length.toLocaleString() + " jobs · "
-              + profiles.length + " foremen", "")
-        + kpi(String(profiles.filter(function (p) { return p.score != null; }).length), "Foremen scored",
+      // its own per-verdict counters instead. Drawn under the filter row, below.
+      var tiles = (S.view === "board" || S.view === "profile") ? RSC.kpisHtml([
+        kpi(usd(sold), "Packing sold", here.length.toLocaleString() + " jobs · "
+              + profiles.length + " foremen", ""),
+        kpi(String(profiles.filter(function (p) { return p.score != null; }).length), "Foremen scored",
               "of " + profiles.length + " on the board · "
-              + profiles.reduce(function (a, p) { return a + p.n; }, 0).toLocaleString() + " jobs in the comparison", "")
-        + kpi(String(flagged.length), "Above the concern line",
+              + profiles.reduce(function (a, p) { return a + p.n; }, 0).toLocaleString() + " jobs in the comparison", ""),
+        kpi(String(flagged.length), "Above the concern line",
               strong.length + " with a peer test below the strict threshold",
-              flagged.length ? (strong.length ? "neg" : "warn") : (profiles.length ? "pos" : ""))
-        + kpi(usd(opp), "Distance to the fleet median",
+              flagged.length ? (strong.length ? "neg" : "warn") : (profiles.length ? "pos" : "")),
+        kpi(usd(opp), "Distance to the fleet median",
               "what these jobs would have sold at the median rate — an arithmetic gap, not missing money",
-              flagged.length ? "warn" : "")
-        + kpi(pct(invPct), "Loads itemised", "jobs whose calendar lists the goods", invPct > 0.8 ? "pos" : "warn")
-        + "</div>";
+              flagged.length ? "warn" : ""),
+        kpi(pct(invPct), "Loads itemised", "jobs whose calendar lists the goods", invPct > 0.8 ? "pos" : "warn"),
+      ]) : "";
 
       // the profile's foreman pick is a bar field like any other -- the man has to be
       // resolved BEFORE the bar renders so the select can show him
@@ -836,7 +841,7 @@ registerPage({
       }
       var curYm = TODAY.slice(0, 7);
       // the bar's dropdowns are the kit's localSelect — bare divs here, mounted after the
-      // innerHTML lands (same option values and order as the old <select>s)
+      // innerHTML lands (same option values and order as the old native dropdowns)
       html += '<div class="rs-bar">'
         + '<div id="pkMonth"></div>'
         + (Object.keys(cos).length > 1 ? '<div id="pkCo"></div>' : "")
@@ -861,24 +866,15 @@ registerPage({
               + (S.view === "board" ? "Find a foreman…" : "Foreman or customer…")
               + '" value="' + esc(S.q) + '"></label>' : "")
         + '<span class="rs-spacer"></span><div id="pkFilt"></div>'
-        + '</div><div id="pkChips"></div>';
+        + '</div><div id="pkChips"></div>'
+        + tiles;
 
       var tests = 0;
       profiles.forEach(function (p) { tests += p.tested; });
-      // the board's own reading instructions. The file states its method inside each section,
-      // beside the number it governs, so repeating this paragraph there would just push the man
-      // himself below the fold — which on a page about one man is the wrong thing at the top.
-      if (S.view === "board")
-      html += '<p class="rs-hint"><b>How to read this.</b> Every measure on a card is a comparison with '
-        + "the other foremen on the same measure, over the window selected above \u2014 nothing here is scored "
-        + "against a fixed target, so the fleet getting better or worse together moves nobody onto this board. "
-        + "Customers packing their own things is normal and legitimate; it lands at random, so it cannot "
-        + "explain a shortfall that is one man's, consistent, and present on separate signals at once. That is "
-        + "what the certainty badge tests. " + tests + " comparisons were run across " + profiles.length
-        + " foremen, and a badge is only awarded to readings that survive a false-discovery correction over all "
-        + "of them \u2014 without it, a simulation of a fleet where nobody was doing anything wrong still put an "
-        + "innocent name on the board most of the time. <b>A high score is a reason to review, not proof of "
-        + "anything.</b></p>";
+      // the board's own reading instructions now open from the head's "How it's counted"
+      // (howPacking), told the numbers they quote for the window on screen
+      HOWV.tests = tests;
+      HOWV.foremen = profiles.length;
 
       var shown = profiles.slice();
       if (S.flagOnly) shown = shown.filter(function (p) { return p.score != null && p.score >= DIAL.flag; });
@@ -912,7 +908,7 @@ registerPage({
 
       main.innerHTML = html;
       // mount the kit dropdowns onto the divs painted above; state stays in S, exactly as
-      // the old <select> onchange handlers left it
+      // the old native dropdowns' onchange handlers left it
       RSC.localSelect(main.querySelector("#pkMonth"), {
         label: "Month", allLabel: "All months",
         values: mList.map(function (m) {
@@ -953,8 +949,8 @@ registerPage({
       });
       RSC.filterChips(main.querySelector("#pkChips"), { fields: pfFields, selected: S.pf, onChange: pfApply });
       wire(here, profiles);
-      // the note under the bar says every card is read "over the window selected above" — so
-      // the collapsed pill has to keep naming that window
+      // the board's reading note (How it's counted) says every card is read "over the window
+      // selected above" — so the collapsed pill has to keep naming that window
       RSC.collapsible(main.querySelector(".rs-bar"), "rsBarCollapsed:packing-control", {
         count: function () {
           var labels = [];
@@ -984,9 +980,10 @@ registerPage({
       }
     }
 
+    // one kit tile for RSC.kpisHtml (ZTZ-80): the value is ours to escape, the label and sub
+    // the kit's; neg / warn / pos colour the value, as the page's own tiles did
     function kpi(v, lab, sub, cls) {
-      return '<div class="pk-kpi ' + (cls || "") + '"><b>' + esc(v) + "</b><span>" + esc(lab)
-        + "</span><small>" + esc(sub) + "</small></div>";
+      return { value: esc(v), label: lab, sub: sub, tone: cls || "" };
     }
 
     /* ================================================================ the foreman's file
@@ -1076,21 +1073,21 @@ registerPage({
       // this row is HIS numbers against HIS peers, and nothing else -- the sales side of a
       // job (what the quote carried) appears only where it explains a number away, never as
       // a measure of the man (Tornike, 2026-08-19: the page is about foremen)
-      h += '<div class="pk-kpis" style="margin-bottom:16px">'
-        + kpi(usd(p.med["USD per 100 CF"], 2), "$ per 100 CF",
-              "fleet " + usd(p.fleet["USD per 100 CF"], 2), rel(p, "USD per 100 CF"))
-        + kpi(usd(p.med["USD per Unit"], 2), "$ per packing unit",
-              "fleet " + usd(p.fleet["USD per Unit"], 2), rel(p, "USD per Unit"))
-        + kpi(pct(p.med["Booked Anything"]), "Jobs that sold packing",
-              "fleet " + pct(p.fleet["Booked Anything"]), rel(p, "Booked Anything"))
-        + kpi(usd(perJob), "Sold per job", p.n + " jobs · " + usd(p.units) .replace("$", "") + " units", "")
-        + kpi(pct(p.zeroRate), "Sold nothing at all",
+      h += RSC.kpisHtml([
+        kpi(usd(p.med["USD per 100 CF"], 2), "$ per 100 CF",
+              "fleet " + usd(p.fleet["USD per 100 CF"], 2), rel(p, "USD per 100 CF")),
+        kpi(usd(p.med["USD per Unit"], 2), "$ per packing unit",
+              "fleet " + usd(p.fleet["USD per Unit"], 2), rel(p, "USD per Unit")),
+        kpi(pct(p.med["Booked Anything"]), "Jobs that sold packing",
+              "fleet " + pct(p.fleet["Booked Anything"]), rel(p, "Booked Anything")),
+        kpi(usd(perJob), "Sold per job", p.n + " jobs · " + usd(p.units) .replace("$", "") + " units", ""),
+        kpi(pct(p.zeroRate), "Sold nothing at all",
               (function () {
                 var z = p.jobs.filter(function (r) { return r["Zero Pack"]; }).length;
                 var nq = p.jobs.filter(function (r) { return r["Zero Pack"] && r["No Quote"]; }).length;
                 return z ? nq + " of those " + z + " arrived with no packing on the quote" : "every job sold something";
-              })(), p.zeroRate > 0.5 ? "warn" : "")
-        + "</div>";
+              })(), p.zeroRate > 0.5 ? "warn" : ""),
+      ]);
 
       // ---- against his peers -------------------------------------------------------------
       h += '<div class="pk-sec"><h4>Against his peers</h4>'
@@ -1281,25 +1278,20 @@ registerPage({
       if (S.chkOnly) shown = shown.filter(function (x) { return x.c.v === "short" || x.c.v === "nothing"; });
       var CAP = 500;
 
-      var h = '<div class="pk-kpis" style="margin-bottom:16px">'
-        + kpi(String(checked.length), "Jobs in this window",
-              counts.aside ? counts.aside + " set aside — customer packed" : "every one gets its own verdict", "")
-        + kpi(String(counts.ok), "In range", "sold in line with what the load called for", counts.ok ? "pos" : "")
-        + kpi(String(counts.nothing), "Sold nothing", "the first rows to check", counts.nothing ? "neg" : "pos")
-        + kpi(String(counts.short), "Sold short", "well under the fleet rate for that load", counts.short ? "warn" : "pos")
-        + kpi(String(counts.paper), "Not filed yet", "no packing record to check against", counts.paper ? "warn" : "")
-        + kpi(usd(gap), "Gap on the red rows", "expected at the fleet rate minus sold — a size, not missing money", gap > 0 ? "warn" : "")
-        + "</div>";
+      var h = RSC.kpisHtml([
+        kpi(String(checked.length), "Jobs in this window",
+              counts.aside ? counts.aside + " set aside — customer packed" : "every one gets its own verdict", ""),
+        kpi(String(counts.ok), "In range", "sold in line with what the load called for", counts.ok ? "pos" : ""),
+        kpi(String(counts.nothing), "Sold nothing", "the first rows to check", counts.nothing ? "neg" : "pos"),
+        kpi(String(counts.short), "Sold short", "well under the fleet rate for that load", counts.short ? "warn" : "pos"),
+        kpi(String(counts.paper), "Not filed yet", "no packing record to check against", counts.paper ? "warn" : ""),
+        kpi(usd(gap), "Gap on the red rows", "expected at the fleet rate minus sold — a size, not missing money", gap > 0 ? "warn" : ""),
+      ]);
 
       h += '<div class="pk-sec"><h4>Every job, checked one by one <span class="pk-dim">' + shown.length + "</span></h4>"
-        + '<p class="pk-dim2">Newest first. <b>Expected</b> is what this load would sell at the fleet’s median rate ('
-        + usd(medUnit, 2) + "/unit from " + rateN(base) + " priced jobs"
-        + (widened ? " — the whole book, since this window is too thin to price alone" : "")
-        + "; $" + (med100 == null ? "—" : Math.round(med100)) + "/100 CF when a load has no unit count). "
-        + "A job can sit below it and be fine, so the verdict only turns red when the shortfall is worth a phone "
-        + "call. Grey notes — a mattress without a cover, boxes without tape — are worth an eyebrow, not a verdict: "
-        + "the fleet itself only covers about half its mattresses. A row opens the foreman’s file at that job "
-        + "where he has one.</p>";
+        // what Expected is, and when a verdict turns red, is in How it's counted (howPacking)
+        + '<p class="pk-dim2">Newest first.</p>';
+      HOWV.jobs = { medUnit: medUnit, n: rateN(base), widened: widened, med100: med100 };
       if (!shown.length) return h + '<p class="pk-dim2">Nothing to show in this window.</p></div>';
       h += '<div class="rs-tablewrap pk-jwrap" style="max-height:64vh"><table class="rs-table"><thead><tr>'
         + "<th>Day</th><th>Job</th><th>Customer</th><th>Foreman</th>"
@@ -1361,11 +1353,8 @@ registerPage({
       fut.forEach(function (r) { if (!r.Foreman) noFore++; });
       var h = '<div class="pk-sec"><h4>Every booked job from today forward '
         + '<span class="pk-dim">' + fut.length + "</span></h4>"
-        + '<p class="pk-dim2">Soonest first. This is the pre-job check: the goods the calendar '
-        + "lists, and the packing already on the quote. Open the event, look at the load, and "
-        + "check what the crew sells against it — before the truck leaves, not a week after. "
-        + "A job from the past week that never reached the office sheet stays listed here, "
-        + "marked — those are the ones most worth chasing."
+        // what the pre-job check is for is in How it's counted (howPacking)
+        + '<p class="pk-dim2">Soonest first.'
         + (noFore ? " <b>" + noFore + " job" + (noFore === 1 ? " has" : "s have")
             + " no foreman assigned yet.</b>" : "")
         + "</p>";
@@ -1512,7 +1501,7 @@ registerPage({
       var byName = {};
       profiles.forEach(function (p) { byName[p.name] = p; });
 
-      main.querySelectorAll(".pk-tabs button").forEach(function (b) {
+      main.querySelectorAll(".rs-utab[data-v]").forEach(function (b) {
         b.onclick = function () { S.view = b.dataset.v; close(); paint(); };
       });
       // #pkWho / #pkMonth / #pkCo are localSelect mounts now — wired where they are

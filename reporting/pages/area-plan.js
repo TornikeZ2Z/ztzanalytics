@@ -168,11 +168,11 @@
     st.textContent = `
     /* Seasonal Planning (ap2-): only what the kit cannot say. */
     .ap2-xp{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:4px 0 2px}
-    .ap2-xps{border:1px solid var(--line);border-left:3px solid var(--pos);border-radius:8px;padding:8px 11px}
+    .ap2-xps{border:1px solid var(--line);border-radius:8px;padding:8px 11px}
     .ap2-xps b{display:block;font-size:13px;color:var(--ink)}
-    .ap2-xps span{display:block;font-size:11.5px;color:var(--warn);font-weight:700;margin:1px 0 3px}
-    .ap2-xps small{display:block;font-size:11px;color:var(--faint);line-height:1.4}
-    .ap2-xps small strong{color:var(--ink);font-weight:700}
+    .ap2-xps span{display:block;font-size:12px;color:var(--warn);font-weight:600;margin:1px 0 3px}
+    .ap2-xps small{display:block;font-size:12px;color:var(--faint);line-height:1.4}
+    .ap2-xps small strong{color:var(--ink);font-weight:600}
     /* THE MARYLAND BLOCK (2026-09-24): the clock + the Montgomery test. Series colours are tokens on
        the block's own root -- light/paper is the base, dark states itself (the page's convention) --
        so the SVG never carries a literal colour. Each hue was checked against --panel in both themes. */
@@ -181,17 +181,17 @@
       --gt-band:color-mix(in srgb,#7c3aed 9%,transparent)}
     body.rs-app:not(.light) .ap2-gt{--gt-t:#A3CF3A;--gt-c:#a3a3a3;--gt-pos:#34d399;--gt-md:#A3CF3A;--gt-ref:#fbbf24;--gt-lvl:#c4b5fd;
       --gt-band:color-mix(in srgb,#c4b5fd 12%,transparent)}
-    .ap2-gt-h{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:6px 0 6px}
+    .ap2-gt-h{font-size:12px;font-weight:600;color:var(--muted);margin:6px 0 6px}
     .ap2-gt-chart{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 4px}
     .ap2-gt-svg{display:block;width:100%;max-width:860px;min-width:520px;height:auto}
     .ap2-gt-svg text{font-size:11px;font-family:inherit}
     .ap2-gt-grid{stroke:var(--gt-grid);stroke-width:1}
     .ap2-gt-ax{fill:var(--gt-axis)}
     .ap2-gt-mark{stroke:var(--gt-mark);stroke-width:1;stroke-dasharray:3 3}
-    .ap2-gt-mtx{fill:var(--gt-axis);font-weight:700}
+    .ap2-gt-mtx{fill:var(--gt-axis);font-weight:600}
     .ap2-gt-band{fill:var(--gt-band)}
     .ap2-gt-ref{stroke-width:1.5;stroke-dasharray:6 4;fill:none}
-    .ap2-gt-rtx{font-weight:800}
+    .ap2-gt-rtx{font-weight:600}
     .ap2-gt-ln{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
     .ap2-gt-pt{stroke:none}
     .ap2-gt-ln.ap2-gt-t{stroke:var(--gt-t)} .ap2-gt-pt.ap2-gt-t{fill:var(--gt-t)}
@@ -200,40 +200,41 @@
     .ap2-gt-ln.ap2-gt-md{stroke:var(--gt-md)} .ap2-gt-pt.ap2-gt-md{fill:var(--gt-md)}
     .ap2-gt-ref.ap2-gt-tgt{stroke:var(--gt-ref)} .ap2-gt-rtx.ap2-gt-tgt{fill:var(--gt-ref)}
     .ap2-gt-ref.ap2-gt-lvl{stroke:var(--gt-lvl)} .ap2-gt-rtx.ap2-gt-lvl{fill:var(--gt-lvl)}
-    .ap2-gt-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--muted);margin:2px 0 8px}
+    .ap2-gt-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin:2px 0 8px}
     .ap2-gt-leg span{display:inline-flex;align-items:center;gap:6px}
     .ap2-gt-sw{display:inline-block;width:16px;height:3px;border-radius:2px}
     .ap2-gt-sw.ap2-gt-t{background:var(--gt-t)} .ap2-gt-sw.ap2-gt-c1{background:var(--gt-c)}
     .ap2-gt-sw.ap2-gt-pos{background:var(--gt-pos)} .ap2-gt-sw.ap2-gt-md{background:var(--gt-md)}
     .ap2-gt-sw.ap2-gt-dash{height:0;border-top:2px dashed currentColor;background:none}
     .ap2-gt-sw.ap2-gt-dash.ap2-gt-tgt{color:var(--gt-ref)} .ap2-gt-sw.ap2-gt-dash.ap2-gt-lvl{color:var(--gt-lvl)}
-    .ap2-gt-guard{font-size:12.5px;color:var(--muted);line-height:1.9;margin:0 0 4px}
+    .ap2-gt-guard{font-size:13px;color:var(--muted);line-height:1.9;margin:0 0 4px}
     /* a tripped guard's chip carries a whole sentence ("May 2027: $120 of Google Ads in a test zone;
-       2,500 MD/DC/VA cards mailed ...", ~700px): span.ap2-chip is nowrap, so at 375px it pushed the
+       2,500 MD/DC/VA cards mailed ...", ~700px): a status pill is nowrap, so at 375px it pushed the
        whole content area sideways the day a guard tripped (2026-09-24 review). Here it wraps. */
-    .ap2-gt-guard span.ap2-chip{white-space:normal;max-width:100%;align-items:flex-start;margin:0 0 4px}
-    .ap2-gt-guard span.ap2-chip::before{margin-top:5px}
+    .ap2-gt-guard .rs-pill{white-space:normal;max-width:100%;margin:0 0 4px}
     /* the What-if's small segmented controls: ceilings vs counted, and each typed state's path */
     .ap2-capmode{margin:0 0 10px}
+    /* a kit segmented choice that may wrap (eight states, four methods); a second line in an option is muted */
     .rs-seg.ap2-seg-s{flex-wrap:wrap;max-width:100%}
-    .rs-seg.ap2-seg-s button{font-size:11.5px;padding:4px 9px}
+    .ap2-pane .rs-seg button>small,.ap2-scnbar .rs-btn>small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
+    .ap2-pane .rs-seg button.on>small{color:inherit;opacity:.85}
+    .ap2-pane .rs-tog>small{font-size:12px;font-weight:400;color:var(--muted)}
     .ap2-capcell{min-width:0;margin:0 0 9px}
     .ap2-capcell>.ap2-fld{margin:0}
     .ap2-capcell>.rs-seg.ap2-seg-s{margin-top:5px}
-    .ap2-gt-facts{margin:4px 0 0;padding-left:20px;font-size:12.5px;color:var(--muted);line-height:1.6}
+    .ap2-gt-facts{margin:4px 0 0;padding-left:20px;font-size:13px;color:var(--muted);line-height:1.6}
     .ap2-gt-facts b{color:var(--ink)}
     .ap2-gt .ap2-next td small{display:block}
     .ap2-scn{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0}
     @media (max-width:1100px){.ap2-scn{grid-template-columns:1fr}}
     .ap2-scnbox{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
     .ap2-capgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-    .ap2-scnbox h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .ap2-scnbox h4{margin:0 0 8px;font-size:12px;color:var(--muted)}
     .ap2-fld{display:block;margin:0 0 9px}
     .ap2-fld>span{display:block;font-size:12px;color:var(--ink);font-weight:600;margin-bottom:3px}
-    .ap2-fld small{display:block;font-size:10.5px;color:var(--faint);line-height:1.35;margin-top:2px}
+    .ap2-fld small{display:block;font-size:12px;color:var(--faint);line-height:1.35;margin-top:2px}
     .ap2-fld .ap2-in{width:100%}
     .ap2-picks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
-    .ap2-picks .ap2-mbtn{font-size:11.5px;padding:4px 8px}
     .ap2-scnbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}
     .ap2-cname{position:absolute;transform:translate(-50%,-172%);text-align:center;white-space:nowrap;
       font-size:11.5px;font-weight:800;color:var(--ink);letter-spacing:.01em;pointer-events:none;
@@ -244,59 +245,48 @@
     .ap2-svbar i { display:block; height:100%; background:var(--pos); border-radius:3px; }
     .ap2-ctl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}
     .ap2-ctl>.ap2-note{padding-bottom:8px}
-    .ap2-warn{font-size:12px;color:var(--warn);font-weight:700}
-    .ap2-golink{background:none;border:0;padding:0;font:inherit;color:var(--brand-d);font-weight:700;cursor:pointer;text-decoration:underline}
-    .ap2-sech{font-size:16px;font-weight:800;color:var(--ink);margin:22px 0 6px;scroll-margin-top:72px}
+    .ap2-warn{font-size:12px;color:var(--warn);font-weight:600}
+    /* ONE LINK BUTTON (ZTZ-80): the "... ↓" jumps, the inline links, "← back" and "Show all" were four copies */
+    .ap2-goto,.ap2-golink,.ap3-back,.ap-tj-more{font:inherit;font-size:13px;font-weight:600;color:var(--brand-d);background:none;border:0;padding:0;cursor:pointer;text-decoration:none}
+    .ap2-goto:hover,.ap3-back:hover,.ap-tj-more:hover{text-decoration:underline}
+    .ap2-golink{font-size:inherit;text-decoration:underline}
+    .ap2-goto{margin-top:7px}
+    .ap3-back{padding:2px 0 10px}
+    .ap-tj-more{margin:8px 0 0;padding:2px 0}
+    .ap2-sech{font-size:16px;font-weight:600;color:var(--ink);margin:22px 0 6px;scroll-margin-top:72px}
     .ap2-sech:first-child{margin-top:0}
     .ap2-dec{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:10px;align-items:start}
     .ap2-d{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;border-top:3px solid var(--brand)}
-    .ap2-d .dh{font-size:13.5px;color:var(--muted);line-height:1.5} .ap2-d .dq{font-size:12.5px;color:var(--muted);margin:0 0 4px}
-    .ap2-d .dh b{color:var(--ink);font-size:26px;font-weight:800;line-height:1.15}
-    .ap2-d .dn{display:block;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-d);margin-bottom:2px}
-   
+    .ap2-d .dh{font-size:14px;color:var(--muted);line-height:1.5} .ap2-d .dq{font-size:13px;color:var(--muted);margin:0 0 4px}
+    .ap2-d .dh b{color:var(--ink);font-size:28px;font-weight:600;line-height:1.15}
+
     .ap2-d .dx{font-size:12px;color:var(--muted);line-height:1.6;margin-top:9px} .ap2-d .dx b{color:var(--ink)}
-    .ap2-dt{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;font-variant-numeric:tabular-nums}
-    .ap2-dt th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:700;text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
+    .ap2-dt{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;font-variant-numeric:tabular-nums}
+    .ap2-dt th{font-size:12px;color:var(--faint);font-weight:600;text-align:left;padding:3px 4px;border-bottom:1px solid var(--line)}
     .ap2-dt th.num,.ap2-dt td.num{text-align:right} .ap2-dt td{padding:4px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
     .ap2-qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:10px;margin-top:10px}
     .ap2-q{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-    .ap2-q .qq{font-size:13px;font-weight:750;color:var(--ink);line-height:1.45}
-    .ap2-q .qa{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:5px}
+    .ap2-q .qq{font-size:13px;font-weight:600;color:var(--ink);line-height:1.45}
+    .ap2-q .qa{font-size:13px;color:var(--muted);line-height:1.6;margin-top:5px}
     .ap2-q .qa b{color:var(--ink)}
     .ap2-q .qh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    .ap2-q .qn{font-size:11px;font-weight:800;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:1px 8px}
-    .ap2-chip{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 8px;white-space:nowrap}
-    .ap2-chip.y{background:color-mix(in srgb,var(--pos) 14%,transparent);color:var(--pos)}
-    .ap2-chip.p{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
-    .ap2-chip.n{background:color-mix(in srgb,var(--neg) 12%,transparent);color:var(--neg)}
-    .ap2-goto{margin-top:7px;font-size:12px;font-weight:700;color:var(--brand-d);background:0;border:0;padding:0;cursor:pointer}
-    .ap2-goto:hover{text-decoration:underline}
+    .ap2-q .qn{font-size:12px;font-weight:600;color:var(--brand-d);background:var(--brand-glow);border-radius:999px;padding:1px 8px}
     .ap2-band{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin:22px 0 10px;
       padding-top:14px;border-top:2px solid var(--line)}
-    .ap2-band .k{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    .ap2-band .k{font-size:12px;font-weight:600;
       color:var(--brand)}
-    .ap2-band h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.3px}
+    .ap2-band h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.3px}
     .ap2-band .clock{font-size:12px;color:var(--muted);margin-left:auto}
-    .ap2-say{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:none;margin:0 0 12px}
+    .ap2-say{font-size:13px;color:var(--muted);line-height:1.6;max-width:none;margin:0 0 12px}
     .ap2-say b{color:var(--ink)}
-    .ap2-stamps{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--faint);
+    .ap2-stamps{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--faint);
       margin:6px 0 0}
-    /* the hero: decision numbers as one connected strip */
-    .ap2-hero{padding:20px 22px 16px}
-    .ap2-flow{display:flex;gap:0;align-items:stretch;flex-wrap:wrap}
-    .ap2-step{flex:1 1 170px;min-width:150px;padding:2px 18px 2px 0;position:relative}
-    .ap2-step + .ap2-step{padding-left:18px;border-left:1px solid var(--line-2)}
-    .ap2-step .l{overflow-wrap:anywhere;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;
-      letter-spacing:.06em}
-    .ap2-step .v{font-size:30px;font-weight:800;letter-spacing:-.8px;line-height:1.15;
-      margin-top:4px;font-variant-numeric:tabular-nums}
-    .ap2-step .v.warn{color:var(--warn)} .ap2-step .v.good{color:var(--brand)}
-    .ap2-step .s{font-size:11px;color:var(--faint);margin-top:3px;line-height:1.45}
+
     .ap2-dials{display:flex;gap:28px;flex-wrap:wrap;margin-top:16px;padding-top:14px;
       border-top:1px solid var(--line-2)}
-    .ap2-dial .l{font-size:10.5px;font-weight:800;letter-spacing:.06em;
-      text-transform:uppercase;color:var(--muted);margin-bottom:5px}
-    .ap2-dial .m{font-size:11.5px;color:var(--faint);margin-top:4px;max-width:250px;
+    .ap2-dial .l{font-size:12px;font-weight:600;
+      color:var(--muted);margin-bottom:5px}
+    .ap2-dial .m{font-size:12px;color:var(--faint);margin-top:4px;max-width:250px;
       line-height:1.45}
     /* demand: booked inside leads, per state; the row is a focus target */
     .ap2-dem{display:grid;grid-template-columns:minmax(120px,170px) minmax(80px,1fr) auto;
@@ -307,77 +297,66 @@
       .ap2-dem .v{grid-column:1/-1;justify-self:end}}
     .ap2-dem:hover{background:var(--panel-2)}
     .ap2-dem.on{background:color-mix(in srgb,var(--brand) 10%,transparent)}
-    .ap2-dem .n{font-weight:700;font-size:13.5px}
-    .ap2-dem .n small{display:block;font-weight:600;font-size:11px;color:var(--faint)}
+    .ap2-dem .n{font-weight:600;font-size:14px}
+    .ap2-dem .n small{display:block;font-weight:600;font-size:12px;color:var(--faint)}
     .ap2-dem .t{height:14px;background:var(--panel-2);border-radius:7px;overflow:hidden;
       position:relative}
     .ap2-dem .t .lead{position:absolute;inset:0 auto 0 0;
       background:color-mix(in srgb,var(--brand) 26%,var(--panel-2));border-radius:7px}
     .ap2-dem .t .book{position:absolute;inset:0 auto 0 0;background:var(--brand);
       border-radius:7px}
-    .ap2-dem .v{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap;
+    .ap2-dem .v{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap;
       font-variant-numeric:tabular-nums}
     .ap2-dem .v b{color:var(--ink)}
-    .ap2-yoy{font-weight:800;font-size:11.5px}
+    .ap2-yoy{font-weight:600;font-size:12px}
     .ap2-yoy.up{color:var(--pos)} .ap2-yoy.dn{color:var(--neg)}
-    .ap2-lost{color:var(--warn);font-weight:800}
+    .ap2-lost{color:var(--warn);font-weight:600}
     /* the plan table: focus row, company sub-rows, the measured counterpart */
     .ap2-row{cursor:pointer} .ap2-row:hover td{background:var(--panel-2)}
     .ap2-row.on td{background:color-mix(in srgb,var(--brand) 10%,transparent)}
     .ap2-row.on td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
     .ap2-sub td{color:var(--muted);font-size:12px;background:var(--panel-2)}
     .ap2-sub td:first-child{padding-left:26px}
-    .ap2-tie{font-size:11.5px;color:var(--faint);margin-top:8px}
-    .ap2-tie.bad{color:var(--warn);font-weight:700}
+    .ap2-tie{font-size:12px;color:var(--faint);margin-top:8px}
+    .ap2-tie.bad{color:var(--warn);font-weight:600}
     /* the leak rows share the reviews-cases bar language */
     .ap2-leak{display:grid;grid-template-columns:minmax(150px,240px) minmax(60px,1fr) auto;
       gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line-2)}
     .ap2-leak:last-child{border-bottom:0}
     .ap2-leak .n{font-size:13px;font-weight:600}
-    .ap2-leak .n small{color:var(--faint);font-weight:700;margin-left:6px}
+    .ap2-leak .n small{color:var(--faint);font-weight:600;margin-left:6px}
     .ap2-leak .t{height:10px;background:var(--panel-2);border-radius:5px;overflow:hidden}
     .ap2-leak .t i{display:block;height:100%;background:var(--warn);border-radius:5px}
-    .ap2-leak .v{font-size:12.5px;color:var(--muted);text-align:right;white-space:nowrap;
+    .ap2-leak .v{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap;
       font-variant-numeric:tabular-nums}
-    .ap2-next{font-size:12.5px} .ap2-next th.ap2-sh,.ap2-next td.ap2-sh{color:var(--faint);background:color-mix(in srgb,var(--line) 35%,transparent)}
-    .ap2-next td small{display:block;font-size:10.5px;color:var(--faint);font-weight:600} .ap2-next tr.ap2-tot td{font-weight:800;border-top:2px solid var(--line)}
-    .ap2-hire{color:var(--neg)} .ap2-ok{color:var(--pos);font-weight:700;font-size:11.5px} .ap2-dim{color:var(--faint)}
+    .ap2-next{font-size:13px} .ap2-next th.ap2-sh,.ap2-next td.ap2-sh{color:var(--faint);background:color-mix(in srgb,var(--line) 35%,transparent)}
+    .ap2-next td small{display:block;font-size:12px;color:var(--faint);font-weight:600} .ap2-next tr.ap2-tot td{font-weight:600;border-top:2px solid var(--line)}
+    .ap2-hire{color:var(--neg)} .ap2-ok{color:var(--pos);font-weight:600;font-size:12px} .ap2-dim{color:var(--faint)}
     .ap2-mpick{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
-    .ap2-rankw{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12px;color:var(--muted)} .ap2-rankw label{display:inline-flex;gap:6px;align-items:center;font-weight:700} .ap2-rankw input{width:64px}
+    .ap2-rankw{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12px;color:var(--muted)} .ap2-rankw label{display:inline-flex;gap:6px;align-items:center;font-weight:600} .ap2-rankw input{width:64px}
     .ap2-rank2{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media (max-width:1200px){.ap2-rank2{grid-template-columns:1fr}}
-    .ap2-mbtn{font-family:inherit;font-size:12px;font-weight:700;padding:6px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--panel);color:var(--muted);cursor:pointer;text-align:left}
-    .ap2-mbtn small{display:block;font-size:10.5px;font-weight:600;color:var(--faint)} .ap2-mbtn.on{border-color:var(--brand);color:var(--brand-d);background:var(--brand-glow)} .ap2-mbtn.on small{color:var(--brand-d)}
     /* Band B: the evidence (carried from Area Master, prefix renamed) */
-    .ap2-led{display:flex;flex-wrap:wrap;gap:0;padding:18px 20px}
-    .ap2-led-g{flex:1 1 165px;min-width:0;padding:0 18px 0 0}
-    .ap2-led-g + .ap2-led-g{padding-left:18px;border-left:1px solid var(--line-2)}
-    .ap2-led-g>.l{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-      color:var(--faint)}
-    .ap2-led-g>.v{font-size:clamp(23px,1.9vw,30px);font-weight:800;letter-spacing:-.8px;
-      line-height:1.15;margin-top:5px;font-variant-numeric:tabular-nums;color:var(--ink)}
-    .ap2-led-g>.v.pos{color:var(--brand)} .ap2-led-g>.v.warn{color:var(--warn)}
-    .ap2-led-g>.s{font-size:12px;color:var(--muted);line-height:1.55;margin-top:6px}
-    .ap2-led-g>.s b{color:var(--ink)}
+
+    .ap2-led-note{margin:-6px 0 12px}
     .ap2-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(370px,1fr));gap:12px;
       margin-top:12px}
     .ap2-grid>.panel{min-width:0}
     .ap2-lad{display:grid;grid-template-columns:76px minmax(60px,1fr) auto auto;gap:10px;
-      align-items:center;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:12.5px}
+      align-items:center;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13px}
     .ap2-lad:last-child{border-bottom:0}
     .ap2-lad .t{height:13px;background:var(--panel-2);border-radius:7px;overflow:hidden}
     .ap2-lad .t i{display:block;height:100%;background:var(--brand);border-radius:7px}
     .ap2-lad .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);
       white-space:nowrap}
     .ap2-lad .v b{color:var(--ink)}
-    .ap2-small{color:var(--faint);font-size:11.5px;white-space:nowrap}
+    .ap2-small{color:var(--faint);font-size:12px;white-space:nowrap}
     .ap2-th{cursor:pointer;user-select:none;white-space:nowrap}
     .ap2-th:hover{color:var(--brand)} .ap2-th.on{color:var(--brand)}
     /* the tab bar: sticky against .rs-content, whose 16px top padding the inset resolves against
        (monthly-report.js:610 proved top:0 parks it 16px low); z-index under the shell's own filters */
-    .ap2-clockline{color:var(--muted);font-size:12.5px;margin:6px 0 0}
-    .ap2-tabs{position:sticky;top:-16px;z-index:28;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-      background:var(--bg);padding:14px 0 8px;margin:0 0 12px;border-bottom:1px solid var(--line)}
-    .ap2-tabs .sp{flex:1 1 auto}
+    .ap2-tabs{position:sticky;top:-16px;z-index:28;display:flex;align-items:flex-end;height:54px;box-sizing:border-box;
+      background:var(--bg);margin:0 0 12px}
+    .ap2-tabs>.rs-utabs{flex:1 1 auto;margin:0}
     .ap2-pane[hidden]{display:none}
     /* a table that scrolls with the page (no .rs-tablewrap, no overflow div of its own) must pin its
        header below the tab bar, or the bar paints straight over it */
@@ -391,90 +370,78 @@
     /* STATISTICS = SEVEN SECTIONS (2026-10-07) and one Download menu */
     .ap4-jump{position:sticky;top:var(--ap4-jt,38px);z-index:27;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
       padding:8px 0 10px;margin:0 0 6px;background:var(--bg)}
-    .ap4-jump>span{font-size:12px;color:var(--muted);margin-right:2px}
+    .ap4-jump>span{font-size:13px;color:var(--muted);margin-right:2px}
     .ap4-jump>.sp{flex:1}
-    .ap4-jump button{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--ap-rule);background:var(--panel);color:var(--ink);cursor:pointer}
-    .ap4-jump button:hover{border-color:var(--ink)}
     .ap4-sec{border:1px solid var(--ap-rule);border-radius:12px;background:var(--panel);margin:0 0 10px}
     .ap4-msec{margin-top:12px}
-    .ap4-sec>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:15px}
+    .ap4-sec>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:16px}
     .ap4-sec>summary::-webkit-details-marker{display:none}
     .ap4-sec>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;flex:none}
     .ap4-sec[open]>summary::before{transform:rotate(45deg)}
-    .ap4-sec>summary b{font-weight:700;color:var(--ink)}
+    .ap4-sec>summary b{font-weight:600;color:var(--ink)}
     .ap4-secb{padding:0 16px 16px}
     .ap4-sec table.ap2-below-tabs th{top:96px}
     .ap4-dl{position:relative}
     .ap4-dl>summary{list-style:none;cursor:pointer}
     .ap4-dl>summary::-webkit-details-marker{display:none}
     .ap4-dlm{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:flex;flex-direction:column;min-width:200px;padding:4px;
-      background:var(--bg);border:1px solid var(--ap-rule);border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.12)}
+      background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.12)}
     .ap4-dlm button{font:inherit;font-size:13px;text-align:left;padding:8px 10px;border:0;background:none;border-radius:6px;cursor:pointer;color:var(--ink)}
-    .ap4-dlm button:hover{background:var(--ap-bay)}
+    .ap4-dlm button:hover{background:var(--panel-2)}
     .ap2-tt{position:sticky;left:0;z-index:1;display:flex;align-items:center;gap:8px;justify-content:flex-end;margin:0 0 6px}
-    .ap2-tt .n{font-size:11.5px;color:var(--faint);margin-right:auto}
-    .ap2-tt .rs-btn{padding:3px 10px;font-size:11.5px}
-    .ap2-meas{display:inline-block;margin-left:6px;font-size:9.5px;font-weight:800;letter-spacing:.03em;
-      text-transform:uppercase;color:var(--pos);background:color-mix(in srgb,var(--pos) 13%,transparent);
-      border-radius:999px;padding:1px 6px;vertical-align:1px}
+    .ap2-tt .n{font-size:12px;color:var(--faint);margin-right:auto}
+    .ap2-meas{margin-left:6px}
     .ap2-pool td{background:color-mix(in srgb,var(--brand) 7%,transparent);border-top:1px solid var(--line)}
     .ap2-pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;
-      font-size:12.5px;color:var(--faint)}
-    .ap2-pager .rs-btn[disabled]{opacity:.4;pointer-events:none}
+      font-size:13px;color:var(--faint)}
     .ap2-bar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:0 0 12px}
     .ap2-in{font-family:inherit;background:var(--panel);border:1px solid var(--line);
       border-radius:9px;color:var(--ink);padding:8px 12px;font-size:13px;outline:0;
       margin-bottom:1px}
     .ap2-in:focus{border-color:var(--brand)}
-    .ap2-chip{font-family:inherit;font-size:12px;font-weight:700;padding:5px 10px;
-      border-radius:999px;border:1px solid var(--line);background:var(--panel);
-      color:var(--muted);cursor:pointer}
-    .ap2-chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
     /* Band C: the outside picture as cards */
     .ap2-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
     .ap2-card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;
       background:var(--panel)}
-    .ap2-card.hot{border-color:var(--warn)}
-    .ap2-card h5{margin:0 0 6px;font-size:14px;font-weight:800;display:flex;gap:8px;
+    .ap2-card h5{margin:0 0 6px;font-size:14px;font-weight:600;display:flex;gap:8px;
       align-items:baseline}
-    .ap2-card .case{font-size:12.5px;line-height:1.6;color:var(--ink)}
+    .ap2-card .case{font-size:13px;line-height:1.6;color:var(--ink)}
     .ap2-card .towns{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.5}
-    .ap2-card .foot{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint);
+    .ap2-card .foot{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--faint);
       margin-top:9px;padding-top:8px;border-top:1px solid var(--line-2);
       font-variant-numeric:tabular-nums}
-    .ap2-tension{font-size:11.5px;color:var(--warn);font-weight:700;margin-top:7px}
-    .ap2-eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.08em;
-      text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+    .ap2-tension{font-size:12px;color:var(--warn);font-weight:600;margin-top:7px}
+    .ap2-eyebrow{font-size:12px;font-weight:600;
+      color:var(--muted);margin-bottom:3px}
     .ap2-eyebrow + .panel-title{margin-bottom:5px}
-    .ap2-note{font-size:12.5px;color:var(--muted);line-height:1.6}
+    .ap2-note{font-size:13px;color:var(--muted);line-height:1.6}
     .ap2-callout{background:color-mix(in srgb,var(--brand-d) 7%,transparent);
       border:1px solid color-mix(in srgb,var(--brand-d) 30%,transparent);border-radius:12px;
       padding:14px 16px;font-size:13px;line-height:1.65;margin-top:12px}
     details.ap2-ref>summary{cursor:pointer;list-style:none;padding:12px 16px;
-      border:1px solid var(--line);border-radius:12px;background:var(--panel);font-weight:800;
-      font-size:13.5px;margin-top:12px}
+      border:1px solid var(--line);border-radius:12px;background:var(--panel);font-weight:600;
+      font-size:14px;margin-top:12px}
     details.ap2-ref>summary::-webkit-details-marker{display:none}
     details.ap2-ref>summary::before{content:"▸ ";color:var(--brand)}
     details.ap2-ref[open]>summary::before{content:"▾ "}
     details.ap2-ref>summary small{font-weight:600;color:var(--faint);margin-left:8px}
     details.ap2-ref>.panel{margin-top:8px}
 
-
 /* ---------- THE FORMULA (2026-09-20) ------------------------------------------ */
 .ap2-formula{display:block}
 .ap2-formula .f-eq{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
   padding:9px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);
   background:var(--ap-sub);margin:0 0 7px;font-size:14px;color:var(--ink)}
-.ap2-formula .f-eq .n{font-family:var(--ap-mono);font-size:11px;font-weight:700;color:var(--ap-live);
+.ap2-formula .f-eq .n{font-family:var(--ap-mono);font-size:12px;font-weight:600;color:var(--ap-live);
   border:1px solid var(--ap-rule-2);border-radius:var(--ap-r3);padding:1px 6px;flex:none}
 .ap2-formula .f-eq em{font-style:normal;color:var(--muted);padding:0 1px}
-.ap2-formula .f-eq b{font-family:var(--ap-mono);font-weight:800;color:var(--ap-live)}
-.ap2-formula .f-eq small{flex:1 1 220px;color:var(--muted);font-size:11.5px;text-align:right}
+.ap2-formula .f-eq b{font-family:var(--ap-mono);font-weight:600;color:var(--ap-live)}
+.ap2-formula .f-eq small{flex:1 1 220px;color:var(--muted);font-size:12px;text-align:right}
 .ap2-formula .f-unit{margin:11px 0 0;padding:11px 13px;border-radius:var(--ap-r2);
-  background:var(--ap-live-soft);border:1px solid var(--ap-rule-2);font-size:13.5px;line-height:1.6}
+  background:var(--ap-live-soft);border:1px solid var(--ap-rule-2);font-size:14px;line-height:1.6}
 .ap2-formula .f-unit b{color:var(--ink)}
-.ap2-formula .f-lead{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0 0 9px}
-.ap2-formula .f-lead b{color:var(--ink);font-size:14.5px}
+.ap2-formula .f-lead{font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 9px}
+.ap2-formula .f-lead b{color:var(--ink);font-size:14px}
 .ap2-next td small{display:block;color:var(--muted)}
 /* ---------- THE MAP (2026-09-20) ----------------------------------------------
    Leaflet is vendored and lazy-loaded; the tile layer is Carto Voyager, the same one
@@ -483,21 +450,20 @@
 .ap2-mapbox{height:min(82vh,900px);min-height:600px;border-radius:var(--ap-r1);border:1px solid var(--ap-rule);
   background:#d0cfd4;overflow:hidden}          /* the Esri canvas water, so no seam shows at an edge */
 body:not(.light) .ap2-mapbox{background:#1d232b}
-.ap2-modes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
-.ap2-modes .l{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.02em;margin-right:2px}
+
 .ap2-rampsw{display:inline-block;width:20px;height:13px;vertical-align:-2px;border:1px solid var(--ap-rule-2);
   border-right:0}
 .ap2-bub{display:inline-block;border-radius:50%;background:var(--blue);opacity:.30;
   border:1.4px solid var(--blue);vertical-align:middle;margin-right:4px}
-.ap2-bub.faint{width:15px;height:15px;opacity:.55;background:transparent;border-style:dashed}
+
 .ap2-bub.spend{background:var(--muted);border-color:var(--muted);opacity:.42}
 .ap2-rampsw:last-of-type{border-right:1px solid var(--ap-rule-2)}
 .ap2-headline{margin:2px 0 10px;padding:11px 14px;border:1px solid var(--ap-rule);border-left:4px solid var(--ap-pos-ink);
-  border-radius:var(--ap-r2);background:var(--ap-sub);font-size:15px;line-height:1.5;color:var(--ink)}
-.ap2-headline .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+  border-radius:var(--ap-r2);background:var(--ap-sub);font-size:16px;line-height:1.5;color:var(--ink)}
+.ap2-headline .n{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
 .ap2-headline .q{color:var(--muted)}
-.ap2-mapkey{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 10px;font-size:13.5px;
-  font-size:11.5px;color:var(--muted)}
+.ap2-mapkey{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 10px;
+  font-size:12px;color:var(--muted)}
 .ap2-mapkey .sp{flex:1 1 auto}
 .ap2-mk{display:inline-flex;align-items:center;gap:6px}
 .ap2-mk b{color:var(--ink);font-variant-numeric:tabular-nums}
@@ -508,8 +474,8 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 /* NEVER SENT A LEAD IS A TEXTURE, NOT A SHADE (his call 2026-09-22: the two greys "look
    similar"). A hatch cannot be mistaken for a colour at any size or on any projector, and it reads
    as "nothing is known here" rather than as a bad score -- which is what it actually means. */
-.ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2);
-  background-image:repeating-linear-gradient(45deg,var(--ap-rule-2) 0 1.5px,transparent 1.5px 4px)}
+.ap2-sw.none{background:transparent;border:1px solid var(--ap-rule-2);color:var(--ap-rule-2);overflow:hidden}
+.ap2-sw.none svg{display:block;width:100%;height:100%}
 .ap2-sw.have{background:var(--ink);border-radius:2px}
 .ap2-sw.cover{background:transparent;border:2px dashed var(--ap-pos-ink);border-radius:50%}
 /* A BASE FLAG IS A LABEL, NOT A PIN. Six bases and four proposals on one screen: an unlabelled
@@ -554,39 +520,43 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-kpi{position:relative}
 .ap3-kpi.drv{box-shadow:inset 0 0 0 2px var(--brand)}
 .ap4-kctl{position:absolute;top:10px;right:10px;display:flex;gap:4px}
-.ap4-kctl button{font:inherit;font-weight:700;line-height:1;width:26px;height:26px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;padding:0}
-.ap4-kctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+/* ONE STEPPER (ZTZ-80): the five - / + copies (tiles, base cards, the plan table, the trucks line) are this */
+:is(.ap4-kctl,.ap4-stp,.ap3-step .ctl,.ap3-step.plan .site,.ap3-step .trk) button{font:inherit;font-size:14px;font-weight:600;line-height:1;
+  width:26px;height:26px;padding:0;flex:none;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}
+:is(.ap4-kctl,.ap4-stp,.ap3-step .ctl,.ap3-step.plan .site,.ap3-step .trk) button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap4-planbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
 .ap4-planbar>b{font-size:13px}
 .ap4-planbar>span{font-size:12px;color:var(--muted)}
-.ap3-kpi{padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
-.ap3-kpi b{display:block;font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
-.ap3-kpi span{display:block;margin-top:5px;font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-.ap3-kpi small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
-.ap3-kpi em{font-style:normal;font-weight:800;color:var(--ap-warn-ink)}
+/* SAME FACE AS THE KIT TILE (ZTZ-80): label on top, the value, the line under it. Only the visual
+   order moves (flex order): printMap reads :scope > b / span / small, so the DOM order stays. */
+.ap3-kpi{display:flex;flex-direction:column;padding:14px 16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);min-width:0}
+.ap3-kpi b{display:block;font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-kpi>span{order:-1;display:block;margin:0 0 4px;font-size:13px;font-weight:400;color:var(--muted)}
+.ap3-kpi:has(.ap4-kctl)>span{padding-right:64px}
+.ap3-kpi small{display:block;margin-top:2px;font-size:13px;color:var(--muted)}
+.ap3-kpi em{font-style:normal;font-weight:600;color:var(--ap-warn-ink)}
 .ap3-todos{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:0 0 18px}
 .ap3-todo{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0}
 .ap3-todo .h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid var(--ap-rule)}
 .ap3-todo .h b{font-size:16px;color:var(--ink)}
-.ap3-todo .h span{font-size:13px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+.ap3-todo .h span{font-size:13px;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
 .ap3-todo ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
-.ap3-todo li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;font-size:13.5px;line-height:1.4;color:var(--ink)}
-.ap3-todo li i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
+.ap3-todo li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.4;color:var(--ink)}
+.ap3-todo li i{font-style:normal;font-size:12px;font-weight:600;color:var(--muted);padding-top:3px}
 .ap3-todo li.hire b{color:var(--ap-warn-ink)}
 .ap3-todo li.push i{color:var(--ap-pos-ink)} .ap3-todo li.weak i{color:var(--ap-neg-ink)}
-.ap3-todo li small{display:block;color:var(--faint);font-size:11.5px}
-.ap3-todo .more{color:var(--muted);font-size:12px;font-weight:700}
+.ap3-todo li small{display:block;color:var(--faint);font-size:12px}
+.ap3-todo .more{color:var(--muted);font-size:12px;font-weight:600}
 .ap3-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
-.ap3-bar label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-left:8px}
+.ap3-bar label{font-size:12px;font-weight:600;color:var(--muted);margin-left:8px}
 .ap3-bar label:first-child{margin-left:0}
-.ap3-yrs{width:100%;border-collapse:collapse;font-size:12.5px;margin:2px 0 4px}
-.ap3-yrs th{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:right;padding:3px 0}
+.ap3-yrs{width:100%;border-collapse:collapse;font-size:13px;margin:2px 0 4px}
+.ap3-yrs th{font-size:12px;font-weight:600;color:var(--faint);text-align:right;padding:3px 0}
 .ap3-yrs td{text-align:right;padding:4px 0;border-top:1px solid var(--ap-rule);font-variant-numeric:tabular-nums;color:var(--ink)}
-.ap3-yrs td:first-child,.ap3-yrs th:first-child{text-align:left;font-weight:800}
+.ap3-yrs td:first-child,.ap3-yrs th:first-child{text-align:left;font-weight:600}
 .ap3-yrs td small{font-weight:400;color:var(--faint)}
 .ap3-yrs tr.on td{background:var(--ap-sub)}
 .ap3-find{position:relative;min-width:230px;flex:0 1 280px;margin-left:auto}
-.ap3-printbtn{padding:6px 12px;font-size:12.5px;font-weight:800;white-space:nowrap;border-color:var(--brand-d);color:var(--brand-d)}
 /* THE MAP ON PAPER: see printMap(). The live nodes are moved into #apPrintRoot, so this is the
    page both on the screen (for the second before the dialog) and on the sheet. */
 body.ap3-printing > *:not(#apPrintRoot){display:none !important}
@@ -616,20 +586,14 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 .ap3-findres{position:absolute;z-index:1200;top:calc(100% + 4px);left:0;right:0;background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;max-height:340px;overflow:auto}
 .ap3-findres button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;font-size:13px;color:var(--ink);background:none;border:0;border-radius:7px;padding:7px 8px;cursor:pointer}
 .ap3-findres button:hover,.ap3-findres button:focus-visible{background:var(--ap-sub);outline:0}
-.ap3-findres button small{margin-left:auto;color:var(--faint);font-size:11.5px;white-space:nowrap}
-.ap3-findres .tchip{display:inline-block;font-style:normal;font-size:11px;font-weight:800;padding:0 7px;border-radius:6px;color:#fff;flex:none}
-.ap3-findres .none{padding:8px;font-size:12.5px;color:var(--muted)}
+.ap3-findres button small{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
+.ap3-findres .tchip{display:inline-block;font-style:normal;font-size:12px;font-weight:600;padding:0 7px;border-radius:6px;color:#fff;flex:none}
+.ap3-findres .none{padding:8px;font-size:13px;color:var(--muted)}
 .ap3-hl{animation:ap3hl 1.4s ease-in-out infinite}
 @keyframes ap3hl{0%,100%{stroke-opacity:1;stroke-width:3}50%{stroke-opacity:.35;stroke-width:7}}
 @media (prefers-reduced-motion:reduce){.ap3-hl{animation:none}}
-.ap3-seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:var(--panel)}
-.ap3-seg button{font:inherit;font-size:12.5px;font-weight:700;padding:6px 11px;border:0;border-right:1px solid var(--line);
-  background:transparent;color:var(--muted);cursor:pointer;min-height:32px}
-.ap3-seg button:last-child{border-right:0}
-.ap3-seg button:hover{color:var(--ink)}
-.ap3-seg button.on{background:var(--brand-glow);color:var(--brand-d);box-shadow:inset 0 -2px 0 var(--brand-d)}
-.ap3-seg button:focus-visible,.ap3-list .r:focus-visible,.ap3-list .tt button:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
-.ap2-mk small.far{display:inline;margin-left:5px;color:var(--faint);font-size:11.5px}
+.ap3-list .r:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
+.ap2-mk small.far{display:inline;margin-left:5px;color:var(--faint);font-size:12px}
 .ap3-mapgrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:stretch}
 .ap3-mapgrid .ap2-mapbox{height:min(78vh,860px);min-height:560px}
 /* FULL SCREEN + MOVE ONLY (his ask 2026-10-07): the map and its side panel fill the window; with
@@ -646,7 +610,7 @@ body.ap3-printing{background:#fff !important;overflow:visible !important}
 html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
 .ap2-mapbox.ap-quiet:not(.ap-showtip) .leaflet-tooltip-pane{display:none}
 .ap3-mapctl{display:flex;flex-direction:column;background:var(--bg)}
-.ap3-mapctl button{font:inherit;font-size:12px;font-weight:700;line-height:1;min-width:30px;height:30px;padding:0 9px;border:0;border-bottom:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap}
+.ap3-mapctl button{font:inherit;font-size:12px;font-weight:600;line-height:1;min-width:30px;height:30px;padding:0 9px;border:0;border-bottom:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;white-space:nowrap}
 .ap3-mapctl button:last-child{border-bottom:0}
 .ap3-mapctl button:hover{background:var(--ap-bay)}
 .ap3-mapctl button.on{background:var(--brand);color:var(--brand-ink)}
@@ -655,219 +619,177 @@ html.ap3-fs-on,html.ap3-fs-on body{overflow:hidden}
   border-radius:var(--ap-r1);background:var(--ap-bay);overflow:hidden;min-width:0}
 .ap3-list .lh{display:flex;align-items:center;gap:8px;padding:10px 12px 6px}
 .ap3-list .lh b{font-size:14px;color:var(--ink)}
-.ap3-list .lh span{flex:1;color:var(--muted);font-size:12.5px}
-.ap3-list .lh .rs-btn{padding:3px 9px;font-size:11.5px}
+.ap3-list .lh span{flex:1;color:var(--muted);font-size:13px}
 .ap3-routes{margin-top:14px;border:1px solid var(--ap-rule);border-radius:12px;padding:10px 12px;background:var(--panel)}
 .ap3-routes .lh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.ap3-routes .lh b{font-size:14px;color:var(--ink)}.ap3-routes .lh span{flex:1;color:var(--muted);font-size:12.5px}
-.ap3-routes .rs-tablewrap{max-height:460px}.ap3-rtin{font-size:11px;color:var(--muted)}
+.ap3-routes .lh b{font-size:14px;color:var(--ink)}.ap3-routes .lh span{flex:1;color:var(--muted);font-size:13px}
+.ap3-routes .rs-tablewrap{max-height:460px}.ap3-rtin{font-size:12px;color:var(--muted)}
 .ap3-basisnote{margin:6px 0 0}
 .ap3-list .tt{display:flex;gap:4px;padding:0 10px 8px;flex-wrap:wrap}
-.ap3-list .tt button{font:inherit;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px;padding:4px 8px;
-  border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
-.ap3-list .tt button i{width:10px;height:10px;border-radius:50%}
-.ap3-list .tt button small{font-size:11px;color:var(--faint);font-weight:600}
-.ap3-list .tt button.on{border-color:var(--brand-d);color:var(--ink);background:var(--brand-glow)}
+.ap3-list .tt .rs-tog i{border-radius:50%}     /* the dot carries the tier's own colour (inline) */
 .ap3-list .cols,.ap3-list .r{display:grid;grid-template-columns:24px minmax(0,1fr) 56px 50px 76px;gap:6px;align-items:center}
-.ap3-list .cols{padding:6px 12px;border-top:1px solid var(--ap-rule);border-bottom:1px solid var(--ap-rule);font-size:10.5px;
-  font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ap3-list .cols{padding:6px 12px;border-top:1px solid var(--ap-rule);border-bottom:1px solid var(--ap-rule);font-size:12px;
+  font-weight:600;color:var(--muted)}
 .ap3-list .cols span{text-align:right}
 .ap3-list .cols span:first-child{grid-column:1 / span 2;text-align:left}
-.ap3-list .cols small{display:block;font-size:9.5px;color:var(--faint);font-weight:700}
+.ap3-list .cols small{display:block;font-size:12px;color:var(--faint);font-weight:600}
 .ap3-list .rows{overflow-y:auto;flex:1 1 auto}
 .ap3-list .r{width:100%;font:inherit;text-align:left;padding:7px 12px;border:0;border-bottom:1px solid var(--ap-rule);
   background:transparent;color:var(--ink);cursor:pointer}
 .ap3-list .r:hover{background:var(--ap-sub)} .ap3-list .r.on{background:var(--brand-glow)}
-.ap3-list .r .tb{font-style:normal;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
+.ap3-list .r .tb{font-style:normal;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:600;color:#fff}
 .ap3-list .r .tb.t2,.ap3-list .r .tb.t3,.ap3-list .r .tb.grey{color:#1b2430}
 body.rs-app:not(.light) .ap3-list .r .tb{color:#0a0e14}
 body.rs-app:not(.light) .ap3-list .r .tb.t2{color:#f2f6ea}
 .ap3-list .r .n{min-width:0}
 .ap3-list .r .n b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ap3-list .r .n small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ap3-list .r .v{text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
+.ap3-list .r .n small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap3-list .r .v{text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
 details.ap3-how{margin-top:16px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:0 16px}
-details.ap3-how>summary{cursor:pointer;list-style:none;padding:13px 0;font-weight:800;font-size:14px;color:var(--ink)}
+details.ap3-how>summary{cursor:pointer;list-style:none;padding:13px 0;font-weight:600;font-size:14px;color:var(--ink)}
 details.ap3-how>summary::-webkit-details-marker{display:none}
 details.ap3-how>summary::before{content:"▸ ";color:var(--brand-d)}
 details.ap3-how[open]>summary::before{content:"▾ "}
 details.ap3-how>summary small{font-weight:600;color:var(--faint);margin-left:8px;font-size:12px}
 details.ap3-how[open]{padding-bottom:16px}
 .ap3-howcard{margin-top:14px;padding-top:12px;border-top:1px solid var(--ap-rule)}
-.ap3-howcard .ap2-h3{font-weight:800;font-size:15px;color:var(--ink);margin:0 0 4px}
+.ap3-howcard .ap2-h3{font-weight:600;font-size:16px;color:var(--ink);margin:0 0 4px}
 .ap3-sc{margin:0 0 18px}
-.ap3-nbh .ap3-reset{margin-left:auto;padding:4px 12px;font-size:12.5px}
 .ap3-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0 0 10px}
 .ap3-step{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:10px 12px;min-width:0}
 .ap3-step.tot{background:var(--ap-sub)}
 .ap3-step.nb{border-style:dashed;border-color:var(--brand-d)}
 .ap3-nbh .ap3-planseg{margin-left:0;align-self:center}
 .ap3-plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:0 0 10px}
-.ap3-step.plan span em{font-weight:800}
+.ap3-step.plan span em{font-weight:600}
 .ap3-step.plan .site{display:flex;align-items:center;gap:6px;margin-top:8px}
 .ap3-step.plan .site i{font-style:normal;font-size:13px;color:var(--ink);margin-right:auto;min-width:0}
-.ap3-step.plan .site i u{display:inline-block;vertical-align:1px;text-decoration:none;font-size:9.5px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:3px 7px;margin-left:7px}
+.ap3-step.plan .site i .rs-pill{margin-left:7px;vertical-align:1px}
 .ap4-plantbl{margin:4px 0 10px}
-.ap4-plantbl td small{display:block;font-size:11.5px;color:var(--muted)}
+.ap4-plantbl td small{display:block;font-size:12px;color:var(--muted)}
 .ap4-plantbl td small.w{color:var(--ap-warn-ink)}
 .ap4-plantbl tr.ap4-grp td{background:var(--ap-sub);border-top:1px solid var(--ap-rule)}
-.ap4-plantbl tr.ap4-grp td b{font-weight:700}
+.ap4-plantbl tr.ap4-grp td b{font-weight:600}
 .ap4-plantbl tr.ap4-site td:first-child{padding-left:34px}
 .ap4-plantbl tr.ap4-det td{font-size:12px;color:var(--muted);padding-left:34px;background:var(--panel);line-height:1.6}
 .ap4-tg{font:inherit;width:22px;height:22px;margin-right:6px;border:1px solid var(--ap-rule);border-radius:6px;background:var(--bg);color:var(--muted);cursor:pointer;line-height:1;padding:0;transition:transform .15s}
 .ap4-tg.on{transform:rotate(90deg)}
-.ap4-chip{display:inline-block;font-size:9.5px;line-height:1;font-weight:800;text-transform:uppercase;letter-spacing:.06em;border-radius:999px;padding:3px 7px}
-.ap4-chip.new{color:var(--brand-ink);background:var(--brand)}
-.ap4-chip.old{color:var(--muted);box-shadow:inset 0 0 0 1px var(--ap-rule)}
 .ap4-stp{display:inline-flex;align-items:center;gap:6px}
-.ap4-stp b{min-width:18px;text-align:center;font-weight:700}
-.ap4-pstore{font-size:11px;font-weight:600}
-.ap4-stp button{font:inherit;font-weight:700;line-height:1;width:24px;height:24px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--bg);color:var(--ink);cursor:pointer;padding:0}
-.ap4-stp button:hover{border-color:var(--brand-d);color:var(--brand-d)}
-.ap3-step.plan .site i u.old{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1px var(--ap-rule)}
-.ap3-step.plan .site i small{display:block;font-size:11px;color:var(--ap-warn-ink)}
-.ap3-step.plan .site b{font-size:17px;font-weight:800;color:var(--ink);min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
-.ap3-step.plan .site button{font:inherit;font-weight:800;line-height:1;width:26px;height:26px;border-radius:7px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
-.ap3-step.plan .site button:hover{border-color:var(--brand-d);color:var(--brand-d)}
+.ap4-stp b{min-width:18px;text-align:center;font-weight:600}
+.ap4-pstore{font-size:12px;font-weight:600}
+.ap3-step.plan .site i small{display:block;font-size:12px;color:var(--ap-warn-ink)}
+.ap3-step.plan .site b{font-size:16px;font-weight:600;color:var(--ink);min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
 .ap3-step.plan>small{display:block;margin-top:8px}
 .ap3-steps.bases{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .ap3-step.drv{border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
-.ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ap3-step span{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
 .ap3-step span em{font-style:normal;color:var(--brand-d);text-transform:none;letter-spacing:0}
 .ap3-step .ctl{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 2px}
-.ap3-step .ctl b{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.ap3-step .ctl button{font:inherit;font-size:18px;font-weight:800;line-height:1;width:34px;height:34px;border-radius:9px;
-  border:1px solid var(--line-2);background:var(--panel);color:var(--ink);cursor:pointer}
-.ap3-step .ctl button:hover{border-color:var(--brand-d);color:var(--brand-d)}
-.ap3-step .ctl button:focus-visible{outline:2px solid var(--brand-d);outline-offset:1px}
-.ap3-step small{font-size:11.5px;color:var(--faint)}
+.ap3-step .ctl b{font-size:20px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.ap3-step small{font-size:12px;color:var(--faint)}
 .ap3-step .trk{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--ap-rule);font-size:12px;color:var(--muted)}
 .ap3-step .trk i{font-style:normal;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.ap3-step .trk b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+.ap3-step .trk b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .ap3-step .trk i.rent b{color:var(--warn,#b45309)}
-.ap3-fleet{margin-top:8px;border-top:1px solid var(--line);padding-top:7px;display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.ap3-fleet{margin-top:8px;border-top:1px solid var(--line);padding-top:7px;display:flex;flex-direction:column;gap:3px;font-size:13px}
 .ap3-fleet .r{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .ap3-fleet .r.sub{color:var(--muted);font-size:12px}
 .ap3-fleet .rent{color:var(--warn,#b45309)}
-.ap3-fleet em{font-style:normal;font-size:11.5px;border-radius:6px;padding:1px 6px}
-.ap3-fleet em.buy{background:var(--warn-bg);color:var(--warn)}
-.ap3-fleet em.spare{background:var(--panel-2);color:var(--muted)}
 .ap3-store{font:inherit;font-size:12px;font-weight:600;border-radius:6px;padding:2px 8px;cursor:pointer;border:1px solid var(--line-2);background:var(--panel);color:var(--ink)}
 .ap3-store.ps{background:var(--blue-bg,#F4FAE6);color:var(--brand-d);border-color:transparent}
 .ap3-step .ap3-fleet .r.st span.ap3-store{cursor:default}
 .ap3-fleetnote{margin:4px 0 10px;line-height:1.55}
-.ap3-fleetsens,.ap3-fleetin{font-size:12.5px;color:var(--muted)}
-.ap3-fin{font:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;background:var(--panel);color:var(--ink)}
+.ap3-fleetin{font-size:13px;color:var(--muted)}
+.ap3-fin{font:inherit;font-size:13px;border:1px solid var(--line-2);border-radius:6px;padding:2px 6px;background:var(--panel);color:var(--ink)}
 .ap3-fleettot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;font-size:13px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:2px 0 6px}
-.ap3-step .trk button{font:inherit;font-weight:800;line-height:1;width:22px;height:22px;border-radius:6px;border:1px solid var(--ap-rule);background:var(--ap-bay);color:var(--ink);cursor:pointer;padding:0}
-.ap3-step .trk button:hover{border-color:var(--brand-d);color:var(--brand-d)}
 .ap2-growth{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);background:var(--ap-sub)}
-.ap2-growth label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}
-.ap2-growth input{font:inherit;font-size:16px;font-weight:800;width:84px;padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)}
+.ap2-growth label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+.ap2-growth input{font:inherit;font-size:16px;font-weight:600;width:84px;padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink)}
 .ap2-growth .ap2-note{flex:1 1 320px}
-.ap3-kpi .was{margin-top:8px;padding-top:7px;border-top:1px solid var(--ap-rule);font-size:12.5px;color:var(--muted)}
-.ap3-kpi .was b{display:inline;font-size:13.5px;font-weight:800;color:var(--ink);letter-spacing:0}
-.ap3-kpi .was i{font-style:normal;font-weight:800;margin-left:6px;color:var(--ap-pos-ink)}
+.ap3-kpi .was{margin-top:8px;padding-top:7px;border-top:1px solid var(--ap-rule);font-size:13px;color:var(--muted)}
+.ap3-kpi .was b{display:inline;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0}
+.ap3-kpi .was i{font-style:normal;font-weight:600;margin-left:6px;color:var(--ap-pos-ink)}
 .ap3-kpi .was i.dn{color:var(--ap-neg-ink)}
 .ap3-kpi .d.dn{color:var(--ap-neg-ink)}
-.ap3-nbwarn .q{color:var(--muted)}
-.ap3-kpinb{grid-column:1 / -1;font-size:12.5px;color:var(--muted);margin-top:-4px}
-.ap3-kpinb b{color:var(--ink)}
+
 /* the new-base cards (2026-09-29) */
 .ap3-nbwrap{margin:0 0 18px}
 .ap3-nbh{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
-.ap3-nbh b{font-size:15px;color:var(--ink)} .ap3-nbh span{font-size:12.5px;color:var(--muted)}
-.ap3-nbwarn{margin:0 0 10px;padding:8px 12px;border-radius:var(--ap-r2);border:1px solid var(--ap-warn-ink);
-  background:color-mix(in srgb,var(--warn) 10%,transparent);font-size:13px;color:var(--ink)}
+.ap3-nbh b{font-size:16px;color:var(--ink)} .ap3-nbh span{font-size:13px;color:var(--muted)}
+
 .ap3-nbs{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
 .ap3-nb{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0;opacity:.86}
 .ap3-nb.on{opacity:1;border-color:var(--brand-d);box-shadow:inset 0 3px 0 var(--brand-d)}
 .ap3-nb .h{display:flex;align-items:center;gap:8px;margin:0 0 8px}
-.ap3-nb .h b{font-size:15.5px;color:var(--ink)}
-.ap3-nb .stp{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
-  border:1px solid var(--line);border-radius:6px;padding:1px 6px}
-.ap3-nb .pill{margin-left:auto;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.ap3-nb .pill.conf{background:var(--brand-glow);border-color:var(--brand-d);color:var(--brand-d)}
-.ap3-nb .pill.exp{border-color:var(--ap-warn-ink);color:var(--ap-warn-ink)}
+.ap3-nb .h b{font-size:16px;color:var(--ink)}
 .ap3-nb .ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
-.ap3-nb .ap3-conf{font-size:12px;padding:5px 10px}
 .ap3-nb .dials{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}
-.ap3-nb .dials label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:800;text-transform:uppercase;
-  letter-spacing:.04em;color:var(--muted)}
-.ap3-nb .dials input{font:inherit;font-size:15px;font-weight:800;text-transform:none;letter-spacing:0;width:100%;
+.ap3-nb .dials label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;
+  color:var(--muted)}
+.ap3-nb .dials input{font:inherit;font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;width:100%;
   padding:5px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
 .ap3-nb .dials input:focus-visible{outline:2px solid var(--brand-d);outline-offset:0}
-.ap3-nb .dials small{font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--faint)}
+.ap3-nb .dials small{font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--faint)}
 .ap3-nb ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.ap3-nb li{display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px;font-size:13.5px;line-height:1.4;color:var(--ink)}
-.ap3-nb li i{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
-.ap3-nb li small{display:block;color:var(--faint);font-size:11.5px}
-.ap3-nb .by{margin-top:8px;font-size:11.5px;color:var(--muted)}
-/* second pass (2026-09-29): the market switch, YES / NO bases, the side panel, the glance */
-.ap3-market{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
-.ap3-market label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.ap3-seg.big button{font-size:14px;padding:8px 14px;min-height:38px}
-.ap3-kpi .d{display:block;margin-top:4px;font-style:normal;font-size:12.5px;font-weight:800;color:var(--ap-pos-ink)}
+.ap3-nb li{display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.4;color:var(--ink)}
+.ap3-nb li i{font-style:normal;font-size:12px;font-weight:600;color:var(--muted);padding-top:3px}
+.ap3-nb li small{display:block;color:var(--faint);font-size:12px}
+.ap3-nb .by{margin-top:8px;font-size:12px;color:var(--muted)}
+/* second pass (2026-09-29): the side panel, the glance */
+.ap3-kpi .d{display:block;margin-top:4px;font-style:normal;font-size:13px;font-weight:600;color:var(--ap-pos-ink)}
 .ap3-nb{opacity:1}
 .ap3-nb .h{justify-content:space-between}
-.ap3-yn{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden;background:var(--panel)}
-.ap3-yn button{font:inherit;font-size:13px;font-weight:800;padding:6px 16px;border:0;background:transparent;color:var(--muted);cursor:pointer;min-height:34px}
-.ap3-yn button.on{background:var(--ap-sub);color:var(--ink)}
-.ap3-yn button.on.yes{background:var(--brand-d);color:#fff}
-.ap3-yn button:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
-.ap3-nb .if{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin:0 0 2px}
+.ap3-nb .if{font-size:12px;font-weight:600;color:var(--faint);margin:0 0 2px}
 .ap3-nb:not(.on) .big,.ap3-nb:not(.on) .nums{opacity:.62}
-.ap3-nb .big{font-size:15px;color:var(--ink);margin:0 0 10px}
-.ap3-nb .big b{font-size:28px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ap3-nb .big{font-size:16px;color:var(--ink);margin:0 0 10px}
+.ap3-nb .big b{font-size:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .ap3-nb .big small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
 .ap3-nb .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:0 0 10px}
-.ap3-nb .nums span{font-size:12.5px;color:var(--muted);line-height:1.3}
+.ap3-nb .nums span{font-size:13px;color:var(--muted);line-height:1.3}
 .ap3-nb .nums b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
-.ap3-nb .nums small{display:block;font-size:11px;color:var(--faint)}
-.ap3-nbh .ap3-pick{margin-left:auto;padding:4px 12px;font-size:12.5px;white-space:nowrap}
-.ap3-nbh .ap3-pick.on{border-color:var(--brand-d);color:var(--brand-d)}
-.ap3-nbh span em{font-style:normal;font-weight:700;color:var(--brand-d)}
+.ap3-nb .nums small{display:block;font-size:12px;color:var(--faint)}
+.ap3-nbh .ap3-pick{margin-left:auto}
+.ap3-nbh span em{font-style:normal;font-weight:600;color:var(--brand-d)}
 .ap3-picking .leaflet-container,.ap3-picking .leaflet-interactive,.ap3-picking .leaflet-grab{cursor:crosshair !important}
 .ap3-nb .opened{margin-top:10px;display:grid;gap:5px}
-.ap3-nb .opened div{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink)}
+.ap3-nb .opened div{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)}
 .ap3-nb .opened div small{margin-left:auto;color:var(--faint);white-space:nowrap}
-.ap3-nb .opened>small{font-size:11.5px;color:var(--faint)}
+.ap3-nb .opened>small{font-size:12px;color:var(--faint)}
 .ap3-det .ap3-nb{border:0;padding:0;background:none}
 .ap3-nb .assume{font-size:12px;color:var(--ap-warn-ink);margin:0 0 8px;line-height:1.4}
-.ap3-nb .ground{font-size:12.5px;color:var(--ink);padding-top:8px;border-top:1px solid var(--ap-rule);line-height:1.8}
-.ap3-nb .ground small{display:block;color:var(--muted);font-size:11.5px;line-height:1.4}
-.ap3-nb .tchip{display:inline-block;font-style:normal;font-size:11px;font-weight:800;padding:0 7px;margin-left:4px;border-radius:6px;color:#fff}
+.ap3-nb .ground{font-size:13px;color:var(--ink);padding-top:8px;border-top:1px solid var(--ap-rule);line-height:1.8}
+.ap3-nb .ground small{display:block;color:var(--muted);font-size:12px;line-height:1.4}
+.ap3-nb .tchip{display:inline-block;font-style:normal;font-size:12px;font-weight:600;padding:0 7px;margin-left:4px;border-radius:6px;color:#fff}
 .ap3-side{min-width:0}
 .ap3-det{height:min(78vh,860px);min-height:560px;overflow-y:auto;border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 16px 16px}
-.ap3-back{font:inherit;font-size:12.5px;font-weight:700;border:0;background:transparent;color:var(--brand-d);cursor:pointer;padding:2px 0 10px}
-.ap3-det .dh b{display:block;font-size:19px;font-weight:800;color:var(--ink);line-height:1.2}
-.ap3-det .dh span{font-size:12.5px;color:var(--muted)}
-.ap3-det .tierline{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:14px;font-weight:800;color:var(--ink)}
+.ap3-det .dh b{display:block;font-size:20px;font-weight:600;color:var(--ink);line-height:1.2}
+.ap3-det .dh span{font-size:13px;color:var(--muted)}
+.ap3-det .tierline{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:14px;font-weight:600;color:var(--ink)}
 .ap3-det .tierline i{width:14px;height:14px;border-radius:4px}
-.ap3-det .why{font-size:12.5px;color:var(--muted)}
-.ap3-det .was{margin-top:6px;font-size:12.5px;font-weight:800;color:var(--ap-pos-ink)}
-.ap3-det .sec{margin:14px 0 4px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.ap3-det .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--ap-rule);font-size:13.5px;color:var(--ink)}
-.ap3-det .kv span small{display:block;font-size:11px;color:var(--faint)}
+.ap3-det .why{font-size:13px;color:var(--muted)}
+.ap3-det .was{margin-top:6px;font-size:13px;font-weight:600;color:var(--ap-pos-ink)}
+.ap3-det .sec{margin:14px 0 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.ap3-det .kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--ap-rule);font-size:14px;color:var(--ink)}
+.ap3-det .kv span small{display:block;font-size:12px;color:var(--faint)}
 .ap3-det .kv b{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ap3-det .ap2-tip{padding:0;min-width:0;max-width:none}
 .ap3-glance{min-width:210px}
 .ap3-glance .g3{display:grid;grid-template-columns:repeat(3,auto);gap:4px 14px;margin-top:6px}
-.ap3-glance .g3 span{font-size:11px;color:var(--muted)}
+.ap3-glance .g3 span{font-size:12px;color:var(--muted)}
 .ap3-glance .g3 b{display:block;font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
-.ap3-glance .g3 small{display:block;font-size:10px;color:var(--faint)}
-.ap3-glance .hint{margin-top:7px;font-size:11px;color:var(--faint)}
+.ap3-glance .g3 small{display:block;font-size:12px;color:var(--faint)}
+.ap3-glance .hint{margin-top:7px;font-size:12px;color:var(--faint)}
 @media (max-width:1100px){.ap3-mapgrid{grid-template-columns:1fr}.ap3-list{height:520px;min-height:0}.ap3-det{height:auto;min-height:0}
   .ap3-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:560px){.ap3-kpi b{font-size:24px}.ap3-mapgrid .ap2-mapbox{min-height:420px;height:60vh}
+@media (max-width:560px){.ap3-kpi b{font-size:20px}.ap3-mapgrid .ap2-mapbox{min-height:420px;height:60vh}
   .ap3-list .cols,.ap3-list .r{grid-template-columns:22px minmax(0,1fr) 46px 40px 64px}}
 /* the fleet, as chips: a number, what it is, and the one line that qualifies it */
 .ap2-chips3{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
 .ap2-chips3 .ap2-chip3{display:flex;flex-direction:column;gap:1px;padding:7px 12px;border:1px solid var(--ap-rule);
-  border-radius:var(--ap-r2);background:var(--ap-surface-2);min-width:112px;cursor:help}
-.ap2-chips3 .ap2-chip3 b{font-size:19px;font-weight:800;line-height:1.05;letter-spacing:-.01em}
-.ap2-chips3 .ap2-chip3 span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.ap2-chips3 .ap2-chip3 small{font-size:11px;color:var(--muted)}
+  border-radius:var(--ap-r2);background:var(--ap-sub);min-width:112px;cursor:help}
+.ap2-chips3 .ap2-chip3 b{font-size:20px;font-weight:600;line-height:1.05;letter-spacing:-.01em}
+.ap2-chips3 .ap2-chip3 span{font-size:12px;font-weight:600;color:var(--muted)}
+.ap2-chips3 .ap2-chip3 small{font-size:12px;color:var(--muted)}
 .ap2-chips3 .ap2-chip3:hover{border-color:var(--ink)}
 /* the tooltip is Leaflet's, so it is styled through its own wrapper class */
 /* WHITE-SPACE: NOWRAP IS LEAFLET'S OWN DEFAULT and it was never overridden -- which is why the
@@ -881,18 +803,18 @@ details.ap3-how[open]{padding-bottom:16px}
 /* sized for a projector, not a laptop: this is the one page that gets presented */
 .ap2-tip{font-size:14px;line-height:1.5}
 .ap2-tip b{font-size:16px;color:var(--ink)}
-.ap2-tip .t{font-family:var(--ap-mono);font-size:12px;letter-spacing:.04em;color:var(--ap-live);margin:2px 0 7px}
-.ap2-tip .b{margin-top:7px;padding-top:7px;border-top:1px solid var(--ap-rule);color:var(--ink);font-weight:700}
+.ap2-tip .t{font-family:var(--ap-mono);font-size:12px;color:var(--ap-live);margin:2px 0 7px}
+.ap2-tip .b{margin-top:7px;padding-top:7px;border-top:1px solid var(--ap-rule);color:var(--ink);font-weight:600}
 .ap2-tip .c{color:var(--muted)}
-.ap2-tip .w{margin-top:6px;color:var(--ap-neg-ink);font-weight:700}
+.ap2-tip .w{margin-top:6px;color:var(--ap-neg-ink);font-weight:600}
 .ap2-tip small{display:block;color:var(--muted);font-weight:400;font-size:12px;line-height:1.4}
-.ap2-tip .big{font-size:19px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.ap2-tip .big{font-size:20px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 /* a fact grid, so a dozen numbers read as a table and not as a paragraph */
 .ap2-tip .grid{display:grid;grid-template-columns:1fr auto;gap:3px 12px;margin-top:8px;
   padding-top:8px;border-top:1px solid var(--ap-rule);font-size:13px}
 .ap2-tip .grid i{font-style:normal;color:var(--muted)}
-.ap2-tip .grid u{text-decoration:none;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
-.ap2-tip .hd{font-family:var(--ap-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+.ap2-tip .grid u{text-decoration:none;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.ap2-tip .hd{font-family:var(--ap-mono);font-size:12px;
   color:var(--faint);margin:10px 0 1px}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -911,14 +833,13 @@ details.ap3-how[open]{padding-bottom:16px}
      · body.rs-app.light  -> never matches on paper.
 
    NO GRADIENTS. His standing brief: solid filled, not partially; no gradients, no
-   radial glows. Every fill here is a flat token. The only repeating-linear-gradient
-   is a RULER of 1px hairlines - texture, not a fade. Kill switch: --ap-ruler:none.
+   radial glows. Every fill here is a flat token, and since ZTZ-80 there is no CSS gradient
+   at all: the "no lead yet" hatch in the map key is an inline SVG.
 
    INVARIANTS RESTATED SO A PASTE CANNOT LOSE THEM:
      · .ap2-tabs stays sticky top:-16px / z-index:28, and its box is EXACTLY
-       14 + 32 + 7 + 1 = 54px, because three tables pin their header at top:54px
-       (.ap2-below-tabs, area-plan.js:225). #apPdf is pinned to 32px below for the
-       same reason - it is a .rs-btn (~36px) and today it drives the bar to ~59px.
+       54px (a fixed height since ZTZ-80), because three tables pin their header at
+       top:54px (.ap2-below-tabs) and the jump row sits at top:38px under it.
      · NO display property on .ap2-pane - any display rule of ours defeats the bare
        [hidden] attribute.
      · .ap2-assume .ap2-dials keeps margin-top:0 / padding-top:0 / border-top:0.
@@ -933,7 +854,7 @@ details.ap3-how[open]{padding-bottom:16px}
    On the four roots this page owns. NOT on body.rs-app: a page that writes custom
    properties onto the shared shell node leaks them into the next report the reader
    opens (portal-design-system.md records cl-analysis.js doing exactly that). */
-.ap2-tabs,.ap2-pane,.ap2-assume,.ap2-clockline{
+.ap2-tabs,.ap2-pane,.ap2-assume{
   --ap-mono:"Cascadia Mono","Segoe UI Mono","SF Mono",Consolas,ui-monospace,monospace;
   --ap-r1:10px; --ap-r2:7px; --ap-r3:4px;
   --ap-rule:var(--line); --ap-rule-2:var(--line-2);
@@ -965,7 +886,7 @@ details.ap3-how[open]{padding-bottom:16px}
 }
 /* DARK is the variant now. :not(.light) so it cannot reach paper either. */
 body.rs-app:not(.light) .ap2-tabs,body.rs-app:not(.light) .ap2-pane,
-body.rs-app:not(.light) .ap2-assume,body.rs-app:not(.light) .ap2-clockline{
+body.rs-app:not(.light) .ap2-assume{
   --ap-live:var(--brand); --ap-fill:var(--brand);
   --ap-live-soft:color-mix(in srgb,var(--brand) 11%,transparent);
   --ap-wash:12%;
@@ -980,60 +901,35 @@ body.rs-app:not(.light) .ap2-assume,body.rs-app:not(.light) .ap2-clockline{
    run 5-8% wider than Inter's tnum and dark_plan/w1707_00.png shows the 14-column
    crews table already at full width at 1707px. Prose, table headers and .ap2-d .dh b
    ("23 foremen" is a phrase, not a readout) stay Inter. */
-.ap2-step .v,.ap2-led-g>.v,.ap2-assume .rs-num,.ap2-pane .rs-num,
-.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,.ap2-meas,
+.ap2-assume .rs-num,.ap2-pane .rs-num,
+.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,
 .ap2-band .k,.ap2-eyebrow{   /* .ap2-d .dq and .ap2-dial .l left OUT: a sentence is not a readout */
   font-family:var(--ap-mono);font-variant-numeric:tabular-nums;
   font-feature-settings:"tnum" 1,"zero" 1}
-/* the 11px floor. Eight declarations sat under it (one at 9.5px, two at 10px, five at
-   10.5px) - the a11y pass never actually applied one. */
-.ap2-dt th{font-size:11px;color:var(--muted);letter-spacing:.05em;padding:4px 4px;
+/* THE TYPE SCALE (ZTZ-80): 12 / 13 / 14 / 16 / 20 / 28px, weights 400 / 600, sentence-case labels.
+   Only the Leaflet map's own labels, the SVG chart text and the paper map (#apPrintRoot, pt) keep
+   their sizes. */
+.ap2-dt th{font-size:12px;color:var(--muted);padding:4px 4px;
   border-bottom:1px solid var(--ap-rule-2)}
-.ap2-led-g>.l{font-size:11px;letter-spacing:.09em;color:var(--muted);overflow-wrap:anywhere}
-.ap2-step .l{font-size:11px;color:var(--muted);overflow-wrap:anywhere;
-  display:block;min-height:2.6em}   /* two lines reserved: a wrapped label used to drop its value 15px */
-.ap2-dial .l{font-size:11px;letter-spacing:.09em;color:var(--muted);margin-bottom:6px}
-.ap2-eyebrow{font-size:11px;letter-spacing:.1em;color:var(--muted);margin-bottom:4px}
-.ap2-mbtn small{font-size:11px}
-.ap2-next td small{font-size:11px}
+
+.ap2-dial .l{font-size:12px;color:var(--muted);margin-bottom:6px}
+.ap2-eyebrow{font-size:12px;color:var(--muted);margin-bottom:4px}
+.ap2-next td small{font-size:12px}
 /* --faint stops being a text colour on this page: 3.30:1 on --panel in dark,
    2.97:1 on white in light. Seventeen rules, all of them. */
-.ap2-step .s,.ap2-dial .m,.ap2-dem .n small,.ap2-leak .n small,.ap2-tie,.ap2-small,
+.ap2-dial .m,.ap2-dem .n small,.ap2-leak .n small,.ap2-tie,.ap2-small,
 .ap2-dim,.ap2-stamps,.ap2-pager,.ap2-tt .n,.ap2-next td small,.ap2-card .foot,
-.ap2-mbtn small,.ap2-dt th,.ap2-led-g>.l,details.ap2-ref>summary small,
+.ap2-dt th,details.ap2-ref>summary small,
 .ap2-note,.ap2-say,.ap2-pane>.ap2-lede{color:var(--muted)}
 .ap2-note,.ap2-say,.ap2-pane>.ap2-lede{text-wrap:pretty}
 
 /* ---------- 3 · THE TAB RAIL ------------------------------------------------
-   GEOMETRY IS FROZEN AT 54px: 14 padding-top + 32 tab + 7 padding-bottom + 1 border.
-   That is the number .ap2-below-tabs th{top:54px} (area-plan.js:225) has always assumed
-   and never actually had - #apPdf is a .rs-btn (13px / 9px padding ~= 36px tall) sitting
-   in an align-items:center bar, which drives it to ~59px today. Both fixes are here and
-   they are a pair: change one and the bar paints over three sticky headers, silently. */
-.ap2-tabs{padding:14px 0 7px;border-bottom:1px solid var(--ap-rule)}
-.ap2-tabs:not(:has(.rs-tab)){display:none}   /* printView removes #apTabs and every button
+   GEOMETRY IS FROZEN AT 54px (height on .ap2-tabs above): .ap2-below-tabs th{top:54px} and the
+   jump row's top:38px both assume it. Since ZTZ-80 the rail holds the kit's underline tabs
+   (.rs-utabs, ~38px) bottom-aligned in that box, and the Download menu lives in the page head. */
+.ap2-tabs:not(:has(.rs-utab)){display:none}   /* printView removes #apTabs and every button
                                                 (rs-components.js:852) but keeps this div -
-                                                an empty bordered strip prints today */
-#apTabs{counter-reset:apch}                  /* #apTabs carries inline display/gap (:1149) - leave them */
-#apTabs .rs-tab{position:relative;height:32px;padding:0 14px;border-radius:var(--ap-r2);
-  border:1px solid var(--ap-rule);background:var(--ap-sub);color:var(--muted);
-  font-family:inherit;font-size:12.5px;font-weight:700;
-  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
-             background var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
-/* aria-hidden is not available to a pseudo-element, so the ordinal is given an empty
-   alt via content's alt-text syntax: assistive tech reads "", sighted readers see "01". */
-#apTabs .rs-tab::before{counter-increment:apch;
-  content:counter(apch,decimal-leading-zero) / "";
-  font-family:var(--ap-mono);font-size:11px;font-weight:700;letter-spacing:.06em;
-  color:var(--muted);margin-right:9px}
-#apTabs .rs-tab:hover{color:var(--ink);border-color:var(--ap-rule-2);background:var(--ap-sub)}
-/* the live channel. box-shadow:inset, never a border or a padding change - the 32px box
-   must not move. Label is --ink, not lime: 13:1 in both themes. */
-#apTabs .rs-tab.on{background:var(--ap-live-soft);border-color:var(--ap-live);color:var(--ink);
-  box-shadow:inset 0 -2px 0 var(--ap-live)}
-#apTabs .rs-tab.on::before{color:var(--ap-live)}
-.ap2-tabs .rs-btn{height:32px;padding:0 14px;display:inline-flex;align-items:center;
-  border-radius:var(--ap-r2);font-size:12.5px}
+                                                an empty strip would print */
 
 /* ---------- 4 · THE CONSOLE (assumptions + dials) --------------------------- */
 .ap2-assume{position:relative;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;
@@ -1047,54 +943,39 @@ body.rs-app:not(.light) .ap2-assume,body.rs-app:not(.light) .ap2-clockline{
 @media (max-width:1180px){                   /* a wrapped dial must not start a line with a divider */
   .ap2-assume .ap2-dial+.ap2-dial{border-left:0}
   .ap2-assume .ap2-dial{padding:0 20px 0 0}}
-.ap2-dial .m{font-size:11.5px;margin-top:6px;max-width:260px;line-height:1.5}
+.ap2-dial .m{font-size:12px;margin-top:6px;max-width:260px;line-height:1.5}
 /* INPUTS SINK, RESULTS RISE. The z-axis says what a number IS before a word is read:
    a hole you typed into, or a face the data computed. Panels and cards are the raised
    bay; every .rs-num on the page is a recess in it. */
 body.rs-app .ap2-assume .rs-num,body.rs-app .ap2-pane .rs-num{
   background:var(--bg);color:var(--ink);border:1px solid var(--ap-rule-2);
   border-radius:var(--ap-r2);box-shadow:var(--ap-sink);
-  font-family:var(--ap-mono);font-size:15px;font-weight:700;padding:7px 11px;
+  font-family:var(--ap-mono);font-size:14px;font-weight:600;padding:7px 11px;
   transition:border-color var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
 body.rs-app .ap2-pane .rs-num{font-size:13px;padding:6px 9px}
 body.rs-app .ap2-assume .rs-num:hover,body.rs-app .ap2-pane .rs-num:hover{border-color:var(--ap-live)}
 body.rs-app .ap2-assume .rs-num:focus,body.rs-app .ap2-pane .rs-num:focus{
   border-color:var(--ap-live);box-shadow:var(--ap-sink),0 0 0 3px var(--brand-glow)}
-/* THE MACHINED BRACKET - on exactly two elements, and they are the two surfaces you
-   OPERATE: the dials that size the plan, and the hero the dials produce. On every panel
-   it would be wallpaper. Two pseudo-elements, no gradient, nothing that repaints. */
-.ap2-assume::before,.ap2-assume::after,.ap2-hero::before,.ap2-hero::after{
-  content:"";position:absolute;width:13px;height:13px;pointer-events:none;
-  border:2px solid var(--ap-live)}
-.ap2-assume::before,.ap2-hero::before{top:-1px;left:-1px;border-right:0;border-bottom:0;
-  border-radius:var(--ap-r1) 0 0 0}
-.ap2-assume::after,.ap2-hero::after{bottom:-1px;right:-1px;border-left:0;border-top:0;
-  border-radius:0 0 var(--ap-r1) 0}
-
 /* ---------- 5 · CHANNEL HEADS ----------------------------------------------
    THREE OF THE FOUR .ap2-band INSTANCES CARRY INLINE border-top:0;padding-top:0
    (area-plan.js:1626, :1841, :2088) and inline beats any stylesheet rule. So the marker
    is a FLEX ITEM, which inline style cannot reach. Never a border, never a :not([style]). */
 .ap2-band{align-items:baseline;gap:0 14px;margin:26px 0 12px;padding-top:15px;
   border-top:1px solid var(--ap-rule)}
-.ap2-band::before{content:"";flex:none;align-self:center;width:26px;height:2px;
-  border-radius:1px;background:var(--ap-live)}
-.ap2-band .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+.ap2-band .k{font-size:12px;font-weight:600;
   color:var(--muted)}                        /* was var(--brand) at :118 - 2.66:1 in light */
-.ap2-band h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.35px;color:var(--ink)}
-.ap2-band .clock{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600}
-/* the section header as a channel: lime stub - title - rule out to the content edge */
-.ap2-sech{display:flex;align-items:center;gap:11px;font-size:15.5px;font-weight:800;
+.ap2-band h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.35px;color:var(--ink)}
+.ap2-band .clock{margin-left:auto;font-size:12px;color:var(--muted);font-weight:600}
+/* the section header as a channel: title - rule out to the content edge */
+.ap2-sech{display:flex;align-items:center;gap:11px;font-size:16px;font-weight:600;
   letter-spacing:-.2px;color:var(--ink);margin:26px 0 8px;scroll-margin-top:72px}
 .ap2-sech:first-child{margin-top:0}
-.ap2-sech::before{content:"";flex:none;width:3px;height:15px;border-radius:1px;background:var(--ap-live)}
 .ap2-sech::after{content:"";flex:1 1 auto;height:1px;background:var(--ap-rule)}
 
 /* ---------- 6 · THE DECISION BAYS ------------------------------------------
    The identical border-top:3px solid var(--brand) came off all three cards (:93) - three
    identical accents say nothing. .dq becomes a full-bleed recessed channel head with one
-   lime tick. NOTE: .ap2-d .dn is DEAD - grep -c 'class="dn"' returns 0. .dq is the live
-   eyebrow, emitted first at area-plan.js:1631/:1638/:1648.
+   lime tick (gone since ZTZ-80: no decoration). .dq is the card's label.
    The .dq negative margins are TIED to .ap2-d's padding: move one, move both. */
 .ap2-dec{gap:14px;margin-top:12px}
 .ap2-d{background:var(--ap-bay);border:1px solid var(--ap-rule);
@@ -1102,97 +983,46 @@ body.rs-app .ap2-assume .rs-num:focus,body.rs-app .ap2-pane .rs-num:focus{
 .ap2-d .dq{display:flex;align-items:center;gap:9px;margin:-14px -16px 13px;padding:10px 16px;
   background:var(--ap-sub);border-bottom:1px solid var(--ap-rule);
   border-radius:var(--ap-r1) var(--ap-r1) 0 0;
-  font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-.ap2-d .dq::before{content:"";flex:none;width:3px;height:12px;border-radius:1px;background:var(--ap-live)}
-.ap2-d .dh{font-size:13.5px;color:var(--muted);line-height:1.55}
-.ap2-d .dh b{font-size:27px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
-.ap2-dt td:first-child{color:var(--ink);font-weight:650}
+  font-size:12px;font-weight:600;color:var(--muted)}
+.ap2-d .dh{font-size:14px;color:var(--muted);line-height:1.55}
+.ap2-d .dh b{font-size:28px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.ap2-dt td:first-child{color:var(--ink);font-weight:600}
 .ap2-dt td{border-bottom:1px solid color-mix(in srgb,var(--ap-rule) 60%,transparent)}
 
-/* ---------- 7 · HERO, STEPS, LEDGER ----------------------------------------
-   body.rs-app IS REQUIRED: .ap2-hero{padding} (:126) is DEAD today at (0,1,0) under
-   body.rs-app .panel (0,2,1, rs.css:201). These tie body.rs-app.light .panel (0,3,1,
+/* ---------- 7 · PANELS ------------------------------------------------------
+   (The hero and the ledger are the kit's KPI rows since ZTZ-80.) body.rs-app IS REQUIRED: the
+   kit's body.rs-app .panel is (0,2,1, rs.css:201). These tie body.rs-app.light .panel (0,3,1,
    rs.css:317) at (0,3,1) and win on source order, because injectStyle appends this
    <style> to <head> AFTER the rs.css link (area-plan.js:280). If that ever moves, every
    panel rule here silently loses in the light theme. */
-body.rs-app .ap2-pane .panel,body.rs-app .ap2-hero.panel{
+body.rs-app .ap2-pane .panel{
   background:var(--ap-bay);                  /* flattens rs.css:201's hard-coded dark gradient */
   border:1px solid var(--ap-rule);border-radius:var(--ap-r1);box-shadow:none;padding:14px 16px}
-body.rs-app .ap2-hero.panel{position:relative;padding:20px 22px 17px}
+
 body.rs-app .ap2-pane .rs-tablewrap{border-radius:var(--ap-r1);border-color:var(--ap-rule)}
 /* DEPTH IS AN EDGE, NOT A GRADIENT - dark only; on white it would just grey every card top */
-body.rs-app:not(.light) .ap2-pane .panel,body.rs-app:not(.light) .ap2-hero.panel,
+body.rs-app:not(.light) .ap2-pane .panel,
 body.rs-app:not(.light) .ap2-d,body.rs-app:not(.light) .ap2-q,
 body.rs-app:not(.light) .ap2-card{box-shadow:inset 0 1px 0 var(--ap-lip)}
-.ap2-step{padding:2px 20px 2px 0}
-.ap2-step+.ap2-step{padding-left:20px;border-left:1px solid var(--ap-rule)}
-.ap2-step .v{font-size:29px;font-weight:700;letter-spacing:-.4px;line-height:1.15;margin-top:6px;
-  color:var(--ink);padding-bottom:5px;border-bottom:2px solid transparent}
-/* A CROSSED THRESHOLD UNDERSCORES ITSELF - a second, non-colour cue at the exact place the
-   eye already is. The transparent placeholder keeps all six tiles on ONE optical baseline,
-   which a padding shift would destroy. */
-.ap2-step .v.warn{color:var(--ap-warn-ink);border-bottom-color:var(--warn)}
-.ap2-step .v.good{color:var(--ink);border-bottom-color:var(--ap-live)}
-.ap2-step .s{font-size:11.5px;margin-top:5px;line-height:1.5}
-body.rs-app .ap2-pane .ap2-led.panel{padding:16px 20px}   /* (0,1,0) lost to body.rs-app .panel */
-.ap2-led-g+.ap2-led-g{padding-left:18px;border-left:1px solid var(--ap-rule)}
-.ap2-led-g>.v{font-size:clamp(23px,1.85vw,29px);font-weight:700;letter-spacing:-.4px;margin-top:6px}
-.ap2-led-g>.v.pos{color:var(--ap-pos-ink)}   /* was var(--brand) at :199 - 2.66:1 in light */
-.ap2-led-g>.v.warn{color:var(--ap-warn-ink)}
-.ap2-led-g>.s{margin-top:6px}
 
 /* ---------- 8 · TELEMETRY --------------------------------------------------
-   .ap2-chip carried TWO conflicting definitions - a status tag (:109) and a filter button
-   (:247) - and the LATER one won for border/cursor/padding, so the "answered"/"measured"
-   spans at :1782 render outlined with a pointer cursor and impersonate buttons (visible in
-   dark_decide/w1707_00.png). Split by ELEMENT, which the markup guarantees: buttons at
-   :818, spans at :1782. Element-type is safer than [data-focus], which .ap2-dem (:672) and
-   tr.ap2-row (:693) also carry. */
-span.ap2-chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--ap-mono);
-  font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;line-height:1.4;
-  border-radius:var(--ap-r3);padding:3px 8px;white-space:nowrap;border:1px solid transparent;
-  background:transparent;color:var(--muted);cursor:default}
-span.ap2-chip::before{content:"";flex:none;width:6px;height:6px;border-radius:1px;background:currentColor}
-span.ap2-chip.y{color:var(--ap-pos-ink);background:color-mix(in srgb,var(--pos) var(--ap-wash),transparent);
-  border-color:color-mix(in srgb,var(--pos) 30%,transparent)}
-span.ap2-chip.p{color:var(--ap-warn-ink);background:color-mix(in srgb,var(--warn) var(--ap-wash),transparent);
-  border-color:color-mix(in srgb,var(--warn) 32%,transparent)}
-span.ap2-chip.n{color:var(--ap-neg-ink);background:color-mix(in srgb,var(--neg) var(--ap-wash),transparent);
-  border-color:color-mix(in srgb,var(--neg) 30%,transparent)}
-/* the CONTROL: the Cities focus row. :250 set color:#fff on a lime fill - 1.48:1 in dark,
-   2.93:1 in light. That is the "All" chip washing out in dark_cities/w1707_00.png. */
-button.ap2-chip{font-family:inherit;font-size:11.5px;font-weight:700;letter-spacing:.04em;
-  padding:6px 12px;border-radius:var(--ap-r2);border:1px solid var(--ap-rule);
-  background:var(--ap-sub);color:var(--muted);cursor:pointer;white-space:nowrap;
-  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
-             background var(--ap-t) var(--ap-ease)}
-button.ap2-chip:hover{color:var(--ink);border-color:var(--ap-rule-2)}
-button.ap2-chip.on{background:var(--ap-fill);border-color:var(--ap-fill);
-  color:var(--brand-ink);font-weight:800}    /* 12.7:1 dark, 4.78:1 light */
-.ap2-meas{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;letter-spacing:.04em;
-  text-transform:uppercase;color:var(--ap-pos-ink);border-radius:var(--ap-r3);padding:1px 6px;
-  vertical-align:1px;background:color-mix(in srgb,var(--pos) var(--ap-wash),transparent);
-  border:1px solid color-mix(in srgb,var(--pos) 30%,transparent)}
+   Since ZTZ-80 the status tags (answered / partly / not yet, PASS / FAIL, "G $...") are the kit's
+   .rs-pill and the Cities focus row is the kit's .rs-seg: both private .ap2-chip copies are gone. */
 /* the question index is STAMPED into the card, not printed on it */
 .ap2-q{background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);padding:13px 15px}
 .ap2-q .qh{gap:9px;margin-bottom:8px}
 .ap2-q .qn{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;
-  padding:0 6px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--ink);
+  padding:0 6px;font-size:12px;font-weight:600;color:var(--ink);
   background:var(--bg);border:1px solid var(--ap-rule-2);border-radius:var(--ap-r3);
   box-shadow:var(--ap-sink)}
 .ap2-q .qa{margin-top:6px;line-height:1.6}
 /* semantic small text, all of it on the darkened inks in light */
-.ap2-ok{color:var(--ap-pos-ink);font-weight:700;font-size:11.5px;letter-spacing:.03em}
-.ap2-hire{color:var(--ap-neg-ink);font-weight:800;font-variant-numeric:tabular-nums}
-.ap2-warn{color:var(--ap-warn-ink);font-size:12px;font-weight:700}
-.ap2-lost,.ap2-tension,.ap2-tie.bad{color:var(--ap-warn-ink);font-weight:700}
-.ap2-yoy{font-weight:800;font-size:11.5px}
+.ap2-ok{color:var(--ap-pos-ink);font-weight:600;font-size:12px;}
+.ap2-hire{color:var(--ap-neg-ink);font-weight:600;font-variant-numeric:tabular-nums}
+.ap2-warn{color:var(--ap-warn-ink);font-size:12px;font-weight:600}
+.ap2-lost,.ap2-tension,.ap2-tie.bad{color:var(--ap-warn-ink);font-weight:600}
+.ap2-yoy{font-weight:600;font-size:12px}
 .ap2-yoy.up{color:var(--ap-pos-ink)} .ap2-yoy.dn{color:var(--ap-neg-ink)}
-/* kit pills: square the corner, and fix --warn, which is 3.56:1 on white today */
-body.rs-app .ap2-pane .rs-pill{border-radius:var(--ap-r3)}
-.ap2-pane .rs-pill.ok{color:var(--ap-pos-ink)}
-.ap2-pane .rs-pill.warn{color:var(--ap-warn-ink)}
-.ap2-pane .rs-pill.bad{color:var(--ap-neg-ink)}
 
 /* ---------- 9 · BARS: SOLID SLUGS IN A GRADUATED CHANNEL --------------------
    His rule: solid filled, not partially. The lead/booked seam is a 1px notch, not a fade.
@@ -1213,8 +1043,8 @@ body.rs-app .ap2-pane .rs-pill{border-radius:var(--ap-r3)}
 .ap2-leak .t i{border-radius:2px 0 0 2px;background:var(--warn)}
 .ap2-dem{padding:9px 8px;border-bottom:1px solid var(--ap-rule);border-radius:var(--ap-r3);
   transition:background-color var(--ap-t) var(--ap-ease),box-shadow var(--ap-t) var(--ap-ease)}
-.ap2-dem .n{font-weight:700;font-size:13.5px;color:var(--ink)}
-.ap2-dem .n small{font-size:11px;font-weight:600}
+.ap2-dem .n{font-weight:600;font-size:14px;color:var(--ink)}
+.ap2-dem .n small{font-size:12px;font-weight:600}
 .ap2-dem:hover{background:var(--ap-sub)}
 .ap2-dem.on{background:var(--ap-live-soft);box-shadow:inset 3px 0 0 var(--ap-live)}
 .ap2-lad,.ap2-leak{border-bottom:1px solid var(--ap-rule)}
@@ -1235,7 +1065,7 @@ body.rs-app .ap2-pane .rs-pill{border-radius:var(--ap-r3)}
 .ap2-pane .rs-table th.ap2-sh{color:var(--muted);
   background:color-mix(in srgb,var(--ap-rule) 40%,transparent);
   box-shadow:inset 1px 0 0 var(--ap-rule-2),inset -1px 0 0 var(--ap-rule-2),0 1px 0 var(--ap-rule-2)}
-.ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:800;color:var(--ink);background:var(--ap-sub);
+.ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:600;color:var(--ink);background:var(--ap-sub);
   border-top:0;box-shadow:inset 0 2px 0 var(--ap-live)}   /* the sum is a LIT EDGE, not a slab */
 .ap2-pane .rs-table tbody tr.ap2-pool td{background:var(--ap-live-soft);
   border-top:1px solid var(--ap-rule)}
@@ -1266,41 +1096,21 @@ body.rs-app .ap2-pane .rs-table th.ap2-sh{border-bottom:0;
    it is what keeps the bar in view inside a horizontally scrolling wrap. */
 .ap2-tt{position:sticky;left:0;z-index:1;display:flex;align-items:center;gap:10px;
   justify-content:flex-end;margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid var(--ap-rule)}
-.ap2-tt .n{flex:1 1 auto;margin-right:0;font-size:11px;font-weight:700;letter-spacing:.07em;
-  text-transform:uppercase}
-.ap2-tt .n::before{content:"";display:inline-block;width:5px;height:5px;border-radius:1px;
-  background:var(--ap-live);margin-right:8px;vertical-align:1px}
-body.rs-app .ap2-tt .rs-btn{padding:4px 11px;font-size:11px;border-radius:var(--ap-r3);
-  font-family:var(--ap-mono);letter-spacing:.04em;text-transform:uppercase}
-.ap2-pager{font-size:12px;letter-spacing:.03em}
+.ap2-tt .n{flex:1 1 auto;margin-right:0;font-size:12px;font-weight:600}
+.ap2-pager{font-size:12px;}
 
 /* ---------- 11 · CARDS, CALLOUT, CONTROLS, REFERENCE ----------------------- */
 .ap2-cards,.ap2-grid{gap:14px}
 .ap2-card{background:var(--ap-bay);border:1px solid var(--ap-rule);border-radius:var(--ap-r1);
   padding:14px 16px}
-.ap2-card.hot{border-color:color-mix(in srgb,var(--warn) 55%,var(--ap-rule));
-  box-shadow:inset 3px 0 0 var(--warn)}
 .ap2-card .foot{border-top:1px solid var(--ap-rule)}
 .ap2-callout{background:var(--ap-live-soft);border:1px solid var(--ap-rule);
   border-left:3px solid var(--ap-live);
   border-radius:var(--ap-r3) var(--ap-r1) var(--ap-r1) var(--ap-r3);padding:14px 16px}
-.ap2-mbtn{border-radius:var(--ap-r2);border:1px solid var(--ap-rule);background:var(--ap-sub);
-  color:var(--muted);padding:7px 12px;
-  transition:color var(--ap-t) var(--ap-ease),border-color var(--ap-t) var(--ap-ease),
-             background var(--ap-t) var(--ap-ease)}
-.ap2-mbtn:hover{color:var(--ink);border-color:var(--ap-rule-2)}
-.ap2-mbtn.on{border-color:var(--ap-live);color:var(--ink);background:var(--ap-live-soft);
-  box-shadow:inset 3px 0 0 var(--ap-live)}
-.ap2-mbtn.on small{color:var(--muted)}
 .ap2-in{border-radius:var(--ap-r2);border-color:var(--ap-rule-2)}
 .ap2-in:focus{border-color:var(--ap-live)}
-/* rs.css:548 .rs-seg button.on is --brand-ink on --brand: #fff on #7fa32b = 2.93:1 in light */
-body.rs-app .ap2-pane .rs-seg{border-radius:var(--ap-r2)}
-body.rs-app .ap2-pane .rs-seg button{border-radius:var(--ap-r3)}
-body.rs-app .ap2-pane .rs-seg button.on{background:var(--ap-fill);color:var(--brand-ink)}
-.ap2-goto,.ap2-golink{color:var(--brand-d)}  /* the only brand token safe as text in both themes */
 details.ap2-ref>summary{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);
-  background:var(--ap-sub);font-size:13.5px;
+  background:var(--ap-sub);font-size:14px;
   transition:border-color var(--ap-t) var(--ap-ease),color var(--ap-t) var(--ap-ease)}
 details.ap2-ref>summary:hover{border-color:var(--ap-rule-2)}
 details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :275 */
@@ -1309,11 +1119,9 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
    There are ZERO :focus-visible rules in area-plan.js and ZERO in rs.css. Chips, gotos,
    sort headers and method buttons all ride the UA default today. Element-type selectors,
    so a control added later is covered without editing this list. */
-.ap2-tabs .rs-tab:focus-visible,.ap2-tabs .rs-btn:focus-visible,
 .ap2-pane button:focus-visible,.ap2-pane a:focus-visible,.ap2-pane input:focus-visible,
 .ap2-pane summary:focus-visible,.ap2-pane [tabindex]:focus-visible,
-.ap2-assume input:focus-visible,.ap2-assume a:focus-visible,
-.ap2-clockline a:focus-visible,.rs-page-head a:focus-visible{outline:2px solid var(--ap-live);outline-offset:2px}
+.ap2-assume input:focus-visible,.ap2-assume a:focus-visible{outline:2px solid var(--ap-live);outline-offset:2px}
 
 /* ---------- 13 · MOTION -----------------------------------------------------
    TRANSITIONS ONLY, and that is structural, not taste. paint() rewrites host.innerHTML
@@ -1322,7 +1130,7 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
    onto .rs-content (rs.css:166-178). A transition cannot fire on a freshly created node -
    only on a change to a live one, which is exactly a tab click, a hover, a focus. */
 @media (prefers-reduced-motion:reduce){
-  #apTabs .rs-tab,button.ap2-chip,.ap2-dem,.ap2-mbtn,.ap2-th,details.ap2-ref>summary,
+  .ap2-dem,.ap2-th,details.ap2-ref>summary,
   body.rs-app .ap2-assume .rs-num,body.rs-app .ap2-pane .rs-num{transition:none}
 }
 
@@ -1331,135 +1139,88 @@ details.ap2-ref>summary::before{color:var(--ap-live)}   /* was var(--brand) at :
    everything above. Styles only: no box height changes on the sticky rail (still 54px), no
    display rule on .ap2-pane, no overflow on panels. The map's tier fills stay the deliberate
    good -> bad encoding (green, pale green, amber, red); only the chrome around them moves. */
-body.rs-app.light.v2 :is(.ap2-tabs,.ap2-pane,.ap2-assume,.ap2-clockline){
+body.rs-app.light.v2 :is(.ap2-tabs,.ap2-pane,.ap2-assume){
   --ap-mono:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
   --ap-r1:10px; --ap-r2:8px; --ap-r3:6px;
-  --ap-live:#14301F; --ap-fill:#14301F; --ap-live-soft:#F4FAE6;
+  --ap-live:var(--brand-d); --ap-fill:var(--brand-d); --ap-live-soft:var(--blue-bg);
   --ap-sink:none;
-  --ap-pos-ink:#15803D; --ap-warn-ink:#B45309; --ap-neg-ink:#B91C1C}
-body.rs-app.light.v2 :is(.ap2-step .v,.ap2-led-g>.v,.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,.ap2-meas,
+  --ap-pos-ink:var(--pos); --ap-warn-ink:var(--warn); --ap-neg-ink:var(--neg)}
+body.rs-app.light.v2 :is(.ap2-tt .n,.ap2-pager,.ap2-stamps,.ap2-q .qn,
   .ap2-band .k,.ap2-eyebrow,.ap2-assume .rs-num,.ap2-pane .rs-num){font-feature-settings:"tnum" 1}
 body.rs-app.light.v2 .ap2-stlbl{font:600 12px/1 "IBM Plex Sans",sans-serif;letter-spacing:.12em;color:#475569;opacity:.75}
 body.rs-app.light.v2 #apKwList{font-family:inherit !important}
 /* sentence case, readable sizes: every micro-label on the page */
-body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-d .dn,.ap2-dt th,.ap2-band .k,.ap2-step .l,.ap2-dial .l,
-  .ap2-led-g>.l,.ap2-eyebrow,.ap3-kpi span,.ap3-todo li i,.ap3-bar label,.ap3-yrs th,.ap3-list .cols,
-  .ap3-step span,.ap2-growth label,.ap3-nb .stp,.ap3-nb .dials label,.ap3-market label,
-  .ap3-nb .if,.ap3-nb li i,.ap3-det .sec,.ap2-chips3 .ap2-chip3 span,.ap2-tip .hd,.ap2-tt .n,.ap2-modes .l){
-  text-transform:none;letter-spacing:0;font-family:inherit;font-size:12.5px;font-weight:500;color:#475569}
+body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-dt th,.ap2-band .k,.ap2-dial .l,.ap2-eyebrow,.ap3-kpi span,.ap3-todo li i,.ap3-bar label,.ap3-yrs th,.ap3-list .cols,
+  .ap3-step span,.ap2-growth label,.ap3-nb .dials label,
+  .ap3-nb .if,.ap3-nb li i,.ap3-det .sec,.ap2-chips3 .ap2-chip3 span,.ap2-tip .hd,.ap2-tt .n){
+  text-transform:none;letter-spacing:0;font-family:inherit;font-size:13px;font-weight:400;color:var(--muted)}
 body.rs-app.light.v2 :is(.ap2-gt-h,.ap2-scnbox h4,.ap2-band .k,.ap3-det .sec,.ap2-eyebrow){font-size:13px;font-weight:600}
 body.rs-app.light.v2 .ap2-dt th,body.rs-app.light.v2 .ap3-yrs th,body.rs-app.light.v2 .ap3-list .cols{font-weight:600}
-body.rs-app.light.v2 .ap3-list .cols small{font-size:12px;font-weight:500;color:#64748B}
-body.rs-app.light.v2 :is(.ap2-fld small,.ap2-mbtn small,.ap2-next td small,.ap3-glance .g3 small,.ap3-glance .g3 span,
-  .ap3-glance .hint,.ap3-list .r .n small,.ap3-list .tt button small,.ap3-nb .dials small,.ap3-nb li small,
-  .ap3-nb .nums small,.ap2-xps small,.ap2-step .s,.ap2-dial .m,.ap2-tie,.ap2-small,.ap3-step small,.ap3-todo li small,
+body.rs-app.light.v2 .ap3-list .cols small{font-size:12px;font-weight:400;color:var(--faint)}
+body.rs-app.light.v2 :is(.ap2-fld small,.ap2-next td small,.ap3-glance .g3 small,.ap3-glance .g3 span,
+  .ap3-glance .hint,.ap3-list .r .n small,.ap3-nb .dials small,.ap3-nb li small,
+  .ap3-nb .nums small,.ap2-xps small,.ap2-dial .m,.ap2-tie,.ap2-small,.ap3-step small,.ap3-todo li small,
   .ap2-cname b,.ap2-dem .n small,.ap2-chips3 .ap2-chip3 small){font-size:12px}
-/* the tab rail: pills, selected = navy. Height stays 32px -- three sticky headers sit at top:54px */
-body.rs-app.light.v2 #apTabs .rs-tab{border-radius:999px;border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;
-  font-size:13px;font-weight:600;box-shadow:none}
-body.rs-app.light.v2 #apTabs .rs-tab::before{content:none}
-body.rs-app.light.v2 #apTabs .rs-tab:hover{background:#F8FAFC;border-color:#94A3B8;color:#0F172A}
-body.rs-app.light.v2 #apTabs .rs-tab.on{background:#14301F;border-color:#14301F;color:#FFFFFF;box-shadow:none}
-body.rs-app.light.v2 .ap2-tabs .rs-btn{border-radius:8px;font-size:13px;font-weight:600}
-/* no decoration: brackets, stubs and lit edges go; hairlines and white surfaces carry the page */
-body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::before,body.rs-app.light.v2 :is(.ap2-assume,.ap2-hero)::after,
-body.rs-app.light.v2 .ap2-band::before,body.rs-app.light.v2 .ap2-sech::before,body.rs-app.light.v2 .ap2-d .dq::before,
-body.rs-app.light.v2 .ap2-tt .n::before,body.rs-app.light.v2 span.ap2-chip::before{content:none;display:none}
-body.rs-app.light.v2 .ap2-assume{background:#FFFFFF;border-color:#E2E8F0}
-body.rs-app.light.v2 .ap2-band h2{font-size:17px;font-weight:600;letter-spacing:-.2px}
-body.rs-app.light.v2 .ap2-sech{font-size:15px;font-weight:600;letter-spacing:0}
-body.rs-app.light.v2 .ap2-d .dq{background:#FFFFFF;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:#0F172A}
-body.rs-app.light.v2 .ap2-d .dh b{font-weight:700}
-body.rs-app.light.v2 .ap2-xps{border-left-color:#C9E68A}
-body.rs-app.light.v2 .ap2-card.hot{border-color:#FDE68A;box-shadow:inset 3px 0 0 #B45309}
-body.rs-app.light.v2 .ap2-callout{background:#F4FAE6;border-color:#DCEFB0;border-left-color:#3F7D20}
-/* KPI-like readouts: ~26px / 600, ink */
-body.rs-app.light.v2 .ap2-step .v{font-size:26px;font-weight:600;letter-spacing:-.3px}
-body.rs-app.light.v2 .ap2-led-g>.v{font-size:clamp(22px,1.6vw,26px);font-weight:600;letter-spacing:-.3px}
-body.rs-app.light.v2 .ap2-led-g>.v.pos{color:#0F172A}
-body.rs-app.light.v2 .ap3-kpi{border-color:#E2E8F0;border-radius:10px}
-body.rs-app.light.v2 .ap3-kpi>b{font-size:26px;font-weight:600;letter-spacing:-.3px}
-body.rs-app.light.v2 .ap3-kpi>span{font-size:13px;color:#475569}
+body.rs-app.light.v2 .ap2-assume{background:var(--panel);border-color:var(--line)}
+body.rs-app.light.v2 .ap2-band h2{font-size:16px;font-weight:600;letter-spacing:-.2px}
+body.rs-app.light.v2 .ap2-sech{font-size:16px;font-weight:600;letter-spacing:0}
+body.rs-app.light.v2 .ap2-d .dq{background:var(--panel);text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:var(--ink)}
+body.rs-app.light.v2 .ap2-d .dh b{font-weight:600}
+body.rs-app.light.v2 .ap2-callout{background:var(--blue-bg);border-color:#DCEFB0;border-left-color:var(--brand)}
+/* the Map and Tuji tiles */
+body.rs-app.light.v2 .ap3-kpi{border-color:var(--line);border-radius:10px}
+body.rs-app.light.v2 .ap3-kpi>b{letter-spacing:-.3px}
 body.rs-app.light.v2 :is(.ap3-kpi .d,.ap3-kpi .was i,.ap3-kpi em){font-weight:600}
 body.rs-app.light.v2 .ap3-nb .big b{font-weight:600}
 body.rs-app.light.v2 :is(.ap3-todo .h b,.ap3-nb .h b,.ap3-det .dh b,.ap3-howcard .ap2-h3,details.ap3-how>summary,
   details.ap2-ref>summary){font-weight:600}
-/* status tags become the standard status pills */
-body.rs-app.light.v2 span.ap2-chip{font-family:inherit;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;
-  border-radius:6px;padding:2px 8px;border:0;background:#F1F5F9;color:#475569}
-body.rs-app.light.v2 span.ap2-chip.y{background:#DCFCE7;color:#166534}
-body.rs-app.light.v2 span.ap2-chip.p{background:#FEF3C7;color:#92400E}
-body.rs-app.light.v2 span.ap2-chip.n{background:#FEE2E2;color:#991B1B}
-body.rs-app.light.v2 .ap2-meas{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;border:0;border-radius:6px;
-  background:#DCFCE7;color:#166534}
-body.rs-app.light.v2 .ap2-q .qn{background:#F1F5F9;border-color:#E2E8F0;color:#475569;font-size:12px}
+body.rs-app.light.v2 .ap2-q .qn{background:#F1F5F9;border-color:var(--line);color:var(--muted);font-size:12px}
 body.rs-app.light.v2 .ap2-q .qq{font-weight:600}
-/* controls: toggle groups are pills, the selected one navy */
-body.rs-app.light.v2 button.ap2-chip{border-radius:999px;font-size:12.5px;font-weight:600;letter-spacing:0;background:#FFFFFF;
-  border-color:#CBD5E1;color:#0F172A}
-body.rs-app.light.v2 button.ap2-chip.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
-body.rs-app.light.v2 .ap2-mbtn{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;color:#0F172A;font-weight:600}
-body.rs-app.light.v2 .ap2-mbtn.on{background:#14301F;border-color:#14301F;color:#FFFFFF;box-shadow:none}
-body.rs-app.light.v2 .ap2-mbtn.on small{color:#E8F5C8}
-body.rs-app.light.v2 .ap3-seg{border-radius:999px;border-color:#CBD5E1;background:#FFFFFF}
-body.rs-app.light.v2 .ap3-seg button{font-weight:600;color:#0F172A;border-right-color:#E2E8F0}
-body.rs-app.light.v2 .ap3-seg button.on{background:#14301F;color:#FFFFFF;box-shadow:none}
-body.rs-app.light.v2 .ap3-yn button{font-weight:600;color:#475569}
-body.rs-app.light.v2 .ap3-yn button.on{background:#F1F5F9;color:#0F172A}
-body.rs-app.light.v2 .ap3-yn button.on.yes{background:#14301F;color:#FFFFFF}
-body.rs-app.light.v2 .ap3-list .tt button{border-radius:999px;border-color:#CBD5E1;color:#0F172A;font-weight:600}
-body.rs-app.light.v2 .ap3-list .tt button.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
-body.rs-app.light.v2 .ap3-list .tt button.on small{color:#E8F5C8}
-body.rs-app.light.v2 .ap3-list .tt button.on i{box-shadow:0 0 0 1.5px #FFFFFF}
-body.rs-app.light.v2 .ap3-list .r:hover{background:#F8FAFC}
-body.rs-app.light.v2 .ap3-list .r.on{background:#F4FAE6}
-body.rs-app.light.v2 :is(.ap3-step.drv,.ap3-nb.on){border-color:#14301F;box-shadow:0 0 0 1px #14301F}
-body.rs-app.light.v2 .ap3-printbtn{border-radius:8px;font-weight:600}
-body.rs-app.light.v2 :is(.ap3-step .ctl button,.ap3-step.plan .site button,.ap3-step .trk button){border-radius:8px;border-color:#CBD5E1;font-weight:600}
-body.rs-app.light.v2 :is(.ap2-in,.ap2-growth input,.ap3-nb .dials input){border-radius:8px;border-color:#CBD5E1}
-body.rs-app.light.v2 .ap2-assume .rs-num,body.rs-app.light.v2 .ap2-pane .rs-num{background:#FFFFFF;border-color:#CBD5E1;
+body.rs-app.light.v2 .ap3-list .r:hover{background:var(--panel-2)}
+body.rs-app.light.v2 .ap3-list .r.on{background:var(--blue-bg)}
+body.rs-app.light.v2 :is(.ap3-step.drv,.ap3-nb.on){border-color:var(--brand-d);box-shadow:0 0 0 1px var(--brand-d)}
+body.rs-app.light.v2 :is(.ap2-in,.ap2-growth input,.ap3-nb .dials input){border-radius:8px;border-color:var(--line-2)}
+body.rs-app.light.v2 .ap2-assume .rs-num,body.rs-app.light.v2 .ap2-pane .rs-num{background:var(--panel);border-color:var(--line-2);
   border-radius:8px;box-shadow:none;font-weight:600}
 body.rs-app.light.v2 .ap2-assume .rs-num:focus,body.rs-app.light.v2 .ap2-pane .rs-num:focus{box-shadow:0 0 0 3px rgba(63,125,32,.14)}
-body.rs-app.light.v2 .ap2-pane .rs-seg button.on{background:#14301F;color:#FFFFFF}
-body.rs-app.light.v2 .ap2-tt .rs-btn{font-family:inherit;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;border-radius:8px}
 /* tables: the total is a plain #F8FAFC row, no lit edge; selections are the neutral-blue tint */
-body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:600;background:#F8FAFC;box-shadow:inset 0 1px 0 #E2E8F0}
-body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td.ap2-sh{box-shadow:inset 0 1px 0 #E2E8F0,inset 1px 0 0 #CBD5E1,inset -1px 0 0 #CBD5E1}
+body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td{font-weight:600;background:var(--panel-2);box-shadow:inset 0 1px 0 var(--line)}
+body.rs-app.light.v2 .ap2-pane .rs-table tbody tr.ap2-tot td.ap2-sh{box-shadow:inset 0 1px 0 var(--line),inset 1px 0 0 var(--line-2),inset -1px 0 0 var(--line-2)}
 body.rs-app.light.v2 .ap2-dt td:first-child{font-weight:600}
-body.rs-app.light.v2 .ap2-th:hover,body.rs-app.light.v2 .ap2-th.on{color:#14301F}
+body.rs-app.light.v2 .ap2-th:hover,body.rs-app.light.v2 .ap2-th.on{color:var(--brand-d)}
 /* the map: readable tier key, calm controls, a tier chip whose text always reads on its fill */
-body.rs-app.light.v2 .ap2-mapkey{font-size:12.5px;color:#475569;gap:10px 16px}
+body.rs-app.light.v2 .ap2-mapkey{font-size:13px;color:var(--muted);gap:10px 16px}
 body.rs-app.light.v2 .ap2-mk b{font-weight:600}
 body.rs-app.light.v2 .ap2-sw{width:13px;height:13px;border-radius:3px;border-color:rgba(15,23,42,.18)}
 body.rs-app.light.v2 .ap2-sw.cover{border-radius:50%}
-body.rs-app.light.v2 .ap2-headline{border-left-color:#3F7D20;background:#FFFFFF}
+body.rs-app.light.v2 .ap2-headline{border-left-color:var(--brand);background:var(--panel)}
 body.rs-app.light.v2 .ap2-headline .n{font-weight:600}
 body.rs-app.light.v2 :is(.ap3-findres .tchip,.ap3-nb .tchip){font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px}
-body.rs-app.light.v2 :is(.ap3-findres,.ap3-nb) .tchip.t2{color:#0F172A}
+body.rs-app.light.v2 :is(.ap3-findres,.ap3-nb) .tchip.t2{color:var(--ink)}
 body.rs-app.light.v2 .ap3-list .r .tb{border-radius:6px;font-weight:600}
 body.rs-app.light.v2 .ap2-flag b{font-weight:600;border-radius:6px;background:#FFFFFF;border-color:#CBD5E1;box-shadow:0 1px 2px rgba(15,23,42,.12)}
 body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn{border-radius:8px;box-shadow:0 1px 3px rgba(15,23,42,.18)}
 body.rs-app.light.v2 .leaflet-control a.ap2-mapbtn.on{background:#14301F}
-body.rs-app.light.v2 .leaflet-tooltip.ap2-tipwrap{border-color:#E2E8F0;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
-body.rs-app.light.v2 .ap2-tip .t{letter-spacing:0;color:#14301F;font-weight:600}
+body.rs-app.light.v2 .leaflet-tooltip.ap2-tipwrap{border-color:var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
+body.rs-app.light.v2 .ap2-tip .t{letter-spacing:0;color:var(--brand-d);font-weight:600}
 body.rs-app.light.v2 .ap2-tip .big{font-weight:600}
 /* the Maryland clock: categorical series from the v2 order, the target a slate dash (amber means warning now) */
-body.rs-app.light.v2 .ap2-gt{--gt-t:#3F7D20;--gt-c:#94A3B8;--gt-pos:#0F766E;--gt-md:#14301F;--gt-ref:#334155;--gt-lvl:#7C3AED;
-  --gt-grid:#E2E8F0;--gt-axis:#475569;--gt-band:#F1F5F9}
+body.rs-app.light.v2 .ap2-gt{--gt-t:var(--brand);--gt-c:#94A3B8;--gt-pos:#0F766E;--gt-md:var(--brand-d);--gt-ref:#334155;--gt-lvl:#7C3AED;
+  --gt-grid:var(--line);--gt-axis:var(--muted);--gt-band:#F1F5F9}
 body.rs-app.light.v2 .ap2-gt-svg text{font-size:12px}
-body.rs-app.light.v2 .ap2-gt-leg{font-size:12.5px}
+body.rs-app.light.v2 .ap2-gt-leg{font-size:13px}
 body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
 /* ---------- THE TUJI TAB (2026-10-09) -------------------------------------------
    ap-tj- only. It borrows the page's own map and sheet classes (ap2-mapbox, ap2-mapkey, ap2-tip,
-   ap3-kpi, ap3-det, ap3-seg) so it reads as the same page; what is new is the grid, the
+   ap3-kpi, ap3-det, the kit .rs-seg) so it reads as the same page; what is new is the grid, the
    "needs attention" groups and the table chrome. Lives inside .ap2-pane, so the --ap- tokens apply. */
-.ap-tj-head h2{margin:0 0 4px;font-size:19px;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+.ap-tj-head h2{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .ap-tj-head p{margin:0 0 12px;font-size:13px;line-height:1.55;color:var(--muted);max-width:104ch}
 .ap-tj-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
 .ap-tj-mix span{margin:0 0 6px}
-.ap-tj-mix div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;line-height:1.55;color:var(--ink)}
+.ap-tj-mix div{display:flex;justify-content:space-between;gap:10px;font-size:14px;line-height:1.55;color:var(--ink)}
 .ap-tj-mix div em{font-style:normal;color:var(--muted)}
-.ap-tj-mix div b{display:inline;font-size:14px;font-weight:800;letter-spacing:0;line-height:1.55}
+.ap-tj-mix div b{display:inline;font-size:14px;font-weight:600;letter-spacing:0;line-height:1.55}
 .ap-tj-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px;align-items:stretch;margin:0 0 6px}
 /* isolation: Leaflet's panes carry z-index 200-700, which would otherwise paint OVER the sticky tab
    bar (z-index 28) as the map scrolls under it -- found in the first render */
@@ -1468,32 +1229,33 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
 .ap-tj-stat{font-size:12px;color:var(--muted)}
 .ap-tj-sw-f{background:transparent !important;border:2.5px solid var(--warn);box-shadow:0 0 0 1.5px var(--bg)}
 .ap-tj-sw-r{background:transparent !important;border:1.6px dashed var(--ink)}
-.ap-tj-flag{margin:10px 0 0;padding:9px 11px;border:1px solid color-mix(in srgb,var(--warn) 45%,var(--ap-rule));border-left:4px solid var(--warn);
-  border-radius:var(--ap-r2);background:color-mix(in srgb,var(--warn) 7%,transparent)}
-.ap-tj-flag b{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ap-warn-ink)}
-.ap-tj-flag span{display:block;font-size:13.5px;line-height:1.45;color:var(--ink);margin-top:2px}
+.ap-tj-flag{margin:10px 0 0;padding:9px 11px;border:1px solid var(--ap-rule);border-radius:var(--ap-r2);background:var(--ap-sub)}
+.ap-tj-flag b{display:block;font-size:13px;font-weight:600;color:var(--ap-warn-ink)}
+.ap-tj-flag span{display:block;font-size:14px;line-height:1.45;color:var(--ink);margin-top:2px}
 .ap-tj-flag small{display:block;font-size:12px;color:var(--muted);margin-top:4px}
 .ap-tj-sech{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:22px 0 10px;padding-top:14px;border-top:1px solid var(--ap-rule)}
-.ap-tj-sech h3{margin:0;font-size:16px;font-weight:800;color:var(--ink)}
-.ap-tj-sech span{font-size:12.5px;color:var(--muted)}
-.ap-tj-need{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px;align-items:start}
-.ap-tj-grp{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay);padding:12px 14px;min-width:0}
-.ap-tj-grp>.h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding-bottom:7px;margin-bottom:4px;border-bottom:1px solid var(--ap-rule)}
-.ap-tj-grp>.h b{font-size:15px;color:var(--ink)}
-.ap-tj-grp>.h span{font-size:12px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
-.ap-tj-grp .lv{margin:10px 0 2px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
-.ap-tj-grp .none{font-size:13px;color:var(--muted);padding:8px 0}
+.ap-tj-sech h3{margin:0;font-size:16px;font-weight:600;color:var(--ink)}
+.ap-tj-sech span{font-size:13px;color:var(--muted)}
+.ap-tj-need{border:1px solid var(--ap-rule);border-radius:var(--ap-r1);background:var(--ap-bay)}
+.ap-tj-grp{padding:12px 16px;min-width:0}
+.ap-tj-grp+.ap-tj-grp{border-top:1px solid var(--ap-rule)}
+.ap-tj-grp>.h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ap-tj-grp>.h .cnt{font-size:20px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;min-width:32px}
+.ap-tj-grp>.h b{font-size:16px;font-weight:600;color:var(--ink)}
+.ap-tj-grp>.h span:last-child{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ap-tj-grp>.act{font-size:13px;color:var(--muted);margin:2px 0 4px 42px}
+.ap-tj-grp .lv{margin:10px 0 2px 42px;font-size:12px;font-weight:600;color:var(--muted)}
+.ap-tj-grp .rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:0 16px;margin-left:42px}
+.ap-tj-grp .none{font-size:13px;color:var(--muted);padding:6px 0 2px 42px}
+.ap-tj-grp .ap-tj-more{margin-left:42px}
 .ap-tj-row{display:block;width:100%;text-align:left;font:inherit;color:var(--ink);background:none;border:0;border-bottom:1px solid var(--ap-rule);
   padding:8px 4px;cursor:pointer;border-radius:6px}
 .ap-tj-row:hover{background:var(--ap-sub)}
 .ap-tj-row:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
-.ap-tj-row .n{display:block;font-size:13.5px;font-weight:700}
-.ap-tj-row .n small{margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
-.ap-tj-row .r{display:block;font-size:12.5px;line-height:1.45;color:var(--ink);margin-top:2px}
-.ap-tj-row .a{display:block;font-size:12px;color:var(--ap-warn-ink);margin-top:2px}
-.ap-tj-row .a::before{content:"\\2192  "}
-.ap-tj-more{margin:8px 0 0;font:inherit;font-size:12.5px;font-weight:700;color:var(--brand-d);background:none;border:0;padding:2px 0;cursor:pointer}
-.ap-tj-more:hover{text-decoration:underline}
+.ap-tj-row .n{display:block;font-size:14px;font-weight:600}
+.ap-tj-row .n small{margin-left:6px;font-size:12px;font-weight:400;color:var(--muted)}
+.ap-tj-row .r{display:block;font-size:13px;line-height:1.45;color:var(--ink);margin-top:2px}
+@media (max-width:560px){.ap-tj-grp>.act,.ap-tj-grp .lv,.ap-tj-grp .rows,.ap-tj-grp .none,.ap-tj-grp .ap-tj-more{margin-left:0}}
 .ap-tj-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:0 0 10px}
 .ap-tj-bar>.sp{flex:1 1 auto}
 .ap-tj-tbl{margin:0 0 6px}
@@ -1505,13 +1267,12 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
 .ap-tj-th:focus-visible{outline:2px solid var(--brand-d);outline-offset:-2px}
 .ap-tj-tbl tbody tr{cursor:pointer}
 .ap-tj-tbl tbody tr:hover td{background:var(--ap-sub)}
-.ap-tj-tbl td small{display:block;font-size:11px;color:var(--faint)}
-.ap-tj-tchip{display:inline-block;min-width:26px;text-align:center;font-size:11px;font-weight:800;padding:1px 6px;border-radius:6px;color:#fff}
+.ap-tj-tbl td small{display:block;font-size:12px;color:var(--faint)}
+.ap-tj-tchip{display:inline-block;min-width:26px;text-align:center;font-size:12px;font-weight:600;padding:1px 6px;border-radius:6px;color:#fff}
 .ap-tj-tchip.t2,.ap-tj-tchip.t3{color:#0F172A}
-.ap-tj-fchip{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;margin:1px 3px 1px 0;border-radius:999px;white-space:nowrap;
-  color:var(--ap-warn-ink);background:color-mix(in srgb,var(--warn) 14%,transparent)}
-.ap-tj-up{color:var(--ap-pos-ink);font-weight:700}
-.ap-tj-dn{color:var(--ap-neg-ink);font-weight:700}
+.ap-tj-fchip{margin:1px 3px 1px 0}
+.ap-tj-up{color:var(--ap-pos-ink);font-weight:600}
+.ap-tj-dn{color:var(--ap-neg-ink);font-weight:600}
 .ap-tj-how{margin:16px 0 0}
 .ap-tj-how .panel{line-height:1.7}
 .ap-tj-how h4{margin:12px 0 2px;font-size:13px;color:var(--ink)}
@@ -1620,8 +1381,8 @@ const AREA_PLAN_PAGE = {
     const BASIS = !LOCK ? "pickup" : LOCK.basis ? LOCK.basis : (() => {
       try { return (JSON.parse(localStorage.getItem(TM_KEY) || "{}") || {}).basis === "delivery" ? "delivery" : "pickup"; }
       catch (e) { return "pickup"; } })();
-    host.innerHTML = '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + '</h1></div>' +
-      '<div class="rs-loading" style="padding:22px">Reading the plan, the model and every city…</div>';
+    const PAGE_TITLE = LOCK ? "Target Map" : "Seasonal Planning", PAGE_KEY = LOCK ? "target-map" : "area-plan";
+    host.innerHTML = RSC.loadingHtml(PAGE_TITLE, "Reading the plan, the model and every city…");
 
     return Promise.all([
       RS.load("area_plan"),
@@ -1652,16 +1413,16 @@ const AREA_PLAN_PAGE = {
       AREA.forEach(a => { if (AREA_IX[a.Level]) AREA_IX[a.Level][a["Area Key"]] = a; });
       // FOUR DISTINCT FAILURES, each named -- the old page blamed the mart for a model outage
       if (!rows || !rows.length) {
-        host.innerHTML = '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
+        host.innerHTML = RSC.pageHeadHtml({ title: PAGE_TITLE, key: PAGE_KEY }) + '<div class="panel">The state plan mart (mart_area_plan) is empty — run ' +
           '<b>sources=area-plan</b> and reload.</div>'; return;
       }
       if (!model) {
-        host.innerHTML = '<div class="panel">The plan model row (mart_area_plan_model) is missing — ' +
+        host.innerHTML = RSC.pageHeadHtml({ title: PAGE_TITLE, key: PAGE_KEY }) + '<div class="panel">The plan model row (mart_area_plan_model) is missing — ' +
           'run <b>sources=area-plan</b> and reload.</div>'; return;
       }
       if (cityAll && cityAll.__err) {
         const msg = String(cityAll.__err && cityAll.__err.message || cityAll.__err || "");
-        host.innerHTML = '<div class="panel">' + (/403|permitted|forbidden/i.test(msg)
+        host.innerHTML = RSC.pageHeadHtml({ title: PAGE_TITLE, key: PAGE_KEY }) + '<div class="panel">' + (/403|permitted|forbidden/i.test(msg)
           ? 'Your access covers the old Area Master only. This page also carries the crew, ' +
             'truck and marketing plan — ask Tornike to grant <b>Seasonal Planning</b>.'
           : 'The per-city master (mart_area_master) could not be read: ' + esc(msg)) + '</div>';
@@ -2646,30 +2407,28 @@ const AREA_PLAN_PAGE = {
             "lost counts provisional</span>" : "") + "</span></div>";
       }
 
+      /* THE HERO IS THE KIT'S KPI ROW (ZTZ-80): the same six numbers, label / value / the line under
+         it; a truck shortfall is the one tile toned warn. The live input handler repaints #apHero. */
       function heroHtml(c) {
-        const step = (l, v, s, cls) =>
-          '<div class="ap2-step"><div class="l">' + l + '</div>' +
-          '<div class="v' + (cls ? " " + cls : "") + '">' + v + "</div>" +
-          '<div class="s">' + s + "</div></div>";
         const owned = (model.fleet || {}).owned_trucks || 0;
         const seedWord = { measured: "what worked", his: "his table", aim: "the aim", custom: "your edits" }[inputs.seed] || "";
-        return '<div class="ap2-flow">' +
-          step("Foremen in this table", c.totForemen,
-               "+" + (c.totForemen - c.totCur) + " on top of " + c.totCur + " · seeded from " + esc(seedWord)) +
+        const sub = t => ({ sub: t, title: t });
+        return RSC.kpisHtml([
+          Object.assign({ label: "Foremen in this table", value: String(c.totForemen) },
+            sub("+" + (c.totForemen - c.totCur) + " on top of " + c.totCur + " · seeded from " + seedWord)),
           /* THE PERIOD LEAVES THE LABELS (2026-09-20): it is stated once, on the band above, and a
              label carrying " · May 2026 – Aug 2026" overprinted its neighbour at every width he uses. */
-          step("Jobs that table could run", fmtN(c.totJobs),
-               "at " + n1(c.util * 100) + "% of the " + DAYS_PER_MONTH + "/day ceiling" +
-               (P.M.jobs ? " · they actually ran " + fmtN(P.M.jobs) : "")) +
-          step("Leads it would need", fmtN(c.totLeads), "every lead, good or bad · at each area's own booking rate") +
-          step("Salespeople", Math.ceil(c.salesNeeded || 0),
-               "at " + fmtN(num(inputs.leadsPerRep)) + " leads a rep a month" +
-               (P.M.repsActive ? " · " + fmtN(P.M.repsActive) + " carried a full load" : "")) +
-          step("Marketing / month", money(c.marketing), "at " + money2(num(inputs.dollarsPerLead)) + " a lead") +
-          step("Trucks", c.totForemen + " vs " + fmtN(owned),
-               "one truck per foreman · " + fmtN(owned) + " on the vehicles register",
-               c.totForemen > owned ? "warn" : "good") +
-          "</div>";
+          Object.assign({ label: "Jobs that table could run", value: fmtN(c.totJobs) },
+            sub("at " + n1(c.util * 100) + "% of the " + DAYS_PER_MONTH + "/day ceiling" +
+               (P.M.jobs ? " · they actually ran " + fmtN(P.M.jobs) : ""))),
+          Object.assign({ label: "Leads it would need", value: fmtN(c.totLeads) }, sub("every lead, good or bad · at each area's own booking rate")),
+          Object.assign({ label: "Salespeople", value: String(Math.ceil(c.salesNeeded || 0)) },
+            sub("at " + fmtN(num(inputs.leadsPerRep)) + " leads a rep a month" +
+               (P.M.repsActive ? " · " + fmtN(P.M.repsActive) + " carried a full load" : ""))),
+          Object.assign({ label: "Marketing / month", value: esc(money(c.marketing)) }, sub("at " + money2(num(inputs.dollarsPerLead)) + " a lead")),
+          Object.assign({ label: "Trucks", value: c.totForemen + " vs " + fmtN(owned), tone: c.totForemen > owned ? "warn" : "" },
+            sub("one truck per foreman · " + fmtN(owned) + " on the vehicles register")),
+        ]);
       }
 
       function dialsHtml() {
@@ -2850,7 +2609,7 @@ const AREA_PLAN_PAGE = {
         const belowFloor = allInFocus.filter(r => (num(r.Leads) || 0) < C.minLeads)
           .reduce((a, r) => a + (num(r.Leads) || 0), 0);
         const stateChips = [""].concat([...new Set(CITYALL.map(r => r.State).filter(Boolean))].sort())
-          .map(st => '<button class="ap2-chip' + (inputs.focus === st ? " on" : "") + '" data-focus="' + esc(st) + '">' + (st || "All") + "</button>").join(" ");
+          .map(st => '<button type="button"' + (inputs.focus === st ? ' class="on"' : "") + ' data-focus="' + esc(st) + '">' + (st || "All") + "</button>").join("");
 
         const bands = [["0–10 mi", 0, 10], ["10–20 mi", 10, 20], ["20–35 mi", 20, 35], ["35–60 mi", 35, 60], ["60+ mi", 60, 1e9]];
         const lad = bands.map(([label, lo, hi]) => {
@@ -2862,28 +2621,30 @@ const AREA_PLAN_PAGE = {
         }).filter(x => x.leads > 0);
         const maxPct = Math.max(1, ...lad.map(x => x.pct || 0));
 
+        /* HOW THE CITIES ARE COUNTED (ZTZ-80): the five lines that sat above the data are the head's
+           "How it's counted" panel now, word for word, refreshed with every repaint of this band */
+        HOW_CITY = "Booked here means <b>a closing exists</b> — the same rule as the plan. Distance is <b>straight-line</b> to the nearest active base. Jobs are last-encounter closings placed by the lead's pickup city, so a state total in the plan will not equal the sum of its cities. " +
+          (stateLeadsYtd ? "These " + fmtN(rs.length) + " cities carry <b>" + fmtN(leads) + "</b> of the <b>" + fmtN(stateLeadsYtd) + "</b> leads " + (inputs.focus ? esc(inputs.focus) : "all states") + " produced this year; the rest are cities under the " + C.minLeads + "-lead floor (" + fmtN(belowFloor) + " leads), under 5 leads, or with no city name. " : "") +
+          (CITYALL.some(r => r["Home Value"] != null) ? "Home values are Zillow's typical value per zip (as of <b>" + esc(String((CITYALL.find(r => r["Home Value As Of"]) || {})["Home Value As Of"] || "").slice(0, 7)) + "</b>), weighted by where the city's leads came from. " : "") +
+          "Switch the master to <b>Marketing</b> for lead sources and marketing cost per city. Google Ads spend is <b>measured</b> and shown as 'G $…'; the other channels are estimated from what each source costs per lead. Third-party search volume is not connected — the Keyword Planner upload under Reference is the route.";
         return '<div class="ap2-band"><span class="k">The evidence</span>' +
           '<h2>Which cities produce the work' + (inputs.focus ? " in " + esc(inputs.focus) : "") + "</h2>" +
           '<span class="clock">every city · <b>' + yr + ' year to date</b> · all companies · this pane does not follow the period picker on Capacity check</span></div>' +
-          '<div class="ap2-say">Booked here means <b>a closing exists</b> — the same rule as the plan. Distance is <b>straight-line</b> to the nearest active base. Jobs are last-encounter closings placed by the lead\'s pickup city, so a state total in the plan will not equal the sum of its cities. ' +
-          (stateLeadsYtd ? "These " + fmtN(rs.length) + " cities carry <b>" + fmtN(leads) + "</b> of the <b>" + fmtN(stateLeadsYtd) + "</b> leads " + (inputs.focus ? esc(inputs.focus) : "all states") + " produced this year; the rest are cities under the " + C.minLeads + "-lead floor (" + fmtN(belowFloor) + " leads), under 5 leads, or with no city name. " : "") +
-          (CITYALL.some(r => r["Home Value"] != null) ? "Home values are Zillow's typical value per zip (as of <b>" + esc(String((CITYALL.find(r => r["Home Value As Of"]) || {})["Home Value As Of"] || "").slice(0, 7)) + "</b>), weighted by where the city's leads came from. " : "") +
-          "Switch the master to <b>Marketing</b> for lead sources and marketing cost per city. Google Ads spend is <b>measured</b> and shown as 'G $…'; the other channels are estimated from what each source costs per lead. Third-party search volume is not connected — the Keyword Planner upload under Reference is the route.</div>" +
-          '<div class="ap2-bar"><div class="rs-fld"><span>Focus</span><div>' + stateChips + "</div></div></div>" +
+          '<div class="ap2-note" style="margin:0 0 10px"><button type="button" class="ap2-golink" data-rs-how="' + PAGE_KEY + '">How the cities are counted</button> — booked means a closing exists; distance is straight-line.</div>' +
+          '<div class="ap2-bar"><div class="rs-fld"><span>Focus</span><div class="rs-seg ap2-seg-s" role="group" aria-label="Focus">' + stateChips + "</div></div></div>" +
 
-          '<div class="panel ap2-led">' +
-          '<div class="ap2-led-g"><div class="l">Cities</div><div class="v">' + fmtN(rs.length) + '</div>' +
-            '<div class="s"><b>' + fmtN(leads) + "</b> leads · <b>" + fmtN(booked) + "</b> booked (" + (leads ? (booked / leads * 100).toFixed(1) : "—") + "%)</div></div>" +
-          '<div class="ap2-led-g"><div class="l">Revenue</div><div class="v">' + money0(rev) + '</div>' +
-            '<div class="s"><b>' + fmtN(jobs) + "</b> jobs · <b>" + money0(leads ? rev / leads : 0) + "</b> per lead</div></div>" +
-          '<div class="ap2-led-g"><div class="l">Leads, no jobs</div><div class="v' + (untapped.length ? " warn" : "") + '">' + fmtN(untapped.length) + '</div>' +
-            '<div class="s">cities sent <b>' + fmtN(untappedLeads) + "</b> leads and produced no job</div></div>" +
-          '<div class="ap2-led-g"><div class="l">No crew behind them</div><div class="v' + (noCrew.length ? " warn" : "") + '">' + fmtN(noCrew.length) + '</div>' +
-            '<div class="s"><b>' + fmtN(noCrewLeads) + "</b> leads whose nearest base has nobody on <b>" +
-              esc((SIS.plan_company || "Zip to Zip")) + "</b>'s register" +
-              (((SIS.companies || []).length) ? " — Delaware's are worked by <b>Tuji</b>, which the plan does not dispatch" : "") +
-              "</div></div>" +
-          "</div>" +
+          /* THE LEDGER IS THE KIT'S KPI ROW (ZTZ-80). The Tuji clause rode the fourth tile's line and ran
+             to three lines; it is the note under the row now, word for word. */
+          RSC.kpisHtml([
+            { label: "Cities", value: fmtN(rs.length),
+              sub: fmtN(leads) + " leads · " + fmtN(booked) + " booked (" + (leads ? (booked / leads * 100).toFixed(1) : "—") + "%)" },
+            { label: "Revenue", value: esc(money0(rev)), sub: fmtN(jobs) + " jobs · " + money0(leads ? rev / leads : 0) + " per lead" },
+            { label: "Leads, no jobs", value: fmtN(untapped.length), tone: untapped.length ? "warn" : "",
+              sub: "cities sent " + fmtN(untappedLeads) + " leads and produced no job" },
+            { label: "No crew behind them", value: fmtN(noCrew.length), tone: noCrew.length ? "warn" : "",
+              sub: fmtN(noCrewLeads) + " leads whose nearest base has nobody on " + (SIS.plan_company || "Zip to Zip") + "'s register" },
+          ]) +
+          (((SIS.companies || []).length) ? '<div class="ap2-note ap2-led-note">No crew behind them: Delaware\'s are worked by <b>Tuji</b>, which the plan does not dispatch.</div>' : "") +
 
           '<div class="ap2-grid">' +
           '<div class="panel"><div class="panel-head"><div class="panel-title">Distance, and how much of it is really distance</div></div>' +
@@ -3229,28 +2990,33 @@ const AREA_PLAN_PAGE = {
         const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
         return m ? (+m[3]) + " " + MON_SHORT[+m[2]] + " " + m[1] : String(iso || "");
       }
+      /* THE VIEWS ARE THE KIT'S UNDERLINE TABS (ZTZ-80, 13 Nov 2026). Same ids, roles and data-k as the
+         dark pills they replace, so showPane / wireTabs / the arrow keys / &tab= work unchanged. The
+         rail keeps its sticky 54px box (see .ap2-tabs): three tables pin their header under it. */
       function tabsHtml() {
-        return '<div class="ap2-tabs"><div id="apTabs" role="tablist" aria-label="Seasonal Planning sections" style="display:flex;gap:6px;flex-wrap:wrap">' +
-          PANES.map(x => { const on = paneOf(inputs.tab) === x.k;
-            const label = x.label;
-            return '<button type="button" class="rs-tab' + (on ? " on" : "") + '" id="apTab-' + x.k + '" role="tab" data-k="' + x.k +
-              '" aria-selected="' + (on ? "true" : "false") + '" aria-controls="apPane-' + x.k + '" tabindex="' + (on ? "0" : "-1") + '">' +
-              esc(label) + "</button>"; }).join("") +
-          "</div><span class=\"sp\"></span>" +
-          /* ONE DOWNLOAD MENU (2026-10-07): it replaces the three "Download map" buttons (tab bar, plan
-             row, map toolbar), "Download plan" and the toolbar's target-zips button */
-          '<details class="ap4-dl"><summary class="rs-btn">Download ▾</summary><div class="ap4-dlm">' +
+        const on = paneOf(inputs.tab);
+        return '<div class="ap2-tabs">' +
+          RSC.tabsHtml(PANES.map(x => ({ id: x.k, label: x.label })), on, "k")
+            .replace('class="rs-utabs"', 'class="rs-utabs" id="apTabs" aria-label="Seasonal Planning sections"')
+            .replace(/data-k="([\w-]+)"/g, (m, k) => 'id="apTab-' + k + '" aria-controls="apPane-' + k + '" tabindex="' + (k === on ? "0" : "-1") + '" ' + m) +
+          "</div>";
+      }
+      /* ONE DOWNLOAD MENU (2026-10-07): it replaces the three "Download map" buttons (tab bar, plan
+         row, map toolbar), "Download plan" and the toolbar's target-zips button. Since ZTZ-80 it is the
+         page head's action, on the right of the title. */
+      function dlMenuHtml() {
+        return '<details class="ap4-dl"><summary class="rs-btn">Download ▾</summary><div class="ap4-dlm">' +
             '<button type="button" id="apPdfMap" title="The totals and the map at zip-code level, on one landscape page — choose Save as PDF">Map (PDF)</button>' +
             '<button type="button" id="apPdf" title="The whole plan as a document">Plan (PDF)</button>' +
             '<button type="button" id="apZipDl" title="The Tier 1 and Tier 2 zip codes of the market picked on the map, under the plan on screen (a new base&#39;s zips count while it is on) -- one zip per line, ready to paste into Google Ads or Meta">Target zips (Tier 1–2)</button>' +
-          "</div></details></div>";
+          "</div></details>";
       }
       /* `quiet` is passed by a data-goto jump, which does its own scrolling */
       function showPane(key, quiet) {
         const sec = isSec(key) ? key : null;
         key = paneOf(key);
         host.querySelectorAll(".ap2-pane").forEach(pn => { pn.hidden = pn.dataset.apPane !== key; });
-        host.querySelectorAll("#apTabs .rs-tab").forEach(b => { const on = b.dataset.k === key;
+        host.querySelectorAll("#apTabs .rs-utab").forEach(b => { const on = b.dataset.k === key;
           b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1; });
         inputs.tab = key; save();
         try { history.replaceState(null, "", LOCK ? "#page=target-map" : "#page=area-plan&tab=" + key); } catch (e) {}
@@ -3317,12 +3083,12 @@ const AREA_PLAN_PAGE = {
       function wireTabs() {
         const bar = host.querySelector("#apTabs"); if (!bar) return;
         const keys = PANES.map(x => x.k);
-        bar.querySelectorAll(".rs-tab").forEach(b => { b.onclick = () => showPane(b.dataset.k); });
+        bar.querySelectorAll(".rs-utab").forEach(b => { b.onclick = () => showPane(b.dataset.k); });
         host.querySelectorAll("[data-sec]").forEach(b => { b.onclick = () => openSec(b.dataset.sec, true); });
         host.querySelectorAll("[data-secall]").forEach(b => { b.onclick = () => host.querySelectorAll("details.ap4-sec").forEach(d => { d.open = false; }); });
         host.querySelectorAll(".ap4-dlm button").forEach(b => b.addEventListener("click", () => { const d = b.closest("details"); if (d) d.open = false; }));
         bar.onkeydown = ev => {
-          if (!ev.target.classList || !ev.target.classList.contains("rs-tab")) return;   // the PDF button keeps its own keys
+          if (!ev.target.classList || !ev.target.classList.contains("rs-utab")) return;
           const i = keys.indexOf(paneOf(inputs.tab)); let n = -1;
           if (ev.key === "ArrowRight") n = (i + 1) % keys.length;
           else if (ev.key === "ArrowLeft") n = (i - 1 + keys.length) % keys.length;
@@ -3330,7 +3096,7 @@ const AREA_PLAN_PAGE = {
           else if (ev.key === "End") n = keys.length - 1;
           if (n < 0) return;
           ev.preventDefault(); showPane(keys[n]);
-          const btn = bar.querySelector('.rs-tab[data-k="' + keys[n] + '"]'); if (btn) btn.focus();
+          const btn = bar.querySelector('.rs-utab[data-k="' + keys[n] + '"]'); if (btn) btn.focus();
         };
       }
 
@@ -3679,11 +3445,11 @@ const AREA_PLAN_PAGE = {
         const METH = { mkt: "Marketing trend", growth: "Last season × growth", avg3: "3-season average", flat: "Flat (last season again)" };
         const BT = FC.backtest || {}, BTM = BT.methods || {};
         const errTxt = m => { const v = BTM[m]; return v && v.abs_err_pct != null ? "±" + Math.round(v.abs_err_pct * 100) + "%" : "—"; };
-        const pick = '<div class="ap2-mpick"><span class="ap2-note" style="margin:0 8px 0 0"><b>Method</b></span>' + METHODS_ALL.map(m =>
-          '<button class="ap2-mbtn' + (N.method === m ? " on" : "") + '" data-method="' + m + '" title="' + (BTM[m] ? "backtest " + BT.year + ": predicted " + fmtN(BTM[m].pred) + " vs " + fmtN(BTM[m].actual) + " actual season jobs" : "") + '">' + METH[m] +
+        const pick = '<div class="ap2-mpick"><span class="ap2-note" style="margin:0 8px 0 0"><b>Method</b></span><div class="rs-seg ap2-seg-s" role="group" aria-label="Forecast method">' + METHODS_ALL.map(m =>
+          '<button type="button"' + (N.method === m ? ' class="on"' : "") + ' data-method="' + m + '" title="' + (BTM[m] ? "backtest " + BT.year + ": predicted " + fmtN(BTM[m].pred) + " vs " + fmtN(BTM[m].actual) + " actual season jobs" : "") + '">' + METH[m] +
           '<small>' + (m === "mkt" ? "last season " + sgn(mktGrowth()) : BT.year ? (() => { const v = BTM[m]; if (!v || !v.actual) return "backtest " + errTxt(m);
             const d = Math.round((v.pred / v.actual - 1) * 100);
-            return "on " + BT.year + ": " + (d >= 0 ? "+" : "") + d + "%"; })() : "") + "</small></button>").join("") +
+            return "on " + BT.year + ": " + (d >= 0 ? "+" : "") + d + "%"; })() : "") + "</small></button>").join("") + "</div>" +
           /* SAY WHICH WAY IT WAS WRONG (2026-09-20). The picker showed |error| only, so it hid the one
              fact that decides the choice: replayed against last season EVERY method came in UNDER what
              actually happened. A method that under-predicts is the expensive kind of wrong here — too
@@ -3785,7 +3551,7 @@ const AREA_PLAN_PAGE = {
       const adIsMeasured = r => adGoogle(r) > 0;
       const adPerDollar = r => { const c = adCost(r); return c > 0 ? num(r.Revenue) / c : null; };
       const adBadge = r => adIsMeasured(r)
-        ? '<span class="ap2-meas" title="Google Ads charged ' + money0(adGoogle(r)) + ' for this city — part of the total beside it">G ' + money0(adGoogle(r)) + "</span>" : "";
+        ? '<span class="rs-pill ok ap2-meas" title="Google Ads charged ' + money0(adGoogle(r)) + ' for this city — part of the total beside it">G ' + money0(adGoogle(r)) + "</span>" : "";
 
       /* THE MART'S OWN LABELS (curated.py, ELT(NTILE(5)...)): Lowest / Lower / Middle / Upper / Top.
          The page scored against "Fourth fifth" and "Second fifth", which match nothing, so every city
@@ -5034,6 +4800,7 @@ const AREA_PLAN_PAGE = {
           (o.refs || []).map(r => '<span><i class="ap2-gt-sw ap2-gt-dash ap2-gt-' + r.k + '"></i>' + esc(r.legend || r.label) + "</span>").join("") + "</div>";
       }
       // "scheduled" (2026-09-24 review): switch-on set, its first full month not complete yet
+      const PILL = { y: "ok", p: "warn", n: "bad" };          // the y / p / n status letters as kit pill tones
       const GT_STATUS = {
         baseline: ["p", "Collecting the baseline"], late: ["n", "Not switched on in time"], scheduled: ["p", "Switch-on set"],
         running: ["p", "Switched on"],
@@ -5097,11 +4864,11 @@ const AREA_PLAN_PAGE = {
         const guards = G.guards || [];
         const bad = guards.filter(g => g.level !== "ok");
         const guardSay = bad.length
-          ? bad.map(g => '<span class="ap2-chip ' + (g.level === "red" ? "n" : "p") + '">' + esc(ymLabel(g.ym)) + ": " +
+          ? bad.map(g => '<span class="rs-pill ' + (g.level === "red" ? "bad" : "warn") + '">' + esc(ymLabel(g.ym)) + ": " +
               [g.ads_in_zone ? money0(g.ads_in_zone) + " of Google Ads in a test zone" : g.ads ? money0(g.ads) + " of Google Ads in MD/DC/VA (outside the zones?)" : "",
                g.cards ? fmtN(g.cards) + " MD/DC/VA cards mailed (state-level record: confirm the zips)" : "",
                (g.new_listings || []).length ? "new listing " + g.new_listings.join(", ") : ""].filter(Boolean).join("; ") + "</span>").join(" ")
-          : '<span class="ap2-chip y">held fixed since ' + esc(ymLabel(B.from || G.last_month)) + "</span> no Search or Performance Max money in MD/DC/VA, no MD/DC/VA cards recorded, no new MD/DC/VA listing in Search Console.";
+          : '<span class="rs-pill ok">held fixed since ' + esc(ymLabel(B.from || G.last_month)) + "</span> no Search or Performance Max money in MD/DC/VA, no MD/DC/VA cards recorded, no new MD/DC/VA listing in Search Console.";
         const sig = (G.signal || []).filter(s => ["MD", "VA", "DC"].includes(s.state) || s.tag === "page:elkridge" || s.tag === "gbp_kearny_nj");
         const lastYms = [...new Set([].concat(...sig.map(s => Object.keys(s.clicks || {}))))].sort().slice(-3);
         const sigRows = sig.map(s => "<tr><td>" + esc(s.tag) + '</td><td>' + esc(s.first_day ? dayLabel(s.first_day) : "\u2014") + "</td>" +
@@ -5132,7 +4899,7 @@ const AREA_PLAN_PAGE = {
         const pool = G.cards_pool || {};
         return '<div class="ap2-gt">' + clock +
           '<div class="ap2-gt-h" style="margin-top:18px">The Montgomery listing test \u2014 pre-registered ' + esc(dayLabel(C.registered_on)) + "</div>" +
-          '<div class="ap2-say" style="margin:0 0 8px"><span class="ap2-chip ' + st[0] + '">' + esc(st[1]) + "</span> " + statusSay + ". " + esc(C.question) +
+          '<div class="ap2-say" style="margin:0 0 8px"><span class="rs-pill ' + (PILL[st[0]] || "mute") + '">' + esc(st[1]) + "</span> " + statusSay + ". " + esc(C.question) +
             " A Business Profile at a Montgomery address, and nothing else: Monroe PA stays the first yard, and the Montgomery yard waits for this read-out (his call, 24 Sep 2026).</div>" +
           '<div class="ap2-gt-h">The zones \u2014 Zip to Zip leads over the baseline so far, ' + esc(B.from ? ymLabel(B.from) + "\u2013" + ymLabel(B.to) : "") + "</div>" +
           '<div class="rs-tablewrap"><table data-name="Montgomery test zones" class="rs-table ap2-next"><thead><tr><th>Zone</th><th class="num">Zips</th><th class="num">Movers a year</th>' +
@@ -5232,18 +4999,21 @@ const AREA_PLAN_PAGE = {
               picks: Array.isArray(s0.picks) ? s0.picks : [], listing: Array.isArray(s0.listing) ? s0.listing : [] }));
             return S2.scn.net - S2.base.net; } catch (e) { return x.net; } };
         const saved = (inputs.scnSaved || []).map((x, i) => { const nt = savedNet(x);
-          return '<button type="button" class="ap2-mbtn" data-load="' + i + '">' + esc(x.name) +
+          return '<button type="button" class="rs-btn" data-load="' + i + '">' + esc(x.name) +
           '<small>' + (nt != null ? sgn(nt) + " net today" : "") + "</small></button>"; }).join("");
 
-        return '<div class="ap2-say" style="margin:0 0 12px"><b>What this tool will and will not tell you.</b> ' +
-            'Three of the four levers you asked for were measured first, and the measurements are built into them. ' +
+        /* WHAT THIS TOOL WILL AND WILL NOT TELL YOU (ZTZ-80): the head's "How it's counted" panel, word for
+           word; one line here opens it */
+        HOW_WHATIF = 'Three of the four levers you asked for were measured first, and the measurements are built into them. ' +
             '<b>Crews do not buy jobs</b> \u2014 foremen hit 90% of the season\u2019s maximum on 3 days of 123 last year, and leads wanting those dates ' +
             'booked no worse than any other. <b>Marketing does not buy jobs measurably</b> \u2014 +22% of spend once bought +10 jobs, so that dial ' +
             'starts at nil response and you can type what you believe instead. <b>A new base does not raise booking on the day it opens</b>, ' +
             'though inside 15 miles of a staffed one we book 31.6% against 17.0% further out, so the ring has a slider for how much of it has arrived. ' +
             'The lever that does move this plan is <b>capture</b>' + (capSay() ? ": " + capSay() : "") + '.' +
             /* the dials below start from that capture, which leaves out the no-address leads (2026-09-24) */
-            (noAddrShort() ? " " + noAddrShort() + "." : "") + '</div>' +
+            (noAddrShort() ? " " + noAddrShort() + "." : "");
+        return '<div class="ap2-note" style="margin:0 0 12px"><button type="button" class="ap2-golink" data-rs-how="' + PAGE_KEY + '">What this tool will and will not tell you</button> — ' +
+            "crews and marketing do not buy jobs measurably; the lever that moves this plan is <b>capture</b>.</div>" +
           '<div class="ap2-scn">' +
             '<div class="ap2-scnbox"><h4>Reach more of the movers</h4>' + capMode + '<div class="ap2-capgrid">' + capIn + "</div>" +
               note("Type the leads per 10,000 movers you think a state could reach. <b>This is the lever the data says is large</b> — and the one a base cannot move on its own. " +
@@ -5254,9 +5024,9 @@ const AREA_PLAN_PAGE = {
                  model's compact maps, so typing Rockville got "not in the territory data" -- and the
                  picks are all outside it, by construction. They carry their own coordinates. */
               '<div class="ap2-picks">' + (S.picks || []).map(x =>
-                '<button type="button" class="ap2-mbtn' + ((c.picks || []).indexOf(x.label) >= 0 ? " on" : "") + '" data-pick="' + esc(x.label) + '">' +
+                '<button type="button" class="rs-tog' + ((c.picks || []).indexOf(x.label) >= 0 ? " on" : "") + '" data-pick="' + esc(x.label) + '"><i></i>' +
                 esc(x.label) + "<small>" + fmtN(x.newMovers) + " movers in range</small></button>").join("") +
-              ((c.picks || []).length || c.zip ? '<button type="button" class="ap2-mbtn" data-pick="">clear</button>' : "") + "</div>" +
+              ((c.picks || []).length || c.zip ? '<button type="button" class="rs-btn" data-pick="">clear</button>' : "") + "</div>" +
               ((c.picks || []).length > 1 ? note("The " + (c.picks || []).length + " yards are priced <b>together</b>, so a job both of them would take over is not counted twice.") : "") +
               '<label class="ap2-fld"><span>\u2026 or any zip we already work</span><input class="ap2-in" data-scn="zip" maxlength="5" placeholder="e.g. 08102" value="' + esc(c.zip) + '"' + ((c.picks || []).length ? " disabled" : "") + ">" +
               "<small>" + (S.dep ? r2(S.dep.saved_mi_per_job) + " mi/job saved \u00b7 " + fmtN(S.dep.jobs_35) + " jobs within 35 mi \u00b7 " + fmtN(S.dep.ws_never_35) + " zips in reach have never sent a lead"
@@ -5462,7 +5232,7 @@ const AREA_PLAN_PAGE = {
       /* the plan switch: its own bar, first thing on the Map tab (map-first, 2026-10-07) */
       function planBarHtml() {
         return '<div class="ap4-planbar"><b>Plan</b>' +
-          '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
+          '<div class="rs-seg ap2-seg-s ap3-planseg" role="group" aria-label="Plan">' +
             '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
             Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
           "<span>− / + on a tile tests a change; a refresh puts it back</span>" +
@@ -5524,7 +5294,7 @@ const AREA_PLAN_PAGE = {
         const slotTxt = (s0 && s0.slots || []).map(s => "#" + s.k + " " + fmtN(s.days) + "d" + (s.owned ? " own" : "")).join(" · ");
         return '<div class="ap3-fleet">' +
           '<div class="r"><span>Trucks</span><b>' + fmtN(f.own) + " own</b>" +
-            (ownToday != null ? '<em class="spare">' + fmtN(ownToday) + " active here today</em>" : "") +
+            (ownToday != null ? '<span class="rs-pill mute">' + fmtN(ownToday) + " active here today</span>" : "") +
             '<b class="rent">rent ' + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + "</b></div>" +
           (slotTxt ? '<div class="r sub"><span title="days each truck slot works a year at this base (scaled to the plan\'s crews)">' + slotTxt + "</span></div>" : "") +
           '<div class="r sub"><span>' + f.sites.map(x => esc(x.x.name.split(" ·")[0]) + " " + fmtN(x.own)).join(" · ") + " owned</span>" +
@@ -5599,7 +5369,7 @@ const AREA_PLAN_PAGE = {
                 return '<tr class="ap4-site"><td><span class="nm">' + esc(x.name) + "</span>" +
                     (x.pin ? "<small>inside ground we cover</small>" : "") +
                     (o && o.cap < 1 ? '<small class="w">its ground wants ' + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</td>" +
-                  td(x.cand || x.la ? '<span class="ap4-chip new">New</span>' : '<span class="ap4-chip old">Existing</span>', "") +
+                  td(x.cand || x.la ? '<span class="rs-pill info">New</span>' : '<span class="rs-pill mute">Existing</span>', "") +
                   td('<span class="ap4-stp"><button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
                      '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></span>') +
                   td(fmtN(sf.own || 0)) + td(rentTxt(sf)) + td(st, "") + td(money0(sf.cost || 0)) + "</tr>"; }).join("") +
@@ -5618,7 +5388,7 @@ const AREA_PLAN_PAGE = {
           const own = ownBy ? g.states.reduce((a, st) => a + num(ownBy[st]), 0) : null;
           return '<div class="ap3-step plan"><span>' + esc(g.base) + " base<em>" + fmtN(crew) + (crew === 1 ? " foreman" : " foremen") + "</em></span>" +
             g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null;
-              return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? "<u>new</u>" : "<u class=\"old\">existing</u>") +
+              return '<div class="site"><i>' + esc(x.name) + (x.cand || x.la ? '<span class="rs-pill info">new</span>' : '<span class="rs-pill mute">existing</span>') +
                 (x.pin ? "<small style=\"color:var(--faint)\">inside ground we cover</small>" : "") +
                 (o && o.cap < 1 ? "<small>its ground wants " + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</i>" +
                 '<button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
@@ -5642,7 +5412,7 @@ const AREA_PLAN_PAGE = {
         const cards = NB_CANDS.map(c => nbCard(c, N, false)).join("");
         return '<div class="ap3-nbwrap"><div class="ap3-nbh"><b>New bases</b><span>' +
           (PICK ? "<em>now click the map where the base would stand</em>" : "a test scenario — flip one to Yes and every number on this tab follows; a refresh puts them back to No") + "</span>" +
-          '<button type="button" class="rs-btn ap3-pick' + (PICK ? " on" : "") + '" data-nbpick>' + (PICK ? "Cancel" : "Try any point on the map") + "</button></div>" +
+          '<button type="button" class="rs-tog ap3-pick' + (PICK ? " on" : "") + '" data-nbpick><i></i>' + (PICK ? "Cancel" : "Try any point on the map") + "</button></div>" +
           '<div class="ap3-nbs">' + cards + "</div></div>";
       }
       function nbCard(c, N, full) {
@@ -5655,9 +5425,9 @@ const AREA_PLAN_PAGE = {
           const tiers = [1, 2, 3, 4].map(t => [t, (o.opened || []).filter(x => x.tier === t).length]).filter(x => x[1]);
           const top = (o.opened || []).slice(0, 3);
           return '<div class="ap3-nb' + (on ? " on" : "") + '" data-nb="' + esc(c.label) + '">' +
-            '<div class="h"><b>' + esc(c.label) + '</b><div class="ap3-yn" role="group" aria-label="Open ' + esc(c.label) + '">' +
+            '<div class="h"><b>' + esc(c.label) + '</b><div class="rs-seg" role="group" aria-label="Open ' + esc(c.label) + '">' +
               '<button type="button" data-nbon="0" class="' + (on ? "" : "on") + '">No</button>' +
-              '<button type="button" data-nbon="1" class="' + (on ? "on yes" : "") + '">Yes</button></div></div>' +
+              '<button type="button" data-nbon="1" class="' + (on ? "on" : "") + '">Yes</button></div></div>' +
             (on ? "" : '<div class="if">If yes</div>') +
             '<div class="big"><b>' + sgN(d.jobs) + '</b> jobs in ' + esc(String(FC.year)) +
               '<small>' + sgN(o.jobsFull || 0) + " a season once established</small></div>" +
@@ -5748,14 +5518,14 @@ const AREA_PLAN_PAGE = {
 
       function mapBarHtml() {
         const lvl = inputs.mapLevel;
-        const seg = (attr, items, on) => '<div class="ap3-seg">' + items.map(([k, l]) =>
+        const seg = (attr, items, on) => '<div class="rs-seg ap2-seg-s">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
         /* THE TARGET MAP'S PLAN (2026-10-19): Seasonal Planning's own three -- "Current" is its Forecast
            button (today's bases, no new one), then MID and MAX from PLANS -- wired by the same
            [data-plan] handler as the plan bar */
         if (LOCK) return '<div class="ap3-bar"><label>Plan</label>' +
-          '<div class="ap3-seg ap3-planseg" role="group" aria-label="Plan">' +
+          '<div class="rs-seg ap2-seg-s ap3-planseg" role="group" aria-label="Plan">' +
             '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '" title="Today\'s bases, no new base">Current</button>' +
             Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") +
               '" title="Today\'s bases plus the ' + esc(PLANS[k].label) + ' plan\'s new ones">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
@@ -5808,7 +5578,7 @@ const AREA_PLAN_PAGE = {
             TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></span>").join("") +
           (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Over 50 mi from a base <b>' + fmtN(far) + "</b></span>" : "") +
           (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
-          (never ? '<span class="ap2-mk"><i class="ap2-sw none"></i>' + (inputs.mapLevel !== "County" && !mapStOf() ? "Paler" : "Hatched") +
+          (never ? '<span class="ap2-mk"><i class="ap2-sw none"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M0 4 4 0M0 8 8 0M0 12 12 0M2 14 14 2M6 14 14 6M10 14 14 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></i>' + (inputs.mapLevel !== "County" && !mapStOf() ? "Paler" : "Hatched") +
                    ": no lead yet <b>" + fmtN(never) + "</b></span>" : "");
       }
 
@@ -5867,7 +5637,7 @@ const AREA_PLAN_PAGE = {
         const shown = R.filter(tierOk)
           .sort((x, y) => ((x.tier || 9) - (y.tier || 9)) || (y.leads - x.leads) || String(x.name).localeCompare(String(y.name)));
         const CAP = 250;
-        const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="' + ((t ? inputs.listTiers.indexOf(t) >= 0 : !inputs.listTiers.length) ? "on" : "") + '">' +
+        const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="rs-tog' + ((t ? inputs.listTiers.indexOf(t) >= 0 : !inputs.listTiers.length) ? " on" : "") + '">' +
           (t ? '<i style="background:' + TC["t" + t] + '"></i>' + t : "All") + "<small>" + fmtN(cnt[t] || 0) + "</small></button>").join("");
         const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
         if (LOCK) { const T = shown.filter(r => r.tier >= 1 && r.tier <= 3);
@@ -6014,18 +5784,20 @@ const AREA_PLAN_PAGE = {
       }
 
       /* EVERYTHING THAT EXPLAINS, IN ONE PLACE, SHUT */
+      function tierHowText() {
+        return "His Power BI's four grades: <b>1 Core, 2 Good, 3 Normal, 4 Don't target</b>. " +
+            "An area with enough leads to measure (a county 30, a city 20, a zip 15, over the last 12 months) is scored on " +
+            "distance to a base, booking rate, average ticket and cubic feet. Tier 1 more than 50 miles from a base drops to Tier 2. " +
+            "An area with too few leads is rated on its <b>market</b> instead, standing in for last year's hand survey: " +
+            "median income, home value and home ownership against the other areas; anything over 50 miles from a base is Tier 4.";
+      }
       function howHtml() {
         const R = countyRowsFor();
         const unc = R.filter(r => r.uncovered);
         const B = basesFor();
         const rt = t => NB_RATE[t] ? r1(NB_RATE[t].cap) + " leads per 10k movers, " + r1(100 * NB_RATE[t].jpl) + "% become jobs" : "—";
         return '<details class="ap3-how" id="apHow"><summary>How this is calculated<small>tiers, new bases, the budget split, the fleet and the Census survey</small></summary>' +
-          '<div class="ap2-say" style="margin:10px 0">' +
-            "<b>The tier.</b> His Power BI's four grades: <b>1 Core, 2 Good, 3 Normal, 4 Don't target</b>. " +
-            "An area with enough leads to measure (a county 30, a city 20, a zip 15, over the last 12 months) is scored on " +
-            "distance to a base, booking rate, average ticket and cubic feet. Tier 1 more than 50 miles from a base drops to Tier 2. " +
-            "An area with too few leads is rated on its <b>market</b> instead, standing in for last year's hand survey: " +
-            "median income, home value and home ownership against the other areas; anything over 50 miles from a base is Tier 4.</div>" +
+          '<div class="ap2-say" style="margin:10px 0">' + "<b>The tier.</b> " + tierHowText() + "</div>" +
           '<div class="ap2-say" style="margin:0 0 10px"><b>A new base</b> brings the counties within 50 miles of it into reach and re-scores their distance. ' +
             "What they are expected to send is what counties of the same tier ALREADY within reach of a base send us today " +
             "(Tier 1 " + rt(1) + "; Tier 2 " + rt(2) + "; Tier 3 " + rt(3) + "; Tier 4 " + rt(4) + "; Delaware left out, Tuji inflates it). " +
@@ -6068,7 +5840,7 @@ const AREA_PLAN_PAGE = {
           '</td><td class="num">' + pct(a.leads ? a.booked / a.leads : null) + '</td><td class="num">' + pct(a.leads ? a.ld / a.leads : null) + "</td></tr>").join("");
         return '<div class="ap3-routes"><div class="lh"><b>Lead routes</b><span>pickup state → delivery state · leads created in the last 12 months · ' +
             (st ? "routes that start or end in " + esc(st) : "whole market") + "</span>" +
-          '<div class="ap3-seg"><button type="button" data-rtcross="1" class="' + (RT.cross ? "on" : "") + '">Between states</button>' +
+          '<div class="rs-seg ap2-seg-s"><button type="button" data-rtcross="1" class="' + (RT.cross ? "on" : "") + '">Between states</button>' +
             '<button type="button" data-rtcross="0" class="' + (RT.cross ? "" : "on") + '">All routes</button></div></div>' +
           '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Route</th><th class="num">Leads</th>' +
             '<th class="num" title="the route\'s leads ÷ every lead with a known pickup and delivery state in this view">Share</th>' +
@@ -7422,7 +7194,7 @@ const AREA_PLAN_PAGE = {
         const wsNever = (WSALL || []).filter(r => +r["Never A Lead"] === 1).length;
         const baseMiles = (() => { const v = cityRows.map(r => num(r["Miles To Base"])).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; })();
         const fmAtBase = has("Foremen At Base");
-        const chip = (k, t) => '<span class="ap2-chip ' + k + '">' + t + "</span>";
+        const chip = (k, t) => '<span class="rs-pill ' + ({ y: "ok", p: "warn", n: "bad" }[k] || "mute") + '">' + t + "</span>";
         const Q = [
           { n: 1, q: "City — one row per area, for planning and for marketing",
             st: ["y", "answered"],
@@ -7748,7 +7520,7 @@ const AREA_PLAN_PAGE = {
         return i > 0 ? { k: p.slice(0, i), n: num(p.slice(i + 1)) } : null; }).filter(Boolean);
       const tjCount = (n, one, many) => fmtN(n) + " " + (n === 1 ? one : many);
       function tjSeg(attr, items, on) {
-        return '<div class="ap3-seg">' + items.map(([k, l]) => '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") +
+        return '<div class="rs-seg ap2-seg-s">' + items.map(([k, l]) => '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") +
           '" aria-pressed="' + (k === on ? "true" : "false") + '">' + esc(l) + "</button>").join("") + "</div>";
       }
       function tjPut(sel, html) { const el = host.querySelector(sel); if (el) el.innerHTML = html; }
@@ -7891,21 +7663,22 @@ const AREA_PLAN_PAGE = {
         };
         const row = (r, f) => '<button type="button" class="ap-tj-row" data-tjgo="' + esc(r.Level + "|" + r["Area Key"]) + '">' +
           '<span class="n">' + esc(tjName(r)) + "<small>" + (r.Level === "Zip" ? "zip" : "county") + "</small></span>" +
-          '<span class="r">' + esc(r[f.why] || "") + '</span><span class="a">' + esc(f.act) + "</span></button>";
+          '<span class="r">' + esc(r[f.why] || "") + "</span></button>";
         const more = (n, key) => n <= TJ_SHOW ? ""
           : '<button type="button" class="ap-tj-more" data-tjmore="' + key + '">' + (TJ_S.more[key] ? "Show the first " + TJ_SHOW : "Show all " + fmtN(n)) + "</button>";
         const part = (R, f, lvl, label) => { if (!R.length) return "";
           const key = f.k + lvl, shown = TJ_S.more[key] ? R : R.slice(0, TJ_SHOW);
-          return '<div class="lv">' + label + "</div>" + shown.map(r => row(r, f)).join("") + more(R.length, key); };
+          return '<div class="lv">' + label + '</div><div class="rows">' + shown.map(r => row(r, f)).join("") + "</div>" + more(R.length, key); };
         let nC = 0, nZ = 0;
         TJ.rows.forEach(r => { if (!tjFlagsOf(r).length) return; if (r.Level === "County") nC++; else nZ++; });
         const grp = f => {
           const C = TJ.rows.filter(r => r.Level === "County" && num(r[f.col]) === 1).sort(order[f.k]);
           const Z = TJ.rows.filter(r => r.Level === "Zip" && num(r[f.col]) === 1).sort(order[f.k]);
-          return '<section class="ap-tj-grp"><div class="h"><b>' + esc(f.label) + "</b><span>" +
+          /* a kind's row: how many, what it is, what to do about it -- then the areas it names */
+          return '<section class="ap-tj-grp"><div class="h"><span class="cnt">' + fmtN(C.length + Z.length) + "</span><b>" + esc(f.label) + "</b><span>" +
               tjCount(C.length, "county", "counties") + " · " + tjCount(Z.length, "zip", "zips") + "</span></div>" +
             (!C.length && !Z.length ? '<div class="none">' + esc(f.none) + "</div>"
-              : part(C, f, "C", "Counties") + part(Z, f, "Z", "Zip codes")) + "</section>";
+              : '<div class="act">What to do: ' + esc(f.act) + "</div>" + part(C, f, "C", "Counties") + part(Z, f, "Z", "Zip codes")) + "</section>";
         };
         return '<div class="ap-tj-sech"><h3>Needs attention</h3><span>' + tjCount(nC, "county", "counties") + " and " +
             tjCount(nZ, "zip code", "zip codes") + " are flagged for at least one reason. Click one to find it on the map.</span></div>" +
@@ -7930,7 +7703,7 @@ const AREA_PLAN_PAGE = {
         if (c.f === "tier") { const t = num(v), TC = tierColors();
           return '<td><i class="ap-tj-tchip t' + t + '" style="background:' + (TC[TIER_BAND(t)] || TC.grey) + '" title="' + esc(r["Tier Reason"] || "") + '">' + (t ? "T" + t : "–") + "</i>" +
             "<small>" + esc(r["Tier Source"] || "") + "</small></td>"; }
-        if (c.f === "flags") return "<td>" + tjFlagsOf(r).map(f => '<span class="ap-tj-fchip" title="' + esc(r[f.why] || "") + '">' + esc(f.label) + "</span>").join("") + "</td>";
+        if (c.f === "flags") return "<td>" + tjFlagsOf(r).map(f => '<span class="rs-pill warn ap-tj-fchip" title="' + esc(r[f.why] || "") + '">' + esc(f.label) + "</span>").join("") + "</td>";
         if (c.f === "t") return "<td>" + esc(v == null ? "—" : v) + "</td>";
         const out = v == null || v === "" ? "—" : c.f === "n" ? fmtN(num(v)) : c.f === "n1" ? r1(num(v)) : c.f === "pct" ? tjPct(v)
           : c.f === "$" ? money0(num(v)) : c.f === "chg" ? tjChg(v) : esc(v);
@@ -8175,6 +7948,38 @@ const AREA_PLAN_PAGE = {
         }));
       }
 
+      /* THE PAGE HEAD (ZTZ-80, 13 Nov 2026): the kit's head -- the name, one line on what the page
+         answers, the season it plans as the chip, and the Download menu on the right. The long
+         description and the method sit behind "How it's counted", word for word. */
+      let HOW_CITY = "", HOW_WHATIF = "";        // filled by bandBHtml / whatIfHtml, read when the panel opens
+      function headHtml() {
+        const season = "Season " + String(FC.year || "") +
+          (SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "");
+        return RSC.pageHeadHtml({
+          title: PAGE_TITLE, key: PAGE_KEY,
+          sub: LOCK ? "Where to advertise: every zip code by tier, under today's bases or the MID or MAX plan with its new bases."
+            : "How many crews, how many salespeople and what marketing budget Season " + String(FC.year || "next") + " needs.",
+          chip: FC.year ? season : "",
+          actions: LOCK ? [] : [{ html: dlMenuHtml() }],
+          how: pageHow,
+        });
+      }
+      function pageHow() {
+        if (LOCK) return "<h3>What this map shows</h3><p>Where to advertise: every zip code by tier, under today's bases or the MID or MAX plan with its new bases. " +
+            "Pick a plan and a market; the download holds every zip code under the plan, for the ad tools.</p>" +
+          "<h3>The tier</h3><p>" + tierHowText() + "</p>";
+        return "<h3>What this page answers</h3><p>How many crews, how many salespeople and what marketing budget Season " + esc(String(FC.year || "next")) +
+            " needs — state by state, month by month, with the working under every answer.</p>" +
+          "<p>" + esc(AREA_PLAN_PAGE.subtitle) + "</p>" +
+          "<h3>Method</h3><p>" + methodText() + "</p>" +
+          (HOW_CITY ? "<h3>How the cities are counted</h3><p>" + HOW_CITY + "</p>" : "") +
+          (HOW_WHATIF ? "<h3>What the what-if will and will not tell you</h3><p>" + HOW_WHATIF + "</p>" : "") +
+          "<h3>The tier</h3><p>" + tierHowText() + "</p>";
+      }
+      function methodText() {
+        return "Measured: everything except the foreman cells and any number you type. The plan seeds from the distinct foremen who worked last season per state and company (or his 19-August table, or the 28-crew aim). Utilization bridges foremen to a month of jobs against the " + DAYS_PER_MONTH + "-day ceiling and re-seeds when the period changes. <b>Booked = a closing exists</b> on both halves of the page (his call). Band A geography is where the move starts, in the closing's own state; Band B places a job by the lead's pickup city and counts last-encounter closings only — so the two job counts will not tie. Band A obeys the period picker; Band B is always this year to date. Miles are straight-line. Marketing $/lead is company-wide.";
+      }
+
       /* TARGET MAP: everything but the map tab's map, legend, market switch and list stays drawn (the wiring
          expects it) and is hidden here. The style lives inside the page, so it leaves with it. */
       function lockCss() {
@@ -8200,17 +8005,11 @@ const AREA_PLAN_PAGE = {
           return '<details class="ap4-sec" id="apSec-' + key + '" data-ap-sec="' + key + '"' + (key === "decide" ? " open" : "") + ">" +
             "<summary><b>" + esc(secLabel(x)) + "</b></summary>" +
             '<div class="ap4-secb">' + (lede ? '<div class="ap2-lede">' + lede + "</div>" : "") + body + "</div></details>"; };
+        /* the "Go to" jump row: the kit's pills (rs-tog), not a button style of its own */
         const jump = '<nav class="ap4-jump" aria-label="Statistics sections"><span>Go to</span>' +
-          SECS.map(x => '<button type="button" data-sec="' + x.k + '">' + esc(secLabel(x)) + "</button>").join("") +
-          '<span class="sp"></span><button type="button" data-secall="0">Close all</button></nav>';
-        host.innerHTML = (LOCK ? lockCss() : "") +
-          '<div class="rs-page-head"><h1>' + (LOCK ? "Target Map" : "Seasonal Planning") + "</h1>" +
-          (LOCK ? '<p style="max-width:104ch">Where to advertise: every zip code by tier, under today\'s bases or the MID or MAX plan with its new bases. ' +
-              "Pick a plan and a market; the download holds every zip code under the plan, for the ad tools.</p>"
-            : '<p style="max-width:104ch">How many crews, how many salespeople and what marketing budget Season ' + esc(String(FC.year || "next")) +
-            ' needs — state by state, month by month, with the working under every answer.</p>') +
-          '<div class="ap2-clockline">Season ' + esc(String(FC.year || "")) + (SEASON.next && SEASON.next[0] ? " · " + esc(ymLabel(SEASON.next[0])) + " – " + esc(ymLabel(SEASON.next[1])) : "") +
-            '</div></div>' +
+          SECS.map(x => '<button type="button" class="rs-tog" data-sec="' + x.k + '">' + esc(secLabel(x)) + "</button>").join("") +
+          '<span class="sp"></span><button type="button" class="rs-btn" data-secall="0">Close all</button></nav>';
+        host.innerHTML = (LOCK ? lockCss() : "") + headHtml() +
           tabsHtml() +
           /* THE MAP TAB IS THE ONE THAT GETS PRESENTED (2026-09-29): no lede, no cards of prose -- the
              plan, what to do, the map and its list; the working sits in one closed section inside. */
@@ -8258,7 +8057,7 @@ const AREA_PLAN_PAGE = {
           '<div class="ap2-band" style="margin-top:0;border-top:0;padding-top:0"><span class="k">Capacity check</span><h2>What ' + fmtN(c.totCur) + ' foremen could have run in ' + esc(P.label) + '</h2>' +
           '<span class="clock">a what-if on a past period — not the ' + esc(String(FC.year || "")) + ' plan</span></div>' +
           controlBar() +
-          '<div class="panel ap2-hero"><div id="apHero">' + heroHtml(c) + "</div></div>" +
+          '<div id="apHero">' + heroHtml(c) + "</div>" +
           card("The demand", esc(P.label) + " by area",
                "The full bar is leads (counted where the move starts, on create date); the solid green inside it is what got booked — <b>a closing exists</b>. Lost = qualified, never booked. Click a state to focus the page on it.",
                '<div id="apDemand">' + demandHtml() + "</div>") +
@@ -8287,7 +8086,7 @@ const AREA_PLAN_PAGE = {
              card("Trucks", "Both sides are real card history: the company rents AND finances purchases today", "", trucksHtml())) +
           ref("Method", "what is measured and what is assumed",
              card("Method", "Definitions and provenance", "",
-               '<div class="ap2-note" style="line-height:1.75" id="apMethod">Measured: everything except the foreman cells and any number you type. The plan seeds from the distinct foremen who worked last season per state and company (or his 19-August table, or the 28-crew aim). Utilization bridges foremen to a month of jobs against the ' + DAYS_PER_MONTH + '-day ceiling and re-seeds when the period changes. <b>Booked = a closing exists</b> on both halves of the page (his call). Band A geography is where the move starts, in the closing\'s own state; Band B places a job by the lead\'s pickup city and counts last-encounter closings only — so the two job counts will not tie. Band A obeys the period picker; Band B is always this year to date. Miles are straight-line. Marketing $/lead is company-wide.</div>')) +
+               '<div class="ap2-note" style="line-height:1.75" id="apMethod">' + methodText() + "</div>")) +
           stamps())) +
           /* TUJI: an empty shell here; tujiShow() fills it from mart_tuji_area the first time the tab
              is opened (and again after a paint(), from the rows already read) */

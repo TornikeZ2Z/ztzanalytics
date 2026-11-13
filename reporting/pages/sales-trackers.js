@@ -299,6 +299,13 @@
       values: [{ v: "reps", l: "Sales reps" }, { v: "support", l: "Support team" }, { v: "all", l: "Everyone" }],
       onChange: function (v) { ST.handled = v || "reps"; ST.sel.rep = ""; ST.shown = PAGE_CALLS; paint(); },
     });
+    // One rep's picker joins this row (it was a second bar over the view); paintOne mounts it
+    if (ST.view === "one") {
+      var pick = document.createElement("div");
+      pick.id = "stxOnePick";
+      pick.className = "stx-onepick";
+      bar.appendChild(pick);
+    }
     var sp = document.createElement("span");
     sp.className = "rs-spacer";
     bar.appendChild(sp);
@@ -377,6 +384,9 @@
         + (known ? " The rep says it in " + Math.round(100 * repShare) + "% of hits." : "") });
   }
   function onBoard(t) { return t.active && health(t).k !== "off"; }
+  // a health word as the kit pill: the ONE colour signal a tracker's status gets
+  var PILL = { ok: "ok", check: "warn", off: "bad", paused: "mute" };
+  function badge(k, text) { return '<span class="rs-pill ' + (PILL[k] || "mute") + '">' + esc(text) + "</span>"; }
 
   function scopeWords(t) {
     var sc = t.scope || {}, ru = t.rules || {}, bits = [];
@@ -452,7 +462,7 @@
     injectStyle();
     HOST = host;
     if (window.__navRequested === "sales-comms") { ST.view = "checks"; window.__navRequested = null; }
-    host.innerHTML = '<div class="rs-loading" style="padding:22px">Reading the trackers…</div>';
+    host.innerHTML = RSC.loadingHtml("Sales Trackers", "Reading the trackers…");
     load().then(function () {
       if (!ST.inited) {
         var p = presets()[1];                        // Last 30 days
@@ -468,28 +478,50 @@
   var VIEWS = [["scorecard", "Scorecard"], ["one", "One rep"], ["checks", "Script checks"],
                ["trackers", "Trackers"], ["builder", "New tracker"]];
 
+  /* What each view is for. The head shows the first sentence; the whole text, word for word,
+     opens under "How it's counted" (the page standard, ZTZ-80). */
+  var SUB = {
+    scorecard: "What each rep said on their calls, against the team. Click any cell for the weeks and the calls to coach on.",
+    one: "Every tracker and every script check for one rep, next to the team. Built for a 1:1: the biggest gaps come first.",
+    checks: "The house script, checked on every quote call: what was said, never how well. Each check counts only the calls it applies to.",
+    comms: "The full Communication Analysis table, as it was. Back to Script checks for the period filter.",
+    trackers: "Every tracker, and whether it measures what its name says.",
+    builder: "Say what should happen on the call, in steps. Test it on real calls before it goes on the scorecard. Keyword matching: free, no AI.",
+  };
+  function subLine(v) { var s = SUB[v] || ""; var i = s.indexOf(". "); return i > 0 ? s.slice(0, i + 1) : s; }
+  // the three rules that used to sit as a panel above the Trackers list
+  function rulesHtml() {
+    return '<ol class="stx-rules">'
+      + "<li><b>The hits mean what the name says.</b> Someone reads " + READ_TARGET + " hits and marks each one right or wrong. 8 of 10 right passes; fewer takes it off the scorecard.</li>"
+      + "<li><b>The right person says it.</b> At least 8 in 10 hits come from the rep, unless the tracker counts only the customer's lines.</li>"
+      + "<li><b>Enough calls.</b> A rep needs " + MIN_CALLS + " calls in the period before a rate shows.</li>"
+      + "</ol><p>Changing a tracker's phrases, calls or rules re-checks every matching call on the next hourly pass and starts the reading over. Renaming it or rewording its note does neither.</p>";
+  }
+  function howHtml() {
+    var name = { comms: "Communication Analysis", builder: ST.edit && !ST.edit.isNew ? "Edit tracker" : "New tracker" }[ST.view]
+      || (VIEWS.filter(function (v) { return v[0] === ST.view; })[0] || [])[1] || "This view";
+    return "<h3>" + esc(name) + "</h3><p>" + esc(SUB[ST.view] || "") + "</p>"
+      + "<h3>How a tracker earns “Reliable”</h3>" + rulesHtml()
+      + "<h3>Who the team is</h3><p>Every number follows the filters. <b>Team</b> means every rep's calls the other "
+      + "filters keep: picking reps narrows the rows, never the team they are compared with. "
+      + "A tracker's own scope still applies on top (How they found us checks inbound calls "
+      + "only). Days are New York days.</p>";
+  }
+
   function paint() {
     var host = HOST;
     if (!host || !D) return;
     if (ST.view === "builder" && !D.canEdit) ST.view = "trackers";
-    var nav = VIEWS.filter(function (v) { return v[0] !== "builder" || D.canEdit; }).map(function (v) {
-      var on = ST.view === v[0] || (v[0] === "checks" && ST.view === "comms");
-      var label = v[0] === "builder" && ST.edit && !ST.edit.isNew ? "Edit tracker" : v[1];
-      return '<button type="button" class="' + (on ? "on" : "") + '" data-view="' + v[0] + '">' + esc(label) + "</button>";
-    }).join("");
-    var SUB = {
-      scorecard: "What each rep said on their calls, against the team. Click any cell for the weeks and the calls to coach on.",
-      one: "Every tracker and every script check for one rep, next to the team. Built for a 1:1: the biggest gaps come first.",
-      checks: "The house script, checked on every quote call: what was said, never how well. Each check counts only the calls it applies to.",
-      comms: "The full Communication Analysis table, as it was. Back to Script checks for the period filter.",
-      trackers: "Every tracker, and whether it measures what its name says.",
-      builder: "Say what should happen on the call, in steps. Test it on real calls before it goes on the scorecard. Keyword matching: free, no AI.",
-    };
-    host.innerHTML = '<div class="stx">'
-      + '<div class="stx-head"><div><div class="stx-eyebrow">Sales · call quality</div>'
-      + "<h1>Sales Trackers</h1><p>" + esc(SUB[ST.view] || "") + "</p></div>"
-      + '<nav class="stx-nav" aria-label="Views">' + nav + "</nav></div>"
-      + '<div id="stxBar"></div><div id="stxBody"></div></div>';
+    // THE PAGE STANDARD (ZTZ-80): the kit head, the views as underline tabs under it, then ONE filter
+    // row. "New tracker" is the head's action, not a view tab; the builder sits under Trackers.
+    var tabs = VIEWS.filter(function (v) { return v[0] !== "builder"; }).map(function (v) { return { id: v[0], label: v[1] }; });
+    var onTab = ST.view === "comms" ? "checks" : ST.view === "builder" ? "trackers" : ST.view;
+    var acts = D.canEdit && ST.view !== "builder"
+      ? [{ html: '<button type="button" class="rs-btn pri" data-view="builder">New tracker</button>' }] : [];
+    host.innerHTML = '<div class="stx"><div class="stx-top">'
+      + RSC.pageHeadHtml({ title: "Sales Trackers", key: "sales-trackers", sub: subLine(ST.view), actions: acts, how: howHtml })
+      + RSC.tabsHtml(tabs, onTab, "view")
+      + '<div id="stxBar"></div></div><div id="stxBody"></div></div>';
     host.querySelectorAll("[data-view]").forEach(function (b) {
       b.onclick = function () {
         var v = b.getAttribute("data-view");
@@ -526,16 +558,17 @@
       var A = agg(t), hl = health(t), r = rate(A.team);
       var mv = arrow(r, A.teamPrev);
       var isOff = hl.k === "off";
+      // which calls it checks and the health reason ride on the tooltip; the open tracker's
+      // panel below spells both out, so the card keeps to the question, the rate and the status
       return '<button type="button" class="stx-tile' + (isOff ? " off" : "") + (ST.sel.trk === t.key && !ST.sel.rep ? " on" : "")
-        + '" data-tile="' + esc(t.key) + '">'
+        + '" data-tile="' + esc(t.key) + '" title="' + esc(scopeWords(t) + ". " + hl.why) + '">'
         + (t.question ? '<span class="stx-tile-n">' + esc(t.name) + "</span>" : "")
         + '<span class="stx-tile-q">' + esc(question(t)) + "</span>"
         + '<span class="stx-tile-v"><b>' + (r == null ? "—" : r + "%") + "</b>"
         + '<i class="' + (mv.charAt(0) === "▲" ? "up" : mv ? "down" : "") + '">'
         + esc(mv ? mv + " pts" : (A.teamPrev.n >= MIN_CALLS ? "no change" : (prevRange() ? "nothing to compare" : ""))) + "</i></span>"
-        + '<span class="stx-tile-s">' + int(A.team.n) + " calls · " + esc(scopeWords(t)) + "</span>"
-        + '<span class="stx-badge ' + hl.k + '">' + esc(hl.badge) + "</span>"
-        + '<span class="stx-tile-why">' + esc(hl.why) + "</span></button>";
+        + '<span class="stx-tile-s">' + int(A.team.n) + " calls</span>"
+        + badge(hl.k, hl.badge) + "</button>";
     }).join("");
 
     // the rows: everyone with a checked call this period on a tracker on the board
@@ -583,7 +616,7 @@
     var nt = board.length + off.length, per = Math.ceil(nt / Math.ceil(nt / 6));
     body.innerHTML = '<div class="stx-tiles" style="--stx-n:' + per + '">' + tiles + "</div>"
       + '<section class="panel stx-panel"><div class="stx-ph"><h2>Rep by tracker</h2>'
-      + "<span>" + esc(rangeLabel(curRange())) + " · sorted by calls · rates only, no ranking</span></div>"
+      + "<span>" + esc(rangeLabel(curRange())) + " · sorted by calls · rates only, no ranking · click a cell for its weeks and calls</span></div>"
       + (board.length
          ? '<div class="rs-tablewrap"><table class="stx-matrix"><thead><tr><th></th>'
            + board.map(function (t) {
@@ -648,7 +681,7 @@
     var trig = !!(t.rules || {}).trigger;
     el.innerHTML = '<section class="panel stx-panel stx-detail">'
       + '<div class="stx-dgrid"><div class="stx-dmain">'
-      + '<div class="stx-eyebrow">' + esc(repLabel(who)) + "</div>"
+      + '<div class="stx-kicker">' + esc(repLabel(who)) + "</div>"
       + "<h2>" + esc(question(t)) + "</h2>"
       + '<div class="stx-sub">' + esc(t.name + " · " + scopeWords(t)) + "</div>"
       + '<div class="stx-bigrow"><span class="stx-big ' + tn + '">' + (r == null ? "—" : r + "%") + "</span>"
@@ -657,7 +690,7 @@
       + (who ? '<div><span>Team</span><b>' + (teamR == null ? "—" : teamR + "%") + "</b><i>" + int(A.team.n) + " calls</i></div>" : "")
       + "<div><span>Previous period</span><b>" + (op && op.n ? rate(op) + "%" : "—") + "</b><i>"
       + esc(!prevRange() ? "all time has none" : !op || !op.n ? "no calls" : op.n < MIN_CALLS ? "only " + op.n + " calls: too few" : int(op.n) + " calls") + "</i></div></div>"
-      + '<div class="stx-health ' + hl.k + '"><span class="stx-badge ' + hl.k + '">' + esc(hl.badge) + "</span>" + esc(hl.why) + "</div>"
+      + '<div class="stx-health">' + badge(hl.k, hl.badge) + "<span>" + esc(hl.why) + "</span></div>"
       + "</div>"
       + '<div class="stx-dweeks"><div class="stx-ph"><h3>Week by week</h3><span>' + (who ? "bar = " + esc(repLabel(who)) + " · dashed line = team · " : "") + "pale = under 5 calls</span></div>"
       + '<div class="stx-wks">' + bars + "</div></div></div>"
@@ -703,7 +736,7 @@
         + '<td><span class="stx-heard">' + esc(e.Explanation || (e.Result === "Not Mentioned" ? "none of the phrases" : "")) + "</span></td>"
         + '<td><button type="button" class="rs-btn stx-open" data-rec="' + esc(e["Record Id"]) + '" data-seqs="' + esc(e["Evidence Seqs"] || "") + '">Transcript</button></td></tr>';
     }).join("");
-    el.innerHTML = '<div class="stx-ph"><h3>Calls</h3><div class="stx-seg" role="group" aria-label="Which calls">'
+    el.innerHTML = '<div class="stx-ph"><h3>Calls</h3><div class="rs-seg" role="group" aria-label="Which calls">'
       + segs.map(function (s) {
         return '<button type="button" class="' + (want === s[0] ? "on" : "") + '" data-v="' + s[0] + '" aria-pressed="' + (want === s[0]) + '">' + esc(s[1]) + " <i>" + int(s[2]) + "</i></button>";
       }).join("") + "</div></div>"
@@ -828,7 +861,7 @@
     }).sort(function (a, b) { return String(b.Started || "").localeCompare(String(a.Started || "")); });
     var shown = miss.slice(0, ST.shown);
     el.innerHTML = '<section class="panel stx-panel stx-detail"><div class="stx-dmain">'
-      + '<div class="stx-eyebrow">' + esc(repLabel(who)) + " · " + esc(k[3]) + "</div><h2>" + esc(k[2]) + "</h2>"
+      + '<div class="stx-kicker">' + esc(repLabel(who)) + " · " + esc(k[3]) + "</div><h2>" + esc(k[2]) + "</h2>"
       + '<div class="stx-bigrow"><span class="stx-big ' + tn + '">' + (r == null ? "—" : r + "%") + "</span><div><b>"
       + esc(!o.n ? "No calls it applies to" : tn === "few" ? "Under " + MIN_CALLS + " calls: no rate yet" : !who ? "The team, " + rangeLabel(cur)
             : tn === "good" ? "At or above the team" : tn === "near" ? "Within 5 points of the team" : (tr - r) + " points below the team")
@@ -912,8 +945,8 @@
         + (x.team != null ? '<u style="left:' + x.team + '%"></u>' : "") + "</span>"
         + '<span class="stx-dt">team ' + (x.team == null ? "—" : x.team + "%") + '<em class="' + (mv.charAt(0) === "▲" ? "up" : mv ? "down" : "") + '">' + esc(mv) + "</em></span></button>";
     };
-    body.innerHTML = '<div class="stx-onepick" id="stxOnePick"></div>'
-      + '<section class="stx-band"><div class="stx-band-me"><span>' + esc(me === SUPPORT ? "Team" : "Rep") + "</span><b>" + esc(repLabel(me)) + "</b><i>"
+    // the Rep picker sits in the filter row (mountBar leaves #stxOnePick there for this view)
+    body.innerHTML = '<section class="panel stx-panel stx-band"><div class="stx-band-me"><span>' + esc(me === SUPPORT ? "Team" : "Rep") + "</span><b>" + esc(repLabel(me)) + "</b><i>"
       + int(n[me]) + " calls checked · " + esc(rangeLabel(curRange())) + "</i></div>"
       + '<div><span class="coach">Coach first</span><ul>' + (gaps.length ? gaps.map(callout).join("") : "<li><span>Nothing with " + MIN_CALLS + "+ calls yet</span></li>") + "</ul></div>"
       + '<div><span class="good">Strengths</span><ul>' + (wins.length ? wins.map(callout).join("") : "<li><span>Nothing at or above the team yet</span></li>") + "</ul></div></section>"
@@ -925,7 +958,8 @@
           return '<div class="stx-grp">' + esc(g) + "</div>" + rowsC.filter(function (x) { return x.group === g; }).map(line).join("");
         }).join("") : '<p class="stx-note">The script checks score sales reps only.</p>')
       + "</section></div>";
-    RSC.localSelect(body.querySelector("#stxOnePick"), {
+    var pickHost = (HOST && HOST.querySelector("#stxOnePick")) || body.insertBefore(document.createElement("div"), body.firstChild);
+    RSC.localSelect(pickHost, {
       label: "Rep", required: true, value: me, values: opts,
       onChange: function (v) { ST.one = v; paint(); },
     });
@@ -973,7 +1007,7 @@
         + '<div><b>' + (ps.n ? pct(ps.m, ps.n) + "%" : "—") + "</b><span>of " + int(ps.n) + " calls this period</span></div>"
         + '<div><span class="stx-who"><i class="rep" style="width:' + w(s.rep) + '%"></i><i class="both" style="width:' + w(s.both) + '%"></i><i class="cust" style="width:' + w(s.customer) + '%"></i></span>'
         + "<span>" + (known ? "rep " + w(s.rep) + "% · both " + w(s.both) + "% · customer " + w(s.customer) + "%" : "not recorded yet") + "</span></div>"
-        + '<div><span class="stx-badge ' + (t.active ? hl.k : "paused") + '">' + esc(t.active ? hl.badge : "Paused") + "</span><span>" + esc(hl.why) + "</span></div>"
+        + "<div>" + badge(t.active ? hl.k : "paused", t.active ? hl.badge : "Paused") + "<span>" + esc(hl.why) + "</span></div>"
         + (D.canEdit
            ? '<div class="stx-acts"><button type="button" class="rs-btn" data-read="' + esc(t.key) + '">Read ' + (hl.read < READ_TARGET ? READ_TARGET - hl.read + " hits" : "more hits") + "</button>"
              + '<button type="button" class="rs-btn" data-edit="' + esc(t.key) + '">Edit</button>'
@@ -982,23 +1016,17 @@
            : "<div></div>")
         + "</div>";
     }).join("");
-    body.innerHTML = '<div class="stx-sum">'
-      + '<div class="ok"><b>' + cnt.ok + "</b><span>Reliable</span><i>on the scorecard</i></div>"
-      + '<div class="check"><b>' + cnt.check + "</b><span>Need a check</span><i>on the scorecard, marked</i></div>"
-      + '<div class="off"><b>' + cnt.off + "</b><span>Not measuring it</span><i>off the scorecard until fixed</i></div>"
-      + (D.canEdit ? '<button type="button" class="stx-new" data-view-new="1"><b>+ New tracker</b><i>tested on real calls before it saves</i></button>' : "")
-      + "</div>"
-      + '<section class="panel stx-panel"><div class="stx-ph"><h2>How a tracker earns “Reliable”</h2></div><ol class="stx-rules">'
-      + "<li><b>The hits mean what the name says.</b> Someone reads " + READ_TARGET + " hits and marks each one right or wrong. 8 of 10 right passes; fewer takes it off the scorecard.</li>"
-      + "<li><b>The right person says it.</b> At least 8 in 10 hits come from the rep, unless the tracker counts only the customer's lines.</li>"
-      + "<li><b>Enough calls.</b> A rep needs " + MIN_CALLS + " calls in the period before a rate shows.</li>"
-      + "</ol><p class=\"rs-hint\">Changing a tracker's phrases, calls or rules re-checks every matching call on the next hourly pass and starts the reading over. Renaming it or rewording its note does neither.</p></section>"
+    // the kit's KPI row (the three solid status cards were hand-made copies). "+ New tracker" is the
+    // head's action now, and the three rules for "Reliable" open under How it's counted.
+    body.innerHTML = RSC.kpisHtml([
+      { label: "Reliable", value: String(cnt.ok), sub: "on the scorecard", tone: cnt.ok ? "pos" : "" },
+      { label: "Need a check", value: String(cnt.check), sub: "on the scorecard, marked", tone: cnt.check ? "warn" : "" },
+      { label: "Not measuring it", value: String(cnt.off), sub: "off the scorecard until fixed", tone: cnt.off ? "neg" : "" },
+    ])
       + '<section class="panel stx-panel"><div class="stx-ph"><h2>All trackers</h2><span>' + esc(rangeLabel(curRange())) + "</span>"
       + (D.canEdit ? '<button type="button" class="rs-btn" id="stxRun">Check new calls now</button>' : "") + "</div>"
       + '<div class="rs-tablewrap"><div class="stx-tlist"><div class="stx-trow head"><div>Tracker</div><div>Calls it checks</div><div>Phrases</div><div>Hit rate</div><div>Who said it</div><div>Status</div><div></div></div>'
       + rows + "</div></div></section>";
-    var nw = body.querySelector("[data-view-new]");
-    if (nw) nw.onclick = function () { ST.edit = blankTracker(); ST.test = null; ST.view = "builder"; paint(); };
     var run = body.querySelector("#stxRun");
     if (run) run.onclick = function () {
       post({ action: "run" }).then(function () {
@@ -1047,7 +1075,7 @@
       var drawer = ov.querySelector(".stx-drawer");
       if (i >= queue.length || (hl.read >= READ_TARGET && done > 0 && hl.read % READ_TARGET === 0)) {
         drawer.innerHTML = '<div class="stx-ph"><h2>' + esc(t.name) + '</h2><button type="button" class="rs-btn" data-x="1">Close</button></div>'
-          + '<div class="stx-health ' + hl.k + '"><span class="stx-badge ' + hl.k + '">' + esc(hl.badge) + "</span>" + esc(hl.why) + "</div>"
+          + '<div class="stx-health">' + badge(hl.k, hl.badge) + "<span>" + esc(hl.why) + "</span></div>"
           + (i >= queue.length ? '<p class="stx-note">No more unread hits.</p>' : "");
         drawer.querySelector("[data-x]").onclick = function () { ov.remove(); paint(); };
         return;
@@ -1069,8 +1097,8 @@
           + '<p class="stx-dim">' + esc(t.name) + " · hit " + (hl.read + 1) + " · " + esc(fmtWhen(c.Started)) + " · " + esc(handledBy(c)) + " · " + esc(dirWord(c.Direction)) + "</p>"
           + '<div class="stx-lines">' + (lines || '<p class="stx-note">The hit lines are not in this transcript.</p>') + "</div>"
           + '<p class="stx-askq">Is this what “' + esc(question(t)) + '” means?</p>'
-          + '<div class="stx-acts"><button type="button" class="rs-btn stx-right" data-m="right">Right</button>'
-          + '<button type="button" class="rs-btn stx-wrong" data-m="wrong">Wrong</button>'
+          + '<div class="stx-acts"><button type="button" class="rs-btn" data-m="right">Right</button>'
+          + '<button type="button" class="rs-btn" data-m="wrong">Wrong</button>'
           + '<button type="button" class="rs-btn" data-m="skip">Skip</button>'
           + '<span class="stx-dim">' + hl.read + " of " + READ_TARGET + " read · " + hl.right + " right</span></div>";
         drawer.querySelector("[data-x]").onclick = function () { ov.remove(); paint(); };
@@ -1163,7 +1191,7 @@
         + '<textarea class="stx-in stx-short" id="stxTrig" maxlength="1000" placeholder="going with another company, need to think about it, found a better price">' + esc(ru.trigger || "") + "</textarea>"
         + '<div class="stx-prev" id="stxTrigPrev"></div>'
         + '<div class="stx-inline">within <input class="stx-in stx-num-in" id="stxWin" type="number" min="1" max="30" value="' + esc(ru.window || 5) + '"> lines, then</div>')
-      + step(3, '<div class="stx-inline"><b>Phrases said by</b><span class="stx-seg" role="group" aria-label="Whose lines count">'
+      + step(3, '<div class="stx-inline"><b>Phrases said by</b><span class="rs-seg" role="group" aria-label="Whose lines count">'
         + [["rep", "the rep"], ["customer", "the customer"], ["", "either side"]].map(function (o) {
           return '<button type="button" class="' + (who === o[0] ? "on" : "") + '" data-who="' + o[0] + '" aria-pressed="' + (who === o[0]) + '">' + esc(o[1]) + "</button>";
         }).join("") + "</span></div>"
@@ -1262,14 +1290,15 @@
       + (R["Not Applicable"] ? "<div><span>Did not apply</span><b>" + int(R["Not Applicable"]) + "</b><i>the customer never said a trigger</i></div>" : "")
       + "<div><span>Who said it</span><b>" + (known ? Math.round(100 * ((s.rep || 0) + (s.both || 0)) / known) + "%" : "—") + "</b><i>hits where the rep said it</i></div></div>"
       + (ph.length ? '<p class="stx-dim">' + ph.slice(0, 6).map(function (p) { return "“" + esc(p) + "” " + pct(j.phrases[p], R.Mentioned) + "%"; }).join(" · ") + "</p>" : "")
-      + '<div class="stx-health ' + vk + '"><span class="stx-badge ' + vk + '">' + esc(read < READ_TARGET ? "Reading" : vk === "ok" ? "Reliable" : "Not measuring it") + "</span>"
-      + esc(verdict) + (read ? " · " + right + " of " + read + " right" : "") + "</div>"
+      + '<div class="stx-health">' + badge(vk, read < READ_TARGET ? "Reading" : vk === "ok" ? "Reliable" : "Not measuring it")
+      + "<span>" + esc(verdict) + (read ? " · " + right + " of " + read + " right" : "") + "</span></div>"
       + (j.samples || []).map(function (smp, i) {
         var m = j.marks[smp.record] || "";
         return '<div class="stx-sample"><div class="stx-dim">' + esc(fmtWhen(smp.started)) + " · " + esc(smp.rep || "") + "</div>"
           + smp.lines.map(function (l) { return '<div class="stx-utt ' + (l.side === "rep" ? "rep" : "cust") + ' hit"><span class="stx-spk">' + esc(l.side) + "</span>" + esc(l.text) + "</div>"; }).join("")
-          + '<div class="stx-acts"><button type="button" class="rs-btn stx-right' + (m === "right" ? " on" : "") + '" data-s="' + i + '" data-m="right" aria-pressed="' + (m === "right") + '">Right</button>'
-          + '<button type="button" class="rs-btn stx-wrong' + (m === "wrong" ? " on" : "") + '" data-s="' + i + '" data-m="wrong" aria-pressed="' + (m === "wrong") + '">Wrong</button></div></div>';
+          + '<div class="stx-acts"><span class="rs-seg" role="group" aria-label="Is this hit right?">'
+          + '<button type="button" class="' + (m === "right" ? "on" : "") + '" data-s="' + i + '" data-m="right" aria-pressed="' + (m === "right") + '">Right</button>'
+          + '<button type="button" class="' + (m === "wrong" ? "on" : "") + '" data-s="' + i + '" data-m="wrong" aria-pressed="' + (m === "wrong") + '">Wrong</button></span></div></div>';
       }).join("")
       + (!(j.samples || []).length ? '<p class="stx-note">No hits to read in these calls.</p>' : "")
       + '<p class="rs-hint">Marks are saved as you go and count for this tracker once it is saved with these same phrases, calls and rules.</p>';
@@ -1306,7 +1335,7 @@
       var c = D.calls[rec] || {}, rep = c.Rep || "";
       var verdicts = D.trackers.map(function (t) {
         var e = (D.ev[t.key] || []).filter(function (x) { return x["Record Id"] === rec; })[0];
-        return e ? '<span class="stx-pill ' + (e.Result === "Mentioned" ? "ok" : e.Result === "Not Mentioned" ? "off" : "") + '" title="' + esc(e.Explanation || "") + '">'
+        return e ? '<span class="rs-pill ' + (e.Result === "Mentioned" ? "ok" : e.Result === "Not Mentioned" ? "bad" : "mute") + '" title="' + esc(e.Explanation || "") + '">'
           + esc(t.name) + ": " + esc(e.Result === "Mentioned" ? "with it" : e.Result === "Not Mentioned" ? "without it" : "did not apply") + "</span>" : "";
       }).join("");
       var utts = (j.utterances || []).map(function (u) {
@@ -1335,151 +1364,147 @@
     if (old) old.remove();
     var st = document.createElement("style");
     st.id = "stx-style";
-    // the canvas's palette (2026-10-28): solid fills, the same four tones everywhere
-    var G = "#1E5B36", N = "#DCE7D5", NI = "#1E3D28", L = "#B5400C", INK = "#14201A";
+    /* THE PAGE STANDARD (ZTZ-80, 13 Nov 2026): every colour is a kit token, so dark and v2 both hold;
+       the type scale is 12 / 13 / 14 / 16 / 20 / 28 at weights 400 / 600. The canvas's four tones
+       (2026-10-28) keep their meaning -- at or above the team, up to 5 below, more than 5 below,
+       too few -- but as TINTS, the way Review Performance's RP_BANDS_V2 went: a column of solid
+       fills read as a wall, so the colour stopped saying "look here". */
     st.textContent = ""
-      + ".stx{font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:18px}"
-      + ".stx-head{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}"
-      + ".stx-head h1{margin:2px 0 4px;font-size:32px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}"
-      + ".stx-head p{margin:0;color:var(--muted);max-width:760px;font-size:14px}"
-      + ".stx-eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:" + G + "}"
-      + ".stx-nav,.stx-seg{display:inline-flex;flex-wrap:wrap;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}"
-      + ".stx-nav button,.stx-seg button{border:0;background:transparent;color:var(--ink);font-family:inherit;font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:8px;cursor:pointer;min-height:38px}"
-      + ".stx-nav button.on,.stx-seg button.on{background:" + INK + ";color:#fff}"
-      + ".stx-seg button i{font-style:normal;opacity:.7;margin-left:3px}"
+      + ".stx{font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:16px}"
+      + ".stx-top{display:flex;flex-direction:column;gap:12px}"
+      + ".stx-top>.rs-page-head{margin:0}.stx-top>.rs-utabs{margin:0}"
+      + "#stxBar:empty{display:none}"
+      + ".stx .rs-seg{flex-wrap:wrap}.stx .rs-seg button i{font-style:normal;opacity:.7;margin-left:3px}"
       + ".stx-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}"
-      + ".stx-cmp{font-size:12.5px;color:var(--muted)}"
-      + ".stx-note{font-size:13.5px;color:var(--muted);line-height:1.6;max-width:90ch}"
-      + ".stx-dim{font-size:12.5px;color:var(--muted)}"
+      + ".stx-cmp{font-size:13px;color:var(--muted)}"
+      + ".stx-note{font-size:14px;color:var(--muted);line-height:1.6;max-width:90ch}"
+      + ".stx-dim{font-size:13px;color:var(--muted)}"
       + ".stx-panel{padding:20px}"
       + ".stx-ph{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between;margin:0 0 12px}"
-      + ".stx-ph h2{margin:0;font-size:19px;font-weight:800;color:var(--ink)}.stx-ph h3{margin:0;font-size:15px;font-weight:700;color:var(--ink)}"
-      + ".stx-ph span{font-size:12.5px;color:var(--muted)}"
-      // tiles
+      + ".stx-ph h2{margin:0;font-size:16px;font-weight:600;color:var(--ink)}.stx-ph h3{margin:0;font-size:14px;font-weight:600;color:var(--ink)}"
+      + ".stx-ph span{font-size:13px;color:var(--muted)}"
+      + ".stx-kicker{font-size:13px;font-weight:600;color:var(--muted)}"
+      // the tracker cards: the question, the rate and its move, the calls, one status pill
       + ".stx-tiles{display:grid;grid-template-columns:repeat(var(--stx-n,4),minmax(0,1fr));gap:12px}"
       + "@media(max-width:1180px){.stx-tiles{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}}"
-      + ".stx-tile{display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;font-family:inherit;color:var(--ink)}"
-      + ".stx-tile:hover{border-color:var(--line-2)}.stx-tile.on{outline:3px solid " + INK + ";outline-offset:1px}"
+      + ".stx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;cursor:pointer;font-family:inherit;color:var(--ink)}"
+      + ".stx-tile:hover{border-color:var(--line-2)}.stx-tile.on{outline:2px solid var(--ink);outline-offset:1px}"
       + ".stx-tile.off{background:var(--panel-2)}.stx-tile.off .stx-tile-v b{text-decoration:line-through;color:var(--muted)}"
-      + ".stx-tile-n{font-size:12px;color:var(--muted);font-weight:600}.stx-tile-q{font-weight:700;min-height:38px}"
-      + ".stx-tile-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.stx-tile-v b{font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1}"
-      + ".stx-tile-v i{font-style:normal;font-size:12.5px;font-weight:700;color:var(--muted)}.stx-tile-v i.up{color:" + G + "}.stx-tile-v i.down{color:" + L + "}"
-      + ".stx-tile-s,.stx-tile-why{font-size:12px;color:var(--muted)}"
-      + ".stx-badge{align-self:flex-start;display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}"
-      + ".stx-badge.ok{background:#DCEFD9;color:" + G + "}.stx-badge.check{background:#FFF1D6;color:#7A4B00}.stx-badge.off{background:#FCE3D8;color:#8A2E07}.stx-badge.paused{background:var(--panel-2);color:var(--muted)}"
-      // the matrix
-      + ".stx-matrix{width:100%;border-collapse:separate;border-spacing:5px;min-width:720px;table-layout:fixed}"
+      + ".stx-tile-n{font-size:12px;color:var(--muted)}.stx-tile-q{font-size:14px;font-weight:600;line-height:1.4;min-height:40px}"
+      + ".stx-tile-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.stx-tile-v b{font-size:28px;font-weight:600;line-height:1}"
+      + ".stx-tile-v i{font-style:normal;font-size:13px;font-weight:600;color:var(--muted)}.stx-tile-v i.up{color:var(--pos)}.stx-tile-v i.down{color:var(--neg)}"
+      + ".stx-tile-s{font-size:12px;color:var(--muted)}"
+      // the matrix: tinted cells, the value in the band's own ink
+      + ".stx-matrix{width:100%;border-collapse:separate;border-spacing:4px;min-width:720px;table-layout:fixed}"
       // fixed layout takes its widths from the first row: the names' column is set there
       + ".stx-matrix thead tr:first-child th:first-child{width:200px}"
       + ".stx-matrix.wide{min-width:1180px}"
-      + ".stx-matrix th{font-size:12px;font-weight:700;color:var(--ink);text-align:center;padding:2px 2px 6px;vertical-align:bottom}"
-      + ".stx-matrix th span{display:block;font-weight:600;font-size:11.5px;color:var(--muted)}"
-      + ".stx-matrix th span.ok{color:" + G + "}.stx-matrix th span.check{color:#7A4B00}"
-      + ".stx-matrix th.grp{color:" + G + ";text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid var(--line)}"
-      + ".stx-matrix tbody th,.stx-matrix tfoot th{text-align:left;font-size:13.5px;min-width:160px;vertical-align:middle;padding:0 6px}"
+      + ".stx-matrix th{font-size:12px;font-weight:600;color:var(--ink);text-align:center;padding:2px 2px 6px;vertical-align:bottom}"
+      + ".stx-matrix th span{display:block;font-weight:400;font-size:12px;color:var(--muted)}"
+      + ".stx-matrix th span.ok{color:var(--pos)}.stx-matrix th span.check{color:var(--warn)}"
+      + ".stx-matrix th.grp{color:var(--muted);border-bottom:1px solid var(--line)}"
+      + ".stx-matrix tbody th,.stx-matrix tfoot th{text-align:left;font-size:13px;min-width:160px;vertical-align:middle;padding:0 6px}"
       + ".stx-matrix td{padding:0}"
-      + ".stx-cell{width:100%;min-height:54px;border:1px solid transparent;border-radius:8px;cursor:pointer;font-family:inherit;font-size:19px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}"
-      + ".stx-cell.sm{font-size:15px;min-height:46px}"
-      + ".stx-cell i{font-style:normal;font-size:11px;font-weight:700;min-height:13px}"
-      + ".stx-cell.good{background:" + G + ";color:#fff}.stx-cell.near{background:" + N + ";color:" + NI + "}"
-      + ".stx-cell.low{background:" + L + ";color:#fff}.stx-cell.few{background:var(--panel-2);color:var(--muted);border-color:var(--line)}"
+      + ".stx-cell{width:100%;min-height:48px;border:1px solid transparent;border-radius:6px;cursor:pointer;font-family:inherit;font-size:16px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--panel);color:var(--ink)}"
+      + ".stx-cell.sm{font-size:14px;min-height:42px}"
+      + ".stx-cell i{font-style:normal;font-size:12px;font-weight:400;min-height:14px}"
+      + ".stx-cell.good{background:var(--pos-bg);color:var(--pos)}.stx-cell.near{background:var(--warn-bg);color:var(--warn)}"
+      + ".stx-cell.low{background:var(--neg-bg);color:var(--neg)}.stx-cell.few{background:var(--panel-2);color:var(--muted);border-color:var(--line)}"
       + ".stx-cell.team{background:var(--panel);color:var(--ink);border-color:var(--line-2)}"
-      + ".stx-cell.on{outline:3px solid " + INK + ";outline-offset:2px}"
+      + ".stx-cell:hover{border-color:var(--line-2)}.stx-cell.on{outline:2px solid var(--ink);outline-offset:1px}"
       + ".stx-teamrow th,.stx-teamrow td{padding-top:6px}"
-      + ".stx-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:14px 0 0;font-size:12.5px;color:var(--muted)}"
-      + ".stx-legend span{display:inline-flex;align-items:center;gap:6px}.stx-legend i{width:14px;height:14px;border-radius:4px;display:inline-block}"
-      + ".stx-legend i.good{background:" + G + "}.stx-legend i.near{background:" + N + "}.stx-legend i.low{background:" + L + "}.stx-legend i.few{background:var(--panel-2);border:1px solid var(--line-2)}"
+      + ".stx-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:12px 0 0;font-size:13px;color:var(--muted)}"
+      + ".stx-legend span{display:inline-flex;align-items:center;gap:6px}.stx-legend i{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid var(--line-2)}"
+      + ".stx-legend i.good{background:var(--pos-bg);border-color:var(--pos)}.stx-legend i.near{background:var(--warn-bg);border-color:var(--warn)}"
+      + ".stx-legend i.low{background:var(--neg-bg);border-color:var(--neg)}.stx-legend i.few{background:var(--panel-2)}"
       // the open cell
       + ".stx-dgrid{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:18px}.stx-dmain{flex:1 1 360px;display:flex;flex-direction:column;gap:12px;min-width:0}"
       + ".stx-dweeks{flex:1 1 420px;min-width:0}"
-      + ".stx-detail h2{margin:0;font-size:22px;font-weight:800;color:var(--ink)}.stx-sub{font-size:12.5px;color:var(--muted)}"
-      + ".stx-bigrow{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}.stx-bigrow div{display:flex;flex-direction:column;gap:2px;padding-bottom:4px}"
-      + ".stx-bigrow span:not(.stx-big){font-size:12.5px;color:var(--muted)}"
-      + ".stx-big{font-size:60px;font-weight:800;line-height:.9;letter-spacing:-.03em;color:var(--ink)}"
-      + ".stx-big.good{color:" + G + "}.stx-big.near{color:#4E7A5B}.stx-big.low{color:" + L + "}.stx-big.few,.stx-big.off{color:var(--muted)}.stx-big.off{text-decoration:line-through}"
+      + ".stx-detail h2{margin:0;font-size:20px;font-weight:600;color:var(--ink)}.stx-sub{font-size:13px;color:var(--muted)}"
+      + ".stx-bigrow{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}.stx-bigrow div{display:flex;flex-direction:column;gap:2px;padding-bottom:2px}"
+      + ".stx-bigrow b{font-size:14px;font-weight:600}.stx-bigrow span:not(.stx-big){font-size:13px;color:var(--muted)}"
+      + ".stx-big{font-size:28px;font-weight:600;line-height:1;color:var(--ink)}"
+      + ".stx-big.good{color:var(--pos)}.stx-big.near{color:var(--warn)}.stx-big.low{color:var(--neg)}.stx-big.few,.stx-big.off{color:var(--muted)}.stx-big.off{text-decoration:line-through}"
       + ".stx-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}"
-      + ".stx-boxes div{background:var(--panel-2);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column}"
-      + ".stx-boxes span{font-size:12px;color:var(--muted)}.stx-boxes b{font-size:20px;font-weight:800;color:var(--ink)}.stx-boxes i{font-style:normal;font-size:11.5px;color:var(--muted)}"
-      + ".stx-health{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--ink)}"
-      + ".stx-health.ok{background:#EEF5EB}.stx-health.check{background:#FFF7E8}.stx-health.off{background:#FCE3D8}"
+      + ".stx-boxes div{background:var(--panel-2);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column}"
+      + ".stx-boxes span{font-size:12px;color:var(--muted)}.stx-boxes b{font-size:20px;font-weight:600;color:var(--ink)}.stx-boxes i{font-style:normal;font-size:12px;color:var(--muted)}"
+      // the health line: the pill carries the status, the box stays neutral
+      + ".stx-health{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--panel-2);font-size:13px;line-height:1.5;color:var(--ink)}"
+      + ".stx-health .rs-pill{flex:none}"
       + ".stx-wks{display:flex;gap:6px;align-items:flex-end}"
       + ".stx-wk{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}"
-      + ".stx-wk b{font-size:11.5px;color:var(--ink)}.stx-wk span{font-size:11px;color:var(--muted);white-space:nowrap}"
+      + ".stx-wk b{font-size:12px;font-weight:600;color:var(--ink)}.stx-wk span{font-size:12px;color:var(--muted);white-space:nowrap}"
       + ".stx-wkbox{position:relative;width:100%;height:120px;background:var(--panel-2);border-radius:6px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}"
-      + ".stx-wkbox i{width:62%;border-radius:4px 4px 0 0;background:" + G + "}.stx-wkbox i.near{background:#4E7A5B}.stx-wkbox i.low{background:" + L + "}.stx-wkbox i.few,.stx-wkbox i.off{background:var(--faint)}"
+      + ".stx-wkbox i{width:62%;border-radius:4px 4px 0 0;background:var(--pos)}.stx-wkbox i.near{background:var(--warn)}.stx-wkbox i.low{background:var(--neg)}.stx-wkbox i.few,.stx-wkbox i.off{background:var(--faint)}"
       + ".stx-wkbox i.thin{opacity:.35}"
-      + ".stx-wkbox u{position:absolute;left:0;right:0;height:0;border-top:2px dashed " + INK + "}"
-      + ".stx-calls td{vertical-align:top}.stx-calls .stx-dim{display:block;font-size:11.5px}"
-      + ".stx-heard{font-size:12.5px;color:var(--muted);display:inline-block;max-width:44ch}"
+      + ".stx-wkbox u{position:absolute;left:0;right:0;height:0;border-top:2px dashed var(--ink)}"
+      + ".stx-calls td{vertical-align:top}.stx-calls .stx-dim{display:block;font-size:12px}"
+      + ".stx-heard{font-size:13px;color:var(--muted);display:inline-block;max-width:44ch}"
       + ".stx-more{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:10px 0 0}"
       // one rep
       + ".stx-onepick{display:flex}"
-      + ".stx-band{background:" + INK + ";color:#fff;border-radius:16px;padding:22px;display:flex;flex-wrap:wrap;gap:22px}"
-      + ".stx-band>div{flex:1 1 260px;display:flex;flex-direction:column;gap:6px}"
-      + ".stx-band span{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#B7E23B}.stx-band span.coach{color:#FFB48F}"
-      + ".stx-band-me b{font-size:30px;font-weight:800;line-height:1.05}.stx-band-me i{font-style:normal;color:#C9D1CB}"
+      + ".stx-band{display:flex;flex-wrap:wrap;gap:20px}"
+      + ".stx-band>div{flex:1 1 260px;display:flex;flex-direction:column;gap:6px;min-width:0}"
+      + ".stx-band span{font-size:13px;font-weight:600;color:var(--muted)}.stx-band span.coach{color:var(--neg)}.stx-band span.good{color:var(--pos)}"
+      + ".stx-band-me b{font-size:20px;font-weight:600;line-height:1.2;color:var(--ink)}.stx-band-me i{font-style:normal;font-size:13px;color:var(--muted)}"
       + ".stx-band ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}"
-      + ".stx-band li{display:flex;gap:10px;align-items:baseline;border-top:1px solid #2E3B33;padding-top:7px}"
-      + ".stx-band li span{flex:1;font-size:13.5px;font-weight:500;letter-spacing:0;text-transform:none;color:#fff}.stx-band li i{font-style:normal;color:#C9D1CB;font-size:12.5px}"
+      + ".stx-band li{display:flex;gap:10px;align-items:baseline;border-top:1px solid var(--line);padding-top:7px}"
+      + ".stx-band li span{flex:1;font-size:14px;font-weight:400;color:var(--ink)}.stx-band li b{font-size:14px;font-weight:600;color:var(--ink)}.stx-band li i{font-style:normal;color:var(--muted);font-size:13px}"
       + ".stx-two{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}.stx-two>section{flex:1 1 520px;min-width:0}"
       + ".stx-two.build>section:first-child{flex:1.3 1 600px}"
       + ".stx-dumb{width:100%;display:grid;grid-template-columns:minmax(0,1.6fr) 58px minmax(0,1.4fr) 92px;gap:12px;align-items:center;padding:10px 4px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink)}"
       + ".stx-dumb:hover{background:var(--panel-2)}"
-      + ".stx-dl b{display:block;font-weight:600;font-size:13.5px}.stx-dl i{font-style:normal;font-size:12px;color:var(--muted)}"
-      + ".stx-dv{font-size:20px;font-weight:800}.stx-dv.good{color:" + G + "}.stx-dv.near{color:#4E7A5B}.stx-dv.low{color:" + L + "}.stx-dv.few{color:var(--muted)}"
-      + ".stx-dtrack{position:relative;height:12px;background:var(--panel-2);border-radius:999px}"
-      + ".stx-dtrack i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:" + G + "}.stx-dtrack i.near{background:#4E7A5B}.stx-dtrack i.low{background:" + L + "}"
-      + ".stx-dtrack u{position:absolute;top:-5px;width:3px;height:22px;margin-left:-1px;background:" + INK + "}"
-      + ".stx-dt{font-size:12px;color:var(--muted);text-align:right}.stx-dt em{display:block;font-style:normal;font-weight:700}.stx-dt em.up{color:" + G + "}.stx-dt em.down{color:" + L + "}"
-      + ".stx-grp{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:" + G + ";padding:14px 0 4px}"
+      + ".stx-dl b{display:block;font-weight:600;font-size:14px}.stx-dl i{font-style:normal;font-size:12px;color:var(--muted)}"
+      + ".stx-dv{font-size:16px;font-weight:600}.stx-dv.good{color:var(--pos)}.stx-dv.near{color:var(--warn)}.stx-dv.low{color:var(--neg)}.stx-dv.few{color:var(--muted)}"
+      + ".stx-dtrack{position:relative;height:10px;background:var(--panel-2);border-radius:999px}"
+      + ".stx-dtrack i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--pos)}.stx-dtrack i.near{background:var(--warn)}.stx-dtrack i.low{background:var(--neg)}"
+      + ".stx-dtrack u{position:absolute;top:-5px;width:3px;height:20px;margin-left:-1px;background:var(--ink)}"
+      + ".stx-dt{font-size:12px;color:var(--muted);text-align:right}.stx-dt em{display:block;font-style:normal;font-weight:600}.stx-dt em.up{color:var(--pos)}.stx-dt em.down{color:var(--neg)}"
+      + ".stx-grp{font-size:13px;font-weight:600;color:var(--muted);padding:14px 0 4px}"
       // trackers
-      + ".stx-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}"
-      + ".stx-sum>div,.stx-new{border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:2px}"
-      + ".stx-sum b{font-size:40px;font-weight:800;line-height:1}.stx-sum span{font-weight:700}.stx-sum i{font-style:normal;font-size:12px}"
-      + ".stx-sum .ok{background:" + G + ";color:#fff}.stx-sum .check{background:#FFE8B8;color:#4D3000}.stx-sum .off{background:" + L + ";color:#fff}"
-      + ".stx-new{background:var(--panel);border:2px dashed var(--line-2);cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);justify-content:center}"
-      + ".stx-new b{font-size:22px}.stx-new i{color:var(--muted)}"
-      + ".stx-rules{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--ink)}"
+      + ".stx-rules{margin:0 0 10px;padding-left:20px;display:flex;flex-direction:column;gap:6px}"
       + ".stx-tlist{min-width:1160px}"
       + ".stx-trow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1.2fr) 100px minmax(0,1.1fr) minmax(0,1.5fr) 340px;gap:14px;padding:14px 0;border-top:1px solid var(--line);align-items:center;font-size:13px;color:var(--ink)}"
-      + ".stx-trow.head{border-top:0;padding:0 0 8px;font-size:12px;font-weight:700;color:var(--muted)}"
+      + ".stx-trow.head{border-top:0;padding:0 0 8px;font-size:12px;font-weight:600;color:var(--muted)}"
       + ".stx-trow.paused{opacity:.7}"
-      + ".stx-trow>div{display:flex;flex-direction:column;gap:3px;min-width:0}.stx-trow span,.stx-trow i{font-size:12px;color:var(--muted);font-style:normal}"
-      + ".stx-who{display:flex!important;flex-direction:row!important;height:12px;border-radius:999px;overflow:hidden;background:var(--panel-2)}"
-      + ".stx-who i.rep{background:" + G + "}.stx-who i.both{background:#8DB59A}.stx-who i.cust{background:#E08A5C}"
+      + ".stx-trow>div{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}.stx-trow span,.stx-trow i{font-size:12px;color:var(--muted);font-style:normal}"
+      + ".stx-trow>div>b{font-weight:600}"
+      + ".stx-who{display:flex!important;flex-direction:row!important;align-self:stretch;height:10px;border-radius:999px;overflow:hidden;background:var(--panel-2)}"
+      + ".stx-who i.rep{background:var(--pos)}.stx-who i.both{background:var(--faint)}.stx-who i.cust{background:var(--warn)}"
       + ".stx-acts{display:flex!important;flex-direction:row!important;flex-wrap:wrap;gap:6px;align-items:center}"
-      + ".stx-right.on{background:" + G + ";color:#fff;border-color:" + G + "}.stx-wrong.on{background:" + L + ";color:#fff;border-color:" + L + "}"
       // builder
-      + ".stx-form h2{margin:0 0 6px;font-size:20px;font-weight:800;color:var(--ink)}"
+      + ".stx-form h2{margin:0 0 6px;font-size:16px;font-weight:600;color:var(--ink)}"
       + ".stx-form{display:flex;flex-direction:column;gap:18px}"
       + ".stx-step{display:flex;gap:14px;align-items:flex-start}.stx-step>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}"
-      + ".stx-num{flex:none;width:32px;height:32px;border-radius:10px;background:" + INK + ";color:#B7E23B;display:flex;align-items:center;justify-content:center;font-weight:800}"
+      + ".stx-step>div>b{font-weight:600}"
+      + ".stx-num{flex:none;width:28px;height:28px;border-radius:8px;background:var(--brand-d);color:var(--brand-ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}"
       + ".stx-f2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}"
       + ".stx-form label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--ink)}"
-      + ".stx-in{font-family:inherit;width:100%;background:var(--panel);border:1px solid var(--line-2);border-radius:8px;color:var(--ink);padding:9px 11px;font-size:13.5px;outline:0;box-sizing:border-box}"
-      + ".stx-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(63,125,32,.14)}"
+      + ".stx-in{font-family:inherit;width:100%;background:var(--panel);border:1px solid var(--line-2);border-radius:8px;color:var(--ink);padding:9px 11px;font-size:14px;font-weight:400;outline:0;box-sizing:border-box}"
+      + ".stx-in:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-glow)}"
       + "textarea.stx-in{min-height:90px;resize:vertical}textarea.stx-in.stx-short{min-height:58px}"
       + ".stx-num-in{width:72px;display:inline-block}.stx-date{width:150px;display:inline-block}"
-      + ".stx-inline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:13.5px;color:var(--ink)}"
-      + ".stx-form label.stx-check{flex-direction:row;align-items:center;gap:6px;font-weight:500}"
-      + ".stx-check input[type=checkbox]{width:18px;height:18px;accent-color:" + INK + "}"
+      + ".stx-inline{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:14px;color:var(--ink)}"
+      + ".stx-inline b{font-weight:600}"
+      + ".stx-form label.stx-check{flex-direction:row;align-items:center;gap:6px;font-weight:400}"
+      + ".stx-check input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand-d)}"
       + ".stx-prev{display:flex;flex-wrap:wrap;gap:5px}"
-      + ".stx-chip{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:12.5px;color:var(--ink)}"
-      + ".stx-chip.warn{background:#FFF1D6;border-color:#FDE68A;color:#7A4B00}"
-      + ".stx-kwwarn{flex-basis:100%;font-size:12.5px;color:#92400E;margin:2px 0 0}"
+      + ".stx-chip{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);font-size:13px;color:var(--ink)}"
+      + ".stx-chip.warn{background:var(--warn-bg);border-color:transparent;color:var(--warn)}"
+      + ".stx-kwwarn{flex-basis:100%;font-size:13px;color:var(--warn);margin:2px 0 0}"
       + ".stx-sample{border-top:1px solid var(--line);padding:12px 0;display:flex;flex-direction:column;gap:6px}"
-      + ".stx-linkbtn{border:0;background:none;padding:0;color:" + G + ";font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}"
+      + ".stx-linkbtn{border:0;background:none;padding:0;color:var(--brand-d);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}"
       // drawers
       + ".stx-overlay{position:fixed;inset:0;background:var(--scrim,rgba(15,23,42,.38));z-index:60;display:flex;justify-content:flex-end}"
-      + ".stx-drawer{width:min(720px,94vw);height:100%;background:var(--panel);overflow:auto;padding:22px 26px;box-shadow:-12px 0 40px rgba(15,23,42,.18);box-sizing:border-box}"
+      + ".stx-drawer{width:min(720px,94vw);height:100%;background:var(--panel);overflow:auto;padding:22px 26px;box-shadow:var(--shadow);box-sizing:border-box}"
+      + ".stx-drawer .stx-ph h2{font-size:20px}"
       + ".stx-pills{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 12px}"
-      + ".stx-pill{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--panel-2);color:var(--ink)}.stx-pill.ok{background:#DCEFD9;color:" + G + "}.stx-pill.off{background:#FCE3D8;color:#8A2E07}"
       + ".stx-lines{display:flex;flex-direction:column}"
       + ".stx-utt{padding:7px 8px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.55;color:var(--ink)}"
-      + ".stx-utt.cust{padding-left:28px;color:var(--muted)}.stx-utt.hit{background:#F4FAE6;border-radius:6px}"
-      + ".stx-spk{font-size:12.5px;font-weight:700;margin-right:8px;color:" + G + "}.stx-utt.cust .stx-spk{color:#0F766E}"
-      + ".stx-askq{font-weight:700;margin:14px 0 6px;color:var(--ink)}"
-      + "@media(max-width:820px){.stx-head h1{font-size:26px}.stx-big{font-size:46px}.stx-dumb{grid-template-columns:minmax(0,1fr) 52px 70px}.stx-dumb .stx-dtrack{display:none}}";
+      + ".stx-utt.cust{padding-left:28px;color:var(--muted)}.stx-utt.hit{background:var(--blue-bg);border-radius:6px}"
+      + ".stx-spk{font-size:13px;font-weight:600;margin-right:8px;color:var(--ink)}.stx-utt.cust .stx-spk{color:var(--muted)}"
+      + ".stx-askq{font-weight:600;margin:14px 0 6px;color:var(--ink)}"
+      + "@media(max-width:820px){.stx-dumb{grid-template-columns:minmax(0,1fr) 52px 70px}.stx-dumb .stx-dtrack{display:none}}";
     document.head.appendChild(st);
   }
 

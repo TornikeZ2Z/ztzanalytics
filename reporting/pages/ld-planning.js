@@ -39,364 +39,54 @@ registerPage({
   title: "Long Distance Planning",
   async render(host) {
     var esc = RSC.esc;
-    var POS = "#1c7a4a", NEG = "#b02a37", BLUE = "#2f6fd0", WARN = "#a06a00";
     // Design v2: map strokes are painted from JS, so the palette is picked at render time
     // (the theme button re-renders the page). null = the old/dark colours, untouched.
     var V2C = RS.isV2() ? RS.V2 : null;
 
+    /* THE PAGE STANDARD (ZTZ-80, a "Redo" in his approved plan, 13 Nov 2026). The kit draws the
+       head, the view tabs, the filter controls, the tiles, the buttons and the status pills
+       (.rs-pill); this sheet keeps only what is the page's own -- the board table, the drawer,
+       the timeline, the route cards and the maps. Colours are tokens, so light, v2 and dark all
+       follow the theme; sizes are the standard's 12 / 13 / 14 / 16 / 20, weights 400 / 600.
+       A problem row carries ONE signal: its status pill, plus a single urgency dot in "What to do"
+       (the red row edge and the red action text are gone). */
     if (!document.getElementById("ldpCss")) {
       var st = document.createElement("style"); st.id = "ldpCss";
       st.textContent = `
-        .ldp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-        .ldp-head h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
-        .ldp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
-        .ldp-kpi{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s;user-select:none}
-        .ldp-kpi:hover{border-color:var(--brand)}
-        .ldp-kpi.sel{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);background:var(--brand-glow)}
-        .ldp-kpi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
-        .ldp-kpi span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
-        .ldp-kpi small{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
-        .ldp-kpi.neg b{color:${NEG}} .ldp-kpi.warn b{color:${WARN}} .ldp-kpi.pos b{color:${POS}}
-        .ldp-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-        .ldp-fbox{display:flex;align-items:center;gap:0;background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:4px 4px 4px 10px;flex-wrap:wrap}
-        .ldp-srch{display:flex;align-items:center;gap:7px;color:var(--faint)}
-        .ldp-srch input{font:inherit;font-size:13px;background:transparent;color:var(--ink);border:0;outline:none;padding:7px 4px;min-width:270px}
-        .ldp-fdiv{width:1px;align-self:stretch;background:var(--line);margin:4px 10px}
-        .ldp-fl{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);padding-right:8px}
-        .ldp-fl select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 8px;cursor:pointer}
-        .ldp-fl select:focus{outline:none;border-color:var(--brand)}
-        /* the localSelect mounts stand where the .ldp-fl labels stood — same 8px of air */
-        .ldp-fbox #ldpCo,.ldp-fbox #ldpLoc{margin-right:8px}
-        .ldp-clr{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:6px 12px;cursor:pointer;margin-right:4px}
-        .ldp-clr:hover{border-color:var(--brand);color:var(--ink)}
-        .ldp-count{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:auto}
-        .ldp-count b{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
-        .ldp-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line-2);border-radius:11px;padding:3px}
-        .ldp-seg button{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:13.5px;font-weight:800;padding:8px 18px;border-radius:8px}
-        .ldp-seg button.on{background:var(--brand);color:var(--brand-ink)}
-        .ldp-seg button i{font-style:normal;font-weight:800;font-size:11px;opacity:.75;margin-left:6px}
-        .ldp-q{font:inherit;font-size:13px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 12px;min-width:200px}
-        .ldp-sel{font:inherit;font-size:12.5px;background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:8px 10px}
-        /* TABLE — deliberately the same language as Money Flow (his ask 2026-07-27): one
-           card, --line-2 border, sticky 11.5px uppercase headers, uniform row height and
-           strictly SINGLE-LINE cells that ellipsise. The old board stacked three lines into
-           several cells, which is what made it read as cluttered; everything that used to be
-           crammed in now lives in the detail drawer. */
-        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
-        /* the px numbers here and on .ldp-tlbody / .ldp-ovmap are pre-measurement fallbacks
-           only — RSC.fitScroller sets --pg-chrome from the chrome actually on screen, so a
-           collapsed filter bar or sidebar leaves no dead gap under the board */
-        .ldp-wrap{overflow-y:auto;overflow-x:auto;max-height:calc(100vh - var(--pg-chrome, 330px));min-height:320px}
-        .ldp-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1280px}
-        .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel);font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
-        .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
-        .ldp-tbl tbody tr{height:62px}
-        .ldp-tbl .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+        /* ---- the filter row: kit controls on one line, the count + Delivered on the right ---- */
+        .ldp-bar{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:12px 0 14px}
+        .ldp-fbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+        .ldp-fbox #ldpQ{min-width:280px}
+        /* one line, one height: the search box and Clear match the kit slicer buttons (34px) */
+        .ldp-fbox #ldpQ,.ldp-fbox .rs-btn{height:34px;padding-top:0;padding-bottom:0}
+        .ldp-count{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+        .ldp-count b{font-size:14px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+        .ldp-lnk{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--brand-d);
+          text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+        .ldp-lnk:hover{color:var(--ink)}
+        .ldp-lnk:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+        /* the skeleton loads UNDER the real head, so its own head bars would draw the title twice */
+        #ldpBody .rs-sk-head{display:none}
+        /* the six tiles are filters: click one for exactly those rows, click again to release */
+        #ldpBody .ldp-kpis .kpi{cursor:pointer;user-select:none}
+        #ldpBody .ldp-kpis .kpi.sel{background:var(--brand-glow);box-shadow:inset 0 0 0 2px var(--brand-d)}
+        #ldpBody .ldp-kpis .kpi:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+        /* ---- the board: one card, sticky headers, uniform rows (Money Flow's language) ---- */
+        .ldp-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+        /* the px numbers here and on .ldp-tlbody / .ldp-ovmap are pre-measurement fallbacks only --
+           RSC.fitScroller sets --pg-chrome from the chrome actually on screen */
+        .ldp-wrap{overflow:auto;max-height:calc(100vh - var(--pg-chrome, 330px));min-height:320px}
+        .ldp-tbl{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1180px;font-size:14px}
+        .ldp-tbl th{position:sticky;top:0;z-index:2;background:var(--panel-2);font-size:13px;font-weight:600;color:var(--muted);
+          text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
+        .ldp-tbl th.ldp-hbegin{color:var(--ink)}
+        .ldp-tbl td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis}
+        .ldp-tbl tbody tr{height:56px}
         .ldp-tbl tbody tr.ldp-row{cursor:pointer}
         .ldp-tbl tbody tr.ldp-row:hover{background:var(--panel-2)}
         .ldp-tbl tbody tr.ldp-row.on{background:var(--brand-glow)}
-        .ldp-tbl tbody tr.u-red>td:first-child{box-shadow:inset 3px 0 0 ${NEG}}
-        .ldp-tbl tbody tr.u-amber>td:first-child{box-shadow:inset 3px 0 0 ${WARN}}
-        .ldp-tbl tbody tr.u-red>td{background:rgba(176,42,55,.035)}
-        .ldp-tbl tbody tr.u-red:hover>td{background:rgba(176,42,55,.07)}
-        .ldp-cust-td{padding-left:15px!important}
-        .ldp-cust-td .ldp-sub{display:block;margin-top:1px}
-        .ldp-hbegin{color:var(--ink)!important}
-        .ldp-begin .ldp-dt{font-size:14.5px}
-        .ldp-when{font-size:11px;font-weight:800;letter-spacing:.02em;margin-top:1px}
-        .ldp-when.ok{color:var(--faint)}
-        .ldp-when.soon{color:${WARN}}
-        .ldp-when.late{color:${NEG}}
-        .ldp-nodate{font-size:12.5px;font-weight:700;color:var(--faint)}
-        .ldp-cust{font-weight:700;color:var(--ink)}
-        .ldp-ty{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
-        .ldp-ty.s{background:rgba(160,106,0,.15);color:${WARN}}
-        .ldp-ty.r{background:rgba(47,111,208,.13);color:${BLUE}}
-        /* the calendar-jobs cell carries two stacked links + a status pill, so it is the one
-           cell allowed to be taller than a single line */
-        .ldp-tbl td.ldp-jobstd{white-space:normal;max-width:250px;padding-top:7px;padding-bottom:7px}
-        .ldp-sub{font-size:11.5px;color:var(--faint);font-weight:600}
-        /* ---- right-side detail drawer ---- */
-        /* pointer-events MUST toggle with visibility: an opacity-0 fixed overlay still
-           hit-tests and would make the whole page unclickable while it sat there. */
-        .ldp-scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:60;opacity:0;transition:opacity .18s;backdrop-filter:blur(1px);pointer-events:none;visibility:hidden}
-        .ldp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
-        /* The drawer is READ-ONLY now, so it is a briefing card, not a form: a floating panel
-           with a tinted header, sections as cards, and label/value rows that read as data. */
-        .ldp-drawer{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);width:min(620px,96vw);
-          background:var(--panel);z-index:61;border:1px solid var(--line);border-radius:18px;
-          box-shadow:0 24px 60px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.10);
-          transform:translateX(calc(100% + 18px));transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s;
-          display:flex;flex-direction:column;visibility:hidden;opacity:0;overflow:hidden}
-        .ldp-drawer.show{transform:none;visibility:visible;opacity:1}
-        @media (prefers-reduced-motion:reduce){.ldp-drawer{transition:none}}
-        .ldp-dhd{padding:17px 19px 15px;position:relative;flex:0 0 auto;
-          background:linear-gradient(180deg,color-mix(in srgb,var(--blue) 9%,var(--panel)),var(--panel));
-          border-bottom:1px solid var(--line)}
-        .ldp-dhd .x{position:absolute;top:14px;right:14px;border:1px solid var(--line);background:var(--panel);
-          color:var(--muted);width:30px;height:30px;border-radius:10px;cursor:pointer;font-size:14px;line-height:1;
-          transition:background .12s,color .12s}
-        .ldp-dhd .x:hover{color:var(--ink);background:var(--panel-2)}
-        .ldp-dnm{font-size:21px;font-weight:850;letter-spacing:-.4px;padding-right:40px;line-height:1.2}
-        .ldp-dmeta{font-size:11.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
-        .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
-        .ldp-dbody{overflow-y:auto;padding:15px 19px 30px;flex:1;scrollbar-width:thin}
-        .ldp-sec{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);
-          margin:17px 0 7px;display:flex;align-items:center;gap:9px}
-        .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
-        .ldp-sec:first-child{margin-top:0}
-        .ldp-stor{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
-      border-radius:5px;background:rgba(124,58,237,.13);color:var(--violet,#7c3aed);white-space:nowrap;margin-left:5px}
-    /* ROUTE CARDS. A route is a decision, and the two things that decide it are how full
-       the truck ends up and when each stop has to land. Both used to be buried in a grey
-       run-on line, so they lead now: a fill bar you can read at a glance, and a journey
-       rail that shows the trip leaving base and coming back rather than a list of rows. */
-    .ldp-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));gap:14px}
-    .ldp-rcard{background:var(--panel);border:1px solid var(--line-2);border-radius:14px;
-      padding:0;overflow:hidden;display:flex;flex-direction:column}
-    .ldp-rcard.tight{border-color:rgba(176,42,55,.4)}
-    .ldp-rtop{padding:13px 15px 12px}
-    .ldp-rttl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .ldp-rttl b{font-size:16px;letter-spacing:-.3px}
-    .ldp-rchip{font-size:10.5px;font-weight:750;padding:2px 8px;border-radius:999px;
-      background:var(--panel-2);color:var(--faint);white-space:nowrap}
-    /* how full does this truck end up — the number that decides whether to run it */
-    .ldp-cap{margin-top:10px}
-    .ldp-capbar{height:7px;border-radius:999px;background:var(--panel-2);overflow:hidden}
-    .ldp-capfill{height:100%;border-radius:999px;background:${POS};transition:width .3s ease}
-    .ldp-capfill.low{background:#b26b0b}
-    .ldp-capmeta{display:flex;justify-content:space-between;gap:8px;margin-top:5px;
-      font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
-    .ldp-capmeta b{color:var(--ink);font-weight:700}
-    /* the trip's cost, as discrete figures instead of a sentence */
-    .ldp-rmet{display:grid;grid-template-columns:repeat(4,1fr);
-      border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel-2)}
-    .ldp-rmet>div{padding:7px 4px;text-align:center;border-right:1px solid var(--line)}
-    .ldp-rmet>div:last-child{border-right:0}
-    .ldp-rmet i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.07em;
-      text-transform:uppercase;color:var(--faint)}
-    .ldp-rmet b{display:block;font-size:13px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
-    .ldp-rmet b.bad{color:${NEG}}
-    /* the journey: base -> stops -> base, joined by a rail */
-    .ldp-rstop{display:flex;gap:11px;padding:0 0 11px;position:relative;font-size:13px}
-    .ldp-rstop:last-child{padding-bottom:2px}
-    .ldp-rstop::before{content:"";position:absolute;left:9px;top:19px;bottom:-1px;width:2px;
-      background:var(--line-2)}
-    .ldp-rstop:last-child::before{display:none}
-    .ldp-rstop .rn{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--panel);
-      border:1.5px solid var(--line-2);font-size:10.5px;font-weight:800;display:inline-flex;
-      align-items:center;justify-content:center;position:relative;z-index:1}
-    .ldp-rstop.base .rn{border-style:dashed;color:var(--faint);font-size:9px}
-    .ldp-rstop.base{font-size:12px;color:var(--faint)}
-    .ldp-rsbody{min-width:0;flex:1}
-    .ldp-rsname{font-weight:700;letter-spacing:-.1px;line-height:1.3}
-    .ldp-rsmeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;
-      font-size:11.5px;color:var(--faint)}
-    .ldp-rsmeta .cf{font-variant-numeric:tabular-nums;font-weight:650;color:var(--ink)}
-    .ldp-rsdate{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;
-      background:var(--panel-2);white-space:nowrap}
-    .ldp-rsdate.soon{background:rgba(176,42,55,.12);color:${NEG}}
-    .ldp-rsdate.conv{background:rgba(47,111,208,.10);color:${BLUE}}
-    .ldp-ract{display:flex;gap:8px;align-items:center;padding:0 15px 13px;margin-top:auto}
-    .ldp-raccept{font:inherit;font-size:12.5px;font-weight:750;color:var(--brand-ink);
-      background:var(--brand);border:0;border-radius:10px;padding:8px 16px;cursor:pointer}
-    .ldp-raccept:disabled{opacity:.6;cursor:default}
-    .ldp-raccept.done{background:rgba(28,122,74,.15);color:var(--pos,#1c7a4a)}
-    .ldp-rt{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;padding:1px 6px;
-      border-radius:5px;white-space:nowrap;margin-top:4px}
-    .ldp-rt.over{background:rgba(176,42,55,.12);color:${NEG}}
-    .ldp-rt.acc{background:rgba(28,122,74,.13);color:${POS}}
-    .ldp-rt.cand{background:rgba(47,111,208,.10);color:${BLUE}}
-    .ldp-rt.bh{background:rgba(124,58,237,.12);color:var(--violet,#7c3aed)}
-    .ldp-bhbtn{margin-top:9px;font:inherit;font-size:12px;font-weight:750;color:var(--ink);
-      background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:7px 13px;cursor:pointer}
-    .ldp-bhbtn:hover{border-color:var(--blue)}
-    .ldp-bhbtn.done{color:var(--pos,#1c7a4a);border-color:rgba(28,122,74,.4)}
-    .ldp-bhtx{width:100%;font:inherit;font-size:12.5px;line-height:1.5;color:var(--ink);
-      background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:9px 11px;resize:vertical}
-    .ldp-bhrow{display:flex;gap:9px;align-items:center;margin-top:8px}
-    .ldp-bhwa{font:inherit;font-size:12px;font-weight:750;text-decoration:none;color:#fff;
-      background:#25D366;border-radius:10px;padding:8px 14px}
-    .ldp-bhwa:hover{filter:brightness(.95)}
-    .ldp-jmapbtn{margin:11px 0 0 8px;font-size:12px}
-    .ldp-jmapbtn.pri{background:var(--brand);color:var(--brand-ink);border-color:transparent}
-    /* the route's shape in one line: base, the states it touches, base again */
-    .ldp-rpath{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:0 15px 12px}
-    .ldp-rpath .hop{font-size:11px;font-weight:750;letter-spacing:.02em;color:var(--faint);
-      background:var(--panel-2);border-radius:999px;padding:3px 9px;position:relative}
-    .ldp-rpath .hop+.hop::before{content:"";position:absolute;left:-5px;top:50%;width:5px;
-      height:1px;background:var(--line)}
-    .ldp-rpath .hop.base{color:var(--ink);font-weight:800}
-    .ldp-rpath .due{margin-left:auto;font-size:11px;font-weight:750;color:var(--faint)}
-    .ldp-rpath .due.soon{color:var(--warn,#b26b0b)}
-    .ldp-btbl{width:100%;border-collapse:collapse;font-size:12.5px}
-    .ldp-btbl th{text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;
-      letter-spacing:.07em;color:var(--faint);padding:0 8px 5px 0}
-    .ldp-btbl td{padding:3px 8px 3px 0;vertical-align:middle}
-    .ldp-cinp{width:100%;font:inherit;font-size:12.5px;color:var(--ink);background:var(--panel-2);
-      border:1px solid var(--line-2);border-radius:9px;padding:7px 10px}
-    .ldp-vwbadge{display:inline-block;min-width:16px;text-align:center;font-size:10px;font-weight:800;
-      padding:1px 5px;border-radius:999px;background:rgba(47,111,208,.14);color:var(--blue);vertical-align:1px}
-    .ldp-jmap{height:290px;border-radius:12px;border:1px solid var(--line-2);overflow:hidden;background:var(--panel-2);position:relative;z-index:0;isolation:isolate}
-    .ldp-mstop{width:20px;height:20px;border-radius:50%;background:#B26B0B;color:#fff;
-      font:800 10.5px/20px system-ui;text-align:center;display:block;box-shadow:0 1px 4px rgba(0,0,0,.35)}
-    .ldp-mstop.base{background:#233043}
-    .ldp-mifl{background:#6C5CE0;color:#fff;border:0;border-radius:8px;font-weight:750;font-size:11px;
-      padding:2px 8px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
-    .ldp-mifl::before{display:none}
-    .ldp-ovmap{height:max(460px,calc(100vh - var(--pg-chrome, 350px)))}
-    .ldp-ovmap.full{position:fixed;inset:10px;z-index:65;height:auto;border-radius:14px;
-      box-shadow:0 24px 70px rgba(0,0,0,.35)}
-    .ldp-ovleg{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:2px 2px 10px;font-size:12px;color:var(--faint)}
-    .ldp-ovk{display:inline-flex;align-items:center;gap:6px;font-weight:650}
-    .ldp-ovdot{width:10px;height:10px;border-radius:50%;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
-    .ldp-ovln{width:22px;height:0;border-top:3px solid var(--faint);display:inline-block;border-radius:2px}
-    .ldp-ovln.dash{border-top-style:dashed}
-    .ldp-ovln.thin{border-top:2px dashed #a7aebc}
-    .ldp-ovnote{margin-left:auto;font-weight:500}
-    .ldp-dmap{height:240px;margin-top:2px}
-    .ldp-dmapnote{margin-top:6px;font-size:11.5px;font-weight:650;color:#B26B0B}
-    .ldp-ask{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
-      background:rgba(15,23,42,.38);backdrop-filter:blur(1px)}
-    .ldp-ask.show{display:flex}
-    .ldp-askbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;
-      box-shadow:0 24px 60px rgba(0,0,0,.3);padding:20px 22px;width:min(440px,92vw)}
-    .ldp-asktxt{font-size:13.5px;line-height:1.55}
-    .ldp-askbtns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
-    .ldp-askbtns .ldp-bhbtn{margin:0}
-    .ldp-rpanel{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);width:min(780px,96vw);
-      background:var(--panel);z-index:62;border:1px solid var(--line);border-radius:18px;
-      box-shadow:0 24px 70px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;
-      transform:translateX(calc(100% + 24px));transition:transform .22s ease;visibility:hidden}
-    .ldp-rpanel.show{transform:none;visibility:visible}
-    @media (prefers-reduced-motion:reduce){.ldp-rpanel{transition:none}}
-    .ldp-rphd{display:flex;align-items:flex-start;gap:12px;padding:16px 19px 12px;border-bottom:1px solid var(--line)}
-    .ldp-rphd b{font-size:16px;letter-spacing:-.2px}
-    .ldp-rphd .x{margin-left:auto;flex:0 0 auto;font:inherit;font-size:15px;border:1px solid var(--line-2);
-      background:var(--panel-2);color:var(--ink);border-radius:9px;width:30px;height:30px;cursor:pointer}
-    .ldp-rpmap{flex:1;min-height:200px;border:0;border-radius:0}
-    .ldp-rpstops{flex:0 0 auto;max-height:32vh;overflow-y:auto;padding:8px 19px 14px;scrollbar-width:thin}
-    .ldp-rpact{padding:10px 19px 16px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
-    .ldp-rpact .ldp-raccept{margin-top:0}
-    .ldp-rphop{font-size:11px;color:var(--faint);padding:2px 0 2px 27px;font-weight:650}
-    .ldp-stage{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.01em;padding:3px 10px;border-radius:999px;white-space:nowrap}
-    .ldp-stage.p{background:rgba(63,125,32,.11);color:var(--blue)}
-    .ldp-stage.d{background:rgba(28,122,74,.12);color:${POS}}
-    .ldp-from{font-size:11.5px;font-weight:650;color:var(--ink);line-height:1.3;display:block;white-space:normal}
-    .ldp-fromtd{max-width:200px;white-space:normal}
-    .ldp-addr{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.4;margin-top:3px;white-space:normal}
-    .ldp-whsub{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;max-width:none !important}
-    .ldp-pill,.ldp-pos{white-space:normal;line-height:1.25;display:inline-block}
-    .ldp-big{font-size:16px;font-weight:800;letter-spacing:-.2px;line-height:1.25;display:block}
-        .ldp-kv{display:grid;grid-template-columns:124px minmax(0,1fr);gap:0 14px;font-size:13.5px;align-items:baseline;
-          background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px 12px}
-        .ldp-kv dt{color:var(--faint);font-weight:700;padding:9px 0;border-top:1px solid var(--line);font-size:12px}
-        .ldp-kv dd{margin:0;color:var(--ink);font-weight:650;word-break:break-word;padding:9px 0;border-top:1px solid var(--line)}
-        .ldp-kv dt:first-of-type,.ldp-kv dt:first-of-type + dd{border-top:0}
-        .ldp-dnote{font-size:12.5px;line-height:1.5;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-        .ldp-dissue{font-size:12.5px;line-height:1.5;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.28);border-radius:10px;padding:10px 12px}
-        .ldp-dissue.blk{color:${NEG};background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.28)}
-        /* ================= TIMELINE VIEW =================
-           Modelled on his own longdistance.html planner: a 42-day grid where a STRAIGHT job
-           is drawn as depart-marker -> trip bar -> deadline diamond (one committed date) and
-           a REGULAR job as a window band (delivered anywhere inside it). Two different
-           planning shapes, so they must not look alike. Pickup is a hollow circle, today is
-           a tinted column, and a deadline outside the window collapses to an edge chevron
-           rather than vanishing. */
-        .ldp-tlbar{display:flex;align-items:center;gap:16px;margin:0 0 12px;flex-wrap:wrap}
-        .ldp-tlnav{display:inline-flex;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
-        .ldp-tlnav button{border:0;border-right:1px solid var(--line);background:none;font:inherit;font-size:13px;font-weight:700;color:var(--ink);padding:8px 14px;cursor:pointer}
-        .ldp-tlnav button:last-child{border-right:0}
-        .ldp-tlnav button:hover{background:var(--panel-2)}
-        .ldp-tlrange{font-size:19px;font-weight:800;letter-spacing:-.3px;line-height:1.05}
-        .ldp-tlrange small{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:2px}
-        .ldp-tloff{font-size:11.5px;font-weight:700;color:${WARN};background:rgba(160,106,0,.10);border:1px solid rgba(160,106,0,.26);border-radius:999px;padding:5px 12px}
-        .ldp-tllg{display:flex;gap:15px;margin-left:auto;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
-        .ldp-tllg span{display:flex;align-items:center;gap:6px}
-        .lg-pk{width:11px;height:11px;border-radius:50%;border:2px solid var(--faint);background:var(--panel);flex:0 0 auto}
-        .lg-hold{width:22px;height:4px;border-radius:2px;background:rgba(160,106,0,.5);flex:0 0 auto}
-        .lg-s{position:relative;width:22px;height:3px;background:var(--line-2);border-radius:2px;flex:0 0 auto}
-        .lg-s::after{content:"";position:absolute;right:-2px;top:50%;width:10px;height:10px;border-radius:2px;background:${WARN};transform:translateY(-50%) rotate(45deg)}
-        .lg-r{width:24px;height:14px;border-radius:4px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE};flex:0 0 auto}
-        .ldp-tlgrid{position:relative;border:1px solid var(--line-2);border-radius:14px;overflow:hidden;background:var(--panel)}
-        .ldp-tlhead{display:flex;height:50px;background:var(--panel-2);border-bottom:1px solid var(--line-2)}
-        /* 262px, matching .ldp-tllab below. At 236 the header's calendar track started 26px
-           left of the rows', and every marker in BOTH is positioned as a percentage of its
-           own track -- so the date ruler labelled the bars while sitting out of register
-           with them, and the "today" line landed on the wrong day near the edges. */
-        .ldp-tlhlab{width:262px;flex:0 0 262px;border-right:1px solid var(--line)}
-        .ldp-tlhcal{position:relative;flex:1;min-width:0}
-        .ldp-tlmon{position:absolute;top:7px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-left:6px}
-        .ldp-tlday{position:absolute;bottom:6px;font-size:11.5px;color:var(--faint);font-weight:700;transform:translateX(-50%)}
-        .ldp-tltodaylab{position:absolute;top:0;transform:translateX(-50%);font-size:9.5px;font-weight:800;letter-spacing:.08em;color:#fff;background:${NEG};padding:3px 7px 2px;border-radius:0 0 7px 7px;z-index:3}
-        /* stable gutter so the rows keep the header's width whether or not they scroll --
-           otherwise the scrollbar re-introduces the same misregistration it just lost. */
-        .ldp-tlbody{max-height:calc(100vh - var(--pg-chrome, 360px));overflow-y:auto;scrollbar-gutter:stable}
-        .ldp-tlrow{display:flex;min-height:46px;border-bottom:1px solid var(--line);cursor:pointer}
-        .ldp-tlrow:last-child{border-bottom:0}
-        .ldp-tlrow:hover{background:var(--panel-2)}
-        .ldp-tlrow.on{background:var(--brand-glow)}
-        .ldp-tlrow.u-red{box-shadow:inset 3px 0 0 ${NEG}}
-        .ldp-tlrow.u-amber{box-shadow:inset 3px 0 0 ${WARN}}
-        .ldp-tllab{width:262px;flex:0 0 262px;border-right:1px solid var(--line);padding:0 12px;display:flex;align-items:center;gap:9px}
-        .ldp-tlmk{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:20px}
-        .ldp-tlmk.s::before{content:"";width:12px;height:12px;background:${WARN};border-radius:2px;transform:rotate(45deg)}
-        .ldp-tlmk.r::before{content:"";width:18px;height:12px;border-radius:3px;background:rgba(47,111,208,.13);border:1px solid rgba(47,111,208,.35);border-left:3px solid ${BLUE}}
-        .ldp-tllabtx{min-width:0;flex:1}
-        .ldp-tllabtx b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-        .ldp-tllabtx span{display:block;font-size:11.5px;color:var(--faint);font-weight:600;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-        .ldp-tlcal{position:relative;flex:1;min-width:0;overflow:hidden;background-image:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px var(--tl-step,calc(100%/6)))}
-        .ldp-tlcal.grabbing{cursor:grabbing}
-        .ldp-tlband{position:absolute;top:0;bottom:0;background:rgba(176,42,55,.055);z-index:0}
-        .ldp-tltoday{position:absolute;top:0;bottom:0;width:2px;background:${NEG};opacity:.5;z-index:1}
-        .ldp-tlpk{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);background:var(--panel);border:2px solid var(--faint);z-index:5}
-        .ldp-tltrip{position:absolute;top:50%;height:3px;transform:translateY(-50%);border-radius:2px;background:var(--line-2);z-index:2}
-        .ldp-tltrip.u-amber{background:rgba(160,106,0,.45)} .ldp-tltrip.u-red{background:rgba(176,42,55,.45)}
-        .ldp-tldep{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);background:var(--faint);border:2px solid var(--panel);z-index:3}
-        .ldp-tldep.u-amber{background:${WARN}} .ldp-tldep.u-red{background:${NEG}}
-        .ldp-tldead{position:absolute;top:50%;transform:translate(-8px,-50%);display:flex;align-items:center;gap:7px;z-index:4;white-space:nowrap}
-        .ldp-tldead.lft{transform:translate(calc(-100% + 8px),-50%)}
-        .ldp-tldead.off{transform:translateY(-50%);gap:3px}
-        .ldp-tldead .chev{font-size:14px;font-weight:800;color:var(--faint)}
-        .ldp-tldead .dot{flex:0 0 auto;width:14px;height:14px;border-radius:3px;background:${WARN};transform:rotate(45deg);box-shadow:0 0 0 3px var(--panel)}
-        .ldp-tldead .dt{font-size:12.5px;font-weight:700;color:${WARN}}
-        .ldp-tldead.u-red .dot{background:${NEG}} .ldp-tldead.u-red .dt{color:${NEG}}
-        .ldp-tlwin{position:absolute;top:50%;height:28px;transform:translateY(-50%);border-radius:8px;background:rgba(47,111,208,.10);border:1px solid rgba(47,111,208,.32);border-left:3px solid ${BLUE};display:flex;align-items:center;padding:0 10px;z-index:2;overflow:hidden}
-        .ldp-tlwin .dt{font-size:12px;font-weight:700;color:${BLUE};overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-        .ldp-tlwin.u-amber{background:rgba(160,106,0,.10);border-color:rgba(160,106,0,.32);border-left-color:${WARN}}
-        .ldp-tlwin.u-amber .dt{color:${WARN}}
-        .ldp-tlwin.u-red{background:rgba(176,42,55,.09);border-color:rgba(176,42,55,.30);border-left-color:${NEG}}
-        .ldp-tlwin.u-red .dt{color:${NEG}}
-        /* custody + holding, on the timeline */
-        .ldp-tlcust{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:999px;white-space:nowrap;letter-spacing:.02em;margin:0;flex:0 0 auto}
-        .ldp-tlmeta{display:flex!important;align-items:center;gap:6px;margin-top:2px;font-variant-numeric:tabular-nums}
-        .ldp-tlcust.us{background:rgba(28,122,74,.14);color:${POS}}
-        .ldp-tlcust.car{background:rgba(47,111,208,.14);color:${BLUE}}
-        .ldp-tlcust.tp{background:rgba(160,106,0,.15);color:${WARN}}
-        .ldp-tlcust.unk{background:rgba(176,42,55,.11);color:${NEG}}
-        .ldp-tlcust.no{background:var(--panel-2);color:var(--muted)}
-        /* cnr is a sixth live bucket ("Contracts Not Received") and a filter option, but
-           had no variant here -- the chip rendered with no pill and the bar invisible. */
-        .ldp-tlcust.cnr{background:rgba(47,111,208,.12);color:${BLUE}}
-        .ldp-tlhold.no{background:var(--line-2)}
-        .ldp-tltype{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-left:6px}
-        /* how long the goods have been in our hands: pickup -> today */
-        .ldp-tlhold{position:absolute;top:72%;height:4px;border-radius:2px;z-index:1;opacity:.8}
-        .ldp-tlhold.us{background:rgba(28,122,74,.5)}
-        .ldp-tlhold.car{background:rgba(47,111,208,.5)}
-        .ldp-tlhold.tp{background:rgba(160,106,0,.5)}
-        .ldp-tlhold.unk{background:rgba(176,42,55,.42)}
-        .ldp-tlhold.cnr{background:rgba(47,111,208,.5)}
-        .ldp-tlheld{position:absolute;top:72%;transform:translate(6px,-45%);font-size:10px;font-weight:800;color:var(--faint);white-space:nowrap;z-index:2}
-        /* quick segmentation chips */
-        .ldp-tlf{display:flex;gap:9px;flex-wrap:wrap;margin:0;align-items:center}
-        /* TABLE — same visual language as Money Flow: 14px body, sticky uppercase heads on
-           --line-2, 56px rows, fixed layout so a long customer name never reshapes the grid. */
-        .ldp-wrap{overflow-x:auto}
-        .ldp-tbl{table-layout:fixed;min-width:1180px}
-        .ldp-tbl th{background:var(--panel);border-bottom:1px solid var(--line-2)}
-        .ldp-tbl tbody tr{height:56px}
-        .ldp-tbl td{vertical-align:middle;max-width:none}
         .ldp-tbl col.c-ev{width:118px}
         .ldp-tbl col.c-cust{width:172px}
         .ldp-tbl col.c-type{width:142px}
@@ -405,355 +95,324 @@ registerPage({
         .ldp-tbl col.c-where{width:156px}
         .ldp-tbl col.c-when{width:166px}
         .ldp-tbl col.c-todo{width:248px}
-        .ldp-wlab{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-        .ldp-arrow{color:var(--faint);font-weight:600}
-        .ldp-tbl td.ldp-begin{white-space:normal}
-        .ldp-todo{font-size:12.5px;font-weight:650;line-height:1.35;color:var(--ink);white-space:normal}
-        .ldp-todo.late{color:${NEG};font-weight:750}
-        .ldp-todo.soon{color:${WARN};font-weight:750}
+        /* cells holding chips or two lines wrap rather than clip (a narrow window or a zoom) */
+        .ldp-tbl td.ldp-evtd,.ldp-tbl td.ldp-typetd,.ldp-tbl td.ldp-todotd,.ldp-tbl td.ldp-begin,.ldp-tbl td.ldp-fromtd{white-space:normal}
+        .ldp-cust{font-weight:600;color:var(--ink)}
+        .ldp-cust-td .ldp-sub{display:block;margin-top:1px}
+        .ldp-sub{font-size:12px;color:var(--faint)}
+        .ldp-sub b{font-weight:600}
+        .ldp-tbl td .ldp-sub{line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
+          -webkit-box-orient:vertical;overflow:hidden}
+        .ldp-tbl td .ldp-whsub{display:block;overflow:visible}
+        .ldp-from{display:block;font-size:13px;color:var(--ink);line-height:1.3;white-space:normal}
+        .ldp-nodate,.ldp-evnone{font-size:13px;color:var(--faint)}
+        /* the calendar jobs are plain links: the label already says which event */
+        .ldp-evlink{display:block;width:max-content;margin:2px 0;font-size:13px;font-weight:600;color:var(--blue);text-decoration:none}
+        .ldp-evlink:hover{text-decoration:underline}
+        /* CATEGORY chips -- what kind of job, never how it is doing (status is the kit's .rs-pill):
+           Straight / Storage / Backhaul violet, Regular green, Pickup grey, Delivery navy */
+        .ldp-ty,.ldp-stage,.ldp-stor,.ldp-rt{display:inline-block;padding:2px 9px;border-radius:6px;font-size:12px;
+          font-weight:600;line-height:1.5;white-space:nowrap}
+        .ldp-ty.s,.ldp-stor,.ldp-rt.bh{background:color-mix(in srgb,var(--purple) 10%,transparent);color:var(--purple)}
+        .ldp-ty.r{background:var(--blue-bg);color:var(--blue)}
+        .ldp-stage.p{background:var(--panel-2);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+        .ldp-stage.d{background:color-mix(in srgb,var(--brand-d) 10%,transparent);color:var(--brand-d)}
+        .ldp-stor{margin-left:5px}
+        .ldp-typetd .ldp-ty,.ldp-typetd .ldp-stage,.ldp-typetd .ldp-rt,.ldp-typetd .rs-pill{margin:2px 6px 2px 0}
+        /* the custody pill keeps the old pill's outer width (8px + the kit's 1px border = its 9px
+           sides): any wider and "Picked up — missing closing" wraps in its 156px column */
+        .rs-pill.ldp-pos{padding:2px 8px;white-space:normal;line-height:1.25}
+        /* WHEN: the date, then how far away. The words carry the urgency ("3d late"); the colour
+           lives once, in the dot under "What to do". */
+        .ldp-wlab{font-size:12px;color:var(--faint)}
+        .ldp-dt{font-size:13px;font-weight:600;color:var(--ink);white-space:normal;line-height:1.25}
+        .ldp-begin .ldp-dt{font-size:14px}
+        .ldp-arrow{color:var(--faint)}
+        .ldp-when{margin-top:1px;font-size:12px;color:var(--faint)}
+        .ldp-when.soon,.ldp-when.late{font-weight:600;color:var(--ink)}
+        /* WHAT TO DO: the mart's own imperative in ink; one dot = Act now (red) / Act soon (amber) */
+        .ldp-todo{font-size:13px;line-height:1.35;color:var(--ink);white-space:normal}
         .ldp-todo.miss{color:var(--muted)}
-        /* two-line cells wrap cleanly instead of truncating mid-word */
-        .ldp-tbl td .ldp-sub{font-size:11px;line-height:1.3;color:var(--faint);white-space:normal;
-          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .ldp-evlink{display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;
-          font-weight:800;letter-spacing:.03em;color:${BLUE};background:rgba(47,111,208,.10);
-          border:1px solid rgba(47,111,208,.22);border-radius:8px;padding:4px 12px;text-decoration:none}
-        .ldp-evlink:hover{background:rgba(47,111,208,.18)}
-        .ldp-evnone{color:var(--faint);font-size:13px}
-        /* chips wrap onto a second line when the viewport (or a browser zoom) squeezes the
-           column -- they used to overflow the cell instead */
-        .ldp-tbl td.ldp-evtd,.ldp-tbl td.ldp-typetd,.ldp-tbl td.ldp-todotd{white-space:normal}
-        .ldp-evtd{display:table-cell}
-        .ldp-evtd .ldp-evlink{margin:2px 4px 2px 0}
-        .ldp-evlink.dl{color:${POS};background:rgba(28,122,74,.10);border-color:rgba(28,122,74,.24)}
-        .ldp-evlink.dl:hover{background:rgba(28,122,74,.18)}
-        .ldp-typetd .ldp-ty,.ldp-typetd .ldp-stage{margin:2px 6px 2px 0}
-        .ldp-ms{position:relative}
-        .ldp-msb{font:inherit;font-size:12px;font-weight:650;color:var(--ink);background:var(--panel);
-          border:1px solid var(--line-2);border-radius:10px;padding:7px 12px;cursor:pointer;display:inline-flex;
-          align-items:center;gap:7px;white-space:nowrap}
-        .ldp-msb:hover{border-color:var(--blue)}
-        .ldp-msb.on{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 18%, transparent)}
-        .ldp-msb .cap{color:var(--faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
-        .ldp-msb .cnt{background:var(--blue);color:#fff;border-radius:999px;font-size:10.5px;padding:1px 7px;font-weight:800}
-        .ldp-mspop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;min-width:225px;background:var(--panel);
-          border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:7px;max-height:320px;overflow:auto}
-        .ldp-mspop.hidden{display:none}
-        .ldp-msopt{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--ink)}
-        .ldp-msopt:hover{background:var(--panel-2)}
-        .ldp-msopt input{margin:0;cursor:pointer}
-        .ldp-msopt .n{margin-left:auto;color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
-        .ldp-rst{font-size:11px;font-weight:700;color:var(--brand);cursor:pointer;white-space:nowrap;margin-left:7px}
+        .ldp-udot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;vertical-align:1px}
+        .ldp-udot.now{background:var(--neg)}
+        .ldp-udot.soon{background:var(--warn)}
+        .ldp-flagdot{display:inline-block;margin-right:3px;font-weight:600;color:var(--warn);cursor:help}
+        .ldp-flagdot.blk{color:var(--neg)}
+        .ldp-fnote{padding:10px 14px;font-size:12px;color:var(--faint);border-top:1px solid var(--line)}
+
+        /* ---- the detail drawer + the route panel: floating briefing cards ---- */
+        /* pointer-events MUST toggle with visibility: an opacity-0 fixed overlay still hit-tests
+           and would make the whole page unclickable while it sat there */
+        .ldp-scrim{position:fixed;inset:0;z-index:60;background:var(--scrim);opacity:0;transition:opacity .18s;
+          pointer-events:none;visibility:hidden}
+        .ldp-scrim.show{opacity:1;pointer-events:auto;visibility:visible}
+        .ldp-drawer,.ldp-rpanel{position:fixed;top:10px;right:10px;height:calc(100vh - 20px);display:flex;flex-direction:column;
+          overflow:hidden;visibility:hidden;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+          box-shadow:0 12px 32px rgba(15,23,42,.16)}
+        .ldp-drawer{z-index:61;width:min(620px,96vw);opacity:0;transform:translateX(calc(100% + 18px));
+          transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s}
+        .ldp-drawer.show{transform:none;visibility:visible;opacity:1}
+        .ldp-rpanel{z-index:62;width:min(780px,96vw);transform:translateX(calc(100% + 24px));transition:transform .22s ease}
+        .ldp-rpanel.show{transform:none;visibility:visible}
+        @media (prefers-reduced-motion:reduce){.ldp-drawer,.ldp-rpanel{transition:none}}
+        .ldp-dhd{position:relative;flex:0 0 auto;padding:17px 19px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
+        .ldp-dhd .x{position:absolute;top:14px;right:14px}
+        .ldp-dnm{padding-right:44px;font-size:20px;font-weight:600;line-height:1.2}
+        .ldp-dmeta{margin-top:4px;font-size:13px;color:var(--faint);font-variant-numeric:tabular-nums}
+        .ldp-dpills{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
+        .ldp-dbody{flex:1;overflow-y:auto;padding:15px 19px 30px;scrollbar-width:thin}
+        .ldp-sec{display:flex;align-items:center;gap:9px;margin:17px 0 7px;font-size:13px;font-weight:600;color:var(--muted)}
+        .ldp-sec::after{content:"";flex:1;height:1px;background:var(--line)}
+        .ldp-sec:first-child{margin-top:0}
+        .ldp-kv{display:grid;grid-template-columns:124px minmax(0,1fr);gap:0 14px;align-items:baseline;padding:4px 12px;
+          font-size:14px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px}
+        .ldp-kv dt{padding:9px 0;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+        .ldp-kv dd{margin:0;padding:9px 0;border-top:1px solid var(--line);font-weight:600;color:var(--ink);word-break:break-word}
+        .ldp-kv dt:first-of-type,.ldp-kv dt:first-of-type + dd{border-top:0}
+        .ldp-big{display:block;font-size:16px;font-weight:600;line-height:1.25}
+        .ldp-addr{margin-top:3px;font-size:13px;line-height:1.4;color:var(--muted);white-space:normal}
+        .ldp-dnote{padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink);background:var(--panel-2);
+          border:1px solid var(--line);border-radius:8px}
+        .ldp-dissue{padding:10px 12px;font-size:13px;line-height:1.5;font-weight:600;color:var(--warn);background:var(--warn-bg);
+          border:1px solid color-mix(in srgb,var(--warn) 25%,transparent);border-radius:8px}
+        .ldp-dissue.blk{color:var(--neg);background:var(--neg-bg);border-color:color-mix(in srgb,var(--neg) 25%,transparent)}
+        .ldp-jobs{display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+        .ldp-nolink{font-size:13px;color:var(--faint)}
+        .ldp-cinp,.ldp-bhtx{width:100%;min-width:0}
+        .ldp-bhtx{line-height:1.5;resize:vertical}
+        .ldp-rst{margin-left:7px;font-size:12px;font-weight:600;color:var(--brand-d);cursor:pointer;white-space:nowrap}
         .ldp-rst:hover{text-decoration:underline}
-        .ldp-udlv{margin-top:12px;padding-top:11px;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-        .ldp-dlvb{background:var(--pos,#2ea05a);border-color:var(--pos,#2ea05a);color:#fff}
-        .ldp-dlvon{font-size:12.5px;font-weight:800;color:var(--pos,#2ea05a)}
-        .ldp-msact{display:flex;gap:8px;border-top:1px solid var(--line);margin-top:6px;padding-top:7px}
-        .ldp-msact button{font:inherit;font-size:11.5px;font-weight:650;color:var(--blue);background:none;border:0;cursor:pointer;padding:2px 5px}
-        .ldp-tlchip{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap}
-        .ldp-tlchip:hover{border-color:var(--brand)}
-        .ldp-tlchip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
-        .ldp-tlchip i{font-style:normal;opacity:.7;margin-left:5px;font-weight:800}
-        .ldp-vw{display:inline-flex;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
-        .ldp-vw button{border:0;border-right:1px solid var(--line);background:none;font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:8px 16px;cursor:pointer}
-        .ldp-vw button:last-child{border-right:0}
-        .ldp-vw button.on{background:var(--brand);color:var(--brand-ink)}
-        /* pickup / delivery jobs + delivery status */
-        .ldp-jobs{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
-        .ldp-whsub{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .ldp-callink{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--blue);text-decoration:none;border:1px solid var(--line-2);border-radius:8px;padding:2px 8px;background:var(--panel);white-space:nowrap}
-        .ldp-callink:hover{border-color:var(--blue)}
-        .ldp-nolink{font-size:11.5px;color:var(--faint);font-weight:600}
-        .ldp-dstat{font-size:10.5px;font-weight:800;padding:1px 8px;border-radius:999px;white-space:nowrap;margin-top:1px}
-        .ldp-dstat.late{background:rgba(176,42,55,.13);color:${NEG}}
-        .ldp-dstat.up{background:rgba(28,122,74,.13);color:${POS}}
-        .ldp-dstat.open{background:var(--panel-2);color:var(--muted)}
-        .ldp-dstat.none{background:var(--panel-2);color:var(--faint)}
-        /* edit form */
-        .ldp-fgrp{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel-2);margin:0 0 9px}
-        .ldp-drawer .ldp-fgrp{width:100%;box-sizing:border-box}
-        .ldp-drawer .ldp-fgrp label{flex:1 1 120px}
-        .ldp-drawer .ldp-fgrp input,.ldp-drawer .ldp-fgrp select{width:100%;box-sizing:border-box}
-        .ldp-drawer [data-ldpform]{display:block!important;margin-top:0!important}
-        .ldp-drawer .ldp-savebtn{width:100%;margin-top:2px}
-        .ldp-drawer .ldp-saveinfo{display:block;margin-top:7px}
-        .ldp-drawer .ldp-jobs{gap:5px}
-        .ldp-flbl{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);align-self:center}
-        .ldp-fgrp label{font-size:10.5px;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;display:flex;flex-direction:column;gap:4px}
-        .ldp-fgrp input,.ldp-fgrp select{font:inherit;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink);padding:6px 8px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel)}
-        .ldp-fgrp input:focus,.ldp-fgrp select:focus{outline:0;border-color:var(--brand)}
-        .ldp-savebtn{font:inherit;font-weight:800;font-size:12.5px;padding:9px 18px;border:0;border-radius:9px;background:var(--brand);color:var(--brand-ink);cursor:pointer;align-self:flex-end}
-        .ldp-pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
-        .ldp-loc-store{background:rgba(28,122,74,.13);color:${POS}}
-        .ldp-loc-rent{background:rgba(47,111,208,.12);color:${BLUE}}
-        .ldp-loc-truck{background:rgba(245,165,36,.16);color:${WARN}}
-        .ldp-loc-unk{background:var(--panel-2);color:var(--faint)}
-        .ldp-loc-car{background:rgba(176,42,55,.12);color:${NEG}}
-        .ldp-due{font-weight:800;font-size:12px;white-space:nowrap}
-        .ldp-due.late{color:${NEG}} .ldp-due.open{color:${WARN}} .ldp-due.up{color:var(--muted)} .ldp-due.none{color:var(--faint);font-weight:600}
-        .ldp-det{font-size:11.5px;color:var(--muted)}
-        .ldp-sub>td{background:var(--panel-2);font-size:12.5px;padding:12px 16px}
-        .ldp-sub b{font-weight:800}
-        .ldp-fnote{padding:10px 14px;font-size:11px;color:var(--faint);border-top:1px solid var(--line)}
-        .ldp-flagdot{display:inline-block;margin-left:5px;font-size:12px;font-weight:800;color:${WARN};cursor:help}
-        .ldp-flagdot.blk{color:${NEG}}
-        .ldp-issue{font-size:11.5px;font-weight:700;color:${WARN};margin-top:5px;max-width:230px;line-height:1.35}
-        .ldp-issue.blk{color:${NEG}}
-        .ldp-dt{font-size:13px;font-weight:700;color:var(--ink);white-space:normal;line-height:1.25}
-        /* CUSTODY — do we physically have it, and did we collect it? */
-        .ldp-pos{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
-        .ldp-pos-us{background:rgba(28,122,74,.14);color:${POS}}
-        .ldp-pos-car{background:rgba(47,111,208,.14);color:${BLUE}}
-        .ldp-pos-3p{background:rgba(160,106,0,.15);color:${WARN}}
-        .ldp-pos-cnr{background:rgba(47,111,208,.12);color:${BLUE}}
-        .ldp-pos-no{background:var(--panel-2);color:var(--muted)}
-        .ldp-pos-unk{background:rgba(176,42,55,.11);color:${NEG}}
-        /* ================= DESIGN V2 ("Calm finance", 2026-10-06) =================
-           Rides on the light theme only; dark keeps every rule above untouched. Sentence-case
-           labels at 12px+, Plex weights (600/700, never 800), white 10px cards, navy for
-           selected/primary, neutral hover. Status pills radius 6 in the brief's five tones.
-           CATEGORY COLOURS: amber used to mean BOTH "Straight" and "act soon", and green both
-           "Delivery" and "good" -- in v2 amber/green/red are status only, so a Straight job is
-           violet, a Regular one blue, and Pickup/Delivery are quiet neutral/navy tints. The
-           "today" marker is navy, not red: today is not bad news. */
-        body.rs-app.light.v2 .ldp-head h1{font-size:26px;font-weight:700;letter-spacing:-.35px}
-        body.rs-app.light.v2 .ldp-kpi{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px}
-        body.rs-app.light.v2 .ldp-kpi:hover{border-color:#CBD5E1}
-        body.rs-app.light.v2 .ldp-kpi.sel{border-color:#14301F;box-shadow:inset 0 0 0 1px #14301F;background:#F4FAE6}
-        body.rs-app.light.v2 .ldp-kpi b{font-size:24px;font-weight:600;letter-spacing:-.3px}
-        body.rs-app.light.v2 .ldp-kpi span{font-size:13px;font-weight:500;text-transform:none;letter-spacing:0;color:#475569;margin-top:4px}
-        body.rs-app.light.v2 .ldp-kpi small{font-size:12.5px;color:#64748B;margin-top:2px}
-        body.rs-app.light.v2 .ldp-kpi.neg b{color:#B91C1C} body.rs-app.light.v2 .ldp-kpi.warn b{color:#B45309} body.rs-app.light.v2 .ldp-kpi.pos b{color:#15803D}
-        /* filter bar */
-        body.rs-app.light.v2 .ldp-fbox{background:#FFFFFF;border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-srch input{font-size:13.5px}
-        body.rs-app.light.v2 .ldp-fl{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-fl select,body.rs-app.light.v2 .ldp-q,body.rs-app.light.v2 .ldp-sel{border-radius:8px;border-color:#CBD5E1}
-        body.rs-app.light.v2 .ldp-fl select:focus{border-color:#3F7D20}
-        body.rs-app.light.v2 .ldp-clr{font-size:12.5px;font-weight:600;color:#0F172A;background:#FFFFFF;border-color:#CBD5E1;border-radius:999px}
-        body.rs-app.light.v2 .ldp-clr:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A}
-        body.rs-app.light.v2 .ldp-count{font-size:13px;font-weight:500;color:#475569}
-        body.rs-app.light.v2 .ldp-count b{font-weight:600;color:#0F172A}
-        body.rs-app.light.v2 .ldp-msb{font-size:13px;font-weight:600;border-color:#E2E8F0;border-radius:999px;padding:7px 13px}
-        body.rs-app.light.v2 .ldp-msb:hover{border-color:#CBD5E1}
-        body.rs-app.light.v2 .ldp-msb.on{border-color:#C9E68A;background:#F4FAE6;box-shadow:none}
-        body.rs-app.light.v2 .ldp-msb .cap{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-msb .cnt{background:#14301F;font-size:12px;font-weight:600}
-        body.rs-app.light.v2 .ldp-mspop{border-color:#E2E8F0;border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14)}
-        body.rs-app.light.v2 .ldp-msopt{font-size:13px}
-        body.rs-app.light.v2 .ldp-msopt:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-msopt input{accent-color:#14301F}
-        body.rs-app.light.v2 .ldp-msopt .n{font-size:12px;color:#64748B}
-        body.rs-app.light.v2 .ldp-msact button{font-size:12.5px;font-weight:600;color:#2F6316}
-        body.rs-app.light.v2 .ldp-rst{font-size:12px;font-weight:600;color:#2F6316}
-        /* view switch + toggle groups: pills, selected = navy fill */
-        body.rs-app.light.v2 .ldp-vw,body.rs-app.light.v2 .ldp-seg{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;padding:3px;gap:2px}
-        body.rs-app.light.v2 .ldp-vw button,body.rs-app.light.v2 .ldp-seg button{border-right:0;border-radius:999px;font-weight:600;font-size:13px;color:#475569;padding:7px 16px}
-        body.rs-app.light.v2 .ldp-vw button:hover:not(.on),body.rs-app.light.v2 .ldp-seg button:hover:not(.on){background:#F8FAFC;color:#0F172A}
-        body.rs-app.light.v2 .ldp-vw button.on,body.rs-app.light.v2 .ldp-seg button.on{background:#14301F;color:#FFFFFF}
-        body.rs-app.light.v2 .ldp-vwbadge{font-size:11.5px;font-weight:600;background:#F4FAE6;color:#2F6316;border-radius:6px}
-        body.rs-app.light.v2 .ldp-tlchip{font-size:12.5px;font-weight:600;color:#0F172A;border-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-tlchip:hover{border-color:#CBD5E1;background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-tlchip.on{background:#14301F;border-color:#14301F;color:#FFFFFF}
-        body.rs-app.light.v2 .ldp-tlchip i{font-weight:600}
-        /* the board */
-        body.rs-app.light.v2 .ldp-card{border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-tbl th{background:#F8FAFC;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:#475569;border-bottom:1px solid #E2E8F0}
-        body.rs-app.light.v2 .ldp-tbl td{border-top-color:#F1F5F9}
-        body.rs-app.light.v2 .ldp-tbl tbody tr.ldp-row:hover,body.rs-app.light.v2 .ldp-tbl tbody tr.u-red:hover>td{background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-tbl tbody tr.ldp-row.on{background:#F4FAE6}
-        body.rs-app.light.v2 .ldp-tbl tbody tr.u-red>td{background:transparent}
-        body.rs-app.light.v2 .ldp-tbl tbody tr.u-red>td:first-child{box-shadow:inset 3px 0 0 #B91C1C}
-        body.rs-app.light.v2 .ldp-tbl tbody tr.u-amber>td:first-child{box-shadow:inset 3px 0 0 #B45309}
-        body.rs-app.light.v2 .ldp-cust{font-weight:600}
-        body.rs-app.light.v2 .ldp-sub,body.rs-app.light.v2 .ldp-tbl td .ldp-sub{font-size:12px;font-weight:400;color:#64748B}
-        body.rs-app.light.v2 .ldp-from{font-size:12.5px;font-weight:500}
-        body.rs-app.light.v2 .ldp-addr{font-weight:400;color:#475569}
-        body.rs-app.light.v2 .ldp-dt{font-weight:600}
-        body.rs-app.light.v2 .ldp-wlab{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-when{font-size:12px;font-weight:600;letter-spacing:0}
-        body.rs-app.light.v2 .ldp-when.ok{color:#64748B} body.rs-app.light.v2 .ldp-when.soon{color:#B45309} body.rs-app.light.v2 .ldp-when.late{color:#B91C1C}
-        body.rs-app.light.v2 .ldp-nodate{font-weight:500;color:#64748B}
-        body.rs-app.light.v2 .ldp-todo{font-size:13px;font-weight:500}
-        body.rs-app.light.v2 .ldp-todo.late{color:#B91C1C;font-weight:600} body.rs-app.light.v2 .ldp-todo.soon{color:#B45309;font-weight:600}
-        body.rs-app.light.v2 .ldp-todo.miss{color:#475569}
-        body.rs-app.light.v2 .ldp-due{font-weight:600}
-        body.rs-app.light.v2 .ldp-due.late{color:#B91C1C} body.rs-app.light.v2 .ldp-due.open{color:#B45309}
-        body.rs-app.light.v2 .ldp-flagdot{color:#B45309} body.rs-app.light.v2 .ldp-flagdot.blk{color:#B91C1C}
-        body.rs-app.light.v2 .ldp-issue{font-size:12px;font-weight:600;color:#B45309} body.rs-app.light.v2 .ldp-issue.blk{color:#B91C1C}
-        body.rs-app.light.v2 .ldp-fnote{font-size:12px;color:#64748B;border-top-color:#E2E8F0}
-        /* pills: radius 6, 12px 600, the brief's tones */
-        body.rs-app.light.v2 .ldp-ty,body.rs-app.light.v2 .ldp-stage,body.rs-app.light.v2 .ldp-pill,body.rs-app.light.v2 .ldp-pos,
-        body.rs-app.light.v2 .ldp-dstat,body.rs-app.light.v2 .ldp-tlcust,body.rs-app.light.v2 .ldp-rt,body.rs-app.light.v2 .ldp-stor,
-        body.rs-app.light.v2 .ldp-rsdate,body.rs-app.light.v2 .ldp-rchip{border-radius:6px;font-size:12px;font-weight:600;letter-spacing:0}
-        body.rs-app.light.v2 .ldp-ty.s{background:#F5F3FF;color:#6D28D9}
-        body.rs-app.light.v2 .ldp-ty.r{background:#F4FAE6;color:#2F6316}
-        body.rs-app.light.v2 .ldp-stage.p{background:#F1F5F9;color:#334155}
-        body.rs-app.light.v2 .ldp-stage.d{background:#E0E7FF;color:#14301F}
-        body.rs-app.light.v2 .ldp-stor,body.rs-app.light.v2 .ldp-rt.bh{background:#F5F3FF;color:#6D28D9}
-        body.rs-app.light.v2 .ldp-loc-store,body.rs-app.light.v2 .ldp-pos-us,body.rs-app.light.v2 .ldp-tlcust.us,body.rs-app.light.v2 .ldp-dstat.up,body.rs-app.light.v2 .ldp-rt.acc{background:#DCFCE7;color:#166534}
-        body.rs-app.light.v2 .ldp-loc-rent,body.rs-app.light.v2 .ldp-pos-car,body.rs-app.light.v2 .ldp-pos-cnr,body.rs-app.light.v2 .ldp-tlcust.car,
-        body.rs-app.light.v2 .ldp-tlcust.cnr,body.rs-app.light.v2 .ldp-rt.cand,body.rs-app.light.v2 .ldp-rsdate.conv{background:#F4FAE6;color:#2F6316}
-        /* a third party's storage / a truck is a PLACE, not a warning -- navy tint, not amber */
-        body.rs-app.light.v2 .ldp-loc-truck,body.rs-app.light.v2 .ldp-pos-3p,body.rs-app.light.v2 .ldp-tlcust.tp{background:#E0E7FF;color:#14301F}
-        body.rs-app.light.v2 .ldp-loc-car,body.rs-app.light.v2 .ldp-pos-unk,body.rs-app.light.v2 .ldp-tlcust.unk,body.rs-app.light.v2 .ldp-dstat.late,
-        body.rs-app.light.v2 .ldp-rt.over,body.rs-app.light.v2 .ldp-rsdate.soon{background:#FEE2E2;color:#991B1B}
-        body.rs-app.light.v2 .ldp-loc-unk,body.rs-app.light.v2 .ldp-pos-no,body.rs-app.light.v2 .ldp-tlcust.no,body.rs-app.light.v2 .ldp-dstat.open,
-        body.rs-app.light.v2 .ldp-dstat.none,body.rs-app.light.v2 .ldp-rchip,body.rs-app.light.v2 .ldp-rsdate{background:#F1F5F9;color:#475569}
-        /* calendar links */
-        body.rs-app.light.v2 .ldp-evlink{font-size:12.5px;font-weight:600;letter-spacing:0;color:#2F6316;background:#F4FAE6;border-color:#DCEFB0}
-        body.rs-app.light.v2 .ldp-evlink:hover{background:#F4FAE6;border-color:#C9E68A}
-        body.rs-app.light.v2 .ldp-evlink.dl{color:#14301F;background:#E0E7FF;border-color:#C7D2FE}
-        body.rs-app.light.v2 .ldp-evlink.dl:hover{background:#E0E7FF;border-color:#A5B4FC}
-        body.rs-app.light.v2 .ldp-callink{font-size:12px;font-weight:600;color:#2F6316;border-color:#CBD5E1}
-        body.rs-app.light.v2 .ldp-callink:hover{border-color:#C9E68A}
-        body.rs-app.light.v2 .ldp-nolink{font-size:12px;font-weight:500;color:#64748B}
-        /* drawer, route panel, confirm box: white headers, light shadow, no blur */
-        body.rs-app.light.v2 .ldp-scrim,body.rs-app.light.v2 .ldp-ask{background:rgba(15,23,42,.38);backdrop-filter:none}
-        body.rs-app.light.v2 .ldp-drawer,body.rs-app.light.v2 .ldp-rpanel{border-color:#E2E8F0;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
-        body.rs-app.light.v2 .ldp-dhd{background:#FFFFFF;border-bottom-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-dhd .x,body.rs-app.light.v2 .ldp-rphd .x{border-radius:8px;border-color:#CBD5E1;background:#FFFFFF}
-        body.rs-app.light.v2 .ldp-dhd .x:hover,body.rs-app.light.v2 .ldp-rphd .x:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-dnm{font-size:20px;font-weight:700;letter-spacing:-.3px}
-        body.rs-app.light.v2 .ldp-dmeta{font-size:12.5px;color:#64748B}
-        body.rs-app.light.v2 .ldp-sec{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:#475569}
-        body.rs-app.light.v2 .ldp-sec::after{background:#E2E8F0}
-        body.rs-app.light.v2 .ldp-kv{background:#F8FAFC;border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-kv dt{font-size:12.5px;font-weight:500;color:#475569;border-top-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-kv dd{font-weight:600;border-top-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-dnote{border-radius:8px;border-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-dissue{font-weight:600;color:#92400E;background:#FFFBEB;border-color:#FDE68A;border-radius:8px}
-        body.rs-app.light.v2 .ldp-dissue.blk{color:#991B1B;background:#FEF2F2;border-color:#FECACA}
-        body.rs-app.light.v2 .ldp-askbox{border-color:#E2E8F0;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16)}
-        body.rs-app.light.v2 .ldp-rphd b{font-weight:600}
-        body.rs-app.light.v2 .ldp-rphop{font-size:12px;font-weight:500;color:#64748B}
-        /* edit form */
-        body.rs-app.light.v2 .ldp-fgrp{background:#F8FAFC;border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-flbl,body.rs-app.light.v2 .ldp-fgrp label{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:#475569}
-        body.rs-app.light.v2 .ldp-fgrp input,body.rs-app.light.v2 .ldp-fgrp select,body.rs-app.light.v2 .ldp-cinp,body.rs-app.light.v2 .ldp-bhtx{border-color:#CBD5E1;border-radius:8px}
-        body.rs-app.light.v2 .ldp-fgrp input:focus,body.rs-app.light.v2 .ldp-fgrp select:focus{border-color:#3F7D20}
-        /* buttons: primary = navy fill, secondary = white + #CBD5E1 */
-        body.rs-app.light.v2 .ldp-savebtn,body.rs-app.light.v2 .ldp-raccept,body.rs-app.light.v2 .ldp-jmapbtn.pri,body.rs-app.light.v2 .ldp-dlvb{
-          background:#14301F;border-color:#14301F;color:#FFFFFF;border-radius:8px;font-weight:600}
-        body.rs-app.light.v2 .ldp-savebtn:hover,body.rs-app.light.v2 .ldp-raccept:hover:not(:disabled),body.rs-app.light.v2 .ldp-dlvb:hover{background:#1E40AF;border-color:#1E40AF}
-        body.rs-app.light.v2 .ldp-raccept.done{background:#DCFCE7;color:#166534}
-        body.rs-app.light.v2 .ldp-bhbtn{font-size:12.5px;font-weight:600;color:#0F172A;background:#FFFFFF;border-color:#CBD5E1;border-radius:8px}
-        body.rs-app.light.v2 .ldp-bhbtn:hover{border-color:#CBD5E1;background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-bhbtn.done{color:#15803D;border-color:#BBF7D0}
-        body.rs-app.light.v2 .ldp-bhbtn.ldp-dlvb{background:#14301F;border-color:#14301F;color:#FFFFFF}
-        body.rs-app.light.v2 .ldp-dlvon{font-weight:600;color:#15803D}
-        body.rs-app.light.v2 .ldp-bhwa{border-radius:8px;font-weight:600}
-        /* route cards */
-        body.rs-app.light.v2 .ldp-rcard{border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-rcard.tight{border-color:#FECACA}
-        body.rs-app.light.v2 .ldp-rttl b{font-weight:600;letter-spacing:-.2px}
-        body.rs-app.light.v2 .ldp-capbar{background:#F1F5F9}
-        body.rs-app.light.v2 .ldp-capfill{background:#15803D} body.rs-app.light.v2 .ldp-capfill.low{background:#B45309}
-        body.rs-app.light.v2 .ldp-capmeta{font-size:12px;color:#64748B}
-        body.rs-app.light.v2 .ldp-capmeta b{font-weight:600}
-        body.rs-app.light.v2 .ldp-rmet{background:#F8FAFC;border-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-rmet>div{border-right-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-rmet i{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-rmet b{font-size:13.5px;font-weight:600}
-        body.rs-app.light.v2 .ldp-rmet b.bad{color:#B91C1C}
-        body.rs-app.light.v2 .ldp-rstop .rn{font-size:11px;font-weight:600;border-color:#CBD5E1}
-        body.rs-app.light.v2 .ldp-rstop.base .rn{font-size:10px}
-        body.rs-app.light.v2 .ldp-rstop.base{font-size:12.5px;color:#64748B}
-        body.rs-app.light.v2 .ldp-rsname{font-weight:600}
-        body.rs-app.light.v2 .ldp-rsmeta{font-size:12px;color:#64748B}
-        body.rs-app.light.v2 .ldp-rsmeta .cf{font-weight:600}
-        body.rs-app.light.v2 .ldp-rpath .hop{font-size:12px;font-weight:500;letter-spacing:0;color:#475569;background:#F1F5F9}
-        body.rs-app.light.v2 .ldp-rpath .hop.base{color:#0F172A;font-weight:600}
-        body.rs-app.light.v2 .ldp-rpath .due{font-size:12px;font-weight:600;color:#64748B}
-        body.rs-app.light.v2 .ldp-rpath .due.soon{color:#B45309}
-        body.rs-app.light.v2 .ldp-btbl th{font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:#475569}
-        /* maps: stops in accent, base navy, carrier/return label violet (as the line it labels) */
-        body.rs-app.light.v2 .ldp-jmap{border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-ovmap.full{border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.2)}
-        body.rs-app.light.v2 .ldp-mstop{background:#3F7D20;font-family:"IBM Plex Sans",sans-serif;font-weight:600;box-shadow:0 1px 3px rgba(15,23,42,.3)}
-        body.rs-app.light.v2 .ldp-mstop.base{background:#14301F}
-        body.rs-app.light.v2 .ldp-mifl{background:#7C3AED;border-radius:6px;font-weight:600;font-size:12px;box-shadow:0 1px 3px rgba(15,23,42,.25)}
-        body.rs-app.light.v2 .ldp-ovleg{font-size:12.5px;color:#475569}
-        body.rs-app.light.v2 .ldp-ovk{font-weight:500}
-        body.rs-app.light.v2 .ldp-dmapnote{font-size:12px;font-weight:600;color:#B45309}
-        /* timeline */
-        body.rs-app.light.v2 .ldp-tlnav{border-color:#CBD5E1;border-radius:8px}
-        body.rs-app.light.v2 .ldp-tlnav button{font-weight:600;border-right-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-tlnav button:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-tlrange{font-size:18px;font-weight:700}
-        body.rs-app.light.v2 .ldp-tlrange small{font-size:12.5px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-tloff{font-size:12px;font-weight:600;color:#92400E;background:#FFFBEB;border-color:#FDE68A;border-radius:6px}
-        body.rs-app.light.v2 .ldp-tllg{font-size:12.5px;color:#475569}
-        body.rs-app.light.v2 .lg-pk{border-color:#64748B}
-        body.rs-app.light.v2 .lg-hold{background:#94A3B8}
-        body.rs-app.light.v2 .lg-s::after{background:#7C3AED}
-        body.rs-app.light.v2 .lg-r{background:rgba(63,125,32,.08);border-color:rgba(63,125,32,.3);border-left-color:#3F7D20}
-        body.rs-app.light.v2 .ldp-tlgrid{border-color:#E2E8F0;border-radius:10px}
-        body.rs-app.light.v2 .ldp-tlhead{background:#F8FAFC;border-bottom-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-tlhlab,body.rs-app.light.v2 .ldp-tllab{border-right-color:#E2E8F0}
-        body.rs-app.light.v2 .ldp-tlmon{font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:#475569}
-        body.rs-app.light.v2 .ldp-tlday{font-size:12px;font-weight:500;color:#64748B}
-        body.rs-app.light.v2 .ldp-tltodaylab{font-size:11px;font-weight:600;letter-spacing:.02em;background:#14301F}
-        body.rs-app.light.v2 .ldp-tltoday{background:#14301F;opacity:.45}
-        body.rs-app.light.v2 .ldp-tlband{background:rgba(20,48,31,.05)}
-        body.rs-app.light.v2 .ldp-tlrow{border-bottom-color:#F1F5F9}
-        body.rs-app.light.v2 .ldp-tlrow:hover{background:#F8FAFC}
-        body.rs-app.light.v2 .ldp-tlrow.on{background:#F4FAE6}
-        body.rs-app.light.v2 .ldp-tlrow.u-red{box-shadow:inset 3px 0 0 #B91C1C}
-        body.rs-app.light.v2 .ldp-tlrow.u-amber{box-shadow:inset 3px 0 0 #B45309}
-        body.rs-app.light.v2 .ldp-tllabtx b{font-weight:600;letter-spacing:-.1px}
-        body.rs-app.light.v2 .ldp-tllabtx span{font-size:12px;font-weight:400;color:#64748B}
-        body.rs-app.light.v2 .ldp-tltype{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;color:#64748B}
-        body.rs-app.light.v2 .ldp-tlmk.s::before{background:#7C3AED}
-        body.rs-app.light.v2 .ldp-tlmk.r::before{background:rgba(63,125,32,.08);border-color:rgba(63,125,32,.3);border-left-color:#3F7D20}
-        body.rs-app.light.v2 .ldp-tlpk{border-color:#64748B}
-        body.rs-app.light.v2 .ldp-tltrip{background:#CBD5E1}
-        body.rs-app.light.v2 .ldp-tltrip.u-amber{background:rgba(180,83,9,.45)} body.rs-app.light.v2 .ldp-tltrip.u-red{background:rgba(185,28,28,.45)}
-        body.rs-app.light.v2 .ldp-tldep{background:#64748B}
-        body.rs-app.light.v2 .ldp-tldep.u-amber{background:#B45309} body.rs-app.light.v2 .ldp-tldep.u-red{background:#B91C1C}
-        body.rs-app.light.v2 .ldp-tldead .chev{font-weight:600;color:#64748B}
-        body.rs-app.light.v2 .ldp-tldead .dot{background:#7C3AED}
-        body.rs-app.light.v2 .ldp-tldead .dt{font-weight:600;color:#6D28D9}
-        body.rs-app.light.v2 .ldp-tldead.u-red .dot{background:#B91C1C} body.rs-app.light.v2 .ldp-tldead.u-red .dt{color:#B91C1C}
-        body.rs-app.light.v2 .ldp-tlwin{border-radius:6px;background:rgba(63,125,32,.07);border-color:rgba(63,125,32,.28);border-left-color:#3F7D20}
-        body.rs-app.light.v2 .ldp-tlwin .dt{font-weight:600;color:#2F6316}
-        body.rs-app.light.v2 .ldp-tlwin.u-amber{background:#FFFBEB;border-color:#FDE68A;border-left-color:#B45309}
-        body.rs-app.light.v2 .ldp-tlwin.u-amber .dt{color:#92400E}
-        body.rs-app.light.v2 .ldp-tlwin.u-red{background:#FEF2F2;border-color:#FECACA;border-left-color:#B91C1C}
-        body.rs-app.light.v2 .ldp-tlwin.u-red .dt{color:#991B1B}
-        body.rs-app.light.v2 .ldp-tlhold.us{background:rgba(21,128,61,.45)}
-        body.rs-app.light.v2 .ldp-tlhold.car,body.rs-app.light.v2 .ldp-tlhold.cnr{background:rgba(63,125,32,.45)}
-        body.rs-app.light.v2 .ldp-tlhold.tp{background:rgba(20,48,31,.4)}
-        body.rs-app.light.v2 .ldp-tlhold.unk{background:rgba(185,28,28,.4)}
-        body.rs-app.light.v2 .ldp-tlhold.no{background:#CBD5E1}
-        body.rs-app.light.v2 .ldp-tlheld{font-size:11px;font-weight:600;color:#64748B}
+        .ldp-udlv{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px dashed var(--line)}
+        .ldp-bhrow{display:flex;gap:9px;align-items:center;margin-top:8px}
+        .ldp-bhwa{display:inline-block;text-decoration:none}
+        /* the Slack custody trail (drawer) and the declined-routes list share this row */
+        .ldp-cst{display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.5}
+        .ldp-cst:last-child{border-bottom:0}
+        .ldp-cst-d{flex:none;min-width:64px;color:var(--faint);white-space:nowrap}
+        .ldp-cst-l{margin-left:auto;white-space:nowrap}
+        .ldp-cst-l a{margin-left:7px;color:var(--blue);text-decoration:none}
+        .ldp-cst-l a:hover{text-decoration:underline}
+        .ldp-dec-l{margin-left:14px;white-space:nowrap}
+        .ldp-rphd{display:flex;align-items:flex-start;gap:12px;padding:16px 19px 12px;border-bottom:1px solid var(--line)}
+        .ldp-rphd b{font-size:16px;font-weight:600}
+        .ldp-rphd .x{flex:0 0 auto;margin-left:auto}
+        .ldp-rpmap{flex:1;min-height:200px;border:0;border-radius:0}
+        .ldp-rpstops{flex:0 0 auto;max-height:32vh;overflow-y:auto;padding:8px 19px 14px;scrollbar-width:thin}
+        .ldp-rphop{padding:2px 0 2px 31px;font-size:12px;color:var(--faint)}
+        /* the portal's own confirm (a native confirm() can be suppressed silently) */
+        .ldp-ask{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:var(--scrim)}
+        .ldp-ask.show{display:flex}
+        .ldp-askbox{width:min(440px,92vw);padding:20px 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+          box-shadow:0 12px 32px rgba(15,23,42,.16)}
+        .ldp-asktxt{font-size:14px;line-height:1.55}
+        .ldp-askbtns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+
+        /* ---- Routes. A route is a decision, and two things decide it: how full the truck ends up
+           (the fill bar) and when each stop has to land (the path + "first due") ---- */
+        .ldp-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(390px,1fr));gap:14px}
+        .ldp-rcard{display:flex;flex-direction:column;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+        .ldp-rtop{padding:13px 15px 12px}
+        .ldp-rttl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .ldp-rttl b{font-size:16px;font-weight:600}
+        .ldp-cap{margin-top:10px}
+        .ldp-capbar{height:7px;overflow:hidden;border-radius:999px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line)}
+        .ldp-capfill{height:100%;border-radius:999px;background:var(--pos);transition:width .3s ease}
+        .ldp-capfill.low{background:var(--warn)}
+        .ldp-capmeta{display:flex;justify-content:space-between;gap:8px;margin-top:5px;font-size:12px;color:var(--faint);
+          font-variant-numeric:tabular-nums}
+        .ldp-capmeta b{font-weight:600;color:var(--ink)}
+        .ldp-rmet{display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel-2);border-top:1px solid var(--line);
+          border-bottom:1px solid var(--line)}
+        .ldp-rmet>div{padding:7px 4px;text-align:center;border-right:1px solid var(--line)}
+        .ldp-rmet>div:last-child{border-right:0}
+        .ldp-rmet i{display:block;font-style:normal;font-size:12px;color:var(--faint)}
+        .ldp-rmet b{display:block;margin-top:2px;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+        .ldp-rmet b.bad{color:var(--neg)}
+        /* the route's shape in one line: base, the states it touches, base again */
+        .ldp-rpath{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:10px 15px 12px}
+        .ldp-rpath .hop{position:relative;padding:3px 9px;border-radius:999px;background:var(--panel-2);font-size:12px;color:var(--muted)}
+        .ldp-rpath .hop+.hop::before{content:"";position:absolute;left:-5px;top:50%;width:5px;height:1px;background:var(--line)}
+        .ldp-rpath .hop.base{font-weight:600;color:var(--ink)}
+        .ldp-rpath .due{margin-left:auto;font-size:12px;font-weight:600;color:var(--faint)}
+        .ldp-rpath .due.soon{color:var(--warn)}
+        .ldp-rnote{padding:0 15px 10px;font-size:13px;color:var(--muted)}
+        .ldp-ract{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto;padding:0 15px 13px}
+        /* a stop list: base -> stops -> base. The rail only belongs in the route panel's list. */
+        .ldp-rstop{position:relative;display:flex;gap:11px;padding:0 0 11px;font-size:13px}
+        .ldp-rstop:last-child{padding-bottom:2px}
+        .ldp-rpstops .ldp-rstop::before{content:"";position:absolute;left:9px;top:19px;bottom:-1px;width:2px;background:var(--line-2)}
+        .ldp-rpstops .ldp-rstop:last-child::before{display:none}
+        .ldp-rstop .rn{position:relative;z-index:1;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+          width:20px;height:20px;border-radius:50%;background:var(--panel);border:1.5px solid var(--line-2);font-size:12px;font-weight:600}
+
+        /* ---- maps (Leaflet, vendored) ---- */
+        .ldp-jmap{position:relative;z-index:0;isolation:isolate;height:290px;overflow:hidden;background:var(--panel-2);
+          border:1px solid var(--line);border-radius:10px}
+        .ldp-jmap.leaflet-container{font-family:inherit}
+        .ldp-dmap{height:240px;margin-top:2px}
+        .ldp-dmapnote{margin-top:6px;font-size:12px;font-weight:600;color:var(--warn)}
+        .ldp-ovmap{height:max(460px,calc(100vh - var(--pg-chrome, 350px)))}
+        .ldp-ovmap.full{position:fixed;inset:10px;z-index:65;height:auto;box-shadow:0 12px 32px rgba(15,23,42,.2)}
+        .ldp-ovleg{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:2px 2px 10px;font-size:13px;color:var(--muted)}
+        .ldp-ovk{display:inline-flex;align-items:center;gap:6px}
+        .ldp-ovdot{display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line-2)}
+        .ldp-ovln{display:inline-block;width:22px;height:0;border-top:3px solid var(--faint);border-radius:2px}
+        .ldp-ovln.dash{border-top-style:dashed}
+        .ldp-ovln.thin{border-top:2px dashed var(--line-2)}
+        .ldp-ovnote{margin-left:auto}
+        .ldp-mstop{display:block;width:20px;height:20px;border-radius:50%;background:var(--brand);color:var(--brand-ink);
+          font-size:12px;font-weight:600;line-height:20px;text-align:center;box-shadow:0 1px 3px rgba(15,23,42,.3)}
+        .ldp-mstop.base{background:var(--brand-d)}
+        .ldp-mifl{padding:2px 8px;border:0;border-radius:6px;background:var(--purple);color:var(--panel);font-size:12px;font-weight:600;
+          box-shadow:0 1px 3px rgba(15,23,42,.25)}
+        .ldp-mifl::before{display:none}
+
+        /* ---- Timeline, modelled on his own longdistance.html planner. A STRAIGHT job is
+           depart -> trip -> a committed-date diamond; a REGULAR job is a window band -- two
+           planning shapes, so they must not look alike. Pickup is a hollow circle, today a tinted
+           column, and a deadline outside the range collapses to an edge chevron rather than
+           vanishing. ---- */
+        .ldp-tlbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 12px}
+        .ldp-tlnav{display:inline-flex;gap:6px}
+        .ldp-tlrange{font-size:16px;font-weight:600;line-height:1.15}
+        .ldp-tlrange small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:var(--faint)}
+        .ldp-tllg{display:flex;flex-wrap:wrap;align-items:center;gap:15px;margin-left:auto;font-size:12px;color:var(--muted)}
+        .ldp-tllg span{display:flex;align-items:center;gap:6px}
+        .lg-pk{flex:0 0 auto;width:11px;height:11px;border-radius:50%;border:2px solid var(--faint);background:var(--panel)}
+        .lg-hold{flex:0 0 auto;width:22px;height:4px;border-radius:2px;background:color-mix(in srgb,var(--faint) 60%,transparent)}
+        .lg-s{position:relative;flex:0 0 auto;width:22px;height:3px;border-radius:2px;background:var(--line-2)}
+        .lg-s::after{content:"";position:absolute;right:-2px;top:50%;width:10px;height:10px;border-radius:2px;background:var(--purple);
+          transform:translateY(-50%) rotate(45deg)}
+        .lg-r{flex:0 0 auto;width:24px;height:14px;border-radius:4px;background:var(--blue-bg);
+          border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-left:3px solid var(--blue)}
+        .ldp-tlgrid{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+        .ldp-tlhead{display:flex;height:50px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+        /* 262px, matching .ldp-tllab below. At 236 the header's calendar track started 26px left of
+           the rows', and every marker in BOTH is positioned as a percentage of its own track -- so
+           the ruler labelled the bars out of register and "today" landed on the wrong day. */
+        .ldp-tlhlab{width:262px;flex:0 0 262px;border-right:1px solid var(--line)}
+        .ldp-tlhcal{position:relative;flex:1;min-width:0}
+        .ldp-tlmon{position:absolute;top:7px;padding-left:6px;font-size:13px;font-weight:600;color:var(--muted)}
+        .ldp-tlday{position:absolute;bottom:6px;transform:translateX(-50%);font-size:12px;color:var(--faint)}
+        .ldp-tltodaylab{position:absolute;top:0;z-index:3;transform:translateX(-50%);padding:2px 7px;border-radius:0 0 6px 6px;
+          background:var(--brand-d);color:var(--brand-ink);font-size:12px;font-weight:600}
+        /* stable gutter so the rows keep the header's width whether or not they scroll --
+           otherwise the scrollbar re-introduces the same misregistration */
+        .ldp-tlbody{max-height:calc(100vh - var(--pg-chrome, 360px));overflow-y:auto;scrollbar-gutter:stable}
+        .ldp-tlrows{position:relative}
+        /* one rule per week, drawn ONCE behind every row on the calendar track (it starts after the
+           262px label column); the bars sit above it */
+        .ldp-tlweeks{position:absolute;top:0;bottom:0;left:262px;right:0;pointer-events:none}
+        .ldp-tlweeks i{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+        .ldp-tlrow{display:flex;min-height:46px;border-bottom:1px solid var(--line);cursor:pointer}
+        .ldp-tlrow:last-child{border-bottom:0}
+        .ldp-tlrow:hover{background:var(--panel-2)}
+        .ldp-tlrow.on{background:var(--brand-glow)}
+        .ldp-tllab{display:flex;align-items:center;gap:9px;width:262px;flex:0 0 262px;padding:0 12px;border-right:1px solid var(--line)}
+        .ldp-tlmk{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:20px}
+        .ldp-tlmk.s::before{content:"";width:12px;height:12px;border-radius:2px;background:var(--purple);transform:rotate(45deg)}
+        .ldp-tlmk.r::before{content:"";width:18px;height:12px;border-radius:3px;background:var(--blue-bg);
+          border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);border-left:3px solid var(--blue)}
+        .ldp-tllabtx{flex:1;min-width:0}
+        .ldp-tllabtx b{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:600;line-height:1.25}
+        .ldp-tlmeta{display:flex;align-items:center;gap:6px;margin-top:2px;overflow:hidden;white-space:nowrap;font-size:12px;
+          color:var(--faint);font-variant-numeric:tabular-nums}
+        .ldp-tlmeta .rs-pill{flex:0 0 auto;padding:0 7px;line-height:18px}
+        .ldp-tlcal{position:relative;flex:1;min-width:0;overflow:hidden}
+        .ldp-tlcal.grabbing{cursor:grabbing}
+        .ldp-tlband{position:absolute;top:0;bottom:0;z-index:0;background:color-mix(in srgb,var(--brand-d) 5%,transparent)}
+        .ldp-tltoday{position:absolute;top:0;bottom:0;z-index:1;width:2px;background:var(--brand-d);opacity:.45}
+        .ldp-tlpk{position:absolute;top:50%;z-index:5;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);
+          background:var(--panel);border:2px solid var(--faint)}
+        .ldp-tltrip{position:absolute;top:50%;z-index:2;height:3px;border-radius:2px;transform:translateY(-50%);background:var(--line-2)}
+        .ldp-tltrip.u-amber{background:color-mix(in srgb,var(--warn) 45%,transparent)}
+        .ldp-tltrip.u-red{background:color-mix(in srgb,var(--neg) 45%,transparent)}
+        .ldp-tldep{position:absolute;top:50%;z-index:3;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);
+          background:var(--faint);border:2px solid var(--panel)}
+        .ldp-tldep.u-amber{background:var(--warn)}
+        .ldp-tldep.u-red{background:var(--neg)}
+        .ldp-tldead{position:absolute;top:50%;z-index:4;display:flex;align-items:center;gap:7px;white-space:nowrap;transform:translate(-8px,-50%)}
+        .ldp-tldead.lft{transform:translate(calc(-100% + 8px),-50%)}
+        .ldp-tldead.off{transform:translateY(-50%);gap:3px}
+        .ldp-tldead .chev{font-size:14px;font-weight:600;color:var(--faint)}
+        .ldp-tldead .dot{flex:0 0 auto;width:14px;height:14px;border-radius:3px;background:var(--purple);transform:rotate(45deg);
+          box-shadow:0 0 0 3px var(--panel)}
+        .ldp-tldead .dt{font-size:13px;font-weight:600;color:var(--purple)}
+        .ldp-tldead.u-red .dot{background:var(--neg)}
+        .ldp-tldead.u-red .dt{color:var(--neg)}
+        .ldp-tlwin{position:absolute;top:50%;z-index:2;display:flex;align-items:center;height:28px;padding:0 10px;overflow:hidden;
+          transform:translateY(-50%);border-radius:6px;background:var(--blue-bg);border:1px solid color-mix(in srgb,var(--blue) 28%,transparent);
+          border-left:3px solid var(--blue)}
+        .ldp-tlwin .dt{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;font-weight:600;color:var(--blue)}
+        .ldp-tlwin.u-amber{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 35%,transparent);border-left-color:var(--warn)}
+        .ldp-tlwin.u-amber .dt{color:var(--warn)}
+        .ldp-tlwin.u-red{background:var(--neg-bg);border-color:color-mix(in srgb,var(--neg) 30%,transparent);border-left-color:var(--neg)}
+        .ldp-tlwin.u-red .dt{color:var(--neg)}
+        /* how long the goods have been in our hands: pickup -> today, in the custody colour */
+        .ldp-tlhold{position:absolute;top:72%;z-index:1;height:4px;border-radius:2px;opacity:.8}
+        .ldp-tlhold.us{background:color-mix(in srgb,var(--pos) 45%,transparent)}
+        .ldp-tlhold.car,.ldp-tlhold.cnr{background:color-mix(in srgb,var(--blue) 45%,transparent)}
+        .ldp-tlhold.tp{background:color-mix(in srgb,var(--brand-d) 40%,transparent)}
+        .ldp-tlhold.unk{background:color-mix(in srgb,var(--neg) 40%,transparent)}
+        .ldp-tlhold.no{background:var(--line-2)}
+        .ldp-tlheld{position:absolute;top:72%;z-index:2;transform:translate(6px,-45%);font-size:12px;font-weight:600;color:var(--faint);
+          white-space:nowrap}
+        /* a status pill that is a PLACE, not a verdict (rented / third-party storage, a truck):
+           the kit has no such tone, so it is the one the page adds */
+        .rs-pill.ldp-place{background:color-mix(in srgb,var(--brand-d) 10%,transparent);color:var(--brand-d)}
       `;
       document.head.appendChild(st);
     }
 
-    host.innerHTML = `
-      <div class="ldp-head"><div>
-        <h1>Long Distance Planning</h1>
-      </div></div>
-      <div id="ldpBody"><div class="rs-loading">Loading shipments…</div></div>
-      <div class="ldp-scrim" id="ldpScrim"></div>
+    // HOW IT'S COUNTED -- the explanations that used to sit on the page itself (the board's
+    // footnote, the When header's tooltip, the tile captions, the Routes engine note), kept
+    // word for word. Static text, so it is safe to open before the data has loaded.
+    function ldpHowHtml() {
+      return "<h3>How the board is sorted</h3>"
+        + "<p>Click a row for the full details. <b>Sorted by when we must act</b> — soonest deadline first, "
+        + "whatever the pickup date. <b>Straight</b> jobs show a committed delivery date (the office records it "
+        + "in the FAD field); <b>Regular</b> jobs show the FAD and its window. Data refreshes with the pipeline (hourly).</p>"
+        + "<h3>When</h3>"
+        + "<p>Deliveries show the FAD and the end of its window; pickups show the committed collection date. "
+        + "A depart-by line appears only when the trip runs longer than a day.</p>"
+        + "<h3>What to do</h3>"
+        + "<p>The single next action for this shipment. A red dot marks <b>Act now</b>, an amber dot <b>Act soon</b>. "
+        + "A ⚠ line under the action is a sheet correction the row is flagged for (red when it blocks planning).</p>"
+        + "<h3>The tiles</h3>"
+        + "<p>The tiles are filters, not decoration: click one to see exactly those rows, click it again to release. "
+        + "The counts always describe the whole board.</p>"
+        + "<ul><li><b>Act now</b>: overdue or departure passed</li>"
+        + "<li><b>Act soon</b>: departure or window is close</li>"
+        + "<li><b>Missing data</b>: FAD / timeframe not set</li>"
+        + "<li><b>Missing Closing</b>: picked up, but no closing sheet records where it is</li>"
+        + "<li><b>Flagged</b>: needs a sheet correction</li>"
+        + "<li><b>Carrier Watch</b>: with carriers — confirm deliveries</li></ul>"
+        + "<p><b>Delivered</b>, beside the shipment count: confirmed done — tap to review or undo. A job ticked "
+        + "delivered in its details leaves the working board and waits there, where the tick can be undone.</p>"
+        + "<h3>Routes</h3>"
+        + "<p>Engine rules (management’s numbers): ≤1,500 CF combined · every stop pair ≤100 mi · ≤180 min detour · "
+        + "windows within 5 days · ≤2.5 extra mi per CF · Straights first · ~11 driving h/day. Accepting converts "
+        + "Regulars to Straight and locks the jobs out of future suggestions.</p>"
+        + "<h3>Map</h3>"
+        + "<p>Shipments at a carrier are hidden from the map (Carrier Watch, not planning). Lines run from the NJ "
+        + "base: solid for Straight, dashed for Regular, thin dashed where the collection is still ahead.</p>";
+    }
+
+    host.innerHTML = RSC.pageHeadHtml({
+        title: "Long Distance Planning", key: "ld-planning",
+        sub: "Every undelivered long-distance shipment: where it is, when it has to move, and what to do next.",
+        actions: [{ html: '<button type="button" class="rs-btn" id="ldpCsv" title="Export the current board to CSV">Export CSV</button>' }],
+        how: ldpHowHtml })
+      + '<div id="ldpBody">' + RSC.loadingHtml("Long Distance Planning", "Loading shipments…") + "</div>"
+      + `<div class="ldp-scrim" id="ldpScrim"></div>
       <aside class="ldp-drawer" id="ldpDrawer" aria-label="Shipment detail"></aside>
-      <style>
-        .ldp-cst{display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.5}
-        .ldp-cst:last-child{border-bottom:0}
-        .ldp-cst-d{color:var(--faint);white-space:nowrap;flex:none;min-width:64px}
-        .ldp-cst-l{margin-left:auto;white-space:nowrap}
-        .ldp-dec-l{margin-left:14px;white-space:nowrap}
-        .ldp-cst-l a{color:var(--blue);text-decoration:none;margin-left:7px}
-        .ldp-cst-l a:last-child{color:var(--faint)}
-      </style>
       <aside class="ldp-rpanel" id="ldpRPanel" aria-label="Route map"></aside>
       <div class="ldp-ask" id="ldpAsk" role="alertdialog">
         <div class="ldp-askbox">
           <div class="ldp-asktxt" id="ldpAskTxt"></div>
           <div class="ldp-askbtns">
-            <button class="ldp-bhbtn" id="ldpAskNo">Cancel</button>
-            <button class="ldp-raccept" id="ldpAskYes" style="margin-top:0">Confirm</button>
+            <button type="button" class="rs-btn" id="ldpAskNo">Cancel</button>
+            <button type="button" class="rs-btn pri" id="ldpAskYes">Confirm</button>
           </div>
         </div>
       </div>`;
@@ -898,14 +557,14 @@ registerPage({
     if (v === "Over truck (carrier)")
       return "";   // OVER TRUCK chip removed (Tornike 2026-07-29); Route Status keeps the value
     if (v === "Accepted Route")
-      return ' <span class="ldp-rt acc" title="Locked into an accepted route">ROUTED</span>';
+      return ' <span class="rs-pill ok" title="Locked into an accepted route">Routed</span>';
     if (v === "Route Candidate")
       return "";   // CANDIDATE chip removed (Tornike 2026-07-29) — Route Status still filters
     return "";
   }
   function backhaulChip(r) {
     return isBackhaul(r)
-      ? ' <span class="ldp-rt bh" title="Straight delivery outside NJ/PA/NY/DE/CT/MA \u2014 the truck returns empty. Open the job for the outreach draft.">BACKHAUL</span>'
+      ? ' <span class="ldp-rt bh" title="Straight delivery outside NJ/PA/NY/DE/CT/MA \u2014 the truck returns empty. Open the job for the outreach draft.">Backhaul</span>'
       : "";
   }
   function stageChip(r) {
@@ -993,33 +652,21 @@ registerPage({
     var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     function daysBetween(aIso, bIso) { return Math.round((new Date(bIso + "T12:00:00") - new Date(aIso + "T12:00:00")) / 864e5); }
 
+    // the location bucket as a kit status pill (drawer header); same buckets, same tones as before
     function locPill(r) {
       var l = String(r["Location"] || "Unknown");
-      var cls = l === "At Carrier" ? "ldp-loc-car"
-        : /Our Storage|Other Storage|^Storage$/.test(l) ? "ldp-loc-store"
-        : l === "Rented Storage" ? "ldp-loc-rent"
-        : /Truck|Trailer/.test(l) ? "ldp-loc-truck"
-        : l === "Left Storage" ? "ldp-loc-truck" : "ldp-loc-unk";
-      return '<span class="ldp-pill ' + cls + '">' + esc(l) + "</span>";
-    }
-    function dueBadge(r) {
-      var end = r["Window End"] ? String(r["Window End"]).slice(0, 10) : null;
-      var fad = r["FAD"] ? String(r["FAD"]).slice(0, 10) : null;
-      if (!end && !fad) return '<span class="ldp-due none">no window</span>';
-      if (end) {
-        var d = daysBetween(todayIso, end);
-        if (d < 0) return '<span class="ldp-due late">' + (-d) + "d late</span>";
-        if (fad && todayIso >= fad) return '<span class="ldp-due open">' + d + "d left</span>";
-        if (!fad) return '<span class="ldp-due open">' + d + "d left</span>";
-      }
-      if (fad && todayIso < fad) return '<span class="ldp-due up">opens in ' + daysBetween(todayIso, fad) + "d</span>";
-      return '<span class="ldp-due open">window open</span>';
+      var tone = l === "At Carrier" ? "bad"
+        : /Our Storage|Other Storage|^Storage$/.test(l) ? "ok"
+        : l === "Rented Storage" ? "info"
+        : /Truck|Trailer/.test(l) ? "ldp-place"
+        : l === "Left Storage" ? "ldp-place" : "mute";
+      return '<span class="rs-pill ' + tone + '">' + esc(l) + "</span>";
     }
     function windowTxt(r) {
       var fad = r["FAD"], end = r["Window End"];
       if (!fad && !end) return "—";
       if (fad && end && String(fad) === String(end)) return fmtD(fad);
-      return (fad ? fmtD(fad) : "…") + " → " + (end ? fmtD(end) : "open");
+      return (fad ? fmtD(fad) : "…") + " – " + (end ? fmtD(end) : "open");
     }
     // STRAIGHT HAS NO FAD (Tornike 2026-07-27) — the office stores the committed DELIVERY
     // DATE in the FAD field, and the calendar does the same. Same value, different meaning,
@@ -1048,19 +695,8 @@ registerPage({
     // WHERE IT IS — custody pill with the concrete place under it. Custody and Location
     // were two columns saying overlapping things ("With carrier" | "At Carrier");
     // one column, two levels of detail.
-    // DEPART — when the truck must leave. The board's second actionable date; it gets the
-    // same countdown treatment as Deliver from instead of a bare date.
-    function departCell(r) {
-      var d = r["Depart By"];
-      if (!d) return '<span class="ldp-nodate">\u2014</span>';
-      var n = dayDiff(d), sub, cls;
-      if (n > 0) { sub = "in " + n + "d"; cls = n <= 2 ? "soon" : "ok"; }
-      else if (n === 0) { sub = "TODAY"; cls = "soon"; }
-      else { sub = "passed " + Math.abs(n) + "d ago"; cls = "late"; }
-      var tt = tripTxt(r);
-      return '<b class="ldp-dt">' + fmtD(d) + "</b>"
-        + '<div class="ldp-when ' + cls + '">' + sub + (tt ? " · " + tt : "") + "</div>";
-    }
+    // (ZTZ-80: the unused departCell / beginCell / windowCell / dueBadge renderers went with
+    // the classes only they drew; no board column called them.)
     function whereCell(r) {
       var det = String(r["Location Detail"] || "");
       var loc = String(r["Location"] || "");
@@ -1092,17 +728,17 @@ registerPage({
         var pn = dayDiff(pd);
         return '<div class="ldp-wlab">Collect</div><b class="ldp-dt">' + fmtD(pd) + "</b>"
           + '<div class="ldp-when ' + (pn < 0 ? "late" : pn <= 2 ? "soon" : "ok") + '">'
-          + (pn > 0 ? "in " + pn + "d" : pn === 0 ? "TODAY" : Math.abs(pn) + "d overdue")
+          + (pn > 0 ? "in " + pn + "d" : pn === 0 ? "today" : Math.abs(pn) + "d overdue")
           + "</div>" + depSub;
       }
       var st = isStraight(r), fad = r["FAD"], end = r["Window End"];
       if (!fad && !end) return '<span class="ldp-nodate">no date set</span>';
       var head = (st || !end || String(end) === String(fad))
         ? fmtD(fad || end)
-        : fmtDShort(fad) + ' <span class="ldp-arrow">\u2192</span> ' + fmtDShort(end);
+        : fmtDShort(fad) + ' <span class="ldp-arrow">\u2013</span> ' + fmtDShort(end);
       var dl = st ? fad : (end || fad), n2 = dayDiff(dl), sub, cls;
       if (n2 > 0) { sub = "in " + n2 + "d"; cls = n2 <= 3 ? "soon" : "ok"; }
-      else if (n2 === 0) { sub = "TODAY"; cls = "soon"; }
+      else if (n2 === 0) { sub = "today"; cls = "soon"; }
       else { sub = Math.abs(n2) + "d late"; cls = "late"; }
       return '<div class="ldp-wlab">Deliver</div><b class="ldp-dt">' + head + "</b>"
         + '<div class="ldp-when ' + cls + '">' + sub + "</div>" + depSub;
@@ -1110,54 +746,23 @@ registerPage({
     // WHAT TO DO — the mart's own imperative, which was buried in the drawer.
     function carrierChip(r) {
       return needCarrierZip(r)
-        ? ' <span class="ldp-rt over" title="A carrier is assigned but its location is unknown — open the job and enter the carrier zip">CARRIER ZIP?</span>'
+        ? ' <span class="rs-pill bad" title="A carrier is assigned but its location is unknown — open the job and enter the carrier zip">Carrier zip?</span>'
         : "";
     }
+    // ONE urgency signal per row (ZTZ-80): the action text stays ink, and a dot in front of it
+    // says Act now (red) / Act soon (amber). The red row edge and red text it replaces said the
+    // same thing three times over alongside the status pill.
     function todoCell(r) {
       var u = String(r["Urgency"] || "");
       var cls = u === "Act now" ? "late" : u === "Act soon" ? "soon"
               : u === "Missing data" ? "miss" : "ok";
-      return '<div class="ldp-todo ' + cls + '">' + esc(String(r["Do"] || r["Urgency Reason"] || "\u2014")) + "</div>"
+      var dot = u === "Act now" ? '<span class="ldp-udot now" role="img" aria-label="Act now" title="Act now"></span>'
+              : u === "Act soon" ? '<span class="ldp-udot soon" role="img" aria-label="Act soon" title="Act soon"></span>' : "";
+      return '<div class="ldp-todo ' + cls + '">' + dot + esc(String(r["Do"] || r["Urgency Reason"] || "—")) + "</div>"
         + (r["Data Issue"]
             ? '<div class="ldp-sub"><span class="ldp-flagdot'
-              + (String(r["Issue Kind"]) === "blocking" ? " blk" : "") + '">\u26a0</span> '
+              + (String(r["Issue Kind"]) === "blocking" ? " blk" : "") + '" title="Flagged: needs a sheet correction">⚠</span> '
               + esc(String(r["Data Issue"])) + "</div>" : "");
-    }
-    function beginCell(r) {
-      // A pickup has ONE committed calendar date -- it is not a window, and reading it as one
-      // is how a collection gets missed (Tornike 2026-07-28).
-      if (stageOf(r) === "Pickup") {
-        var pd = r["Pickup Event Date"] || r["Pickup Date"];
-        if (!pd) return '<span class="ldp-nodate">no pickup date</span>';
-        var pn = dayDiff(pd);
-        return '<b class="ldp-dt">' + fmtD(pd) + "</b>"
-          + '<div class="ldp-when ' + (pn < 0 ? "late" : pn <= 2 ? "soon" : "ok") + '">'
-          + (pn > 0 ? "collect in " + pn + "d" : pn === 0 ? "COLLECT TODAY" : Math.abs(pn) + "d overdue")
-          + "</div>"
-          + '<div class="ldp-sub">fixed date — not a window</div>';
-      }
-      var st = isStraight(r);
-      var begin = st ? r["FAD"] : (r["FAD"] || r["Window End"]);
-      if (!begin) return '<span class="ldp-nodate">not set</span>';
-      var n = dayDiff(begin), end = r["Window End"], sub, cls;
-      if (n > 0) { sub = "in " + n + "d"; cls = n <= 3 ? "soon" : "ok"; }
-      else if (n === 0) { sub = "TODAY"; cls = "soon"; }
-      else if (st) { sub = Math.abs(n) + "d late"; cls = "late"; }
-      else if (end && dayDiff(end) >= 0) { sub = "open · " + dayDiff(end) + "d left"; cls = "soon"; }
-      else if (!end) { sub = "open · no end set"; cls = "soon"; }   // deliverable, deadline unrecorded — not "closed"
-      else { sub = "closed " + Math.abs(dayDiff(end)) + "d ago"; cls = "late"; }
-      return '<b class="ldp-dt">' + fmtD(begin) + "</b>"
-        + '<div class="ldp-when ' + cls + '">' + sub + "</div>";
-    }
-
-    function windowCell(r) {
-      var tf = r["Timeframe"] ? String(r["Timeframe"]).slice(0, 26) : "";
-      if (isStraight(r)) {
-        return '<b class="ldp-dt">' + fmtD(r["FAD"]) + "</b>"
-          + '<div class="ldp-det">delivery date' + (tf ? " · " + esc(tf) : "") + "</div>";
-      }
-      return '<b class="ldp-dt">' + windowTxt(r) + "</b>"
-        + '<div class="ldp-det">FAD + window' + (tf ? " · " + esc(tf) : "") + "</div>";
     }
     // "Do we physically have it, and did we collect it?"
     // Custody in one token, used for pills, holding bars and the filter chips.
@@ -1182,14 +787,11 @@ registerPage({
     }
     var CUST_LABEL = { us: "With us", car: "Carrier", tp: "Storage", no: "To collect",
                        cnr: "Contracts Not Received", unk: "Missing Closing" };
+    // custody as a kit status pill; the tone per custody key (also the timeline's chip)
+    var CUST_TONE = { us: "ok", car: "info", cnr: "info", tp: "ldp-place", no: "mute", unk: "bad" };
     function possPill(r) {
       var p = String(r["Possession"] || "—");
-      var cls = p === "With us" ? "ldp-pos-us"
-        : p === "With carrier" ? "ldp-pos-car"
-        : p === "Contracts Not Received" ? "ldp-pos-cnr"
-        : (p === "Rented Storage" || p === "Third-party storage") ? "ldp-pos-3p"
-        : p === "Not picked up yet" ? "ldp-pos-no" : "ldp-pos-unk";
-      return '<span class="ldp-pos ' + cls + '">' + esc(p) + "</span>";
+      return '<span class="rs-pill ' + CUST_TONE[custKey(r)] + ' ldp-pos">' + esc(p) + "</span>";
     }
     // The date the row is actually asking us to act on: dispatch deadline first, then the
     // delivery deadline. This is the sort key — his rule is "soonest thing to act on wins",
@@ -1226,6 +828,9 @@ registerPage({
 
       // KPI cards are FILTERS, not decoration — click one to see exactly those rows;
       // click again to release. The counts always describe the whole board.
+      // ZTZ-80: the kit's tiles, at most six. The six ACTION buckets stay tiles; Delivered is an
+      // archive, not an action, so it moved beside the shipment count as a link that does the
+      // very same thing (S.kpi = "dlv", click again to go back).
       var kpiDefs = [
         ["now",  "neg",  actNow,         "Act now",          "overdue or departure passed"],
         ["soon", "warn", actSoon,        "Act soon",         "departure or window is close"],
@@ -1233,13 +838,16 @@ registerPage({
         ["unk",  "",     held,           "Missing Closing",  "picked up, but no closing sheet records where it is"],
         ["flag", "",     flagged.length, "Flagged",          "needs a sheet correction"],
         ["carw", "",     allBase.filter(function (r) { return custKey(r) === "car"; }).length,
-                         "Carrier Watch",    "with carriers \u2014 confirm deliveries"],
-        ["dlv",  "",     dlvRows.length, "Delivered", "confirmed done \u2014 tap to review or undo"],
+                         "Carrier Watch",    "with carriers — confirm deliveries"],
       ];
-      var kp = '<div class="ldp-kpis">' + kpiDefs.map(function (k) {
-        return '<div class="ldp-kpi ' + k[1] + (S.kpi === k[0] ? " sel" : "") + '" data-kpi="' + k[0] + '" role="button" tabindex="0">'
-          + "<b>" + k[2] + "</b><span>" + k[3] + "</span><small>" + k[4] + "</small></div>";
-      }).join("") + "</div>";
+      // the tiles carry no attributes of their own; paint() tags them with data-kpi after the
+      // mount (S._kpiKeys, in order), so wire()'s [data-kpi] handler binds them as before
+      var kp = RSC.kpisHtml(kpiDefs.map(function (k) {
+        return { label: k[3], value: String(k[2]), sub: k[4], tone: k[1],
+                 title: S.kpi === k[0] ? "Showing only these — click again for the whole board"
+                                       : "Click to show only these rows" };
+      }), "ldp-kpis");
+      S._kpiKeys = kpiDefs.map(function (k) { return k[0]; });
       var kpiPass = function (r) {
         if (!S.kpi) return true;
         if (S.kpi === "now") return r["Urgency"] === "Act now";
@@ -1284,23 +892,19 @@ registerPage({
           return custKey(r) === key;
         }).length;
       }
-      function msBox(dim, cap, opts) {
-        var sel = S.ms[dim] || [];
-        var body = opts.map(function (o) {
-          return '<label class="ldp-msopt"><input type="checkbox" data-msdim="' + dim + '" data-msval="' + o[0] + '"'
-            + (sel.indexOf(o[0]) >= 0 ? " checked" : "") + '><span>' + o[1] + '</span><span class="n">'
-            + msCount(dim, o[0]) + "</span></label>";
-        }).join("");
-        return '<div class="ldp-ms" data-msbox="' + dim + '">'
-          + '<button class="ldp-msb' + (sel.length ? " on" : "") + '" data-mstoggle="' + dim + '">'
-          +   '<span class="cap">' + cap + "</span>"
-          +   "<span>" + (sel.length ? sel.length + " selected" : "All") + "</span>"
-          +   (sel.length ? '<span class="cnt">' + sel.length + "</span>" : "")
-          + "</button>"
-          + '<div class="ldp-mspop' + (S.msOpen === dim ? "" : " hidden") + '" data-mspop="' + dim + '">' + body
-          +   '<div class="ldp-msact"><button data-msall="' + dim + '">Select all</button>'
-          +   '<button data-msnone="' + dim + '">Clear</button></div></div></div>';
-      }
+      // ZTZ-80: Type / Status / Routing are the kit's RSC.localMulti (same checkboxes, same
+      // counts, state still on S.ms) -- wire() mounts them; the option lists ride on S
+      var msOpts = function (dim, opts) {
+        return opts.map(function (o) { return { v: o[0], l: o[1], n: msCount(dim, o[0]) }; });
+      };
+      S._ms = {
+        type: msOpts("type", [["straight", "Straight"], ["regular", "Regular"]]),
+        cust: msOpts("cust", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
+                              ["car", "Carrier"], ["cnr", "Contracts Not Received"],
+                              ["unk", "Missing Closing"]]),
+        route: msOpts("route", [["cand", "Route Candidate"], ["acc", "Accepted Route"],
+                                ["over", "Over truck"], ["not", "Not Routed"]]),
+      };
       var chips = "";   // Type/Status/Routing live in the one filter bar
       var cur = all.filter(kpiPass).filter(segPass).filter(msPass);
       if (S.co) cur = cur.filter(function (r) { return String(r["Company"]) === S.co; });
@@ -1329,45 +933,40 @@ registerPage({
       all.forEach(function (r) { cos[r["Company"]] = 1; locs[r["Location"]] = 1; });
       // wire() is a different scope — hand it the option lists for the localSelect mounts
       S._cos = Object.keys(cos).sort(); S._locs = Object.keys(locs).sort();
-      // FILTER BAR — one bordered strip instead of three loose controls: a search field with
-      // an inline icon, labelled selects, and a Clear that only appears when something is
-      // actually filtering (so it never adds noise at rest).
-      var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg || (S.ms.type || []).length || (S.ms.cust || []).length);
+      // THE PAGE STANDARD ORDER (ZTZ-80): underline tabs for the four views, then ONE filter row
+      // of kit controls -- search, Company, Location, Type, Status, Routing (+ the kit's Hide
+      // filters toggle) -- with a Clear that only appears when something is filtering, and the
+      // shipment count + the Delivered archive on the right. CSV moved up into the page head.
+      // Routing counts too (his pick 13 Nov: Clear was missing when only Routing was set, though it reset it)
+      var anyF = !!(S.q || S.co || S.loc || S.kpi || S.tlSeg || (S.ms.type || []).length || (S.ms.cust || []).length
+        || (S.ms.route || []).length);
+      var nRoutes = (function () { var ks = {}; (S._rsug || []).forEach(function (x2) { ks[x2["Route Key"]] = 1; });
+        return Object.keys(ks).length; })();
+      var tabs = RSC.tabsHtml([{ id: "board", label: "Board" }, { id: "timeline", label: "Timeline" },
+                               { id: "routes", label: "Routes", count: nRoutes || null }, { id: "map", label: "Map" }],
+                              (S.view === "timeline" || S.view === "routes" || S.view === "map") ? S.view : "board", "ldview");
       var bar = chips + '<div class="ldp-bar">'
-        + '<div class="ldp-vw">'
-        +   '<button data-ldview="board"' + (S.view === "timeline" || S.view === "routes" || S.view === "map" ? "" : ' class="on"') + ">Board</button>"
-        +   '<button data-ldview="timeline"' + (S.view === "timeline" ? ' class="on"' : "") + ">Timeline</button>"
-        +   '<button data-ldview="routes"' + (S.view === "routes" ? ' class="on"' : "") + ">Routes"
-        +     (function () { var ks = {}; (S._rsug || []).forEach(function (x2) { ks[x2["Route Key"]] = 1; });
-               var n2 = Object.keys(ks).length;
-               return n2 ? ' <span class="ldp-vwbadge">' + n2 + "</span>" : ""; })()
-        +   "</button>"
-        +   '<button data-ldview="map"' + (S.view === "map" ? ' class="on"' : "") + ">Map</button>"
-        + "</div>"
         + '<div class="ldp-fbox">'
-        +   '<span class="ldp-srch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
-        +   '<input id="ldpQ" placeholder="Search customer, request #, job code or sticker" value="' + esc(S.q) + '"></span>'
-        +   '<span class="ldp-fdiv"></span>'
-        // kit localSelect mounts (his rule 2026-08-28: no native <select> on the portal);
-        // wire() mounts RSC.localSelect into these — values stashed on S just below
+        +   '<input id="ldpQ" class="rs-inp" aria-label="Search" placeholder="Search customer, request #, job code or sticker" value="' + esc(S.q) + '">'
+        // kit mounts (his rule 2026-08-28: no native dropdowns on the portal); wire() mounts
+        // RSC.localSelect / RSC.localMulti into these with the values stashed on S above
         +   '<div id="ldpCo"></div>'
         +   '<div id="ldpLoc"></div>'
-        +   msBox("type", "Type", [["straight", "Straight"], ["regular", "Regular"]])
-        +   msBox("cust", "Status", [["no", "To collect"], ["us", "With us"], ["tp", "Storage"],
-                                     ["car", "Carrier"], ["cnr", "Contracts Not Received"],
-                                     ["unk", "Missing Closing"]])
-        +   msBox("route", "Routing", [["cand", "Route Candidate"], ["acc", "Accepted Route"],
-                                       ["over", "Over truck"], ["not", "Not Routed"]])
-        +   (anyF ? '<button class="ldp-clr" id="ldpClr">Clear</button>' : "")
-        +   '<button class="ldp-clr" id="ldpCsv" title="Export the current board to CSV">CSV</button>'
+        +   '<div id="ldpMsType"></div>'
+        +   '<div id="ldpMsCust"></div>'
+        +   '<div id="ldpMsRoute"></div>'
+        +   (anyF ? '<button type="button" class="rs-btn" id="ldpClr">Clear</button>' : "")
         + "</div>"
-        + '<span class="ldp-count"><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
+        + '<span class="ldp-count"><span><b>' + cur.length + "</b> of " + all.length + " shipments</span>"
+        +   '<button type="button" class="ldp-lnk" data-kpi="dlv" aria-pressed="' + (S.kpi === "dlv") + '"'
+        +     ' title="Delivered: confirmed done — tap to review or undo">'
+        +     (S.kpi === "dlv" ? "Back to the working board" : "Delivered: " + dlvRows.length) + "</button></span>"
         + "</div>";
 
       var urgPill = function (r) {
         var u = String(r["Urgency"] || "");
-        var cls = u === "Act now" ? "late" : u === "Act soon" ? "open" : u === "Missing data" ? "none" : "up";
-        return '<span class="ldp-due ' + cls + '">' + esc(u || "—") + "</span>";
+        var tone = u === "Act now" ? "bad" : u === "Act soon" ? "warn" : "mute";
+        return '<span class="rs-pill ' + tone + '">' + esc(u || "—") + "</span>";
       };
       // PICKUP / DELIVERY calendar jobs + the delivery status. A delivery event can EXIST
       // while the goods are still with us - that is exactly what has to be visible.
@@ -1391,12 +990,12 @@ registerPage({
               + calChip(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery", "dl");
         return h || '<span class="ldp-evnone">—</span>';
       }
+      // the delivery status's kit pill tone: passed = bad, booked = ok, anything else quiet
       function dlvClass(st) {
         st = String(st || "");
-        if (st.indexOf("passed") >= 0) return "late";
-        if (st.indexOf("booked") >= 0) return "up";
-        if (st.indexOf("cancelled") >= 0) return "none";
-        return "open";
+        if (st.indexOf("passed") >= 0) return "bad";
+        if (st.indexOf("booked") >= 0) return "ok";
+        return "mute";
       }
       function jobsCell(r) {
         // ONE statement per fact. The old cell printed "Delivery not created" AND a
@@ -1407,11 +1006,11 @@ registerPage({
           // a delivery event dated in the FUTURE has a date but the row is still open --
           // it used to be invisible because only the URL branch rendered it
           h += calLink(r["Delivery Event URL"], r["Delivery Event Date"], "Delivery Calendar Event")
-            + (ds ? '<span class="ldp-dstat ' + dlvClass(ds) + '">' + esc(ds) + "</span>" : "");
+            + (ds ? '<span class="rs-pill ' + dlvClass(ds) + '">' + esc(ds) + "</span>" : "");
         } else if (ds === "Pickup scheduled") {
-          h += '<span class="ldp-dstat open">Pickup scheduled</span>';
+          h += '<span class="rs-pill mute">Pickup scheduled</span>';
         } else {
-          h += '<span class="ldp-dstat none">No Delivery Calendar Event</span>';
+          h += '<span class="rs-pill mute">No Delivery Calendar Event</span>';
         }
         return '<div class="ldp-jobs">' + h + "</div>";
       }
@@ -1436,7 +1035,7 @@ registerPage({
         var hasOv = function (f) { return !!(entHere[f] && entHere[f].value != null); };
         var srcTag = function (s) { return s ? ' <span class="ldp-sub">(' + esc(s) + ")</span>" : ""; };
         var rstLink = function (id) {
-          return '<a class="ldp-rst" id="' + id + '" title="Remove the override — the sheet value returns on the next data refresh">↺ back to sheet</a>';
+          return '<a class="ldp-rst" id="' + id + '" title="Remove the override — the sheet value returns on the next data refresh">Back to sheet</a>';
         };
         // ⭐ THE SAVED OVERRIDE WINS OVER THE COMPUTED VALUE. `r` comes from the mart, which
         // only recomputes on the next pipeline run — up to an hour later. Until then it
@@ -1454,13 +1053,13 @@ registerPage({
         // Type-aware, exactly as in the table: a Straight job has no FAD — the office keeps
         // the committed DELIVERY DATE in that field, so labelling it "FAD" here would lie.
         var fadCell = canEd
-          ? '<input class="ldp-cinp" type="date" id="ldpEdFad" data-init="' + esc(fadIso) + '" value="' + esc(fadIso) + '">'
+          ? '<input class="rs-inp ldp-cinp" type="date" id="ldpEdFad" data-init="' + esc(fadIso) + '" value="' + esc(fadIso) + '">'
             // no "(sheet)" tag under a value the office typed — that label would be a lie
             + (fadOv ? "" : srcTag(r["FAD Source"]))
             + (hasOv("fad_override") ? rstLink("ldpRstFad") : "")
           : fmtD(r["FAD"]) + srcTag(r["FAD Source"]);
         var tfCell = canEd
-          ? '<input class="ldp-cinp" id="ldpEdTf" maxlength="120" data-init="' + esc(tfCur) + '" value="' + esc(tfCur)
+          ? '<input class="rs-inp ldp-cinp" id="ldpEdTf" maxlength="120" data-init="' + esc(tfCur) + '" value="' + esc(tfCur)
             + '" placeholder="none — deliver on the FAD">'
             + (hasOv("timeframe_override") ? rstLink("ldpRstTf") : "")
           : (tfCur ? esc(tfCur) : '<span class="ldp-sub">none — deliver on the FAD</span>');
@@ -1473,12 +1072,12 @@ registerPage({
         return ''
           + (r["Do"] ? '<div class="ldp-dnote"><b>Do:</b> ' + esc(r["Do"]) + "</div>" : "")
           + (needCarrierZip(r)
-              ? '<div class="ldp-dissue" style="margin-top:9px">\u26a0 A carrier is assigned ('
+              ? '<div class="ldp-dissue" style="margin-top:9px">A carrier is assigned ('
                 + esc(r["Carrier Driver"]) + ') but we do not know WHERE it takes the goods. '
                 + 'Enter the carrier zip below \u2014 the depot and the route are measured to it.</div>'
               : "")
           + (r["Data Issue"] ? '<div class="ldp-dissue' + (String(r["Issue Kind"]) === "blocking" ? " blk" : "")
-              + '" style="margin-top:9px">⚠ ' + esc(r["Data Issue"]) + "</div>" : "")
+              + '" style="margin-top:9px">' + esc(r["Data Issue"]) + "</div>" : "")
           + '<div class="ldp-sec">Calendar jobs</div>' + jobsCell(r)
           + '<div class="ldp-sec">Route</div>'
           + (function () { var rt = routeOf(r); return kv([
@@ -1497,12 +1096,12 @@ registerPage({
           + (canEd
               ? '<div class="ldp-udlv">'
                 + (isDelivered(r)
-                    ? '<span class="ldp-dlvon">✓ Delivered — confirmed on the portal</span>'
-                      + '<button class="ldp-bhbtn" id="ldpUnDlv" style="margin-top:0">Undo — back on the board</button>'
-                    : '<button class="ldp-bhbtn ldp-dlvb" id="ldpDlvBtn" style="margin-top:0">✓ This job is delivered</button>'
-                      + '<span id="ldpDlvC" style="display:none;font-size:12.5px">Take it off the working board? '
-                      + '<button class="ldp-bhbtn" id="ldpDlvYes" style="margin-top:0">Yes, delivered</button> '
-                      + '<button class="ldp-bhbtn" id="ldpDlvNo" style="margin-top:0">Cancel</button></span>')
+                    ? '<span class="rs-pill ok">Delivered — confirmed on the portal</span>'
+                      + '<button type="button" class="rs-btn" id="ldpUnDlv">Undo — back on the board</button>'
+                    : '<button type="button" class="rs-btn pri" id="ldpDlvBtn">This job is delivered</button>'
+                      + '<span id="ldpDlvC" style="display:none;font-size:13px">Take it off the working board? '
+                      + '<button type="button" class="rs-btn pri" id="ldpDlvYes">Yes, delivered</button> '
+                      + '<button type="button" class="rs-btn" id="ldpDlvNo">Cancel</button></span>')
                 + "</div>"
               : "")
           + '<div class="ldp-sec">Where it is</div>'
@@ -1523,7 +1122,7 @@ registerPage({
                         return '<div id="ldpEdLoc" data-init="' + esc(inL ? locCur : "") + '"></div>'
                           + ((String(r["Location Source"]) === "portal" || ovV("location") != null)
                              ? rstLink("ldpRstLoc") : "")
-                          + '<input class="ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(noteCur)
+                          + '<input class="rs-inp ldp-cinp" id="ldpEdLocN" maxlength="200" style="margin-top:6px" data-init="' + esc(noteCur)
                           + '" placeholder="address / unit / note (optional)" value="' + esc(noteCur) + '">'
                           + (dfrom.addr ? '<div class="ldp-addr">' + esc(dfrom.addr) + "</div>" : "");
                       })()
@@ -1536,11 +1135,11 @@ registerPage({
                 // WHERE the carrier holds the goods has no other source, and the base
                 // picker needs it -- so this one field is editable on Regular jobs
                 !isStraight(r) ? ["Carrier location",
-                  '<input class="ldp-cinp" id="ldpCarLoc" inputmode="numeric" maxlength="5"'
+                  '<input class="rs-inp ldp-cinp" id="ldpCarLoc" inputmode="numeric" maxlength="5"'
                   + ' placeholder="5-digit zip where the carrier takes it" value="'
                   + esc(ovV("carrier_location") != null ? ovV("carrier_location")
                         : (r["Carrier Location"] || "")) + '">'
-                  + '<button class="ldp-bhbtn" id="ldpCarSave" style="margin-top:7px">Save</button>'
+                  + '<button type="button" class="rs-btn" id="ldpCarSave" style="margin-top:7px">Save</button>'
                   + '<span class="ldp-sub" id="ldpCarMsg" style="margin-left:8px"></span>'] : null,
                 (!isStraight(r) && r["Total To Carrier"] != null)
                   ? ["Carrier balance", money(r["Total To Carrier"])] : null,
@@ -1556,9 +1155,9 @@ registerPage({
           + (isBackhaul(r)
               ? '<div class="ldp-sec">Backhaul</div>'
                 + '<div class="ldp-sub" style="margin-bottom:6px">This truck comes back empty. Edit the message and send it to your carrier contacts.</div>'
-                + '<textarea class="ldp-bhtx" id="ldpBhTx" rows="4">' + esc(bhMsg(r)) + "</textarea>"
-                + '<div class="ldp-bhrow"><a class="ldp-bhwa" id="ldpBhWa" target="_blank" rel="noopener">Send on WhatsApp</a>'
-                + '<button class="ldp-bhbtn" data-bh="1" style="margin-top:0">Copy</button></div>'
+                + '<textarea class="rs-inp ldp-bhtx" id="ldpBhTx" rows="4">' + esc(bhMsg(r)) + "</textarea>"
+                + '<div class="ldp-bhrow"><a class="rs-btn pri ldp-bhwa" id="ldpBhWa" target="_blank" rel="noopener">Send on WhatsApp</a>'
+                + '<button type="button" class="rs-btn" data-bh="1">Copy</button></div>'
               : "")
           + custodySec(r)
           + (function () {
@@ -1602,7 +1201,7 @@ registerPage({
         var h = '<div class="ldp-sec">Slack custody · ' + trail.length
           + ' post' + (trail.length === 1 ? "" : "s") + "</div>";
         if (conflict) {
-          h += '<div class="ldp-dissue" style="margin-top:2px">⚠ The sheet says “'
+          h += '<div class="ldp-dissue" style="margin-top:2px">The sheet says “'
             + esc(r["Possession"]) + '” but the latest Slack post ('
             + fmtD(latest.Posted) + ') says “' + esc(CUST_WORD[slackKind] || slackKind)
             + '” — worth a look; the sheet stays the record.</div>';
@@ -1629,9 +1228,9 @@ registerPage({
             + (bits ? '<span class="ldp-sub"> — ' + bits + "</span>" : "") + "</span>"
             + '<span class="ldp-cst-l">'
             + photos.slice(0, 4).map(function (ph, i) {
-                return '<a href="' + esc(ph.link) + '" target="_blank" rel="noopener">\ud83d\udcf7' + (i + 1) + "</a>";
+                return '<a href="' + esc(ph.link) + '" target="_blank" rel="noopener">Photo ' + (i + 1) + "</a>";
               }).join("")
-            + '<a href="' + esc(c.Permalink) + '" target="_blank" rel="noopener" title="Open in Slack">↗</a>'
+            + '<a href="' + esc(c.Permalink) + '" target="_blank" rel="noopener" title="Open in Slack">Slack</a>'
             + "</span></div>";
         }).join("");
         return h;
@@ -1650,7 +1249,7 @@ registerPage({
         if (!b) return;
         b.onclick = function () {
           var msg = tx ? tx.value : bhMsg(r);
-          var done = function () { b.textContent = "Copied \u2713"; b.classList.add("done"); };
+          var done = function () { b.textContent = "Copied"; b.classList.add("done"); };
           // no clipboard API: a kit dialog with the message prefilled and selectable
           var manual = function () { RSC.ask({ title: "Copy the outreach message", value: msg, yes: "Done" }); };
           if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1678,7 +1277,7 @@ registerPage({
         var r = cur.filter(function (x, i2) { return String(x["Sheet Row"] || i2) === key; })[0];
         if (!r) { dr.classList.remove("show"); sc.classList.remove("show"); return; }
         dr.innerHTML =
-          '<div class="ldp-dhd"><button class="x" id="ldpDx" title="Close">✕</button>'
+          '<div class="ldp-dhd"><button type="button" class="x rs-fp-x" id="ldpDx" title="Close" aria-label="Close">&times;</button>'
           + '<div class="ldp-dnm">' + esc(r["Customer"] || "—") + "</div>"
           + '<div class="ldp-dmeta">' + esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
           + " · " + esc(r["Company"] || "") + " · picked up " + fmtD(r["Pickup Date"]) + "</div>"
@@ -1702,7 +1301,7 @@ registerPage({
               .then(function (o) {
                 btn.disabled = false;
                 if (!o.ok || (o.j && o.j.error)) { msg.textContent = (o.j && o.j.error) || "Save failed"; return; }
-                msg.textContent = "Saved \u2713";
+                msg.textContent = "Saved";
                 // DIRECT: the row updates now, no waiting for the next pipeline run
                 r["Carrier Location"] = val;
                 var k2 = String(r["Company"]) + "|" + String(r["Request #"]) + "|" + String(r["Sheet Row"] || "");
@@ -1765,7 +1364,7 @@ registerPage({
             { field: "timeframe_override", local: function (v) { r["Timeframe"] = v; } },
             { field: "timeframe_override", hadOv: function () { return !!entV("timeframe_override"); },
               local: function () {} });
-          // the Location editor is a kit localSelect, not an <input>/<select>, so it gets
+          // the Location editor is a kit localSelect, not a native input or dropdown, so it gets
           // its own wiring with EXACTLY wire()'s contract: same-as-init is a no-op, an
           // off-list value reverts, a failed save reverts + toasts, success saves locally.
           (function () {
@@ -1929,13 +1528,13 @@ registerPage({
         }
         if (pdi != null && pdi >= 0 && pdi < days)
           bars += '<span class="ldp-tlpk" style="left:' + ((pdi + 0.5) * dp) + '%" title="picked up ' + esc(fmtD(r["Pickup Date"])) + '"></span>';
-        return '<div class="ldp-tlrow ' + tone + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+        return '<div class="ldp-tlrow' + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
           + '<div class="ldp-tllab"><span class="ldp-tlmk ' + (st8 ? "s" : "r") + '"></span>'
           + '<span class="ldp-tllabtx"><b>' + esc(r["Customer"] || "—") + "</b>"
           + '<span class="ldp-tlmeta">'
           +   esc(r["Job Code"] ? String(r["Job Code"]).split(",")[0] : "—")
           +   (stateZip(r["Moving To"], r["Delivery State"]) ? ' · ' + esc(stateZip(r["Moving To"], r["Delivery State"])) : "")
-          +   '<span class="ldp-tlcust ' + ck2 + '">' + CUST_LABEL[ck2] + "</span></span></span></div>"
+          +   '<span class="rs-pill ' + CUST_TONE[ck2] + '">' + CUST_LABEL[ck2] + "</span></span></span></div>"
           + '<div class="ldp-tlcal">' + bars + "</div></div>";
       }
       // ROUTES VIEW (Phase 3): the engine's suggested consolidations. Data is loaded once
@@ -1972,11 +1571,11 @@ registerPage({
           var soonest = st.map(function (x) { return daysTo(x["Window End"]); })
             .filter(function (n) { return n !== null; }).sort(function (a, b) { return a - b; })[0];
           var pathHtml = '<div class="ldp-rpath">'
-            + '<span class="hop base">\u25c6 ' + esc(baseZip || "base") + "</span>"
+            + '<span class="hop base">Base ' + esc(baseZip || "") + "</span>"
             + st.map(function (x) {
                 return '<span class="hop">' + esc(x["Dest State"] || x["Dest Zip"] || "?") + "</span>";
               }).join("")
-            + '<span class="hop base">\u25c6</span>'
+            + '<span class="hop base">Base</span>'
             + (soonest !== undefined
                 ? '<span class="due' + (soonest <= 7 ? " soon" : "") + '">first due '
                   + (soonest < 0 ? "overdue" : "in " + soonest + "d") + "</span>" : "")
@@ -2008,16 +1607,16 @@ registerPage({
             + '<div class="ldp-rtop"><div class="ldp-rttl">'
             + "<b>" + st.length + " stop" + (st.length === 1 ? "" : "s") + " \u00b7 "
             + Math.round(h["Route CF"]).toLocaleString() + " cf</b>"
-            + '<span class="ldp-rchip">truck ' + esc(h["Truck"] || "?") + "</span>"
-            + (+h["Feasible"] ? "" : '<span class="ldp-rt over">SCHEDULE TIGHT</span>')
+            + '<span class="rs-pill mute">truck ' + esc(h["Truck"] || "?") + "</span>"
+            + (+h["Feasible"] ? "" : '<span class="rs-pill bad">Schedule tight</span>')
             + "</div>" + capHtml + "</div>"
             + metHtml
             + pathHtml
-            + (+h["Feasible"] ? "" : '<div class="ldp-dissue" style="margin:0 15px 10px">\u26a0 '
+            + (+h["Feasible"] ? "" : '<div class="ldp-rnote">'
                 + esc(h["Feasible Note"] || "schedule tight \u2014 check the dates") + "</div>")
             + '<div class="ldp-ract">'
-            + (isAcc ? '<button class="ldp-raccept done" disabled style="cursor:default">Accepted \u2713 \u2014 un-accept below</button>'
-                     : '<button class="ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
+            + (isAcc ? '<span class="rs-pill ok">Accepted \u2014 un-accept below</span>'
+                     : '<button type="button" class="rs-btn pri ldp-raccept" data-rkey="' + esc(k) + '" data-codes="'
             + esc(codesArr.join(",")) + '" data-zips="'
             + esc(st.map(function (x) { return String(x["Dest Zip"] || "").trim(); }).join(",")) + '" data-truck="' + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || "")) + '">Accept route</button>')
             + (function () {
@@ -2027,21 +1626,22 @@ registerPage({
                   .filter(function (z) { return /^\d{5}$/.test(z); });
                 var legzips = zs.length
                   ? [baseZip || LD_BASE_ZIP].concat(zs).concat([baseZip || LD_BASE_ZIP]).join(",") : "";
-                return '<button class="ldp-bhbtn ldp-jmapbtn pri" data-mapfor="' + esc(k)
+                return '<button type="button" class="rs-btn" data-mapfor="' + esc(k)
                   + '" data-legzips="' + legzips + '">Visualize route</button>';
               })()
             // DECLINE — "this combination is not going to happen". It locks nothing (unlike
             // Accept) and is reversible; it only stops the engine proposing the same set of
             // jobs again, and records who said no and why.
-            + (isAcc ? '' : '<button class="ldp-bhbtn ldp-rdecline" data-decline="' + esc(k)
+            + (isAcc ? '' : '<button type="button" class="rs-btn ldp-rdecline" data-decline="' + esc(k)
                 + '" data-codes="' + esc(codesArr.join(",")) + '" data-truck="'
                 + esc(h["Truck"] || "") + '" data-miles="' + esc(String(h["Miles"] || ""))
                 + '">Decline</button>')
             + "</div></div>";
         }).join("") + "</div>"
         + acceptedHtml()
-        + declinedHtml()
-        + '<div class="ldp-note" style="margin-top:10px;color:var(--faint);font-size:12px">Engine rules (management\u2019s numbers): \u22641,500 CF combined \u00b7 every stop pair \u2264100 mi \u00b7 \u2264180 min detour \u00b7 windows within 5 days \u00b7 \u22642.5 extra mi per CF \u00b7 Straights first \u00b7 ~11 driving h/day. Accepting converts Regulars to Straight and locks the jobs out of future suggestions.</div>';
+        + declinedHtml();
+        // (the engine-rules note that sat under the cards moved, word for word, into the
+        // head's "How it's counted" panel)
       }
       /* What the dispatchers have refused, with a way back. Kept visible rather than
        * silently swallowed: a suggestion that vanished with no trace is indistinguishable
@@ -2063,7 +1663,7 @@ registerPage({
                 + "</span>"
                 // ldp-dec-l, not ldp-cst-l: that class carries margin-left:auto, which is right
                 // in the narrow drawer it was written for and a canyon in this full-width card.
-                + '<span class="ldp-dec-l"><button class="ldp-bhbtn" data-undecline="' + esc(String(x.id))
+                + '<span class="ldp-dec-l"><button type="button" class="rs-btn" data-undecline="' + esc(String(x.id))
                 + '" style="margin-top:0">Put back</button></span></div>';
             }).join("")
           + "</div>";
@@ -2097,9 +1697,9 @@ registerPage({
                 + " by " + esc(String(x.accepted_by || "").split("@")[0]) + "</span>"
                 // margin-left:auto pushed these to the far right of a full-page-width card,
                 // ~1,400px from the job codes they act on. Packed left with the row instead.
-                + (mappable ? '<button class="ldp-bhbtn ldp-jmapbtn" data-mapfor="' + mk + '" data-legzips="'
+                + (mappable ? '<button type="button" class="rs-btn" data-mapfor="' + mk + '" data-legzips="'
                     + [LD_BASE_ZIP].concat(zs).concat([LD_BASE_ZIP]).join(",") + '" style="margin:0 0 0 6px">Visualize route</button>' : "")
-                + '<button class="ldp-bhbtn ldp-unacc" data-unacc="' + x.id + '" style="margin:0 0 0 8px">Un-accept</button></div>';
+                + '<button type="button" class="rs-btn" data-unacc="' + x.id + '" style="margin:0 0 0 8px">Un-accept</button></div>';
             }).join("")
           + "</div>";
       }
@@ -2121,7 +1721,7 @@ registerPage({
           + '<span class="ldp-ovk"><span class="ldp-mstop base" style="position:static;display:inline-block">B</span> NJ base</span>'
           + '<span class="ldp-ovnote" id="ldpOvNote">'
           + (car ? car + " at a carrier hidden (Carrier Watch, not planning)" : "") + "</span>"
-          + '<button class="ldp-bhbtn" id="ldpOvFull" style="margin:0 0 0 12px;font-size:11.5px;padding:5px 10px">\u26f6 Fullscreen</button>'
+          + '<button type="button" class="rs-btn" id="ldpOvFull">Fullscreen</button>'
           + "</div>"
           + '<div class="ldp-jmap ldp-ovmap"></div></div>';
       }
@@ -2155,7 +1755,7 @@ registerPage({
         }
         var tdi = tlIdx(tlMid(new Date()), st);
         if (tdi >= 0 && tdi < days)
-          cal += '<span class="ldp-tltodaylab" style="left:' + ((tdi + 0.5) * dp) + '%">TODAY</span>';
+          cal += '<span class="ldp-tltodaylab" style="left:' + ((tdi + 0.5) * dp) + '%">Today</span>';
         // soonest deadline first, exactly like the board
         var ord = rows.filter(function (r) {
           var k = S.tlSeg;
@@ -2170,14 +1770,20 @@ registerPage({
           if (!db) return -1;
           return da < db ? -1 : da > db ? 1 : 0;
         });
+        // one gridline per week, wherever the window happens to land -- the window is sized to
+        // the data (21-180 days), so the rules follow the day numbers printed above them. One
+        // layer for the whole list (ZTZ-80: no gradients), not a background on every row.
+        var weeks = '<div class="ldp-tlweeks" aria-hidden="true">';
+        for (var wk = 0; wk < days; wk += 7) weeks += '<i style="left:' + (wk * dp).toFixed(4) + '%"></i>';
+        weeks += "</div>";
         var body = ord.map(function (r, i) { return tlRow(r, i, st, days, dp); }).join("")
           || '<div style="padding:26px;color:var(--faint)">No shipments match these filters.</div>';
         // Segment the board without leaving the view: type and custody are the two questions
         // a dispatcher actually asks of it.
         return '<div class="ldp-tlbar">'
-          + '<div class="ldp-tlnav"><button data-tl="prev" title="Earlier">\u2039</button>'
-          +   '<button data-tl="today">Today</button>'
-          +   '<button data-tl="next" title="Later">\u203a</button></div>'
+          + '<div class="ldp-tlnav"><button type="button" class="rs-btn" data-tl="prev" title="Two weeks earlier">Earlier</button>'
+          +   '<button type="button" class="rs-btn" data-tl="today">Today</button>'
+          +   '<button type="button" class="rs-btn" data-tl="next" title="Two weeks later">Later</button></div>'
           + '<div class="ldp-tlrange">' + MONS[st.getMonth()] + " " + st.getDate() + " \u2013 " + MONS[end.getMonth()] + " " + end.getDate()
           +   "<small>" + days + "-day plan window</small></div>"
           + (function () {
@@ -2189,8 +1795,8 @@ registerPage({
                 if (i2 < 0) before++; else if (i2 >= days) after++;
               });
               return (before || after)
-                ? '<div class="ldp-tloff">' + (before ? before + " due before this range" : "")
-                    + (before && after ? " · " : "") + (after ? after + " beyond it" : "") + "</div>"
+                ? '<span class="rs-pill warn">' + (before ? before + " due before this range" : "")
+                    + (before && after ? " · " : "") + (after ? after + " beyond it" : "") + "</span>"
                 : "";
             })()
           + '<div class="ldp-tllg"><span><i class="lg-pk"></i>picked up</span>'
@@ -2198,14 +1804,10 @@ registerPage({
           +   '<span><i class="lg-s"></i>straight \u2014 committed date</span>'
           +   '<span><i class="lg-r"></i>regular \u2014 delivery window</span></div>'
           + "</div>"
-          // one gridline per week, wherever the window happens to land. The rule used to be
-          // hardcoded to sixths, which equalled a week only back when the window was a fixed
-          // 42 days -- it is now sized to the data (21-180), so the rules stopped agreeing
-          // with the day numbers printed above them.
-          + '<div class="ldp-tlgrid" style="--tl-step:' + (7 * dp).toFixed(4) + '%">'
+          + '<div class="ldp-tlgrid">'
           +   '<div class="ldp-tlhead"><div class="ldp-tlhlab"></div>'
           +   '<div class="ldp-tlhcal">' + cal + "</div></div>"
-          +   '<div class="ldp-tlbody">' + body + "</div></div>";
+          +   '<div class="ldp-tlbody"><div class="ldp-tlrows">' + weeks + body + "</div></div></div>";
       }
 
       var body = cur.map(function (r, i) {
@@ -2214,15 +1816,14 @@ registerPage({
         // ONE LINE PER CELL. Anything that needs a second line belongs in the drawer —
         // that is what keeps every row the same height and the whole table scannable.
         var dvDate = isStraight(r) ? fmtD(r["FAD"]) : windowTxt(r);
-        var uk = String(r["Urgency"] || "") === "Act now" ? "u-red"
-              : String(r["Urgency"] || "") === "Act soon" ? "u-amber" : "";
-        var main = '<tr class="ldp-row ' + uk + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
+        // no row edge or tint any more: urgency is the one dot in "What to do" (ZTZ-80)
+        var main = '<tr class="ldp-row' + (S.sel === key ? " on" : "") + '" data-ldk="' + esc(key) + '">'
           + '<td class="ldp-evtd">' + calCell(r) + "</td>"
           + '<td class="ldp-cust-td"><span class="ldp-cust">' + esc(r["Customer"] || "—") + "</span>"
               + ((r["Company"] && r["Company"] !== "Zip to Zip") || +r["Storage Sold"]
                   ? '<div class="ldp-sub">'
                     + (r["Company"] && r["Company"] !== "Zip to Zip" ? esc(r["Company"]) : "")
-                    + (+r["Storage Sold"] ? ' <span class="ldp-stor" title="The calendar event says Storage Service Requested — the salesperson sold storage on this job">STORAGE</span>' : "")
+                    + (+r["Storage Sold"] ? ' <span class="ldp-stor" title="The calendar event says Storage Service Requested — the salesperson sold storage on this job">Storage</span>' : "")
                     + "</div>"
                   : "")
               + "</td>"
@@ -2251,10 +1852,10 @@ registerPage({
         + "</tr></thead><tbody>"
         + (body || '<tr><td colspan="8" style="color:var(--faint);padding:18px">No rows match — clear the filters, or the last build produced nothing.</td></tr>')
         + "</tbody></table></div>"
+        // the rest of this note (Straight vs Regular dates, the hourly refresh) is in the head's
+        // "How it's counted", word for word
         + '<div class="ldp-fnote">Click a row for the full details. <b>Sorted by when we must act</b> — '
-        + "soonest deadline first, whatever the pickup date. <b>Straight</b> jobs show a committed "
-        + "delivery date (the office records it in the FAD field); <b>Regular</b> jobs show the FAD "
-        + "and its window. Data refreshes with the pipeline (hourly).</div></div>";
+        + "soonest deadline first, whatever the pickup date.</div></div>";
 
       // keep the scroll position — a repaint used to snap back to the top; the vertical
       // scroller is the table wrap (.ldp-wrap), not the window — restore both
@@ -2271,9 +1872,21 @@ registerPage({
       Array.prototype.forEach.call(_bd.querySelectorAll(".ldp-jmap"), function (n) {
         if (n._ldmap) { try { n._ldmap.remove(); } catch (e) {} n._ldmap = null; }
       });
-      _bd.innerHTML = kp + bar + (S.view === "timeline" ? timelineHtml(cur)
+      // the standard's order: views (tabs), ONE filter row, the KPI row, then the view
+      _bd.innerHTML = tabs + bar + kp + (S.view === "timeline" ? timelineHtml(cur)
         : S.view === "routes" ? routesHtml()
         : S.view === "map" ? mapviewHtml(cur) : tbl);
+      // the kit tiles carry no hooks of their own: tag them, in order, so the [data-kpi] handler
+      // in wire() binds them exactly as it bound the old cards (role=button + Enter/Space too)
+      Array.prototype.forEach.call(_bd.querySelectorAll(".ldp-kpis .kpi"), function (t, i) {
+        var k = (S._kpiKeys || [])[i];
+        if (!k) return;
+        t.setAttribute("data-kpi", k);
+        t.setAttribute("role", "button");
+        t.setAttribute("tabindex", "0");
+        t.setAttribute("aria-pressed", String(S.kpi === k));
+        if (S.kpi === k) t.classList.add("sel");
+      });
       var _sc = document.getElementById("ldpScrim");
       if (_sc) _sc.onclick = function () { if (host.__ldpOpen) host.__ldpOpen(null); };
       if (!host.__ldpEsc) {
@@ -2284,7 +1897,7 @@ registerPage({
             if (fsm) {
               fsm.classList.remove("full");
               var fb = host.querySelector("#ldpOvFull");
-              if (fb) fb.textContent = "\u26f6 Fullscreen";
+              if (fb) fb.textContent = "Fullscreen";
               setTimeout(function () { if (fsm._ldmap) fsm._ldmap.invalidateSize(); }, 160);
               return;
             }
@@ -2577,9 +2190,9 @@ registerPage({
       });
       pn.innerHTML =
         '<div class="ldp-rphd"><div><b>' + title + '</b><div class="ldp-sub" style="margin-top:3px">' + sub2 + "</div></div>"
-        + '<button class="x" id="ldpRPx" title="Close">\u2715</button></div>'
+        + '<button type="button" class="x rs-fp-x" id="ldpRPx" title="Close" aria-label="Close">&times;</button></div>'
         + '<div class="ldp-jmap ldp-rpmap"></div>'
-        + '<div class="ldp-rpstops"><div class="ldp-sec" style="margin-top:10px">Stops \u00b7 base \u2192 stops \u2192 empty return</div>'
+        + '<div class="ldp-rpstops"><div class="ldp-sec" style="margin-top:10px">Stops: from base, each stop, then the empty return</div>'
         + stopsHtml + "</div>";
       pn.classList.add("show");
       document.getElementById("ldpRPx").onclick = closeRoutePanel;
@@ -2600,9 +2213,9 @@ registerPage({
         if (sl && stopRows && stopRows.length) {
           var hop = function (lg) {
             return lg && lg.miles
-              ? '<div class="ldp-rphop">\u2193 ~' + Math.round(lg.miles).toLocaleString() + " mi</div>" : "";
+              ? '<div class="ldp-rphop">~' + Math.round(lg.miles).toLocaleString() + " mi</div>" : "";
           };
-          var h3 = '<div class="ldp-sec" style="margin-top:10px">Stops \u00b7 base \u2192 stops \u2192 empty return</div>';
+          var h3 = '<div class="ldp-sec" style="margin-top:10px">Stops: from base, each stop, then the empty return</div>';
           stopRows.forEach(function (row2, i3) { h3 += hop(j.legs[i3]) + row2; });
           h3 += hop(j.legs[stopRows.length])
               + '<div class="ldp-rstop"><b>Return to base</b> <span class="ldp-sub">empty</span></div>';
@@ -2745,7 +2358,7 @@ registerPage({
             cap.className = "ldp-dmapnote";
             box.parentNode.insertBefore(cap, box.nextSibling);
           }
-          cap.textContent = "\u26a0 Not collected yet \u2014 the pickup address has no mappable zip, so the collection leg is not drawn.";
+          cap.textContent = "Not collected yet \u2014 the pickup address has no mappable zip, so the collection leg is not drawn.";
         } else if (cap) cap.remove();
         if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] });
         setTimeout(function () { m.invalidateSize(); if (bounds.length) m.fitBounds(bounds, { padding: [20, 20] }); }, 80);
@@ -2771,10 +2384,9 @@ registerPage({
       var q = host.querySelector("#ldpQ");
       if (q) q.oninput = function () { S.q = q.value; var pos = q.selectionStart; paint(); var n2 = host.querySelector("#ldpQ"); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) {} } };
       // paint() rewrites the bar every repaint, so these mount fresh each time — no
-      // duplicate-popover risk. Same option strings as the old <option>s (S._cos/S._locs).
+      // duplicate-popover risk. Same option strings as the old option lists (S._cos/S._locs).
       // capture-phase: the kit button stops propagation, so the page's document-level
-      // msBox closer never fires — close the msBox popovers ourselves, as a click on
-      // the old native select did (its click bubbled to document)
+      // closer never fires — forget the open multi-select here, as any click elsewhere does
       var closeMs = function () { if (host.__msClose) host.__msClose(); };
       var co = host.querySelector("#ldpCo");
       if (co) { co.addEventListener("click", closeMs, true);
@@ -2818,7 +2430,7 @@ registerPage({
         var bx = host.querySelector(".ldp-ovmap");
         if (!bx) return;
         var on = bx.classList.toggle("full");
-        ovf.textContent = on ? "\u2715 Exit fullscreen" : "\u26f6 Fullscreen";
+        ovf.textContent = on ? "Exit fullscreen" : "Fullscreen";
         setTimeout(function () { if (bx._ldmap) bx._ldmap.invalidateSize(); }, 160);
       };
       if ((S._rsug == null || S._racc == null) && !S._rsugLoading) {
@@ -2926,8 +2538,8 @@ registerPage({
                  + " mi \u00b7 " + (dm2 ? Math.floor(dm2 / 60) + "h " + (dm2 % 60) + "m drive \u00b7 " : "")
                  + (mpc2 ? mpc2 + " mi/cf \u00b7 " : "")
                  + "detour " + (h2["Detour Min"] != null ? h2["Detour Min"] : "?") + " min"
-                 + (+h2["Feasible"] ? "" : ' \u00b7 <b style="color:var(--neg,#b02a37)">schedule tight</b>'
-                     + (h2["Feasible Note"] ? '<div style="color:var(--neg,#b02a37);font-weight:600;margin-top:2px">\u26a0 '
+                 + (+h2["Feasible"] ? "" : ' \u00b7 <b style="color:var(--neg)">schedule tight</b>'
+                     + (h2["Feasible Note"] ? '<div style="margin-top:2px">'
                         + esc(h2["Feasible Note"]) + "</div>" : ""));
             pn0 = st.map(function (x, i2) {
               return '<div class="ldp-rstop"><span class="rn">' + (i2 + 1) + "</span><b>"
@@ -2999,49 +2611,27 @@ registerPage({
         document.addEventListener("mouseup", mu);
         e.preventDefault();
       };
-      // ---- multi-select filters ----
-      Array.prototype.forEach.call(host.querySelectorAll("[data-mstoggle]"), function (b) {
-        b.onclick = function (e) {
-          e.stopPropagation();
-          var dim = b.getAttribute("data-mstoggle");
-          var pop = host.querySelector('[data-mspop="' + dim + '"]');
-          var wasOpen = S.msOpen === dim;
-          S.msOpen = wasOpen ? "" : dim;
-          host.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
-          // the old native select dropdowns were OS-closed by any click; the kit popovers
-          // rely on a document click this stopPropagation swallows — close them here
-          document.querySelectorAll(".rs-slicer-pop").forEach(function (p) { p.classList.add("hidden"); });
-          if (pop && !wasOpen) pop.classList.remove("hidden");
-        };
-      });
-      Array.prototype.forEach.call(host.querySelectorAll("[data-msdim]"), function (cb) {
-        cb.onclick = function (e) { e.stopPropagation(); };
-        cb.onchange = function () {
-          var dim = cb.getAttribute("data-msdim"), val = cb.getAttribute("data-msval");
-          var cur2 = (S.ms[dim] || []).slice();
-          var i = cur2.indexOf(val);
-          if (cb.checked) { if (i < 0) cur2.push(val); } else if (i >= 0) { cur2.splice(i, 1); }
-          S.ms[dim] = cur2; paint();
-        };
-      });
-      Array.prototype.forEach.call(host.querySelectorAll("[data-msall]"), function (b) {
-        b.onclick = function (e) {
-          e.stopPropagation();
-          var dim = b.getAttribute("data-msall");
-          S.ms[dim] = Array.prototype.map.call(
-            host.querySelectorAll('[data-msdim="' + dim + '"]'), function (c) { return c.getAttribute("data-msval"); });
-          paint();
-        };
-      });
-      Array.prototype.forEach.call(host.querySelectorAll("[data-msnone]"), function (b) {
-        b.onclick = function (e) { e.stopPropagation(); S.ms[b.getAttribute("data-msnone")] = []; paint(); };
+      // ---- multi-select filters: the kit's RSC.localMulti (ZTZ-80; same options, same counts,
+      // state still in S.ms). A tick repaints the whole body, so the popover is remounted OPEN on
+      // the dimension in S.msOpen and the reader keeps ticking; a click anywhere else forgets it
+      // (host.__msClose below) and the kit's own document click closes the popover.
+      [["type", "Type", "ldpMsType"], ["cust", "Status", "ldpMsCust"], ["route", "Routing", "ldpMsRoute"]].forEach(function (d) {
+        var mh = host.querySelector("#" + d[2]);
+        if (!mh) return;
+        // capture phase: the kit button stops propagation. Opening remembers the dimension, so
+        // a repaint that lands while it is open (the route data arriving) keeps it open.
+        mh.addEventListener("click", function (e) {
+          closeMs();
+          var pop = mh.querySelector(".rs-slicer-pop");
+          if (e.target.closest && e.target.closest(".rs-slicer-btn") && pop && pop.classList.contains("hidden")) S.msOpen = d[0];
+        }, true);
+        RSC.localMulti(mh, { label: d[1], values: (S._ms || {})[d[0]] || [], selected: S.ms[d[0]] || [],
+          emptyLabel: "All", startOpen: S.msOpen === d[0],
+          onChange: function (set) { S.ms[d[0]] = Array.from(set); S.msOpen = d[0]; paint(); } });
       });
       // one outside-click closer for the whole page
       if (!host.__msClose) {
-        host.__msClose = function () {
-          S.msOpen = "";
-          document.querySelectorAll(".ldp-mspop").forEach(function (p) { p.classList.add("hidden"); });
-        };
+        host.__msClose = function () { S.msOpen = ""; };
         document.addEventListener("click", host.__msClose);
       }
 

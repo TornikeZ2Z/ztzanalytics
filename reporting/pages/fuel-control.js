@@ -157,15 +157,11 @@ registerPage({
     // inside a cell -- plus a handful of one-line adjustments layered ON kit components.
     host.innerHTML = '<style id="fuCss">'
       + ".fu{font-variant-numeric:tabular-nums}"
-      // FIVE tiles across one row -- the column count RSC.kpis would have computed for five.
-      // And no entrance fade: paint() rewrites this whole body on every keystroke in the find
-      // box, so the kit's animation would replay on each one and the strip would flinch.
-      + ".rs-content .fu .rs-kpis{--kpi-cols:5;animation:none}"
-      // the kit paints every tile in --ink on a neutral card. The tile that is ASKING for an
-      // answer wears the warn tone instead -- its top rule included, brand-green by default.
-      + "body.rs-app .fu .rs-kpis .kpi.alert{border-color:var(--warn);background:var(--warn-bg)}"
-      + ".fu .rs-kpis .kpi.alert .v{color:var(--warn)}"
-      + ".fu .rs-kpis .kpi.alert::before{background:linear-gradient(90deg,var(--warn),transparent 70%)}"
+      // the tiles are the kit's (RSC.kpisHtml sets the column count). No entrance fade: paint()
+      // rewrites this whole body on every keystroke in the find box, so an animation would
+      // replay on each one and the strip would flinch. The tile that is ASKING for an answer
+      // says so with the kit's warn tone on its value (ZTZ-80: a tone, not a tinted card).
+      + ".rs-content .fu .rs-kpis{animation:none}"
       // what the page says back after a save: a block notice, which the kit does not name
       + ".fu-msg{font-size:12.5px;padding:9px 13px;border-radius:10px;margin-bottom:12px;display:none}"
       + ".fu-msg.on{display:block;background:var(--pos-bg);color:var(--pos)}"
@@ -183,26 +179,26 @@ registerPage({
       + ".fu-head{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,.85fr) minmax(0,1.25fr) auto;"
       + "gap:16px;align-items:center;padding:12px 16px;cursor:pointer}"
       + ".fu-where{font-size:12.5px;font-weight:650;color:var(--muted);min-width:0}"
-      + ".fu-where span{display:block;font-size:11px;font-weight:500;color:var(--faint);margin-top:1px}"
+      + ".fu-where span{display:block;font-size:12px;font-weight:500;color:var(--faint);margin-top:1px}"
       + ".fu-head:hover{background:var(--panel-2)}"
       + ".fu-who{font-size:14.5px;font-weight:750;letter-spacing:-.15px}"
-      + ".fu-when{font-size:11px;color:var(--faint);margin-top:1px}"
+      + ".fu-when{font-size:12px;color:var(--faint);margin-top:1px}"
       + ".fu-why{font-size:12px;color:var(--warn);font-weight:650}"
       + ".fu-why.ok{color:var(--muted);font-weight:500}"
       + ".fu-amt{text-align:right;white-space:nowrap}"
       + ".fu-amt b{font-size:17px;font-weight:800;letter-spacing:-.3px}"
-      + ".fu-amt i{display:block;font-style:normal;font-size:10px;color:var(--faint);margin-top:1px}"
+      + ".fu-amt i{display:block;font-style:normal;font-size:12px;color:var(--faint);margin-top:1px}"
       + ".fu-body{display:none;border-top:1px solid var(--line);padding:13px 16px 15px}"
       + ".fu-card.on .fu-body{display:block}"
       + ".fu-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:12px}"
       + ".fu-f{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 11px}"
-      + ".fu-f .l{font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}"
+      + ".fu-f .l{font-size:12px;font-weight:600;color:var(--faint)}"
       + ".fu-f .v{font-size:13px;font-weight:700;margin-top:2px;word-break:break-word}"
-      + ".fu-f .s{font-size:10.5px;color:var(--muted);margin-top:1px}"
+      + ".fu-f .s{font-size:12px;color:var(--muted);margin-top:1px}"
       + ".fu-flags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}"
       // NOT .rs-pill: a pill is a one-word verdict that may never wrap, and these carry a
       // whole sentence -- "card says truck 1207, the job says 1103". They stay chips that wrap.
-      + ".fu-flag{font-size:11px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}"
+      + ".fu-flag{font-size:12px;font-weight:650;padding:4px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}"
       + ".fu-flag.ctx{background:var(--panel-2);color:var(--muted);font-weight:500}"
       // the box and the two buttons are kit controls; only the row holding them is ours, and
       // the box stretches to fill whatever the buttons leave
@@ -246,14 +242,11 @@ registerPage({
       + ".fu-est tr.fu-det h4{margin:2px 0 0;font-size:12px;font-weight:700;color:var(--muted)}"
       + ".fu-est a{color:var(--brand);font-weight:650;text-decoration:none}"
       + ".fu-est a:hover{text-decoration:underline}"
-      // the divider over the swipes somebody has already explained, at the kit's label scale
-      + ".fu-h2{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:20px 0 9px}"
+      // the divider over the swipes somebody has already explained: a section title, not an
+      // uppercase micro-label (the v2 look, now the rule for every theme)
+      + ".fu-h2{font-size:15px;font-weight:600;color:var(--ink);margin:20px 0 9px}"
       + "@media(max-width:820px){.fu-head{grid-template-columns:1fr;gap:6px}.fu-amt{text-align:left}}"
       // ---- DESIGN V2 ("Calm finance"): the light look only; dark keeps every rule above ----
-      // the asking tile is a warning, so it wears the amber notice (no top rule: v2 hides it)
-      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert{border-color:#FDE68A;background:#FFFBEB}"
-      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert .v{color:#B45309}"
-      + "body.rs-app.light.v2 .fu .rs-kpis .kpi.alert .l{color:#92400E}"
       + "body.rs-app.light.v2 .fu-msg{font-size:13px;border-radius:8px}"
       // the verdict edge stays (amber / quiet / green) -- it is meaning, not decoration
       + "body.rs-app.light.v2 .fu-card{border-radius:10px}"
@@ -279,12 +272,55 @@ registerPage({
       + "body.rs-app.light.v2 .fu-empty{border-radius:10px;border-color:#CBD5E1;font-size:13.5px;color:var(--faint)}"
       + "body.rs-app.light.v2 .fu-empty b{font-size:14px;font-weight:600}"
       + "body.rs-app.light.v2 .fu-note{font-size:12.5px}"
-      // the divider over the explained swipes: a section title, not an uppercase micro-label
-      + "body.rs-app.light.v2 .fu-h2{font-size:15px;font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0}"
       + '</style><div class="fu"><div id="fuMain"></div></div>';
 
     const main = host.querySelector("#fuMain");
-    main.innerHTML = '<div class="rs-loading">Loading the fuel card…</div>';
+    // THE PAGE STANDARD (ZTZ-80): each of the hub's views has a short head of its own under Job
+    // Control's tabs (rs.css shows it a size down there), one line of sub, and the paragraphs that
+    // used to sit over the tables in its "How it's counted" panel (howFuel, below).
+    const VIEW_ID = MODE === "truck" ? "truck-control" : "fuel-control";
+    const VIEW_TITLE = MODE === "truck" ? "Truck Control" : "Fuel Control";
+    const VIEW_SUB = MODE === "truck"
+      ? "Which truck's card fuelled which job — and the cards that travelled to a different truck."
+      : "Every fleet-card swipe against the job it belongs to — and the ones that belong to nothing.";
+    const headHtml = () => RSC.pageHeadHtml({ title: VIEW_TITLE, key: VIEW_ID, sub: VIEW_SUB, how: howFuel });
+    // the estimate model paint() last drew: its week window is the one the panel names
+    let howEM = null;
+    // "How it's counted", for the tab on screen: the paragraph that used to sit over its table,
+    // word for word, with the queue's rule (where a swipe goes) under the tabs that have no text
+    // of their own.
+    function howFuel() {
+      if (MODE === "truck") {
+        return "<h3>Card vs job truck</h3><p><b>Which card fuelled which job.</b> A WEX card belongs to one truck — its vehicle "
+          + "id is on the card, not typed at the pump — so a card on a job that ran a different truck means the "
+          + "card travelled. Fleet cards on rental jobs (“Ent”, “Penske”) are expected and only noted. The rest "
+          + "are questions, answered with the others in the <b>Fuel Control queue</b>; each row of Card vs job truck "
+          + "links to its swipe there.</p>";
+      }
+      const queue = "<h3>" + (S.view === "queue" ? "The queue" : "Where a swipe goes") + "</h3>"
+        + "<p><b>A swipe belongs to a job.</b> A foreman has the truck "
+        + "because he is running a job that day. A fill from noon on goes on that day's jobs, a "
+        + "fill before noon on the day before's (he fills up after work, so the morning starts "
+        + "full), and a day of several jobs is split by their miles. With no job of his own it goes on "
+        + "the job he drove or helped on, then the job his card's truck ran, then his next day's job "
+        + "(a prefuel). Everything in the Queue is a swipe "
+        + "that could not be placed that way, or that could "
+        + "be placed but looks odd — the reason is on each card. <b>Nothing here costs a job "
+        + "anything</b> until somebody writes down what happened; that explanation is what "
+        + "clears it, and it stays attached to the transaction afterwards.</p>";
+      if (S.view !== "estimate") return queue;
+      const EM = howEM;
+      return "<h3>Estimate vs paid</h3><p><b>The route’s fuel against what was paid, a foreman’s week at a time.</b> Estimated is each job’s "
+        + "route miles ÷ 7 mpg × the WEX diesel price, the Job P&amp;L’s fuel. Paid is the job’s share of the WEX card — a fill from noon "
+        + "goes on that day’s jobs, a fill before noon on the day before’s, a day of several jobs is split by their miles; with no job "
+        + "of his own, the job he crewed, his card’s truck’s job or his next day’s — plus the fuel "
+        + "written on its closing sheet, plus fills on a long-distance trip. <b>A week is flagged</b> when paid is at least 30% and at least $10 "
+        + "over the estimate."
+        + (EM && !EM.none ? " Full weeks the card export covers: " + esc(dayLab(EM.w0)) + " – " + esc(dayLab(addDays(EM.w1, 6)))
+          + (S.month ? "; the month picks the weeks that start in it" : "") + "." : "")
+        + "</p>";
+    }
+    main.innerHTML = RSC.loadingHtml(VIEW_TITLE, "Loading the fuel card…");
 
     function api(path, opts) {
       return fetch(ZTZ.API + path, Object.assign({
@@ -317,7 +353,7 @@ registerPage({
           });
           paint();
         }).catch(e => {
-          main.innerHTML = '<div class="fu-empty">Could not load — ' + esc(e.message) + "</div>";
+          main.innerHTML = headHtml() + '<div class="fu-empty">Could not load — ' + esc(e.message) + "</div>";
         });
     }
 
@@ -345,7 +381,7 @@ registerPage({
 
     function paint() {
       if (!S.rows || !S.rows.length) {
-        main.innerHTML = '<div class="fu-empty">No fuel transactions yet — the card export '
+        main.innerHTML = headHtml() + '<div class="fu-empty">No fuel transactions yet — the card export '
           + "lands in SharePoint's <b>Fuel Export</b> folder and arrives on the next refresh.</div>";
         return;
       }
@@ -359,43 +395,46 @@ registerPage({
       const assigned = rs.filter(r => PLACED[r["Match Status"]]);
 
       const EM = S.view === "estimate" ? estimateModel() : null;
+      if (EM) howEM = EM;
       const CM = MODE === "truck" ? cardModel(rs) : null;
-      let h = CM ? '<div class="rs-kpis">'
-        + kpi(fmtN(CM.ask.length), "Card ≠ job truck",
+      // THE STANDARD'S ORDER (ZTZ-80): the view's head, its tabs (underline, the kit's), ONE filter
+      // row, then the tiles and the view. The tabs used to be a segmented control inside the bar,
+      // under the tiles; they carry the same data-v ids, so wire() reads them the same way.
+      let h = headHtml()
+        + RSC.tabsHtml(CM
+          ? [seg("trucks", "By truck"), seg("cards", "Card vs job truck", CM.ask.length)]
+          : [seg("estimate", "Estimate vs paid"),
+             seg("queue", "Queue", openQ.length),
+             seg("foremen", "By foreman"), seg("all", "All swipes")], S.view, "v");
+      const tiles = RSC.kpisHtml(CM ? [
+          kpi(fmtN(CM.ask.length), "Card ≠ job truck",
               CM.ask.length ? money0(sum(CM.ask)) + " · answered in the Fuel Control queue" : "nothing to answer",
-              CM.ask.length ? "alert" : "")
-        + kpi(fmtN(CM.note.length), "Fleet card, rental job", "a note, not a question")
-        + kpi(fmtN(CM.rental.length), "Rental-card swipes", money0(sum(CM.rental)) + " · R1, R2…")
-        + kpi(fmtN(CM.trucks), "Cards used", fmtN(rs.length) + " swipe" + (rs.length === 1 ? "" : "s"))
-        + "</div>"
-        : EM ? '<div class="rs-kpis">'
-        + kpi(money0(EM.est), "Estimated for the jobs", "route miles ÷ 7 mpg × the WEX price")
-        + kpi(money0(EM.paid), "Paid", "WEX card + closing sheets")
-        + kpi(EM.est > 0 ? signedPct((EM.paid - EM.est) / EM.est) : "—", "Paid vs estimate", signed$(EM.paid - EM.est) + " · all foremen")
-        + kpi(fmtN(EM.flagged) + " of " + fmtN(EM.weeks), "Flagged weeks", "foreman-weeks 30% and $10 over", EM.flagged ? "alert" : "")
-        + kpi(fmtN(openQ.length), "Need an answer",
-              openQ.length ? money0(openSpend) + " unexplained · the Queue tab" : "all clear", openQ.length ? "alert" : "")
-        + "</div>"
-        : '<div class="rs-kpis">'
-        + kpi(money0(spend), "Card spend", fmtN(rs.length) + " transaction" + (rs.length === 1 ? "" : "s"))
-        + kpi(fmtN(gallons) + " gal", "Fuel bought",
-              gallons ? "$" + (spend / gallons).toFixed(2) + " a gallon" : "—")
-        + kpi(fmtN(assigned.length) + " / " + fmtN(rs.length), "Placed on a job",
-              rs.length ? Math.round(assigned.length / rs.length * 100) + "% of swipes" : "—")
-        + kpi(fmtN(openQ.length), "Need an answer",
+              CM.ask.length ? "warn" : ""),
+          kpi(fmtN(CM.note.length), "Fleet card, rental job", "a note, not a question"),
+          kpi(fmtN(CM.rental.length), "Rental-card swipes", money0(sum(CM.rental)) + " · R1, R2…"),
+          kpi(fmtN(CM.trucks), "Cards used", fmtN(rs.length) + " swipe" + (rs.length === 1 ? "" : "s")),
+        ]
+        : EM ? [
+          kpi(money0(EM.est), "Estimated for the jobs", "route miles ÷ 7 mpg × the WEX price"),
+          kpi(money0(EM.paid), "Paid", "WEX card + closing sheets"),
+          kpi(EM.est > 0 ? signedPct((EM.paid - EM.est) / EM.est) : "—", "Paid vs estimate", signed$(EM.paid - EM.est) + " · all foremen"),
+          kpi(fmtN(EM.flagged) + " of " + fmtN(EM.weeks), "Flagged weeks", "foreman-weeks 30% and $10 over", EM.flagged ? "warn" : ""),
+          kpi(fmtN(openQ.length), "Need an answer",
+              openQ.length ? money0(openSpend) + " unexplained · the Queue tab" : "all clear", openQ.length ? "warn" : ""),
+        ]
+        : [
+          kpi(money0(spend), "Card spend", fmtN(rs.length) + " transaction" + (rs.length === 1 ? "" : "s")),
+          kpi(fmtN(gallons) + " gal", "Fuel bought",
+              gallons ? "$" + (spend / gallons).toFixed(2) + " a gallon" : "—"),
+          kpi(fmtN(assigned.length) + " / " + fmtN(rs.length), "Placed on a job",
+              rs.length ? Math.round(assigned.length / rs.length * 100) + "% of swipes" : "—"),
+          kpi(fmtN(openQ.length), "Need an answer",
               openQ.length ? money0(openSpend) + " unexplained" : "all clear",
-              openQ.length ? "alert" : "")
-        + kpi(fmtN(resolved.length), "Explained", resolved.length ? "checked by a person" : "none yet")
-        + "</div>";
+              openQ.length ? "warn" : ""),
+          kpi(fmtN(resolved.length), "Explained", resolved.length ? "checked by a person" : "none yet"),
+        ]);
 
       h += '<div class="rs-bar">'
-        + '<div class="rs-seg">'
-        + (CM
-          ? seg("trucks", "By truck") + seg("cards", "Card vs job truck" + (CM.ask.length ? " " + CM.ask.length : ""))
-          : seg("estimate", "Estimate vs paid")
-            + seg("queue", "Queue" + (openQ.length ? " " + openQ.length : ""))
-            + seg("foremen", "By foreman") + seg("all", "All swipes"))
-        + "</div>"
         + '<div id="fuMonth"></div>'
         + '<input class="rs-inp" id="fuQ" placeholder="Find a foreman, truck, merchant…" value="' + esc(S.q) + '">'
         + '<span class="rs-spacer"></span>'
@@ -414,6 +453,7 @@ registerPage({
           + money0(noJob.reduce((a, r) => a + num(r["Net Cost"]), 0)) + "). A swipe with no job has no company, "
           + "type or state, so they stay in every count here and in the queue until somebody explains them.</p>";
       }
+      h += tiles;
 
       h += '<div class="fu-msg' + (S.msg && !S.msgFor ? (S.msgErr ? " err" : " on") : "") + '">'
         + esc(S.msgFor ? "" : (S.msg || "")) + "</div>";
@@ -438,11 +478,10 @@ registerPage({
       }
     }
 
-    const kpi = (b, lab, sub, cls) => '<div class="kpi ' + (cls || "") + '"><div class="l">'
-      + esc(lab) + '</div><div class="v">' + esc(b) + '</div><div class="s">' + esc(sub)
-      + "</div></div>";
-    const seg = (id, lab) => '<button data-v="' + id + '"' + (S.view === id ? ' class="on"' : "")
-      + ">" + esc(lab) + "</button>";
+    // a kit tile (RSC.kpisHtml escapes the label and sub; the value is ours to escape) and a kit
+    // tab: a count only where there is one, as the old "Queue 165" button carried it
+    const kpi = (b, lab, sub, tone) => ({ value: esc(b), label: lab, sub: sub, tone: tone || "" });
+    const seg = (id, lab, n) => ({ id: id, label: lab, count: n ? fmtN(n) : null });
     const MON = ["January", "February", "March", "April", "May", "June", "July", "August",
                  "September", "October", "November", "December"];
     const monLab = m => m ? MON[+m.slice(5, 7) - 1] + " " + m.slice(0, 4) : "";
@@ -583,14 +622,8 @@ registerPage({
         });
         return r;
       }).join("");
-      return '<p class="rs-hint"><b>The route’s fuel against what was paid, a foreman’s week at a time.</b> Estimated is each job’s '
-        + "route miles ÷ 7 mpg × the WEX diesel price, the Job P&amp;L’s fuel. Paid is the job’s share of the WEX card — a fill from noon "
-        + "goes on that day’s jobs, a fill before noon on the day before’s, a day of several jobs is split by their miles; with no job "
-        + "of his own, the job he crewed, his card’s truck’s job or his next day’s — plus the fuel "
-        + "written on its closing sheet, plus fills on a long-distance trip. <b>A week is flagged</b> when paid is at least 30% and at least $10 "
-        + "over the estimate. Full weeks the card export covers: " + esc(dayLab(EM.w0)) + " – " + esc(dayLab(addDays(EM.w1, 6)))
-        + (S.month ? "; the month picks the weeks that start in it" : "") + ".</p>"
-        + (!EM.foremen.length ? '<div class="fu-empty">No jobs or swipes match this month, search or filters.</div>'
+      // how the two columns are built is in the head's "How it's counted" (howFuel)
+      return (!EM.foremen.length ? '<div class="fu-empty">No jobs or swipes match this month, search or filters.</div>'
           : '<div class="rs-tablewrap"><table class="rs-table fu-t fu-est"><thead><tr><th>Foreman</th><th>Weeks</th><th>Jobs</th>'
           + "<th>Estimated</th><th>Paid</th><th>Paid vs est.</th><th>Flagged weeks</th><th>Not placed</th></tr></thead><tbody>" + rows
           + '<tr class="tot"><td>All foremen</td><td>' + fmtN(EM.weeks) + "</td><td>" + fmtN(EM.foremen.reduce((a, f) => a + f.jobs, 0)) + "</td><td>"
@@ -632,17 +665,8 @@ registerPage({
 
     // ---- the queue: the reason this page exists ---------------------------------------
     function queueView(openQ, resolved) {
-      let h = '<p class="rs-hint"><b>A swipe belongs to a job.</b> A foreman has the truck '
-        + "because he is running a job that day. A fill from noon on goes on that day's jobs, a "
-        + "fill before noon on the day before's (he fills up after work, so the morning starts "
-        + "full), and a day of several jobs is split by their miles. With no job of his own it goes on "
-        + "the job he drove or helped on, then the job his card's truck ran, then his next day's job "
-        + "(a prefuel). Everything below is a swipe "
-        + "that could not be placed that way, or that could "
-        + "be placed but looks odd — the reason is on each card. <b>Nothing here costs a job "
-        + "anything</b> until somebody writes down what happened; that explanation is what "
-        + "clears it, and it stays attached to the transaction afterwards.</p>";
-
+      // the rule that decides which swipes land here is in "How it's counted" (howFuel)
+      let h = "";
       if (!openQ.length) {
         h += '<div class="fu-empty"><b>Nothing to answer.</b>Every swipe in this window is '
           + "either on a job or already explained.</div>";
@@ -731,8 +755,7 @@ registerPage({
           + 'value="' + esc(S.draft[r["Line Key"]] || "") + '" maxlength="300">'
           + '<button class="rs-btn pri" data-resolve="' + key + '">Checked — nothing to worry about</button>'
           + (S.msgFor === r["Line Key"]
-              ? '<span style="font-size:' + (RS.isV2() ? "12px" : "11.5px")
-                + ';color:var(--neg);font-weight:' + (RS.isV2() ? 600 : 650) + '">'
+              ? '<span style="font-size:12px;color:var(--neg);font-weight:' + (RS.isV2() ? 600 : 650) + '">'
                 + esc(S.msg) + "</span>" : "")
           + "</div>";
       }
@@ -801,8 +824,7 @@ registerPage({
         + list.map(x => '<tr><td class="strong">' + esc(x.t)
             + (x.known ? (x.fuel ? ' <span style="font-weight:500;color:var(--faint)">· '
                                    + esc(x.fuel) + "</span>" : "")
-                       : ' <span class="fu-neg" style="font-size:' + (RS.isV2() ? "12px" : "10px")
-                         + '">not in the register</span>')
+                       : ' <span class="fu-neg" style="font-size:12px">not in the register</span>')
             + "</td><td>" + fmtN(x.n) + "</td><td>" + fmt1(x.gal)
             + '</td><td class="bar"><i style="width:' + (x.usd / mx * 100).toFixed(0)
             + '%"></i><span>' + money0(x.usd) + "</span></td><td>"
@@ -861,12 +883,8 @@ registerPage({
       };
       const rows = CM.list.slice().sort((a, b) => b._ask - a._ask
         || String(b.Date || "").localeCompare(String(a.Date || "")));
-      return '<p class="rs-hint"><b>Which card fuelled which job.</b> A WEX card belongs to one truck — its vehicle '
-        + "id is on the card, not typed at the pump — so a card on a job that ran a different truck means the "
-        + "card travelled. Fleet cards on rental jobs (“Ent”, “Penske”) are expected and only noted. The rest "
-        + "are questions, answered with the others in the <b>Fuel Control queue</b>; each row below links to its "
-        + "swipe there.</p>"
-        + '<div class="fu-h2">By the card\'s truck</div>' + roll(r => r._card, "Card's truck")
+      // what a card-vs-job mismatch means is in "How it's counted" (howFuel)
+      return '<div class="fu-h2">By the card\'s truck</div>' + roll(r => r._card, "Card's truck")
         + '<div class="fu-h2">By foreman</div>' + roll(r => r.Foreman || r["Driver Raw"], "Foreman")
         + '<div class="fu-h2">Every swipe · ' + fmtN(rows.length) + "</div>"
         + '<div class="rs-tablewrap"><table class="rs-table fu-t"><thead><tr><th class="l">Date</th><th class="l">Foreman</th>'
@@ -914,10 +932,10 @@ registerPage({
     }
 
     function wire() {
-      main.querySelectorAll(".rs-seg button").forEach(b => {
+      main.querySelectorAll(".rs-utab[data-v]").forEach(b => {
         b.onclick = () => { S.view = S.lastView[MODE] = b.dataset.v; S.msg = ""; paint(); };
       });
-      // kit slicer instead of the native month <select> — same "" = every-month value
+      // kit slicer instead of the native month dropdown — same "" = every-month value
       const m = main.querySelector("#fuMonth");
       if (m && RSC.localSelect) RSC.localSelect(m, {
         label: "Month",

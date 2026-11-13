@@ -74,7 +74,7 @@
       + ".fla-rate i{display:block;height:100%;border-radius:4px;background:var(--warn)}"
       + ".fla-rate i.bad{background:var(--neg)}"
       // the window we replaced, sitting under the one being graded
-      + ".fla-was{display:block;font-size:11px;color:var(--faint);text-decoration:line-through}"
+      + ".fla-was{display:block;font-size:12px;color:var(--faint);text-decoration:line-through}"
       + ".fla-lnk{color:var(--blue);font-weight:700;text-decoration:none;margin-right:10px}"
       + ".fla-lnk:hover{text-decoration:underline}"
       // the answer form. It opens INSIDE the job list rather than in a dialog, because the
@@ -105,7 +105,7 @@
       + "min-width:0;max-width:100%;font:inherit;background:none;border:0;padding:0;"
       + "cursor:pointer;text-align:left}"
       + ".fla-why:hover em{color:var(--ink)}"
-      + ".fla-why em{font-style:normal;font-size:11.5px;color:var(--muted);overflow:hidden;"
+      + ".fla-why em{font-style:normal;font-size:12px;color:var(--muted);overflow:hidden;"
       + "text-overflow:ellipsis;white-space:nowrap;max-width:230px}"
       + ".fla-ask{font:inherit;font-size:12px;font-weight:700;color:var(--blue);background:none;"
       + "border:0;padding:0;cursor:pointer;text-align:left}"
@@ -115,7 +115,6 @@
       + "body.rs-app.light.v2 .fla-rate{background:#E2E8F0}"
       + "body.rs-app.light.v2 .fla-rate i{background:#B45309}"
       + "body.rs-app.light.v2 .fla-rate i.bad{background:#B91C1C}"
-      + "body.rs-app.light.v2 .fla-was{font-size:12px}"
       + "body.rs-app.light.v2 .fla-lnk{color:#2F6316;font-weight:600}"
       + "body.rs-app.light.v2 .fla-lnk:hover{color:#14301F}"
       + "body.rs-app.light.v2 .fla-form>td{background:#F8FAFC}"
@@ -125,7 +124,6 @@
       + "body.rs-app.light.v2 .fla-tx{border-radius:8px;background:#FFFFFF;border-color:#CBD5E1;font-size:13.5px}"
       + "body.rs-app.light.v2 .fla-tx:focus{border-color:#3F7D20;box-shadow:0 0 0 3px rgba(63,125,32,.14)}"
       + "body.rs-app.light.v2 .fla-err{font-weight:600}"
-      + "body.rs-app.light.v2 .fla-why em{font-size:12px}"
       + "body.rs-app.light.v2 .fla-ask{font-size:12.5px;font-weight:600;color:#2F6316}"
       + "body.rs-app.light.v2 .fla-ask:hover{color:#14301F}";
     document.head.appendChild(st);
@@ -182,7 +180,26 @@
       });
 
       injectStyle();
-      host.innerHTML = '<div class="panel">Loading arrival times…</div>';
+      /* THE PAGE STANDARD (ZTZ-80): the kit head -- a size down under Job Control's tabs -- with
+         the one-line question and the CSV on the right; how the deadline and the arrival are read
+         opens from its "How it's counted", word for word. */
+      const HOW_LATE = "<h3>The deadline and the arrival</h3>"
+        + "<p>The calendar event is the window the customer agreed to, so its <b>end is "
+        + "the latest the crew may arrive</b>. Arrival is the digital contract's own "
+        + "clock — the job's start, or the recorded arrival on a flat-rate job.</p>"
+        + "<p>Local moves with a contract, from November 2025; both sides are New York time.</p>"
+        + "<h3>By foreman</h3>"
+        + "<p>Ranked by how often they were late. Click a foreman for "
+        + "his months, and a month for the jobs themselves — each one links to its "
+        + "calendar event and its digital contract, and each late one can be answered "
+        + "<b>Why?</b> — the customer moved it, something outside anyone's control, or "
+        + "the crew.</p>";
+      // n = the jobs on screen, for the CSV button; no n (loading failed, no data) = no button
+      const headHtml = n => RSC.pageHeadHtml({ title: "Late Arrivals", key: "foreman-late",
+        sub: "Did the crew arrive inside the window the customer was promised — by foreman, by month, down to the job.",
+        how: HOW_LATE,
+        actions: n == null ? [] : [{ html: '<button class="rs-btn" id="flaCsv">Download CSV · ' + n + "</button>" }] });
+      host.innerHTML = RSC.loadingHtml("Late Arrivals", "Loading arrival times…");
 
       function api(path, opts) {
         return fetch(ZTZ.API + path, Object.assign({
@@ -243,7 +260,7 @@
           return r;
         });
         if (!rows.length) {
-          host.innerHTML = '<div class="panel">No arrival data yet — the mart may not be ' +
+          host.innerHTML = headHtml() + '<div class="panel">No arrival data yet — the mart may not be ' +
             "built (sources=curated).</div>";
           return;
         }
@@ -502,30 +519,9 @@
             (b.late / (b.n || 1)) - (a.late / (a.n || 1)) || b.n - a.n);
           last = { v: v, byFm: byFm };
 
+          // the standard's order (ZTZ-80): head, the one filter row, then the tiles
           let html = '<div class="fla">'
-            + '<div class="rs-page-head"><h1>Late Arrivals</h1>'
-            + "<p>The calendar event is the window the customer agreed to, so its <b>end is "
-            + "the latest the crew may arrive</b>. Arrival is the digital contract's own "
-            + "clock — the job's start, or the recorded arrival on a flat-rate job."
-            + '<span class="freshness"> · local moves with a contract, from November 2025 · '
-            + "both sides are New York time</span></p></div>"
-            // FIVE, said out loud: the kit's grid defaults to four, so the fifth tile
-            // dropped onto a row of its own and read as a separate, more important thing.
-            + '<div class="rs-kpis" style="--kpi-cols:5">'
-            + kpi(v.length.toLocaleString(), "Jobs", "with a window and a recorded arrival", "")
-            + kpi((S.blameOnly ? nBlame : nLate).toLocaleString(),
-                  S.blameOnly ? "Late, and ours" : "Arrived late",
-                  pct(S.blameOnly ? nBlame : nLate, v.length) + "% of jobs"
-                    + (S.blameOnly ? " — " + nExcused.toLocaleString() + " excused" : ""),
-                  (S.blameOnly ? nBlame : nLate) ? "warn" : "pos")
-            + kpi(nOver.toLocaleString(), "More than an hour late",
-                  pct(nOver, v.length) + "% of jobs", nOver ? "neg" : "pos")
-            + kpi(nStrict.toLocaleString(), "Exact-time appointments",
-                  pct(nStrict, v.length) + "% of jobs — no window to spare", "")
-            + kpi(nAnswered.toLocaleString() + " / " + nLate.toLocaleString(), "Explained",
-                  nLate ? (nExcused.toLocaleString() + " were not the crew's doing")
-                        : "nothing to explain", "")
-            + "</div>"
+            + headHtml(v.length)
             + '<div class="rs-bar">'
             + '<div class="rs-fld"><span>Job date</span><div id="flaDate"></div></div>'
             + sel("flaCo")
@@ -534,18 +530,26 @@
             + "Hide jobs that look rescheduled</div>"
             + '<div class="rs-tog' + (S.blameOnly ? " on" : "") + '" id="flaBlame"><i></i>'
             + "Count only what was the crew's fault</div>"
-            + '<span class="rs-spacer"></span>'
-            + '<button class="rs-btn" id="flaCsv">Download CSV · ' + v.length + "</button>"
             + "</div>"
-            + '<div class="panel"><div class="panel-head">'
-            + '<div class="panel-title">By foreman</div><span class="n">'
-            + byFm.length + "</span></div>"
-            + '<div class="rs-hint">Ranked by how often they were late. Click a foreman for '
-            + "his months, and a month for the jobs themselves — each one links to its "
-            + "calendar event and its digital contract, and each late one can be answered "
-            + '<b>Why?</b> — the customer moved it, something outside anyone\'s control, or '
-            + "the crew. "
-            + (reviewError
+            // the kit's tiles (RSC.kpisHtml lays five across one row)
+            + RSC.kpisHtml([
+              kpi(v.length.toLocaleString(), "Jobs", "with a window and a recorded arrival", ""),
+              kpi((S.blameOnly ? nBlame : nLate).toLocaleString(),
+                  S.blameOnly ? "Late, and ours" : "Arrived late",
+                  pct(S.blameOnly ? nBlame : nLate, v.length) + "% of jobs"
+                    + (S.blameOnly ? " — " + nExcused.toLocaleString() + " excused" : ""),
+                  (S.blameOnly ? nBlame : nLate) ? "warn" : "pos"),
+              kpi(nOver.toLocaleString(), "More than an hour late",
+                  pct(nOver, v.length) + "% of jobs", nOver ? "neg" : "pos"),
+              kpi(nStrict.toLocaleString(), "Exact-time appointments",
+                  pct(nStrict, v.length) + "% of jobs — no window to spare", ""),
+              kpi(nAnswered.toLocaleString() + " / " + nLate.toLocaleString(), "Explained",
+                  nLate ? (nExcused.toLocaleString() + " were not the crew's doing")
+                        : "nothing to explain", ""),
+            ]);
+          // what the reader must know about THIS view, said above the table; the standing
+          // instructions (ranking, drilling down, answering Why?) are in How it's counted
+          const note = (reviewError
                 ? '<span class="em">The answers could not be loaded (' + esc(reviewError)
                   + ") — every job below is showing as unanswered, so do not re-answer them "
                   + "until this clears.</span> "
@@ -560,8 +564,11 @@
                   + "recorded start is hours past the deadline and the job ended after "
                   + "midnight, which reads as a job moved without the calendar being updated "
                   + "rather than a crew arriving that late. Switch them back on above."
-                : "")
-            + "</div>";
+                : "");
+          html += '<div class="panel"><div class="panel-head">'
+            + '<div class="panel-title">By foreman</div><span class="n">'
+            + byFm.length + "</span></div>"
+            + (note ? '<div class="rs-hint">' + note + "</div>" : "");
 
           if (!v.length) {
             html += '<div class="rs-hint">Nothing matches these filters.</div></div></div>';
@@ -751,10 +758,9 @@
           mountVerdict();
         }
 
+        // one kit tile for RSC.kpisHtml: the value is ours to escape, label and sub the kit's
         function kpi(val, lab, sub, cls) {
-          return '<div class="kpi ' + (cls || "") + '"><div class="l">' + esc(lab)
-            + '</div><div class="v">' + esc(val) + '</div><div class="s">'
-            + esc(sub) + "</div></div>";
+          return { value: esc(val), label: lab, sub: sub, tone: cls || "" };
         }
 
         function wire(v) {
@@ -893,7 +899,7 @@
         paint();
       }).catch(e => {
         if (!alive()) return;
-        host.innerHTML = '<div class="panel">Could not load the arrival data — '
+        host.innerHTML = headHtml() + '<div class="panel">Could not load the arrival data — '
           + esc(e && e.message || e) + "</div>";
       });
     },
