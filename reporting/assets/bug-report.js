@@ -107,6 +107,21 @@
   function capture() {
     return Promise.race([captureNow(), new Promise(function (r) { setTimeout(function () { r(null); }, 6000); })]);
   }
+  /* WHAT GOES INTO THE CLONE. Never the button, the panel or anything marked data-no-shot. And nothing that
+     starts BELOW the screen: the library copies every element's styles, and on the live Monthly Report
+     (6,900 elements, most of them further down) that took 3.2 of 4.2 s; leaving them out made it 1.2 s with
+     the same picture (13 Nov, measured in his Chrome). Only below: an element ABOVE the screen still holds
+     the layout of what follows it, so dropping it would shift the visible part up. */
+  function keepForShot(h) {
+    return function (n) {
+      if (n instanceof HTMLElement && n.dataset && n.dataset.noShot !== undefined) return false;
+      if (n instanceof Element && n.getBoundingClientRect) {
+        var r = n.getBoundingClientRect();
+        if (r.height > 0 && r.top > h + 40) return false;
+      }
+      return true;
+    };
+  }
   function captureNow() {
     var w = window.innerWidth, h = window.innerHeight;
     return shotLib().then(function (lib) {
@@ -123,7 +138,7 @@
             // top of the page, whatever the person was looking at (caught in the harness, 13 Nov)
             features: { restoreScrollPosition: true },
             style: { margin: "0", transform: "translate(" + (-window.scrollX) + "px," + (-window.scrollY) + "px)" },
-            filter: function (n) { return !(n instanceof HTMLElement && n.dataset && n.dataset.noShot !== undefined); },
+            filter: keepForShot(h),
           }),
           new Promise(function (r) { setTimeout(function () { r(null); }, 5500); }),
         ]);
