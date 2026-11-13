@@ -32,6 +32,14 @@
       ],
     };
   }
+  // what the customer NAMED on the call (13 Nov 2026, ZTZ-74 point 2; src/source_said.py): the family, how it
+  // was found (asked / mentioned) and the call's time -- never the words
+  if (window.RS && RS.DATASETS && !RS.DATASETS.source_said) {
+    RS.DATASETS.source_said = {
+      table: "mart_source_said",
+      cols: ["Job No", "Said Source", "Basis", "Call At", "Calls Checked", "Tracked Source", "Agrees"],
+    };
+  }
   if (window.RS && RS.DATASETS && !RS.DATASETS.source_trace_moveboard) {
     RS.DATASETS.source_trace_moveboard = {
       table: "source_trace_moveboard",
@@ -230,6 +238,11 @@ registerPage({
         .strc-path{margin-top:8px;font-size:13px;color:var(--muted)}
         .strc-path code{background:var(--panel);border:1px solid var(--line);border-radius:7px;
           padding:2px 8px;color:var(--ink);font-size:12.5px}
+        /* on the call: what the customer named (ZTZ-74) */
+        .strc-said{margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;
+          display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+        .strc-said .sv{font-size:15px}
+        .strc-said.strc-said-mute{color:var(--muted)}
         /* start-to-finish transformation chain */
         .strc-chain{display:flex;flex-direction:column;margin:4px 0 20px}
         .strc-step{position:relative;display:grid;grid-template-columns:26px 1fr;gap:13px;padding:0 0 16px}
@@ -732,6 +745,43 @@ registerPage({
       const r = rows.find(x => String(m.key(x)) === String(key));
       if (!r) { traceEl.innerHTML = ""; return; }
       m.render(r);
+      if (!SAID) loadSaid().then(() => { if (String(ST_STATE.sel) === String(key)) m.render(r); });
+    }
+
+    /* ---------------- ON THE CALL (13 Nov 2026, ZTZ-74 point 2) ----------------
+       His ask: "find the source from the transcript and add it to Source Trace"; his pick: keyword search.
+       src/source_said.py reads each lead's first two calls: the customer's answer when a rep asks how they
+       heard about us ("asked"), else the first source they name ("mentioned"). It decides nothing here --
+       it sits beside the decided source, and says whether the two agree. */
+    let SAID = null;
+    async function loadSaid() {
+      if (SAID) return SAID;
+      try { SAID = new Map((await RS.load("source_said")).map(x => [String(x["Job No"]), x])); }
+      catch (e) { SAID = new Map(); SAID.failed = true; }
+      return SAID;
+    }
+    const famOf = v => /post\s*card/i.test(String(v)) ? "Post Card" : /^yelp\b/i.test(String(v)) ? "Yelp" : String(v || "—").trim();
+    // src/source_said.py agrees(), against the source THIS trace shows
+    function saidAgrees(said, tracked) {
+      const t = famOf(tracked);
+      if (said === t) return true;
+      if (said === "Google") return t === "Google" || t === "Google Local" || /^search /i.test(t);
+      if (said === "Online search") return ["Google", "Google Local", "Website", "Bing"].includes(t) || /^search /i.test(t);
+      if (said === "Meta") return ["Meta", "Meta Referral", "Facebook", "Instagram"].includes(t);
+      return false;
+    }
+    function saidHtml(key, finalSrc) {
+      if (!SAID) return '<div class="strc-said strc-said-mute"><b>On the call</b> · reading the call transcripts…</div>';
+      if (SAID.failed) return "";
+      const x = SAID.get(String(key));
+      if (!x) return '<div class="strc-said strc-said-mute"><b>On the call</b> · no recorded call with a transcript for this lead</div>';
+      const n = +x["Calls Checked"] || 0;
+      if (!has(x["Said Source"])) return `<div class="strc-said strc-said-mute"><b>On the call</b> · the customer did not name a source (${n} call${n === 1 ? "" : "s"} checked)</div>`;
+      const ok = saidAgrees(x["Said Source"], finalSrc);
+      const when = String(x["Call At"] || "").slice(0, 10);
+      return `<div class="strc-said"><b>On the call</b> the customer said <b class="sv">${RSC.esc(x["Said Source"])}</b>`
+        + `<span class="strc-mini">${x.Basis === "asked" ? "answering how they heard about us" : "mentioned on the call"}${when ? " · call " + RSC.esc(when) : ""}</span>`
+        + `<span class="rs-pill ${ok ? "ok" : "warn"}">${ok ? "agrees with the source above" : "differs from " + RSC.esc(show(finalSrc))}</span></div>`;
     }
 
     /* ---------------- CLOSING trace (Request # grain) ---------------- */
@@ -910,6 +960,7 @@ registerPage({
               <span class="fv">${RSC.esc(show(finalC))}</span>
             </div>
             ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
+            ${saidHtml(r["Request #"], finalC)}
           </div>
         </div>`;
       traceEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -1060,6 +1111,7 @@ registerPage({
               <span class="fv">${RSC.esc(show(conn))}</span>
             </div>
             ${has(path) ? `<div class="strc-path">Decision path: <code>${RSC.esc(path)}</code></div>` : ""}
+            ${saidHtml(r["Job No"], conn)}
           </div>
         </div>`;
       traceEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
