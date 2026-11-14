@@ -95,6 +95,49 @@
     });
     return libP;
   }
+  /* THE PORTAL'S OWN FONT IN THE PICTURE. The picture is drawn as an SVG image, and an SVG image cannot see the
+     page's web fonts; the library cannot read the Google Fonts sheet either (another origin, linked without
+     crossorigin). Left alone it drew every word in a wider system font, so headings wrapped and sat over their
+     subtitles in the picture while the page itself was fine: ZP-2 (13 Nov) showed a layout bug that was never
+     there. So the faces are handed over ready-made: only the latin ones (both families are one variable file of
+     ~47 KB each, every weight in it), as data: URLs, read once per visit -- the browser already has the files
+     from loading the page. A failure is not kept, so the next picture tries again. */
+  var fontP = null;
+  function fontCss() {
+    var link = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com/css"]');
+    if (fontP || !link || !window.fetch || !window.FileReader) return fontP || Promise.resolve("");
+    var urlOf = function (b) { return (b.match(/url\((https:[^)\s]+)\)/) || [])[1]; };
+    var get = function (b, k) { return ((b.match(new RegExp(k + ":\\s*([^;]+);")) || [])[1] || "").trim(); };
+    fontP = fetch(link.href).then(function (r) { return r.ok ? r.text() : ""; }).then(function (css) {
+      /* one face per FILE: the sheet repeats the same variable file once per weight */
+      var faces = {}, order = [];
+      (css.match(/\/\*\s*latin\s*\*\/\s*@font-face\s*\{[^}]*\}/g) || []).forEach(function (b) {
+        var u = urlOf(b), wt = parseInt(get(b, "font-weight"), 10) || 400;
+        if (!u) return;
+        var f = faces[u];
+        if (!f) { faces[u] = f = { fam: get(b, "font-family"), st: get(b, "font-style") || "normal", lo: wt, hi: wt, rg: get(b, "unicode-range") }; order.push(u); }
+        f.lo = Math.min(f.lo, wt); f.hi = Math.max(f.hi, wt);
+      });
+      return Promise.all(order.map(function (u) {
+        return fetch(u).then(function (r) { return r.ok ? r.blob() : null; }).then(function (blob) {
+          return blob && new Promise(function (ok) {
+            var fr = new FileReader();
+            fr.onload = function () { ok(fr.result); };
+            fr.onerror = function () { ok(null); };
+            fr.readAsDataURL(blob);
+          });
+        }).catch(function () { return null; });
+      })).then(function (data) {
+        return order.map(function (u, i) {
+          var f = faces[u];
+          return data[i] ? "@font-face{font-family:" + f.fam + ";font-style:" + f.st + ";font-weight:" + f.lo + " " + f.hi
+            + ";src:url(" + data[i] + ") format('woff2')" + (f.rg ? ";unicode-range:" + f.rg : "") + "}" : "";
+        }).join("\n");
+      });
+    }).catch(function () { return ""; });
+    fontP.then(function (c) { if (!c) fontP = null; });
+    return fontP;
+  }
   /* two frames so a menu that was open can close -- or 150 ms, because a background tab gets no frames */
   function nextFrame() {
     return new Promise(function (r) {
@@ -112,37 +155,88 @@
      starts BELOW the screen: the library copies every element's styles, and on the live Monthly Report
      (6,900 elements, most of them further down) that took 3.2 of 4.2 s; leaving them out made it 1.2 s with
      the same picture (13 Nov, measured in his Chrome). Only below: an element ABOVE the screen still holds
-     the layout of what follows it, so dropping it would shift the visible part up. */
-  function keepForShot(h) {
-    return function (n) {
-      if (n instanceof HTMLElement && n.dataset && n.dataset.noShot !== undefined) return false;
-      if (n instanceof Element && n.getBoundingClientRect) {
+     the layout of what follows it, so dropping it would shift the visible part up.
+     TWO REPAIRS TO THE COPY (14 Nov, found taking pictures of Fixed Costs in a local harness):
+     * A TABLE WITH ROWS LEFT OUT kept its full height in the copy, so the rows that remained were stretched to
+       fill it (63 px rows came out 124 px). A table or table section that lost rows goes back to auto height.
+     * THE PICTURE IS LAID OUT AT 1x. On a 125 % or 150 % screen a 1 px border is 0.8 or 0.67 px on the page and
+       a full 1 px in the picture, so a label exactly as wide as its text loses a fraction of a pixel and wraps
+       ("Reporting System" broke onto two lines in every picture from a 150 % screen). Text that sits on ONE
+       line on the page is told to stay on one line in the copy.
+     The library copies attributes, so the elements to repair are marked on the page just before they are
+     copied; each mark is taken off the copy as it is made and off the page when the picture is done. */
+  var MARK = "data-zp-shot", TABLE_PART = /^(TABLE|TBODY|THEAD|TFOOT)$/;
+  function oneLine(n) {
+    var c = n.firstChild;
+    while (c && !(c.nodeType === 3 && /\S/.test(c.data))) c = c.nextSibling;
+    if (!c || getComputedStyle(n).whiteSpace !== "normal") return false;
+    var rg = document.createRange();
+    rg.selectNodeContents(n);
+    var rs = rg.getClientRects(), lo = -Infinity, hi = Infinity, any = false;
+    for (var i = 0; i < rs.length; i++) {
+      if (!rs[i].width || !rs[i].height) continue;
+      any = true; lo = Math.max(lo, rs[i].top); hi = Math.min(hi, rs[i].bottom);
+    }
+    return any && lo < hi;   // every line box overlaps every other one: a single line
+  }
+  function shotHooks(h) {
+    var seq = 0, fix = {};
+    var mark = function (n, what) {
+      var k = n.getAttribute(MARK);
+      if (!k) n.setAttribute(MARK, k = String(++seq));
+      fix[k] = (fix[k] || "") + what;
+    };
+    return {
+      filter: function (n) {
+        if (n instanceof HTMLElement && n.dataset && n.dataset.noShot !== undefined) return false;
+        if (!(n instanceof Element)) return true;
         var r = n.getBoundingClientRect();
-        if (r.height > 0 && r.top > h + 40) return false;
-      }
-      return true;
+        if (r.height > 0 && r.top > h + 40) {
+          var p = n.parentElement, t = p && p.closest("table");
+          if (p && TABLE_PART.test(p.nodeName)) { mark(p, "h"); if (t && t !== p) mark(t, "h"); }
+          return false;
+        }
+        if (TABLE_PART.test(n.nodeName)) mark(n, "");   // before it is copied, in case it loses rows later
+        if (oneLine(n)) mark(n, "w");
+        return true;
+      },
+      onCloneEachNode: function (c) {
+        var k = c.getAttribute && c.getAttribute(MARK);
+        if (!k) return;
+        c.removeAttribute(MARK);
+        var f = fix[k] || "";   // a mark left by an earlier picture that is still running means nothing here
+        if (f.indexOf("w") >= 0) c.style.whiteSpace = "nowrap";
+        if (f.indexOf("h") >= 0) c.style.height = "auto";
+      },
+      done: function () {
+        Array.prototype.forEach.call(document.querySelectorAll("[" + MARK + "]"), function (n) { n.removeAttribute(MARK); });
+      },
     };
   }
   function captureNow() {
     var w = window.innerWidth, h = window.innerHeight;
-    return shotLib().then(function (lib) {
+    /* the fonts get 2.5 s alongside the library's download; past that the picture goes without them */
+    var fonts = Promise.race([fontCss(), new Promise(function (r) { setTimeout(function () { r(""); }, 2500); })]);
+    return Promise.all([shotLib(), fonts]).then(function (got) {
+      var lib = got[0], css = got[1];
       return nextFrame().then(function () {
-        var bg = getComputedStyle(document.body).backgroundColor || "#ffffff";
-        return Promise.race([
-          lib.domToJpeg(document.body, {
-            width: w, height: h, quality: 0.72, scale: Math.min(1, MAX_W / w), backgroundColor: bg,
-            // each picture on the page gets 2.5 s to load and decode (a background tab never decodes, so 8 s
-            // here was 8 s of nothing before the panel opened)
-            timeout: 2500,
-            font: false,
-            // THE PORTAL SCROLLS INSIDE #content, not the window: without this the picture always showed the
-            // top of the page, whatever the person was looking at (caught in the harness, 13 Nov)
-            features: { restoreScrollPosition: true },
-            style: { margin: "0", transform: "translate(" + (-window.scrollX) + "px," + (-window.scrollY) + "px)" },
-            filter: keepForShot(h),
-          }),
-          new Promise(function (r) { setTimeout(function () { r(null); }, 5500); }),
-        ]);
+        var bg = getComputedStyle(document.body).backgroundColor || "#ffffff", hooks = shotHooks(h);
+        var shot = lib.domToJpeg(document.body, {
+          width: w, height: h, quality: 0.72, scale: Math.min(1, MAX_W / w), backgroundColor: bg,
+          // each picture on the page gets 2.5 s to load and decode (a background tab never decodes, so 8 s
+          // here was 8 s of nothing before the panel opened)
+          timeout: 2500,
+          font: css ? { cssText: css } : false,
+          // THE PORTAL SCROLLS INSIDE #content, not the window: without this the picture always showed the
+          // top of the page, whatever the person was looking at (caught in the harness, 13 Nov)
+          features: { restoreScrollPosition: true },
+          style: { margin: "0", transform: "translate(" + (-window.scrollX) + "px," + (-window.scrollY) + "px)" },
+          filter: hooks.filter,
+          onCloneEachNode: hooks.onCloneEachNode,
+        });
+        // the marks come off the page when the copy is finished, even one that outlives the 5.5 s below
+        shot.then(hooks.done, hooks.done);
+        return Promise.race([shot, new Promise(function (r) { setTimeout(function () { r(null); }, 5500); })]);
       });
     }).then(function (url) {
       return url && url.length < 3200000 ? url : null;
