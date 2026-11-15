@@ -62,7 +62,14 @@ registerPage({
       + "totals, with no state, city, type, source or salesperson, so the comparisons step aside while a filter is on.";
 
     const style = `<style id="mo-style">
-      .mo-wrap{max-width:1280px}
+      /* ZTZ-103 (15 Nov, his pick A "wide grid"): no page cap of its own -- the portal's 2100px ceiling
+         applies; from 1700px the top row holds the money cards AND the booking rate, and the three
+         breakdowns sit side by side. Below that the page stacks as before; a phone gets one column. */
+      .mo-wrap{max-width:none}
+      .mo-sec-top{display:none}
+      .mo-topl,.mo-topr{min-width:0}
+      .mo-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+      .mo-three>div:nth-child(3){grid-column:1/-1}
       .mo-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 14px}
       .mo-hero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
       .mo-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
@@ -110,7 +117,16 @@ registerPage({
       .mo-br-n{color:var(--faint)}
       /* side by side only where the comparison labels fit on one line; below that the numbers sit on top */
       @media(max-width:1280px){.mo-br{grid-template-columns:1fr;gap:14px}.mo-br-cmp{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:10px}}
-      @media(max-width:900px){.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}.mo-hb.st{grid-template-columns:90px minmax(0,1fr) 100px 76px}}
+      @media(min-width:1700px){
+        .mo-top{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
+        .mo-top:not(:has(.mo-br)){grid-template-columns:minmax(0,1fr)}
+        .mo-sec-top{display:block}
+        .mo-top .mo-br{grid-template-columns:1fr;gap:14px}
+        .mo-top .mo-br-cmp{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:10px}
+        .mo-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .mo-three>div:nth-child(3){grid-column:auto}
+        .mo-days{height:180px}}
+      @media(max-width:900px){.mo-three{grid-template-columns:1fr}.mo-three>div:nth-child(3){grid-column:auto}.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}.mo-hb.st{grid-template-columns:90px minmax(0,1fr) 100px 76px}}
       @media(max-width:600px){.mo-br-main{grid-template-columns:1fr}.mo-br-row{grid-template-columns:minmax(0,1fr) 54px 76px}.mo-br-row>span:nth-child(4){display:none}}
       /* DESIGN V2 ("Calm finance", 2026-10-06) -- MonthOutlook.dc.html: white cards, sentence-case
          labels, pill month toggle, the blue total card, one delta format. Dark is untouched. */
@@ -351,6 +367,7 @@ registerPage({
           <div class="rs-seg" id="moCo">${[["", "All"], ["Zip to Zip", "Zip to Zip"], ["Tuji", "Tuji"]].map(([v, l]) => `<button type="button" data-v="${v}" class="${v === S.co ? "on" : ""}">${l}</button>`).join("")}</div>
           <div id="moCity"></div><span class="rs-spacer"></span><div id="moFilt"></div>
         </div>
+        <div class="mo-top"><div class="mo-topl"><div class="mo-sec mo-sec-top">${esc(label)} as booked today</div>
         <div class="mo-hero">
           <div class="mo-card"><div class="k">Done so far</div><div class="v">${money(sum(done, "Revenue") + sum(dest, "Revenue"))}</div>
             <div class="s"><b>${done.length + dest.length}</b> jobs &middot; gross profit <b>${money(sum(done, "Profit") + sum(dest, "Profit"))}</b></div>
@@ -367,19 +384,19 @@ registerPage({
             <div class="s"><b>${jobs.length}</b> jobs &middot; gross profit <b>${money(totProf)}</b></div>
             ${filtered ? `<div class="s">${PF_ON ? "<b>Not compared while a filter is on:</b> last year and last month are kept as company totals, with no state, type, source or salesperson"
               : "comparisons hidden while a location filter is on"}</div>` : cmpHtml}</div>
-        </div>
+        </div></div>
+        <div class="mo-topr">${leadStrip()}</div></div>
         ${untyped ? `<div class="mo-note"><b>${fmtN(untyped)} job${untyped === 1 ? "" : "s"} left out by Local / Long distance:</b> an in-home estimate or no job type on the calendar, so neither local nor long distance.</div>` : ""}
-        ${leadStrip()}
         <div class="mo-sec">Day by day</div>
         <div class="mo-card"><div class="mo-days">${dayCols.join("")}</div><div class="mo-dlab">${dayLabs.join("")}</div>
           <div class="mo-leg"><span><i style="background:${C.done}"></i>Done, closing filed</span><span><i style="background:${C.est}"></i>Done, closing not filed (estimate)</span>
           <span><i style="background:${C.ahead}"></i>Still on the calendar (estimate)</span><span>numbers = jobs that day &middot; shaded = weekend</span></div></div>
-        <div class="mo-two">
+        <div class="mo-three">
           <div><div class="mo-sec">By state</div><div class="mo-card">${stateBlock()}</div></div>
           <div><div class="mo-sec">By weekday &middot; jobs per day of that weekday</div><div class="mo-card">${hbars(wdList)}</div></div>
+          <div><div class="mo-sec">How far ahead the jobs were booked</div>
+            <div class="mo-card">${hbars(lead)}<div class="mo-note">Days from the Moveboard booking to the move. "Unknown" = no booking date on the lead.</div></div></div>
         </div>
-        <div class="mo-sec">How far ahead the jobs were booked</div>
-        <div class="mo-card">${hbars(lead)}<div class="mo-note">Days from the Moveboard booking to the move. "Unknown" = no booking date on the lead.</div></div>
         <div class="mo-two">
           <div><div class="mo-sec">Sources</div><div class="mo-card">${tbl("Source", groupBy("Source"))}</div></div>
           <div><div class="mo-sec">Who booked them</div><div class="mo-card">${tbl("Salesperson", groupBy("Sales Person"))}</div></div>

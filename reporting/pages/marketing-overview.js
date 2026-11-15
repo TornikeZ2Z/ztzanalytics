@@ -227,7 +227,7 @@
     mkt_ctrace: { table: "mart_mkt_campaign_lead", cols: ["Date", "Campaign Id", "Via", "Leads", "Booked"] },
     mkt_utmc: { table: "mart_mkt_utm_campaign_lead", cols: ["Date", "Platform", "UTM Campaign", "Leads", "Booked"] },
     mkt_fsrc: { table: "mart_mkt_form_source_lead", cols: ["Date", "Source", "Medium", "Leads", "Booked"] },
-    mkt_mform: { table: "mart_mkt_meta_form_lead", cols: ["Date", "Form", "Campaign", "Leads", "In Moveboard", "Booked"] },
+    mkt_mform: { table: "mart_mkt_meta_form_lead", cols: ["Date", "Form", "Campaign", "Leads", "In Moveboard", "Booked", "Partner"] },
     // 2026-10-26 AI visibility: Ahrefs Brand Radar answers to our questions (src/brand_radar.py), monthly
     mkt_brans: { table: "ext_brandradar_answer", cols: ["Date", "Engine", "Prompt Key", "Question", "Tags", "Us Mentioned"] },
     mkt_brmen: { table: "ext_brandradar_mention", cols: ["Date", "Engine", "Prompt Key", "Brand", "Is Us", "Sentiment"] },
@@ -2002,6 +2002,7 @@
   /* a campaign's category, read from its name the way the team names them ("July 2026 // Referral //
      Leads", "awareness NJ", "FB Followers"), the objective when the name says nothing */
   function metaCat(name, obj) {
+    if (P.partnerCamps && P.partnerCamps.has(String(name || ""))) return "B2B";   // ZTZ-79: its form is a partner form
     const t = String(name || "").toLowerCase();
     if (/referr/.test(t)) return "Referral";
     if (/\bb2b\b|business to business/.test(t)) return "B2B";
@@ -2053,24 +2054,39 @@
     ], list, list.length > 1 ? tot : null);
   }
   /* Meta's lead forms (Giga, 2026-11-03): src/meta_leads.py matches each lead to Moveboard by phone or
-     email and keeps only the campaign and the match; mart_mkt_meta_form_lead counts them */
+     email and keeps only the campaign and the match; mart_mkt_meta_form_lead counts them.
+     PARTNER FORMS (ZTZ-79, 15 Nov 2026): Sophie -- the "Lead Gen Form-report" leads are the partners' lead
+     campaign, worked by Ruso's team, never meant for Moveboard. Tornike's pick: label them apart, so they no
+     longer read as move leads that went missing. A form is a partner form when it asks for a company name or a
+     job title (src/meta_leads.is_partner), and so is every form of a campaign that runs one
+     (src/meta_leads.mark_partner_campaigns). */
   function metaFormsHtml(pw) {
     if (P.err.mform) return '<div class="mko-empty">Lead forms could not load — ' + esc(P.err.mform) + "</div>";
     const from = P.mform.reduce((a, r) => (!a || r.d < a ? r.d : a), "");
-    const list = groupBy(inRange(P.mform, pw.a, pw.b), r => r.form + "" + r.camp).map(x => ({ form: x.rows[0].form, camp: x.rows[0].camp,
-      leads: sum(x.rows, "leads"), found: sum(x.rows, "found"), booked: sum(x.rows, "booked") })).sort((a, b) => b.leads - a.leads || b.booked - a.booked);
-    if (!list.length) return '<div class="mko-empty">' + (P.mform.length ? "No lead-form leads in this period." : "No lead-form leads read yet.") + "</div>";
+    const all = groupBy(inRange(P.mform, pw.a, pw.b), r => r.form + "" + r.camp).map(x => ({ form: x.rows[0].form, camp: x.rows[0].camp,
+      leads: sum(x.rows, "leads"), found: sum(x.rows, "found"), booked: sum(x.rows, "booked"), partner: x.rows.some(r => r.partner) }))
+      .sort((a, b) => b.leads - a.leads || b.booked - a.booked);
+    if (!all.length) return '<div class="mko-empty">' + (P.mform.length ? "No lead-form leads in this period." : "No lead-form leads read yet.") + "</div>";
+    const list = all.filter(r => !r.partner), part = all.filter(r => r.partner);
+    const formCell = r => (r.tot ? "<b>" + esc(r.form) + "</b>" : esc(r.form)) + (r.camp ? '<div class="mko-sub">' + esc(r.camp) + "</div>" : "");
+    const partHtml = !part.length ? "" : '<div class="mko-sub" style="margin:14px 0 6px"><b>Partner (B2B) leads</b> — worked by Ruso\'s team, not Moveboard, so they are not counted as move leads</div>'
+      + ptable([
+        { h: "Form", name: true, cell: formCell },
+        { h: "Leads", num: true, tip: "leads Meta's form took", cell: r => fmtN(r.leads) },
+      ], part, part.length > 1 ? { tot: true, form: "All partner forms", camp: "", leads: sum(part, "leads") } : null);
+    const note = '<p class="rs-hint">Meta’s instant forms never touch the website, so no UTM names their campaign. Each lead is matched to the Moveboard lead '
+      + "with the same phone or email, created within 30 days; only the campaign and the match are kept, never the answers. "
+      + "A form that asks for a company name or a job title is a partner form, and so is every form of its campaign. "
+      + "Meta hands out a form's leads for 90 days, so this starts on " + esc(day(from)) + ".</p>";
+    if (!list.length) return '<div class="mko-sub" style="margin:0 0 6px"><b>Move leads</b> — none from a lead form in this period</div>' + partHtml + note;
     const tot = { tot: true, form: "All forms", camp: "", leads: sum(list, "leads"), found: sum(list, "found"), booked: sum(list, "booked") };
-    return ptable([
-      { h: "Form", name: true, cell: r => (r.tot ? "<b>" + esc(r.form) + "</b>" : esc(r.form)) + (r.camp ? '<div class="mko-sub">' + esc(r.camp) + "</div>" : "") },
+    return (part.length ? '<div class="mko-sub" style="margin:0 0 6px"><b>Move leads</b></div>' : "") + ptable([
+      { h: "Form", name: true, cell: formCell },
       { h: "Leads", num: true, tip: "leads Meta's form took", cell: r => fmtN(r.leads) },
       { h: "In Moveboard", num: true, tip: "the same phone or email on a Moveboard lead within 30 days", cell: r => fmtN(r.found) },
       { h: "Booked", num: true, cell: r => fmtN(r.booked) },
       { h: "Booking rate", num: true, tip: "booked ÷ leads in Moveboard", cell: r => (r.found ? pct(r.booked / r.found) : "—") },
-    ], list, list.length > 1 ? tot : null)
-      + '<p class="rs-hint">Meta’s instant forms never touch the website, so no UTM names their campaign. Each lead is matched to the Moveboard lead '
-      + "with the same phone or email, created within 30 days; only the campaign and the match are kept, never the answers. "
-      + "Meta hands out a form's leads for 90 days, so this starts on " + esc(day(from)) + ".</p>";
+    ], list, list.length > 1 ? tot : null) + partHtml + note;
   }
   function metaSection(w, cw) {
     const pw = platWin("meta", w, cw);
@@ -2094,14 +2110,14 @@
       + '<span class="mko-sub">what the money bought, in each campaign\'s own unit</span></div>'
       + metaKindTable(rows) + "</div></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By category</span>'
-      + '<span class="mko-sub">read from each campaign\'s name: Referral, B2B, Leads, Awareness, Engagement, Traffic</span></div>'
+      + '<span class="mko-sub">read from each campaign\'s name: Referral, B2B, Leads, Awareness, Engagement, Traffic; a partner lead form counts as B2B</span></div>'
       + metaCatTable(rows, cur) + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">By placement</span>'
       + '<span class="mko-sub">where Meta showed the ads</span></div>' + metaPlaceHtml(pw)
       + '<p class="rs-hint">A new placement, WhatsApp among them, gets its own row the day ads run there. Leads are Meta\'s own count from its '
       + "forms; our bookings cannot be split by placement.</p></div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Lead forms</span>'
-      + '<span class="mko-sub">Meta’s instant forms: how many reached Moveboard and booked</span></div>' + metaFormsHtml(pw) + "</div>"
+      + '<span class="mko-sub">Meta’s instant forms: move leads that reached Moveboard and booked, partner (B2B) forms apart</span></div>' + metaFormsHtml(pw) + "</div>"
       + '<div class="panel"><div class="panel-head"><span class="panel-title">Campaigns</span>'
       + '<span class="mko-sub">every campaign that spent in the period, most spend first</span></div>'
       + metaCampTable(rows, cur, pw) + "</div>";
@@ -6597,7 +6613,9 @@
         indexTags(tags);
         indexBatch3({ refdom, anchor, ctrace });
         P.mform = (mform || []).map(r => ({ d: d10(r.Date), form: r.Form || "", camp: r.Campaign || "", leads: num(r.Leads),
-          found: num(r["In Moveboard"]), booked: num(r.Booked) })).filter(r => r.d);
+          found: num(r["In Moveboard"]), booked: num(r.Booked), partner: num(r.Partner) === 1 })).filter(r => r.d);
+        // ZTZ-79: a campaign behind a partner (B2B) form counts as B2B in "By category", whatever its name says
+        P.partnerCamps = new Set(P.mform.filter(r => r.partner && r.camp && r.camp !== "(organic, no ad)").map(r => r.camp));
         P.fsrc = (fsrc || []).map(r => ({ d: d10(r.Date), src: r.Source || "", med: r.Medium || "", leads: num(r.Leads), booked: num(r.Booked) })).filter(r => r.d);
         P.utmc = (utmc || []).map(r => ({ d: d10(r.Date), plat: r.Platform, camp: normCamp(r["UTM Campaign"]), leads: num(r.Leads), booked: num(r.Booked) }));
         indexBrandRadar({ brans, brmen, brcit });

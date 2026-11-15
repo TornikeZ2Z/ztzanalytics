@@ -29,10 +29,15 @@
     const st = document.createElement("style");
     st.id = "ctr-style";
     st.textContent = `
-      .ctr-wrap{max-width:1280px}
+      /* ZTZ-103 (15 Nov, his word on Month Outlook: "i hate when we use 50% of the screen"): no page cap of its
+         own; from 1700px the comparison and this month / next sit side by side, and the three source and
+         spend tables share a row. A phone gets one column. */
+      .ctr-wrap{max-width:none}
+      .ctr-three{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+      .ctr-three>div:nth-child(3){grid-column:1/-1}
+      .ctr-mid>div,.ctr-three>div{min-width:0}
       .ctr-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:4px 0 14px}
       .ctr-sec{font-size:15px;font-weight:600;color:var(--ink);margin:24px 0 10px}
-      .ctr-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
       .ctr-note{font-size:12.5px;color:var(--faint);line-height:1.55;margin-top:8px}
       .rs-table tr.ctr-on td{background:color-mix(in srgb,var(--brand) 12%,transparent);font-weight:600}
       .rs-table tr.ctr-tot td{font-weight:700;border-top:2px solid var(--line)}
@@ -44,7 +49,12 @@
       .ctr-card .v{font-size:26px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
       .ctr-card .s{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
       .ctr-card .s b{color:var(--ink)}
-      @media(max-width:900px){.ctr-two,.ctr-out{grid-template-columns:1fr}}`;
+      @media(min-width:1700px){
+        .ctr-mid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
+        .ctr-mid .ctr-out{grid-template-columns:1fr}
+        .ctr-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .ctr-three>div:nth-child(3){grid-column:auto}}
+      @media(max-width:900px){.ctr-out,.ctr-three{grid-template-columns:1fr}.ctr-three>div:nth-child(3){grid-column:auto}}`;
     document.head.appendChild(st);
   }
 
@@ -195,17 +205,17 @@
       ${RSC.headlineHtml(`In ${esc(mLong(k))}${running ? " so far" : ""}, CT had <b>${fmtN(M.leads)}</b> leads and booked <b>${fmtN(M.b)}</b> (${pct(M.rate)}), did <b>${fmtN(M.jobs)}</b> jobs for <b>${money(M.rev)}</b>`
         + (M.hasSpend ? `, and we spent <b>${money(M.spend)}</b> on ads placed in CT.` : "."))}
       ${kpis}
+      <div class="ctr-mid"><div>
       <div class="ctr-sec">${esc(mLong(k))} against ${hasLY ? esc(mShort(addM(k, -12))) + " and " : ""}${esc(mShort(addM(k, -1)))}</div>
-      ${glance}
-      ${outHtml}
+      ${glance}</div>
+      <div>${outHtml}</div></div>
       <div class="ctr-sec">Month by month, ${esc(yr)}</div>
       ${byMonth}
-      <div class="ctr-two">
+      <div class="ctr-three">
         <div><div class="ctr-sec">Where ${esc(mLong(k))}'s leads came from</div>${srcLeads}</div>
         <div><div class="ctr-sec">${esc(mLong(k))}'s jobs by source</div>${srcJobs}</div>
+        <div><div class="ctr-sec">Ad spend in CT, ${esc(mLong(k))}</div>${spendHtml}</div>
       </div>
-      <div class="ctr-sec">Ad spend in CT, ${esc(mLong(k))}</div>
-      ${spendHtml}
     </div>`;
     RSC.localSelect(host.querySelector("#ctrMonth"), { label: "Month", required: true,
       values: months.slice().reverse().map(x => ({ v: x, l: mLong(x) + (x === cur ? " (so far)" : "") })),
