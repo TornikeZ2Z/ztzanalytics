@@ -48,7 +48,7 @@
       "Rules:",
       "- Email-safe HTML only: tables for layout, inline styles, 600px wide at most, no JavaScript, no forms, no external CSS files.",
       "- Use these placeholders exactly as written: {first} (the customer's first name), {move_date} (their move day), {foreman} (their foreman), {state}.",
-      survey ? "- The main button's link must be exactly {survey_link}. It becomes each customer's personal survey link." : "- Buttons and links must use full https:// addresses.",
+      survey ? "- The main button's link must be exactly {survey_link}. It becomes each customer's personal survey link." : "- Buttons and links must use full https:// addresses. A Google review button links to exactly {google_review_link}: each customer gets their own state's Google profile.",
       "- Don't add a footer, the company address or an unsubscribe link: they are added automatically.",
       "- Pictures must use https:// addresses. Brand colours: green #8db13c, black #141414, white #ffffff, light #f4f4ef.",
       "- Keep the whole email under 90 KB.",
@@ -319,6 +319,9 @@
     const fonts = kit.fonts || { archivo: "Archivo Black", arial: "Arial Black" };
     const stickers = kit.stickers || {};
     const surveyLink = kit.survey_link || "{survey_link}";
+    // step 7 (ZTZ-54): a button can open the Google review profile of the customer's state
+    const reviewLink = kit.review_link || "{google_review_link}";
+    const reviewStates = Object.keys(kit.review_links || {}).sort().join(", ");
     const H = o.head || null;
     // what you were looking at survives a repaint of the page (the page keeps this object)
     const U = o.ui || {};
@@ -362,7 +365,7 @@
     function summary(b) {
       if (b.t === "banner") return b.mode === "image" ? (b.alt || "picture headline") : (b.lines || []).map(x => x.text).filter(Boolean).join(" / ");
       if (b.t === "text" || b.t === "heading" || b.t === "strip") return b.text || "(empty)";
-      if (b.t === "button") return (b.label || "") + (b.url === surveyLink ? " · opens the survey" : b.url ? "" : " · no link yet");
+      if (b.t === "button") return (b.label || "") + (b.url === surveyLink ? " · opens the survey" : b.url === reviewLink ? " · Google review, their state" : b.url ? "" : " · no link yet");
       if (b.t === "image") return b.url ? (b.alt || "no description yet") : "no picture yet";
       if (b.t === "logo") return (b.bg === "white" ? "white" : "light") + " band";
       if (b.t === "bar") return COLOR_NAMES[b.color] || "";
@@ -535,10 +538,13 @@
           + '<p class="emd-help">An empty line starts a new paragraph.</p>';
       }
       if (b.t === "button") {
-        const toSurvey = b.url === surveyLink;
+        const toSurvey = b.url === surveyLink, toReview = b.url === reviewLink;
+        const opens = o.survey ? [["survey", "Their own survey"], ["url", "A web address"]] : [["review", "Google review (their state)"], ["url", "A web address"]];
         return field("Button text", k + "label", b.label, "Take the 2-minute survey", 60)
-          + (o.survey ? '<label class="l">Opens</label>' + seg(k + "target", toSurvey ? "survey" : "url", [["survey", "Their own survey"], ["url", "A web address"]]) : "")
-          + (toSurvey ? "" : field("Web address", k + "url", b.url, "https://…", 500))
+          + '<label class="l">Opens</label>' + seg(k + "target", toSurvey ? "survey" : toReview ? "review" : "url", opens)
+          + (toReview ? '<p class="emd-help">Each customer gets the Google profile of the state they moved in'
+              + (reviewStates ? " (" + esc(reviewStates) + ")" : "") + ". Any other state gets NJ’s. The links are the review bot’s, set in Review Settings.</p>"
+            : toSurvey ? "" : field("Web address", k + "url", b.url, "https://…", 500))
           + '<label class="l">Shape</label>' + seg(k + "style", b.style || "rounded", [["rounded", "Rounded"], ["square", "Square"]])
           + '<label class="l">Position</label>' + seg(k + "align", b.align || "left", [["left", "Left"], ["center", "Centre"]])
           + '<label class="l">Colour</label>' + swatches(k + "color", b.color || "black", ["black", "green"])
@@ -566,7 +572,8 @@
           + (v === "url" ? '<label class="l" for="emdHref">Web address</label><input id="emdHref" data-hhref="' + p.i + '" value="' + esc(href) + '" placeholder="https://…">' : "");
       }
       if (!has && p.kind !== "picture") return "";
-      return '<label class="l" for="emdHref">Opens when pressed' + (p.kind === "picture" ? " (optional)" : "") + '</label><input id="emdHref" data-hhref="' + p.i + '" value="' + esc(href) + '" placeholder="https://…">';
+      return '<label class="l" for="emdHref">Opens when pressed' + (p.kind === "picture" ? " (optional)" : "") + '</label><input id="emdHref" data-hhref="' + p.i + '" value="' + esc(href) + '" placeholder="https://… or {google_review_link}">'
+        + (href === reviewLink ? '<p class="emd-help">Opens the Google profile of the customer’s state.</p>' : "");
     }
     function htmlPartFields(p) {
       const row = T.html.slice(p.s, p.e);
@@ -896,7 +903,7 @@
           U.sel = null; U.view = "design"; if (o.onChange) o.onChange(); draw(); schedulePreview(); return;
         }
         const [obj, key] = at(path);
-        if (key === "target") obj.url = v === "survey" ? surveyLink : ""; else obj[key] = v;
+        if (key === "target") obj.url = v === "survey" ? surveyLink : v === "review" ? reviewLink : ""; else obj[key] = v;
         changed(true);
       }; });
       $$("[data-act]").forEach(b => { b.onclick = () => { const [what, i] = b.dataset.act.split(":"); const bl = T.blocks[+i];
