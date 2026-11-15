@@ -47,6 +47,8 @@
       "Write an HTML email for Zip To Zip Moving (a moving company in New Jersey).",
       "Rules:",
       "- Email-safe HTML only: tables for layout, inline styles, 600px wide at most, no JavaScript, no forms, no external CSS files.",
+      "- Gmail and Outlook break these, so never use them: flexbox, CSS grid, position:absolute, SVG, background pictures, web fonts, video. Words that must look exactly like the design go on a picture; everything else stays live text.",
+      "- Mark every picture you need with a comment like <!-- PICTURE: what it shows, width x height -->: we cut it from the design and upload it.",
       "- Use these placeholders exactly as written: {first} (the customer's first name), {move_date} (their move day), {foreman} (their foreman), {state}.",
       survey ? "- The main button's link must be exactly {survey_link}. It becomes each customer's personal survey link." : "- Buttons and links must use full https:// addresses. A Google review button links to exactly {google_review_link}: each customer gets their own state's Google profile.",
       "- Don't add a footer, the company address or an unsubscribe link: they are added automatically.",
@@ -330,7 +332,7 @@
     if (!U.view || T.mode !== "html") U.view = "design";
     if (!U.pv) U.pv = "desk";
     if (U.testTo == null) U.testTo = (H && H.testTo) || "";
-    let problems = [], pvT = null, busyUp = false, picCount = null, missingAlt = null, frameOk = false;
+    let problems = [], warnings = [], pvT = null, busyUp = false, picCount = null, missingAlt = null, frameOk = false;
     let testOpen = false, testMsg = "", testBad = false, testBusy = false, actBusy = "", headMsg = (H && H.msg) || "", headBad = !!(H && H.msgBad), saveText = (H && H.save) || "";
     const isHtml = () => T.mode === "html";
 
@@ -477,6 +479,7 @@
       if (missingAlt != null) it.push(missingAlt ? ["warn", missingAlt + (missingAlt === 1 ? " big picture has" : " big pictures have") + " no description"] : ["ok", "Every picture has a description"]);
       if (o.survey) it.push(hasSurveyLink() ? ["ok", "A button opens the customer's own survey"] : ["bad", "No button opens the survey yet"]);
       problems.filter(p => !(o.survey && /opens the survey|survey yet/i.test(p))).forEach(p => it.push(["bad", p]));
+      warnings.forEach(w => it.push(["warn", w]));     // step 4: what Gmail/Outlook would break in pasted HTML
       const ts = H && H.tested ? H.tested(changes()) : null;
       if (ts) it.push(ts);
       return it.map(([l, t]) => '<span class="emd-ck ' + l + '"><span aria-hidden="true">' + ({ ok: "✓", bad: "✕", warn: "!", info: "•" }[l] || "•") + "</span>" + esc(t) + "</span>").join("");
@@ -755,7 +758,7 @@
       pvT = setTimeout(() => {
         if (!o.preview) return;
         o.preview(T).then(j => {
-          U.pvHtml = j.html || ""; U.pvSubject = j.subject || ""; problems = j.problems || [];
+          U.pvHtml = j.html || ""; U.pvSubject = j.subject || ""; problems = j.problems || []; warnings = j.warnings || [];
           const f = frame(); if (f) f.srcdoc = U.pvHtml;
           paintInbox(); paintChecks();
         }).catch(() => {});
