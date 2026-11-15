@@ -88,6 +88,14 @@ registerPage({
       .mo-hb .t i{display:block;height:100%}
       .mo-hb .r{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
       .mo-hb .r b{color:var(--ink)}
+      /* ZP-5 (Gvantsa, 15 Nov): By state carries each state's booking rate in a fourth column */
+      .mo-hb.st{grid-template-columns:110px minmax(0,1fr) 120px 84px}
+      .mo-hb-h{font-size:12px;font-weight:600;color:var(--faint);padding:0 0 4px}
+      .mo-hb-h .r{color:var(--faint)}
+      /* ZP-4 (Gvantsa, 15 Nov): every comparison says what it is against */
+      .mo-br-hd{font-size:12px;font-weight:600;color:var(--faint)}
+      .mo-br-hd>span:nth-child(2){text-align:right}
+      .mo-cmp-h{font-size:12px;font-weight:600;color:var(--muted);margin-top:8px}
       .mo-tbl{width:100%;border-collapse:collapse;font-size:13px}
       .mo-tbl th{text-align:left;font-size:12px;font-weight:800;color:var(--muted);padding:7px 8px;border-bottom:2px solid var(--line)}
       .mo-tbl td{padding:7px 8px;border-bottom:1px solid var(--line)}
@@ -96,13 +104,13 @@ registerPage({
       .mo-br{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:center}
       .mo-br-main{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
       .mo-br-cmp{border-left:1px solid var(--line);padding-left:20px}
-      .mo-br-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 86px 92px;gap:8px;align-items:baseline;font-size:12.5px;color:var(--muted);padding:3px 0}
+      .mo-br-row{display:grid;grid-template-columns:minmax(0,1fr) 84px 92px 104px;gap:8px;align-items:baseline;font-size:12.5px;color:var(--muted);padding:3px 0}
       .mo-br-row>b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
       .mo-br-row>span:nth-child(3),.mo-br-row>span:nth-child(4){text-align:right;font-variant-numeric:tabular-nums}
       .mo-br-n{color:var(--faint)}
       /* side by side only where the comparison labels fit on one line; below that the numbers sit on top */
       @media(max-width:1280px){.mo-br{grid-template-columns:1fr;gap:14px}.mo-br-cmp{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:10px}}
-      @media(max-width:900px){.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}}
+      @media(max-width:900px){.mo-hero,.mo-two{grid-template-columns:1fr}.mo-hb{grid-template-columns:90px minmax(0,1fr) 100px}.mo-hb.st{grid-template-columns:90px minmax(0,1fr) 100px 76px}}
       @media(max-width:600px){.mo-br-main{grid-template-columns:1fr}.mo-br-row{grid-template-columns:minmax(0,1fr) 54px 76px}.mo-br-row>span:nth-child(4){display:none}}
       /* DESIGN V2 ("Calm finance", 2026-10-06) -- MonthOutlook.dc.html: white cards, sentence-case
          labels, pill month toggle, the blue total card, one delta format. Dark is untouched. */
@@ -133,6 +141,8 @@ registerPage({
       body.rs-app.light.v2 .mo-note{font-size:12.5px;color:var(--faint)}
       body.rs-app.light.v2 .mo-br-row{font-size:13.5px;padding:4px 0}
       body.rs-app.light.v2 .mo-br-row>b{font-weight:600}
+      body.rs-app.light.v2 .mo-br-row.mo-br-hd,body.rs-app.light.v2 .mo-hb.mo-hb-h{font-size:12px;padding-top:0}
+      body.rs-app.light.v2 .mo-cmp-h{color:#14301F;font-size:12.5px}
     </style>`;
     // bar colours: v2 = navy done / light blue still on the calendar (the canvas spec); read at render
     // time so the theme button, which re-renders the page, switches them
@@ -168,11 +178,23 @@ registerPage({
                              rev: sum(ref.filter(r => r["Phase"] === ph), "Revenue") });
       const ly = refOf("ly"), pm = refOf("pm");
       const totRev = sum(jobs, "Revenue"), totProf = sum(jobs, "Profit");
+      /* ZP-4 (Gvantsa, Slack 14 Nov: the upcoming jobs' estimated total, to see roughly what reaches
+         the bank by year end): every month on file from today on, under the same picks. */
+      const aheadAll = all.filter(r => r["Phase"] === "ahead" && (!S.co || r["Company"] === S.co) && pfHas("state", r["State"])
+        && pfJob(r) && (!S.city || r["City"] === S.city));
+      const aheadMos = [...new Set(aheadAll.map(r => r["Month"]))].sort();
       const filtered = !!(PF_ON || S.city);
-      const cmp = (now, then, label) => !then ? "" : (() => { const d = (now - then) / then * 100;
-        // v2: the one delta format -- the change first, then what it is against
-        if (RS.isV2()) return `<div class="s"><span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}%</span> <span class="mo-vs">vs ${label[0].toLowerCase() + label.slice(1)}: ${moneyK(then)}</span></div>`;
-        return `<div class="s">${label}: <b>${moneyK(then)}</b> <span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "+" : ""}${d.toFixed(0)}%</span></div>`; })();
+      /* ZP-4 (Gvantsa, 15 Nov: "what is compared with what"): each line names the month it is
+         against and says above / below; the heading says those are billed totals. */
+      const cmp = (now, then, name, n) => !then ? "" : (() => { const d = (now - then) / then * 100;
+        return `<div class="s"><span class="${d >= 0 ? "mo-up" : "mo-dn"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(0)}% ${d >= 0 ? "above" : "below"}</span> <b>${esc(name)}</b> <span class="mo-vs">(${moneyK(then)}, ${fmtN(n)} job${n === 1 ? "" : "s"})</span></div>`; })();
+      const moShort = k => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" });
+      const moBack = (k, n) => { const i = +k.slice(0, 4) * 12 + +k.slice(5, 7) - 1 - n; return Math.floor(i / 12) + "-" + String(i % 12 + 1).padStart(2, "0"); };
+      const thisMo = new Date().toISOString().slice(0, 7);
+      const pmKey = moBack(S.month, 1);
+      const cmpHtml = !(ly.rev || pm.rev) ? "" : `<div class="mo-cmp-h">Against months already billed</div>`
+        + cmp(totRev, ly.rev, moShort(moBack(S.month, 12)), ly.jobs)
+        + cmp(totRev, pm.rev, moShort(pmKey) + (pmKey >= thisMo ? " so far" : ""), pm.jobs);
       const [y, m] = S.month.split("-").map(Number);
       const days = new Date(y, m, 0).getDate();
       const todayIso = new Date().toISOString().slice(0, 10);
@@ -200,10 +222,11 @@ registerPage({
         const list = Object.values(o);
         return order ? order.map(k => o[k] || { k, n: 0, rev: 0, prof: 0, done: 0, ahead: 0 }) : list.sort((a, b) => b.rev - a.rev);
       };
-      const hbars = list => { const mx = Math.max(1, ...list.map(g => g.rev));
-        return list.map(g => `<div class="mo-hb"><span>${esc(g.k)}</span>
+      // extra: a fourth cell per row (By state's booking rate, ZP-5)
+      const hbars = (list, extra) => { const mx = Math.max(1, ...list.map(g => g.rev));
+        return list.map(g => `<div class="mo-hb${extra ? " st" : ""}"><span>${esc(g.k)}</span>
           <span class="t"><i style="width:${(g.done / mx * 100).toFixed(1)}%;background:${C.done}"></i><i style="width:${(g.ahead / mx * 100).toFixed(1)}%;background:${C.ahead}"></i></span>
-          <span class="r"><b>${moneyK(g.rev)}</b> &middot; ${g.n} job${g.n === 1 ? "" : "s"}</span></div>`).join(""); };
+          <span class="r"><b>${moneyK(g.rev)}</b> &middot; ${g.n} job${g.n === 1 ? "" : "s"}</span>${extra ? extra(g) : ""}</div>`).join(""); };
       const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
       const wdCount = k => { let n = 0; for (let i = 1; i <= days; i++) if (WD[(new Date(y, m - 1, i).getDay() + 6) % 7] === k) n++; return n; };
       const wdList = groupBy("Weekday", WD).map(g => Object.assign(g, { k: g.k + " (" + (g.n / Math.max(1, wdCount(g.k))).toFixed(1) + "/day)" }));
@@ -221,10 +244,11 @@ registerPage({
       const leadType = S.pf.job.length && S.pf.job.length < Object.keys(PF_JOB).length ? new Set(S.pf.job) : null;
       const leadOk = r => (!S.co || r["Company"] === S.co) && pfHas("state", r["State"]) && (!S.city || r["City"] === S.city)
         && (!leadType || leadType.has(r["Move Type"] || "—"));
-      const leadPh = ph => {
+      // st: one state only (ZP-5, the By state block); a blank state is "—", as in groupBy
+      const leadPh = (ph, st) => {
         const raw = leadAll.filter(r => r["Phase"] === ph);
         if (!raw.length) return null;
-        const rs = raw.filter(leadOk);
+        const rs = raw.filter(r => leadOk(r) && (st == null || (r["State"] || "—") === st));
         const o = { leads: sum(rs, "Leads"), q: sum(rs, "Qualified"), b: sum(rs, "Booked Leads"), cx: sum(rs, "Cancelled"),
                     mo: String(raw[0]["Day"] || "").slice(0, 7), asOf: raw[0]["As Of"] };
         // RS.bookingRate's rule: more booked than qualified caps at 100%, nothing at all is blank
@@ -252,20 +276,39 @@ registerPage({
         <div class="mo-card mo-br">
           <div class="mo-br-main">
             <div><div class="k">Leads moving in ${esc(short)}</div><div class="v">${fmtN(cur.q)}</div>
-              <div class="s">${fmtN(cur.leads)} with bad leads</div></div>
+              <div class="s">${fmtN(cur.leads)} counting bad leads</div></div>
             <div><div class="k">Booked</div><div class="v">${fmtN(cur.b)}</div>
               <div class="s">confirmed in Moveboard</div></div>
             <div><div class="k">Booking rate so far</div><div class="v">${pct(cur.rate)}</div>
               <div class="s">booked &divide; leads</div></div>
           </div>
           <div class="mo-br-cmp">
-            ${line(`${esc(moName(lysp && lysp.mo))} <span class="mo-br-n">by ${esc(asOfDay(lysp && lysp.asOf))}</span>`, lysp, true)}
-            ${line(`${esc(moName(ly && ly.mo))} <span class="mo-br-n">final</span>`, ly, false)}
-            ${line(`${esc(moName(pmsp && pmsp.mo))} <span class="mo-br-n">by ${esc(asOfDay(pmsp && pmsp.asOf))}</span>`, pmsp, true)}
-            ${line(`${esc(moName(pm && pm.mo))} <span class="mo-br-n">final</span>`, pm, false)}
+            <div class="mo-br-row mo-br-hd"><span>Compared with</span><span>Booking rate</span><span>Now vs then</span><span>Booked of leads</span></div>
+            ${line(`${esc(moName(lysp && lysp.mo))} <span class="mo-br-n">as of ${esc(asOfDay(lysp && lysp.asOf))}</span>`, lysp, true)}
+            ${line(`${esc(moName(ly && ly.mo))} <span class="mo-br-n">whole month</span>`, ly, false)}
+            ${line(`${esc(moName(pmsp && pmsp.mo))} <span class="mo-br-n">as of ${esc(asOfDay(pmsp && pmsp.asOf))}</span>`, pmsp, true)}
+            ${line(`${esc(moName(pm && pm.mo))} <span class="mo-br-n">whole month</span>`, pm, false)}
           </div>
         </div>
         <div class="mo-note">${offFilters.length ? `<b>Not filtered by ${offFilters.join(" or ")}:</b> Moveboard and the calendar name them differently. ` : ""}Moveboard as of ${esc(asOfDay(cur.asOf))}, ${esc(String(cur.asOf || "").slice(11, 16))} NY.</div>`;
+      };
+      /* ZP-5 (Gvantsa, 15 Nov: "booking rates by states next to the jobs done"): the strip's rate,
+         one state at a time -- booked / leads moving this month from that state (Moveboard's state),
+         under the same Company, City and Local / Long distance picks. A state with jobs but no
+         leads reads "—". Without lead rows (a mart built before ZTZ-50) the block is as it was. */
+      const stateBlock = () => {
+        const list = groupBy("State");
+        if (!list.length) return '<div class="mo-note">No jobs.</div>';
+        if (!leadPh("leads")) return hbars(list);
+        const moLong = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+        const rateCell = g => { const o = leadPh("leads", g.k);
+          return o && (o.q || o.b)
+            ? `<span class="r" title="${esc(fmtN(o.b) + " booked of " + fmtN(o.q) + " leads moving in " + moLong + " from " + g.k)}"><b>${(o.rate * 100).toFixed(1)}%</b></span>`
+            : `<span class="r" title="${esc("No Moveboard leads moving in " + moLong + " from " + g.k)}">—</span>`; };
+        const off = [S.pf.source.length ? "source" : "", S.pf.sales.length ? "salesperson" : ""].filter(Boolean);
+        return `<div class="mo-hb st mo-hb-h"><span>State</span><span></span><span class="r">Revenue &middot; jobs</span><span class="r">Booking rate</span></div>`
+          + hbars(list, rateCell)
+          + `<div class="mo-note">Booking rate = booked &divide; leads moving in ${esc(moLong)} from that state, as in the strip above${off.length ? ` (not filtered by ${off.join(" or ")})` : ""}.</div>`;
       };
       /* ZTZ-80 (the page standard): the definitions that sat under the strip and under the page
          move to How it's counted, worded as before; the panel reads the month and filters on screen. */
@@ -289,7 +332,14 @@ registerPage({
         <h3>Gross profit</h3><p>Gross profit = the closing sheet's Profit per Job; for estimated jobs, the same share of revenue as past jobs of that type
           (about ${mg ? Math.round(mg * 100) : "—"}%). Increase and profit share are learned from the last 180 days of calendar jobs matched to their closings.
           Built ${esc(builtAt)} UTC.</p>
+        <h3>Against months already billed</h3><p>The ${esc(label)} total (done + still on the calendar) set against the same month
+          last year and the month before, each as billed on its closing sheets (Total Bill, every job of that month). The ${esc(label)}
+          figure is a floor, so a month still running usually reads below.</p>
+        <h3>Today to the end of the last month on file</h3><p>Every job on the calendar from today on, in this month and the next,
+          each at its cash total &times; the usual increase to the final bill. It follows the company and the filters.</p>
         ${leadHow()}
+        <h3>By state: booking rate</h3><p>The strip's booking rate for one state: booked &divide; leads moving in the month whose
+          Moveboard state is that state. The jobs beside it use the calendar's state, so the two can differ for a move that crosses states.</p>
         <h3>Local / Long distance</h3><p>${esc(PF_NOTE)}</p>`;
 
       host.innerHTML = style + `<div class="mo-wrap">
@@ -305,13 +355,18 @@ registerPage({
           <div class="mo-card"><div class="k">Done so far</div><div class="v">${money(sum(done, "Revenue") + sum(dest, "Revenue"))}</div>
             <div class="s"><b>${done.length + dest.length}</b> jobs &middot; gross profit <b>${money(sum(done, "Profit") + sum(dest, "Profit"))}</b></div>
             ${dest.length ? `<div class="s">${dest.length} of them have no closing filed yet &mdash; estimated from the calendar</div>` : ""}</div>
-          <div class="mo-card"><div class="k">Still on the calendar</div><div class="v">${money(sum(ahead, "Revenue"))}</div>
+          <div class="mo-card"><div class="k">Upcoming jobs still on the calendar</div><div class="v">${money(sum(ahead, "Revenue"))}</div>
             <div class="s"><b>${ahead.length}</b> jobs &middot; est. gross profit <b>${money(sum(ahead, "Profit"))}</b></div>
-            <div class="s">estimated: cash total &times; ${up ? up.toFixed(2) : "—"} (the usual increase to the final bill)</div></div>
+            <div class="s">estimated: cash total &times; ${up ? up.toFixed(2) : "—"} (the usual increase to the final bill)</div>
+            ${aheadMos.length > 1 ? (() => { const last = aheadMos[aheadMos.length - 1];
+              const end = new Date(+last.slice(0, 4), +last.slice(5, 7), 0).toLocaleString("en-US", { month: "short", day: "numeric" });
+              return `<div class="mo-cmp-h">Today to ${esc(end)}: ${money(sum(aheadAll, "Revenue"))} estimated (${fmtN(aheadAll.length)} jobs)</div>
+                <div class="s">${aheadMos.map(k => { const rs = aheadAll.filter(r => r["Month"] === k);
+                  return `${esc(moShort(k))} <b>${moneyK(sum(rs, "Revenue"))}</b> (${fmtN(rs.length)})`; }).join(" + ")}</div>`; })() : ""}</div>
           <div class="mo-card total"><div class="k">${esc(label)} if nothing more is booked</div><div class="v">${money(totRev)}</div>
             <div class="s"><b>${jobs.length}</b> jobs &middot; gross profit <b>${money(totProf)}</b></div>
             ${filtered ? `<div class="s">${PF_ON ? "<b>Not compared while a filter is on:</b> last year and last month are kept as company totals, with no state, type, source or salesperson"
-              : "comparisons hidden while a location filter is on"}</div>` : cmp(totRev, ly.rev, "Same month last year (" + fmtN(ly.jobs) + " jobs)") + cmp(totRev, pm.rev, "Last month (" + fmtN(pm.jobs) + " jobs)")}</div>
+              : "comparisons hidden while a location filter is on"}</div>` : cmpHtml}</div>
         </div>
         ${untyped ? `<div class="mo-note"><b>${fmtN(untyped)} job${untyped === 1 ? "" : "s"} left out by Local / Long distance:</b> an in-home estimate or no job type on the calendar, so neither local nor long distance.</div>` : ""}
         ${leadStrip()}
@@ -320,7 +375,7 @@ registerPage({
           <div class="mo-leg"><span><i style="background:${C.done}"></i>Done, closing filed</span><span><i style="background:${C.est}"></i>Done, closing not filed (estimate)</span>
           <span><i style="background:${C.ahead}"></i>Still on the calendar (estimate)</span><span>numbers = jobs that day &middot; shaded = weekend</span></div></div>
         <div class="mo-two">
-          <div><div class="mo-sec">By state</div><div class="mo-card">${hbars(groupBy("State")) || '<div class="mo-note">No jobs.</div>'}</div></div>
+          <div><div class="mo-sec">By state</div><div class="mo-card">${stateBlock()}</div></div>
           <div><div class="mo-sec">By weekday &middot; jobs per day of that weekday</div><div class="mo-card">${hbars(wdList)}</div></div>
         </div>
         <div class="mo-sec">How far ahead the jobs were booked</div>
