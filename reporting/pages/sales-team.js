@@ -119,8 +119,15 @@
     return (mv ? `<b>${esc(mv)}</b>` : `<span style="color:var(--faint)">—</span>`) + btn + diff;
   };
 
+  // ZTZ-110 (16 Nov 2026, "spoken counts"): TTO Biz Min is the time to the FIRST CONTACT -- our first
+  // call out, or an answered call in (from the lead's number or another one linked to it); a contact in
+  // the 24h before the lead was entered counts as 0 (the customer was on the phone while it was typed in)
+  const preEntry = r => !!r["First Contact At"] && !!r["Create Datetime"]
+    && String(r["First Contact At"]) <= String(r["Create Datetime"]);
+  const PRE_ENTRY = `<span class="st-good" title="We spoke to the customer on a call before this lead was entered (the rep typed it in during or after the call) -- counted as 0 minutes">before entry ✓</span>`;
+  const speedTxt = r => preEntry(r) ? PRE_ENTRY : mins(+r["TTO Biz Min"]);
   const contactCell = r => {
-    if (+r["Called"]) return r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : "yes";
+    if (+r["Called"]) return r["TTO Biz Min"] != null ? speedTxt(r) : "yes";
     // Contacted=1 with Called=0 is EITHER an answered incoming call OR an outbound dial in the
     // 24h before the lead was entered (CRM lag). Only claim "they called in" when an answered
     // incoming call is actually on record.
@@ -1054,7 +1061,8 @@
       : `<div class="st-note">Nothing billed yet — this lead has no closing sheet, refund, review or claim.</div>`);
 
     const resp = `<div class="st-sec">Response</div><div class="st-fin">
-      ${finCard("First contact", (+j["Called"] ? (j["TTO Biz Min"] != null ? mins(+j["TTO Biz Min"]) + " (biz)" : "called")
+      ${finCard("First contact", (j["TTO Biz Min"] != null ? (preEntry(j) ? PRE_ENTRY : mins(+j["TTO Biz Min"]) + " (biz)")
+                 : +j["Called"] ? "called"
                    : (isContacted(j) ? "call received &amp; answered"
                       : (isConf(j) ? "<span class='st-good'>confirmed ✓</span> <span class='st-dim'>" + (+j["Conf After Horizon"] ? "call after data cutoff" : "call not in RC") + "</span>"
                          : (!inWindow(j) ? "<span class='st-dim'>no call data yet</span>" : "<span class='st-bad'>none</span>")))))}
@@ -1131,7 +1139,8 @@
 
     /* ---- VERDICT ---- */
     const spd = +j["TTO Biz Min"];
-    const spdTone = !+j["Called"] ? (isConf(j) ? "" : "bad") : (spd <= 5 ? "good" : spd <= 30 ? "" : "warn");
+    const spdTone = j["TTO Biz Min"] == null ? (+j["Called"] || isContacted(j) || isConf(j) ? "" : "bad")
+      : (spd <= 5 ? "good" : spd <= 30 ? "" : "warn");
     const gap = j["Bill Vs Quote Pct"];
     const outcome = isConf(j)
       ? (j["Total Bill"] != null ? `<span class="st-good">Closed</span>` : `<span class="st-good">Confirmed</span>`)
@@ -1139,7 +1148,8 @@
     const vcard = (l, v, tone) => `<div class="c${tone ? " " + tone : ""}"><div class="l">${l}</div><div class="v">${v}</div></div>`;
     const verdict = `<div class="st-lfv">
       ${vcard("Outcome", outcome)}
-      ${vcard("First contact", +j["Called"] ? (j["TTO Biz Min"] != null ? mins(spd) : "called")
+      ${vcard("First contact", j["TTO Biz Min"] != null ? (preEntry(j) ? "before entry" : mins(spd))
+        : +j["Called"] ? "called"
         : (isContacted(j) ? "received &amp; answered" : (isConf(j) ? "off-system" : "not called")), spdTone)}
       ${vcard("Calls", (+j["Out Calls"] || 0) + " out / " + (+j["In Calls"] || 0) + " in")}
       ${vcard("Answered", (+j["Answered In"] || 0) + " of " + (+j["In Calls"] || 0),
@@ -1157,7 +1167,7 @@
        where they came from: a machine's reading of a call, not a list somebody wrote. */
     const issues = [];
     if (+j["Flag Never Called"]) issues.push("Nobody ever called this lead.");
-    if (+j["Flag Slow First Call"]) issues.push("First call was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after it came in.");
+    if (+j["Flag Slow First Call"]) issues.push("First contact was slow — " + (j["TTO Biz Min"] != null ? mins(spd) : "late") + " after it came in.");
     if ((+j["In Calls"] || 0) && !(+j["Answered In"] || 0)) issues.push("They called " + (+j["In Calls"]) + "× and nobody picked up.");
     if (+j["Flag Confirmed No Closing"]) issues.push("Confirmed but no closing sheet filed.");
     if (+j["Flag Big Quote Gap"]) issues.push("Final bill is far from the quote.");
@@ -1397,7 +1407,7 @@
         ${kpi("Dead leads", RS.fmtN(nDead), pct1(rows.length ? 100 * nDead / rows.length : null) + " of received")}
         ${kpi("Confirmed (in period)", RS.fmtN(confRows.length), "by their confirmed date")}
         ${kpi("Booking rate", brate != null ? pct1(100 * brate) : "—", "confirmed ÷ qualified (canonical)")}
-        ${kpi("Median first call", medAll != null ? mins(medAll) : "—", "business minutes")}
+        ${kpi("Median first contact", medAll != null ? mins(medAll) : "—", "business minutes")}
         ${kpi("Never worked", pct1(noContact), "no contact & not confirmed, within call-data coverage")}
         ${kpi("Revenue (closed)", money0(rev), "billed on these leads")}
       </div>
@@ -1860,7 +1870,7 @@
         return n >= 0 ? `<span class="sub">in ${n} day${n === 1 ? "" : "s"}</span>` : ""; };
       host.querySelector("#stTblWrap").innerHTML = `<table class="st-tbl lx"><thead><tr>
         <th>Lead</th><th>Created</th><th>Rep</th><th>Source</th><th>Status</th><th>Calls</th>
-        <th>First call</th><th title="The move date from Moveboard; the button opens the Google Calendar event when one exists">Move</th>
+        <th>First contact</th><th title="The move date from Moveboard; the button opens the Google Calendar event when one exists">Move</th>
         <th>Quote → bill</th><th></th></tr></thead><tbody>` +
         pg.map(r => `<tr class="click" data-jk="${esc(r["Request Joinkey"])}">
           <td class="nm">${name(r)}<span>#${esc(r["Job No"] || "—")} &middot; ${esc(r["Company"] || "")}${r["Total CF"] != null ? " &middot; " + RS.fmtN(Math.round(+r["Total CF"])) + " CF" : ""}</span></td>
@@ -1869,7 +1879,7 @@
           <td data-l="Source">${esc(r["Source"] || "—")}</td>
           <td data-l="Status"><span class="lx-st ${stCls(r)}">${esc(r["Status"] || r["Status Category"] || "—")}</span></td>
           <td data-l="Calls">${callBadge(r)}<span class="sub">${(+r["Out Calls"] || 0)} out &middot; ${(+r["In Calls"] || 0)} in${(+r["Sms Out"] || 0) + (+r["Sms In"] || 0) ? " &middot; " + ((+r["Sms Out"] || 0) + (+r["Sms In"] || 0)) + " texts" : ""}</span></td>
-          <td data-l="First call">${r["TTO Biz Min"] != null ? mins(+r["TTO Biz Min"]) : '<span class="st-dim">—</span>'}</td>
+          <td data-l="First contact">${r["TTO Biz Min"] != null ? speedTxt(r) : '<span class="st-dim">—</span>'}</td>
           <td data-l="Move">${moveCell(r)}${mvIn(r)}</td>
           <td data-l="Quote → bill">${estActual(r)}</td>
           <td>${ansSet.has(String(r["Job No"] || "").trim()) ? '<span class="lx-ans" title="The rep answered on this lead">&#9998; answered</span> ' : ""}${flagIcons(r)}</td></tr>`).join("") +
@@ -2947,7 +2957,10 @@
       host.innerHTML = `<div class="st-page">
         ${RSC.pageHeadHtml({ title: "Sales Person Analysis", key: "sales-command",
           sub: "Every lead's full story — calls, texts, routing, and the money it became.",
-          how: "<h3>Which date counts</h3><p>Leads count by created date · confirmations by confirmed date.</p>" })}
+          how: "<h3>Which date counts</h3><p>Leads count by created date · confirmations by confirmed date.</p>"
+            + "<h3>First contact and slow</h3><p>First contact is the first time we reached the customer: our first call out, "
+            + "or a call in that we answered (from their number or another number tied to the lead). A call before the lead was "
+            + "entered counts as 0 minutes. Business minutes run 08:00–20:00 New York; slow means over 30 of them.</p>" })}
         <div class="st-tabbar" id="stTabs"></div><div id="stHost"></div></div>`;
       const TABS = [["team", "Team"], ["rep", "Rep Profile"], ["compare", "Compare"],
                     ["explorer", "Lead Explorer"], ["nolead", "Calls without a lead"], ["answers", "Rep answers"]];
