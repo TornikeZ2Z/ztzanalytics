@@ -14,6 +14,9 @@
  *                 full width, the steps in a row above it. On a LIVE automation, email edits save as a draft
  *                 (email_automation.template_draft): customers keep getting the live email until someone
  *                 presses Make changes live; Discard changes drops the draft.
+ * v4, 16 Nov 2026 (ZTZ-69 step 5): a third tab, CONTACTS AND LISTS (assets/email-lists.js): your lists, Do not
+ *                 email (one list for every email) and the CSV import. A single send can go to a list; its footer
+ *                 then says the list's own "why you get this" line.
  * The Customer Survey is automation #1 and keeps its own page (unchanged for Tako): its card opens it.
  * THE SERVER OWNS EVERY LIMIT (no email, unsubscribed, once per move, the gap, 300 per press).
  */
@@ -260,7 +263,16 @@
         S.view = "item"; S.what = what; S.id = it ? it.id : null; S.item = it || null; S.draft = null;
         S.queue = null; S.sends = null; S.tests = null; S.count = null; S.save = "saved"; S.savedAt = null; say("");
         S.liveTpl = null; S.emdUi = { testTo: S.testTo || ZTZ.email() || "" }; S.testedJson = null;
-        if (!it) { S.part = "s1"; ensureKit().then(() => { S.draft = draftOf(null); paint(); }); return; }
+        if (!it) {
+          S.part = "s1";
+          ensureKit().then(() => {
+            S.draft = draftOf(null);
+            // "Send an email to this list" on Contacts and lists (step 5): the new single send starts on that list
+            if (what === "single" && S.pendingList) { S.draft.audience = Object.assign(S.draft.audience, { source: "list", list_id: S.pendingList }); loadLists(); }
+            S.pendingList = null; paint();
+          });
+          return;
+        }
         const live = it.status && it.status !== "draft";
         S.part = part || (live ? "over" : ("s" + Math.min(it.step || 1, STEPS[what].length)));
         ensureKit().then(() => loadItem()).then(() => onPart());
@@ -275,12 +287,21 @@
         if (S.part === "sends" && S.id) loadSends();
         if (S.part === "s3" || S.part === "s6" || (S.what === "single" && S.part === "s5")) count();
         if (isTestPart() && S.id) loadTests();
+        if (S.what === "single" && (S.part === "s3" || !S.lists)) loadLists();
       }
       const isTestPart = () => (S.what === "auto" && S.part === "s5") || (S.what === "single" && S.part === "s4");
       function loadQueue() { S.queue = null; S.qErr = ""; paintMain();
         api("/api/_emailadmin?view=queue&id=" + S.id).then(j => { S.queue = j; paintMain(); paintRail(); }).catch(e => { S.qErr = e.message; paintMain(); }); }
       function loadSends() { S.sends = null; S.sErr = ""; paintMain();
         api("/api/_emailadmin?view=sends&" + (S.what === "single" ? "single=" : "id=") + S.id + "&days=3650").then(j => { S.sends = j.sends; paintMain(); }).catch(e => { S.sErr = e.message; paintMain(); }); }
+      // contact lists, for a single send's audience (step 5)
+      function loadLists() {
+        return api("/api/_emailadmin?view=lists").then(j => { S.lists = j.lists || []; if (S.view === "item" && S.draft) { paintMain(); paintRail(); } })
+          .catch(() => { S.lists = S.lists || []; });
+      }
+      const listOf = id => (S.lists || []).find(l => +l.id === +id) || null;
+      const isList = () => S.what === "single" && !!S.draft && !!S.draft.audience && S.draft.audience.source === "list";
+      const whyNow = () => (isList() ? ((listOf(S.draft.audience.list_id) || {}).why || "") : "");
       function loadTests() {
         api("/api/_emailadmin?view=sends&" + (S.what === "single" ? "single=" : "id=") + S.id + "&days=3650&tests=1").then(j => {
           S.tests = (j.sends || []).filter(s => +s.is_test === 1).slice(0, 6); if (isTestPart()) paintMain(); }).catch(() => {});
@@ -323,6 +344,7 @@
       }
       function whoText(a) {
         a = a || {};
+        if (S.what === "single" && a.source === "list") { const l = listOf(a.list_id); return l ? "Everyone on the list “" + l.name + "”" : "A contact list (not chosen yet)"; }
         if (S.what === "single") return "Customers who moved " + (a.date_from || "in the last 90 days") + (a.date_from ? " to " + (a.date_to || "today") : "");
         if (a.source === "promised") return "Customers who promised their foreman a review" + (a.review === "no" ? ", no review yet" : "");
         const sc = a.scores || [];
@@ -413,15 +435,17 @@
         // period as the kit's own control instead of a native dropdown
         let h = RSC.pageHeadHtml({ title: "Email Automations", key: "email-automations",
             sub: "Emails that go to customers on their own, and one-off sends.",
-            actions: [{ html: '<button class="rs-btn pri" id="eamNew">' + (S.tab === "autos" ? "New automation" : "New single send") + "</button>" }],
+            actions: S.tab === "lists" ? [] : [{ html: '<button class="rs-btn pri" id="eamNew">' + (S.tab === "autos" ? "New automation" : "New single send") + "</button>" }],
             how: "<p>Each automation picks who is due from the warehouse every day. <b>Ask first</b> fills a queue that someone "
               + "reviews and sends; <b>Send by itself</b> goes out at a set hour, up to a daily cap.</p>"
               + "<h3>The numbers</h3><p>Sent, delivered, clicked, answered, bounced and unsubscribed come from Resend for the "
               + "period you pick. Opens show only once open tracking is on.</p>"
               + "<h3>Nobody gets two emails too close together</h3><p>The gap between two of our emails counts every automation "
               + "and the survey.</p>" })
-          + RSC.tabsHtml([{ id: "autos", label: "Automations" }, { id: "single", label: "Single sends" }], S.tab)
-          + '<div class="eam-top"><div id="eamDays"></div></div>';
+          + RSC.tabsHtml([{ id: "autos", label: "Automations" }, { id: "single", label: "Single sends" }, { id: "lists", label: "Contacts and lists" }], S.tab);
+        // step 5 (16 Nov): the lists tab is its own module, with its own loading
+        if (S.tab === "lists") return h + '<div id="eamLists" style="margin-top:14px"></div>';
+        h += '<div class="eam-top"><div id="eamDays"></div></div>';
         if (S.listErr) return h + '<div class="panel">Could not load: ' + esc(S.listErr) + ' <button class="rs-btn" data-retry="1" style="margin-left:10px">Try again</button></div>';
         if (!S.list) return h + '<div class="panel">Loading…</div>';
         const L = S.list, opensOn = L.tracking === "on";
@@ -634,7 +658,20 @@
             + '<button type="button" class="eam-opt' + (!promised ? " on" : "") + '" data-src="moves" aria-pressed="' + !promised + '"><b>Customers after their move</b><span>Completed Zip to Zip moves on the closing sheet.</span></button>'
             + '<button type="button" class="eam-opt' + (promised ? " on" : "") + '" data-src="promised" aria-pressed="' + promised + '"><b>Customers who promised a review</b><span>Their foreman heard them say they would write one.</span></button></div>';
         } else {
-          h += '<p class="eam-help" style="margin-top:0">A single send goes to customers who moved with us, one email per address.</p>'
+          // step 5 (16 Nov): customers who moved with us, or a contact list (with its own footer line)
+          const lists = S.lists || [];
+          h += '<label class="l" style="margin-top:0">Who it goes to</label><div class="eam-opts">'
+            + '<button type="button" class="eam-opt' + (!isList() ? " on" : "") + '" data-src="moves" aria-pressed="' + !isList() + '"><b>Customers who moved with us</b><span>Completed moves on the closing sheet, one email per address.</span></button>'
+            + '<button type="button" class="eam-opt' + (isList() ? " on" : "") + '" data-src="list" aria-pressed="' + isList() + '"><b>A contact list</b><span>People imported on Contacts and lists.</span></button></div>';
+          if (isList()) {
+            const l = listOf(a.list_id);
+            return h + '<label class="l">The list</label>' + (lists.length ? '<div id="eamList"></div>'
+                : '<p class="eam-help">' + (S.lists ? "No lists yet: make one on Contacts and lists, then import a file into it." : "Loading the lists…") + "</p>")
+              + (l ? '<div class="eam-sum" style="margin-top:10px;padding:10px 12px;font-size:13px"><b>Printed at the bottom of the email:</b> ' + esc(l.why) + "</div>" : "")
+              + '<p class="eam-help">Always left out: anyone on Do not email (unsubscribed, bounced, marked as spam) and repeat addresses.</p>'
+              + navHtml() + '</div><div id="eamCount">' + countHtml() + "</div></div>";
+          }
+          h += '<p class="eam-help">One email per address.</p>'
             + '<div class="eam-chips" style="gap:10px"><label class="l" for="eamFrom" style="margin:0">Moved from</label><input type="date" id="eamFrom" value="' + esc(a.date_from || "") + '" style="width:auto">'
             + '<label class="l" for="eamTo" style="margin:0">to</label><input type="date" id="eamTo" value="' + esc(a.date_to || "") + '" style="width:auto"></div>';
         }
@@ -666,10 +703,13 @@
         return '<div class="eam-card"><span class="eam-big">' + num(c.ready) + '</span><span class="eam-sub">can get it now, of ' + num(c.matched) + " who match"
           + (S.what === "auto" ? " (" + esc(c.lo) + " to " + esc(c.hi) + ")" : "") + "</span>"
           + (Object.keys(why).length ? '<div class="eam-checks">' + Object.keys(why).map(k => '<div class="eam-ck warn"><span aria-hidden="true">•</span>' + why[k] + " held back: " + esc(k) + "</div>").join("") + "</div>" : "") + "</div>"
-          + '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr><th>Customer</th><th>Date</th><th>Score</th></tr></thead><tbody>'
+          // a contact list (step 5) has people, the day we got them, and no foreman's score
+          + '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr><th>' + (isList() ? "Person" : "Customer")
+          + "</th><th>" + (isList() ? "Since" : "Date") + "</th>" + (isList() ? "" : "<th>Score</th>") + "</tr></thead><tbody>"
           + ((c.sample || []).length ? c.sample.slice(0, 30).map(r => '<tr class="' + ((r.hard || []).length ? "eam-dim" : "") + '"><td><b>' + esc(r.customer || "—") + '</b><span class="eam-sub">'
-            + esc((r.hard || []).length ? r.hard.join(", ") : (r.email || "")) + "</span></td><td>" + esc(d10(r.when)) + '<span class="eam-sub">' + esc(r.state || "") + "</span></td><td>"
-            + esc(r.score != null ? r.score : "—") + "</td></tr>").join("") : '<tr><td colspan="3" class="dim">Nobody matches. Try wider filters.</td></tr>') + "</tbody></table></div></div>";
+            + esc((r.hard || []).length ? r.hard.join(", ") : (r.email || "")) + "</span></td><td>" + esc(d10(r.when)) + '<span class="eam-sub">' + esc(r.state || "") + "</span></td>"
+            + (isList() ? "" : "<td>" + esc(r.score != null ? r.score : "—") + "</td>") + "</tr>").join("")
+            : '<tr><td colspan="3" class="dim">' + (isList() ? "Nobody on this list yet." : "Nobody matches. Try wider filters.") + "</td></tr>") + "</tbody></table></div></div>";
       }
       function chips(key, cur, opts, otherMax) {
         const known = opts.some(o => o[0] === +cur);
@@ -751,7 +791,12 @@
       function paint() {
         if (!alive()) return;
         host.innerHTML = '<div class="eam">' + (S.view === "item" ? itemView() : listView()) + "</div>";
-        wireIn(host); mountDesigner();
+        wireIn(host); mountDesigner(); mountLists();
+      }
+      function mountLists() {
+        const el = host.querySelector("#eamLists");
+        if (!el || !window.EMAILLISTS) return;
+        EMAILLISTS.mount(el, { api, post, esc, onSend: lid => { S.tab = "single"; S.pendingList = lid; openItem("single", null); } });
       }
       function paintSave() { const e = host.querySelector("#eamSave"); if (e) { e.textContent = saveHtml(); e.className = "eam-save" + (S.save === "error" ? " err" : ""); } }
       function paintHead() { const e = host.querySelector("#eamHead"); if (e) { e.innerHTML = headHtml(); wireIn(e); } }
@@ -789,7 +834,8 @@
             onDiscard: live ? () => save().then(() => post({ action: "discard", what: "auto", id: S.id })).then(() => loadItem(true)).then(() => {
               fresh(); say("Changes discarded: the email is the live version again."); paint(); }) : null,
           },
-          preview: t => post({ action: "preview", template: t, category: S.draft.category, sender: S.draft.sender }),
+          // a single send to a contact list previews with the list's own footer line (step 5)
+          preview: t => post({ action: "preview", template: t, category: S.draft.category, sender: S.draft.sender, why: whyNow() }),
           upload: EMAILDESIGNER.uploader(post), onChange: () => { dirty(); paintRail(); },
           pictures: EMAILDESIGNER.picturesApi(path => api(path), post),
         });
@@ -839,7 +885,14 @@
           save().then(() => { S.part = "s2"; say(""); paint(); onPart(); }).catch(e => { say(e.message, true); paintMain(); });
         };
         // audience
-        $$("[data-src]").forEach(b => { b.onclick = () => { const a = S.draft.audience; a.source = b.dataset.src; if (a.source === "promised") a.review = "no"; dirty(); paintMain(); count(); }; });
+        $$("[data-src]").forEach(b => { b.onclick = () => { const a = S.draft.audience; a.source = b.dataset.src; if (a.source === "promised") a.review = "no";
+          if (a.source === "list" && !S.lists) loadLists();
+          dirty(); paintMain(); paintRail(); count(); }; });
+        const ls = $("#eamList");
+        if (ls && S.lists) RSC.localSelect(ls, { label: "The list", form: true, required: true, allLabel: "Choose a list",
+          value: S.draft.audience.list_id ? String(S.draft.audience.list_id) : "",
+          values: S.lists.map(x => ({ v: String(x.id), l: x.name + " (" + num(x.members) + ")" })),
+          onChange: v => { S.draft.audience.list_id = +v || null; dirty(); paintMain(); paintRail(); count(); } });
         $$("[data-scores]").forEach(b => { b.onclick = () => { S.draft.audience.scores = b.dataset.scores ? b.dataset.scores.split(",").map(Number) : []; dirty(); paintMain(); count(); }; });
         $$("[data-aud]").forEach(b => { b.onclick = () => { const [k, v] = b.dataset.aud.split(":"); S.draft.audience[k] = v; dirty(); paintMain(); count(); }; });
         bind("#eamStates", v => { S.draft.audience.states = v.split(/[\s,;]+/).map(x => x.trim().toUpperCase()).filter(x => /^[A-Z]{2}$/.test(x)); count(); });
@@ -900,7 +953,8 @@
         const sn = $("#eamSendNow");
         if (sn) sn.onclick = () => {
           save().then(() => post({ action: "count", what: "single", id: S.id, audience: S.draft.audience, category: S.draft.category })).then(c => {
-            if (!confirm("Send \"" + S.draft.name + "\" now to " + c.ready + " customer" + (c.ready === 1 ? "" : "s") + "? This can't be undone.")) return null;
+            const who = isList() ? (c.ready === 1 ? " person" : " people") : (c.ready === 1 ? " customer" : " customers");
+            if (!confirm("Send \"" + S.draft.name + "\" now to " + c.ready + who + "? This can't be undone.")) return null;
             S.busy = true; say("Sending…"); paintMain();
             return post({ action: "single_send", what: "single", id: S.id });
           }).then(j => { if (!j) return; S.busy = false; say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + "."); loadItem(true).then(() => { S.part = "over"; paint(); }); })
