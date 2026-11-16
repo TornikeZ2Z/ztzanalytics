@@ -21,6 +21,7 @@
  *     survey,            true on the survey: links may open "the customer's own survey"
  *     senders, sender,   From choices (omit on the survey) and the current one; onSender(v)
  *     category,          for the footer's unsubscribe wording in the preview
+ *     domain,            the sender's domain (mail.ziptozip.app; a parameter so a later move, ZTZ-105, is one line)
  *     preview(tpl)       -> Promise<{subject, html, problems}> (the bridge marks each block's row data-emd)
  *     upload(file)       -> Promise<url>   (PNG / JPG / GIF, up to 2 MB)
  *     pictures           picturesApi(get, post): the Pictures library
@@ -619,7 +620,7 @@
     }
     function inboxHtml() {
       return (o.senders ? '<label class="l" for="emdFrom">From</label><select id="emdFrom">' + o.senders.map(x => '<option value="' + x + '"' + (o.sender === x ? " selected" : "")
-          + ">Zip To Zip Moving &lt;" + x + "@mail.ziptozip.app&gt;</option>").join("") + "</select>" : "")
+          + ">Zip To Zip Moving &lt;" + x + "@" + esc(o.domain || "mail.ziptozip.app") + "&gt;</option>").join("") + "</select>" : "")
         + field("Subject", "subject", T.subject, "How did your move go, {first}?", 160)
         + field("Preview line (shown after the subject in the inbox)", "preheader", T.preheader, "It takes about 2 minutes.", 160)
         + '<p class="emd-help">Personal touches: {first} is the customer\'s first name, {move_date} their move day, {foreman} their foreman, {state} the state.</p>';

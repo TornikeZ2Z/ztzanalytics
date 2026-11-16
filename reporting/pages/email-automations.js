@@ -17,6 +17,9 @@
  * v4, 16 Nov 2026 (ZTZ-69 step 5): a third tab, CONTACTS AND LISTS (assets/email-lists.js): your lists, Do not
  *                 email (one list for every email) and the CSV import. A single send can go to a list; its footer
  *                 then says the list's own "why you get this" line.
+ * v5, 16 Nov 2026 (ZTZ-69 step 6): "news and offers" go from the verified mail.ziptozip.app, replies to info@ziptozipmoving.com;
+ *                 the Send step shows marketing's ramp-up (a cap per 24 hours). A big single
+ *                 send keeps going by itself every hour ("Sending", with Stop sending) until everyone has it.
  * The Customer Survey is automation #1 and keeps its own page (unchanged for Tako): its card opens it.
  * THE SERVER OWNS EVERY LIMIT (no email, unsubscribed, once per move, the gap, 300 per press).
  */
@@ -198,7 +201,9 @@
         : st === "sending" ? pill("Sending…", "eam-info") : st === "sent" ? pill("Sent", "eam-ok") : pill("Draft");
       const msgLine = () => (S.msg ? '<p class="eam-msg ' + (S.msgErr ? "err" : "ok") + '" role="status">' + esc(S.msg) + "</p>" : "");
       const ckLine = c => '<div class="eam-ck ' + c.lvl + '"><span aria-hidden="true">' + ({ ok: "✓", bad: "!", warn: "!", info: "•" }[c.lvl] || "•") + "</span>" + esc(c.text) + "</div>";
-      const sender = s => (s || "hello") + "@mail.ziptozip.app";
+      const NEWS = () => (S.list && S.list.news) || {};
+      const domainFor = cat => (cat === "news" ? NEWS().domain || "mail.ziptozip.app" : "mail.ziptozip.app");
+      const sender = (s, cat) => (s || "hello") + "@" + domainFor(cat);
 
       // ---- loading -------------------------------------------------------------------------------
       function loadList() {
@@ -398,7 +403,8 @@
           rows.push(["How", d.mode === "auto" ? "Sends by itself every day at " + hourLab(d.schedule.run_hour) + ", at most " + d.schedule.daily_cap + " a day"
             : "Asks first: the queue fills by itself and someone presses Send"]);
         }
-        rows.push(["From", sender(d.sender)]);
+        rows.push(["From", sender(d.sender, d.category)]);
+        if (d.category === "news") rows.push(["Replies", "Go to " + (NEWS().reply_to || "info@ziptozipmoving.com")]);
         rows.push(["Unsubscribe", "Stops " + (cats[d.category] || "these emails") + " only"]);
         if (it.status) rows.push(["Status", it.status[0].toUpperCase() + it.status.slice(1)]);
         return '<div class="eam-sum"><p class="eam-h">How it works</p><dl>' + rows.map(r => "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>").join("") + "</dl></div>";
@@ -458,7 +464,7 @@
             const issues = (a.checks || []).filter(c => c.lvl === "bad" || c.lvl === "warn");
             return '<div class="eam-card"><div class="eam-lc"><div><span class="eam-name">' + esc(a.name) + "</span>" + statusPill(a.status, a.mode)
               + (a.has_draft ? pill("Email changes not live yet", "eam-warn") : "")
-              + '<div class="eam-meta">' + esc((CAT[a.category] || [""])[0]) + " · " + esc(sender(a.sender)) + (a.owner ? " · " + esc(a.owner) : "") + "</div>"
+              + '<div class="eam-meta">' + esc((CAT[a.category] || [""])[0]) + " · " + esc(sender(a.sender, a.category)) + (a.owner ? " · " + esc(a.owner) : "") + "</div>"
               + '<div class="eam-meta">' + esc(a.summary || "") + "</div>"
               + (a.status !== "draft" ? statsRow(a.stats, goalOf(a), opensOn) : "")
               + (issues.length ? '<div class="eam-checks">' + issues.slice(0, 3).map(ckLine).join("") + (issues.length > 3 ? '<div class="eam-ck info">+' + (issues.length - 3) + " more on its page</div>" : "") + "</div>" : "")
@@ -469,10 +475,12 @@
         const ss = L.singles || [];
         if (!ss.length) return h + '<div class="eam-card eam-empty"><b>Send your first one-off email</b><span class="eam-help">A single send goes once to customers who moved with us: news, offers, a schedule change.</span></div>';
         return h + ss.map(s1 => '<div class="eam-card"><div class="eam-lc"><div><span class="eam-name">' + esc(s1.name) + "</span>" + statusPill(s1.status)
-          + '<div class="eam-meta">' + esc(sender(s1.sender)) + " · " + esc(s1.summary || "") + "</div>"
+          + '<div class="eam-meta">' + esc(sender(s1.sender, s1.category)) + " · " + esc(s1.summary || "") + "</div>"
+          + (s1.status === "sending" && s1.note ? '<div class="eam-meta">' + esc(s1.note) + "</div>" : "")
           + (s1.status === "sent" || s1.status === "sending" ? statsRow(s1.stats, "", opensOn) : "") + '</div><div class="eam-act">'
           + (s1.status === "draft" ? '<div class="lab">Draft</div><button class="rs-btn pri" data-sopen="' + s1.id + '">Continue</button>'
             : s1.status === "scheduled" ? '<div class="lab">Goes out ' + esc(dt(s1.send_at)) + '</div><button class="rs-btn" data-sopen="' + s1.id + '">Open</button>'
+            : s1.status === "sending" ? '<div class="lab">Still going out, every hour</div><button class="rs-btn" data-sopen="' + s1.id + '">Open</button>'
             : '<div class="lab">Sent ' + esc(dt(s1.sent_at)) + '</div><button class="rs-btn" data-sopen="' + s1.id + '">Results</button>') + "</div></div></div>").join("");
       }
 
@@ -497,9 +505,11 @@
           if (S.id && it.status && it.status !== "archived") acts += '<button class="rs-btn" data-status="archived">Archive</button>';
         } else if (S.id && (draft || it.status === "scheduled")) {
           acts += '<button class="rs-btn" data-part2="s4">Send a test</button><button class="rs-btn pri" data-part2="s5">Send…</button>';
+        } else if (S.id && it.status === "sending") {
+          acts += '<button class="rs-btn" data-status="draft">Stop sending</button>';
         }
         return '<span class="t">' + esc(d.name || (S.what === "auto" ? "New automation" : "New single send")) + "</span>" + (S.id ? statusPill(it.status, d.mode) : pill("New"))
-          + '<span class="eam-meta" style="margin:0">' + esc((CAT[d.category] || [""])[0]) + " · " + esc(sender(d.sender)) + "</span>"
+          + '<span class="eam-meta" style="margin:0">' + esc((CAT[d.category] || [""])[0]) + " · " + esc(sender(d.sender, d.category)) + "</span>"
           + '<span class="sp"></span><span class="eam-save' + (S.save === "error" ? " err" : "") + '" id="eamSave" role="status">' + esc(saveHtml()) + "</span>" + acts;
       }
       function itemView() {
@@ -540,9 +550,12 @@
           + '<div style="margin-top:12px"><button class="rs-btn pri" data-part2="' + (S.what === "auto" ? "s6" : "s5") + '">Finish setup</button></div></div>';
         const goal = S.what === "auto" ? goalOf(it) : "";
         const sent = st.sent || 0;
+        const going = S.what === "single" && it.status === "sending"
+          ? '<div class="eam-card" style="border-color:var(--brand)"><p class="eam-h">Still going out</p><p class="eam-help" style="margin-top:0">' + esc(it.note || "The rest go out by themselves every hour.")
+            + '</p><div class="rs-bar" style="margin-top:8px"><button class="rs-btn" data-status="draft">Stop sending</button></div></div>' : "";
         const rows = [["Sent", sent], ["Delivered", st.delivered || 0]].concat(opensOn ? [["Opened", st.opened || 0]] : []).concat([["Clicked", st.clicked || 0]])
           .concat(goal ? [[goal[0].toUpperCase() + goal.slice(1), st.goal || 0]] : []);
-        let h = msgLine() + '<div class="eam-k">' + rows.map(r => "<div><b>" + (r[0] === "Sent" ? num(r[1]) : pct(r[1], sent)) + "</b><span>" + esc(r[0]) + "</span></div>").join("")
+        let h = msgLine() + going + '<div class="eam-k">' + rows.map(r => "<div><b>" + (r[0] === "Sent" ? num(r[1]) : pct(r[1], sent)) + "</b><span>" + esc(r[0]) + "</span></div>").join("")
           + "<div><b>" + pct(st.bounced || 0, sent) + "</b><span>Bounced</span></div><div><b>" + num(st.unsub || 0) + "</b><span>Unsubscribed</span></div></div>";
         h += '<div class="eam-2"><div class="eam-card"><p class="eam-h">From sent to ' + esc(goal || "clicked") + "</p>"
           + rows.map(r => '<div class="eam-fn"><span>' + esc(r[0]) + '</span><div class="eam-bar"><i style="width:' + (sent ? (100 * r[1] / sent).toFixed(1) : 0) + '%"></i></div><b>'
@@ -774,10 +787,19 @@
           + '</div><p class="eam-help">' + (d.mode === "auto" ? "After launch it sends by itself every day at " + esc(hourLab(d.schedule.run_hour)) + "."
             : "After launch its queue fills by itself; nothing goes out until someone presses Send.") + "</p></div>" + summaryCard() + "</div>";
       }
+      function newsHtml(it) {
+        const n = it.news;
+        if (!n || (S.draft || {}).category !== "news") return "";
+        const left = n.left, cap = n.cap;
+        return '<div class="eam-sum" style="margin:10px 0 12px;font-size:13px;line-height:1.55"><b>From ' + esc(sender((S.draft || {}).sender, "news")) + "</b>, replies to " + esc(n.reply_to || "")
+          + "<br>" + (n.warm ? "Up to " + num(cap) + " in 24 hours." : "Big marketing sends start slowly, so the address the survey also uses keeps its good name: " + num(cap) + " in 24 hours now ("
+            + (n.day ? "day " + n.day : "from the first send") + "), doubling every 2 days; full volume after about 2 weeks.") + " " + num(left) + " can go now. A bigger send goes on by itself every hour until everyone has it.</div>";
+      }
       function sendHtml() {
         const it = S.item || {};
         const probs = emailProblems().concat(it.tested ? [] : ["Send a test of the current email first"]);
-        return '<div class="eam-2"><div class="eam-card eam-ed">' + msgLine()
+        if (it.news && it.news.blocker) probs.push(it.news.blocker);
+        return '<div class="eam-2"><div class="eam-card eam-ed">' + msgLine() + newsHtml(it)
           + '<p class="eam-h">' + (it.status === "scheduled" ? "Scheduled for " + esc(dt(it.send_at)) : probs.length ? "Before it can go out" : "Ready to send") + "</p>"
           + probs.map(b => { const f = fixFor(b); return '<div class="eam-cl"><span class="eam-mk fix">To do</span><span class="tx">' + esc(b) + "</span>" + (f ? '<button class="rs-btn" data-part2="' + f[0] + '">' + esc(f[1]) + "</button>" : "") + "</div>"; }).join("")
           + '<p class="eam-help">It goes once to everyone the audience shows as ready' + (S.count ? " (" + S.count.ready + " now)" : "") + ". Unsubscribed and bounced addresses are always left out.</p>"
@@ -811,6 +833,7 @@
         const fresh = () => { S.draft.template = clone(S.item.template); S.liveTpl = clone(S.item.template); S.loadedJson = cur(); S.emdUi.sel = null; };
         S.ed = EMAILDESIGNER.mount(el, {
           template: S.draft.template, live: S.liveTpl, kit: kit(), survey: false, senders: (S.list && S.list.sender_ids) || ["survey", "reviews", "hello"],
+          domain: domainFor(S.draft.category),
           sender: S.draft.sender, onSender: v => { S.draft.sender = v; paintHead(); }, category: S.draft.category, designs: true,
           ui: S.emdUi,
           head: {
@@ -868,9 +891,11 @@
           const want = b.dataset.status;
           if (want === "archived" && !confirm("Archive \"" + S.draft.name + "\"? It stops and leaves the list; its sends and results are kept.")) return;
           if (want === "paused" && !confirm("Pause \"" + S.draft.name + "\"? Nothing goes out until you resume it.")) return;
+          if (want === "draft" && S.what === "single" && (S.item || {}).status === "sending"
+              && !confirm("Stop sending \"" + S.draft.name + "\"? Whoever has it keeps it; pressing Send again carries on with the rest.")) return;
           post({ action: "status", what: S.what, id: S.id, status: want }).then(() => {
             if (want === "archived") { toList(S.what === "auto" ? "autos" : "single"); return; }
-            say(want === "paused" ? "Paused." : "Live again."); loadItem(true).then(() => paintMain()); })
+            say(want === "paused" ? "Paused." : want === "draft" ? "Stopped. Send carries on with the rest whenever you\u2019re ready." : "Live again."); loadItem(true).then(() => { paintHead(); paintMain(); }); })
             .catch(e => { say((e.blockers || [e.message]).join(" "), true); paintMain(); });
         }; });
         const bind = (sel, fn) => { const el = $(sel); if (el) el.oninput = function () { fn(this.value); dirty(); }; };
@@ -954,10 +979,13 @@
         if (sn) sn.onclick = () => {
           save().then(() => post({ action: "count", what: "single", id: S.id, audience: S.draft.audience, category: S.draft.category })).then(c => {
             const who = isList() ? (c.ready === 1 ? " person" : " people") : (c.ready === 1 ? " customer" : " customers");
-            if (!confirm("Send \"" + S.draft.name + "\" now to " + c.ready + who + "? This can't be undone.")) return null;
+            const n = (S.item || {}).news, now = n && S.draft.category === "news" ? Math.min(c.ready, n.left) : c.ready;
+            if (!confirm("Send \"" + S.draft.name + "\" now to " + c.ready + who + "?" + (now < c.ready ? " " + now + " go now; the rest go out by themselves every hour while marketing ramps up." : "")
+              + " This can't be undone.")) return null;
             S.busy = true; say("Sending…"); paintMain();
             return post({ action: "single_send", what: "single", id: S.id });
-          }).then(j => { if (!j) return; S.busy = false; say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + "."); loadItem(true).then(() => { S.part = "over"; paint(); }); })
+          }).then(j => { if (!j) return; S.busy = false; say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + (j.left ? "; " + j.left + " more go out by themselves every hour" : "") + ".");
+            loadItem(true).then(() => { S.part = "over"; paint(); }); })
             .catch(e => { S.busy = false; say((e.blockers || [e.message]).join(" "), true); paintMain(); });
         };
         const sch = $("#eamSchedule");
