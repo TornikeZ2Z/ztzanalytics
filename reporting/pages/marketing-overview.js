@@ -888,10 +888,23 @@
              asOf: addYears(today(), -1), shift: d => (+d.slice(0, 4) + 1) + d.slice(4) };
   }
 
+  /* ZTZ-107 (16 Nov 2026, his pick "leave it out"): the partners' (B2B) Meta campaigns (P.partnerCamps:
+     the campaigns behind a lead form that asks for a company, ZTZ-79) never aim at a move booking, so
+     their spend stays out of Meta's move spend -- cost per booking, per lead and $ per $1 -- and the
+     Meta card and KPI say how much was set aside. Day -> $, Zip to Zip's Meta account (LA days, as the
+     channel mart's Meta spend). */
+  function partnerDay() {
+    if (D.pDay && D.pDayMeta === P.meta && D.pDayCamps === P.partnerCamps) return D.pDay;
+    const m = {};
+    if (P.partnerCamps && P.partnerCamps.size) (P.meta || []).forEach(r => {
+      if (P.partnerCamps.has(r.name)) m[r.d] = (m[r.d] || 0) + (r.cost || 0); });
+    D.pDay = m; D.pDayMeta = P.meta; D.pDayCamps = P.partnerCamps;
+    return m;
+  }
   /* every family's measures for [a, b] and the company in the bar. `cw` (the comparison only):
      bookings counted as they stood on cw.asOf, spend coverage judged on cw.shift(day). */
   function aggregate(a, b, cw) {
-    const by = new Map();
+    const by = new Map(), pDay = partnerDay();
     // paid = spend inside the period, or in the year before its end (a month the ledger has not
     // reached yet, a postcard run between drops) -- per COMPANY and family: Tuji's Google Local
     // leads cost nothing, so with both companies picked they are not "spend not in yet"
@@ -912,7 +925,7 @@
       if (!f) {
         f = { fam: r.fam, leads: 0, booked: 0, billed: 0, bval: 0, spL: 0, spG: 0, imp: 0, clk: 0,
               hasImp: false, cLeads: 0, cBooked: 0, cBval: 0, uncov: false, anyCov: false,
-              live: false, ledger: false, paid: false };
+              live: false, ledger: false, paid: false, partner: 0 };
         by.set(r.fam, f);
       }
       const pk = paidKey.has(r.co + "|" + r.fam);
@@ -923,7 +936,11 @@
       f.leads += r.leads;
       if (bk) { f.booked += r.booked; f.billed += r.billed; f.bval += r.bval; }
       if (cov) {
-        if (r.spL) { f.spL += r.spL; f.live = true; }
+        if (r.spL) {
+          // ZTZ-107: a partner (B2B) campaign's spend is not move advertising
+          const ps = r.fam === "Meta" && r.co === "Zip to Zip" && pDay[r.d] ? Math.min(r.spL, pDay[r.d]) : 0;
+          f.spL += r.spL - ps; f.partner += ps; f.live = true;
+        }
         if (r.spG) { f.spG += r.spG; f.ledger = true; }
         if (r.imp != null) { f.imp += r.imp; f.hasImp = true; }
         if (r.clk != null) f.clk += r.clk;
@@ -1846,7 +1863,8 @@
   function cpbKp(fam, pw, word, mark) {
     const f = famStat(fam, pw.a, pw.b);
     return { label: "Cost per booking", value: f && f.cpb != null ? money0(f.cpb) + (mark || "") : "—",
-             sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " " + word + " leads" : "our side" };
+             sub: f ? fmtN(f.booked) + " booked of " + fmtN(f.leads) + " " + word + " leads"
+               + (f.partner >= 0.5 ? " · leaves out " + money0(f.partner) + " partner (B2B) spend" : "") : "our side" };
   }
   function adsCampTable(rows, cur) {
     const list = groupBy(rows, r => r.id).map(x => {
@@ -2731,7 +2749,7 @@
       }
       const f = famStat(fam, w.a, w.bEff);
       Object.assign(o, { leads: f ? f.leads : 0, booked: f ? f.booked : 0, cpb: f ? f.cpb : null,
-                         thin: !f || f.cBooked < THIN, uncov: !!(f && f.uncov) });
+                         thin: !f || f.cBooked < THIN, uncov: !!(f && f.uncov), partner: f ? f.partner : 0 });
       // LinkedIn has no spend in the Channels table (the bank files it as not advertising): its cost
       // per booking is the ad account's spend over the bookings filed under LinkedIn
       // (TikTok reads the same way, so a month the ledger has not reached still has a figure)
@@ -3369,6 +3387,7 @@
       + '<div class="mkd-stats">' + stat("Impressions", r.imp != null ? compact(r.imp) : dash) + stat("Clicks", r.clk != null ? fmtN(r.clk) : dash)
       + stat("CTR", pct2(r.ctr)) + stat("CPC", cents(r.cpc)) + "</div>"
       + (r.allLeads != null ? '<div class="why">' + fmtN(r.allLeads) + " ChatGPT leads in all, " + fmtN(r.allBooked) + " booked: answers and ads together</div>" : "")
+      + (r.partner >= 0.5 ? '<div class="why">Cost per booking leaves out ' + money0(r.partner) + " of partner (B2B) spend</div>" : "")
       + '<div class="ours"><span><b>' + fmtN(r.leads) + (r.allLeads == null && FAM_NOTE[r.fam] ? "*" : "") + "</b> " + (r.allLeads != null ? "leads from the ads" : "leads") + "</span>"
       + '<span aria-hidden="true">→</span><span><b>' + fmtN(r.booked) + "</b> booked</span>"
       + '<span class="mkd-chip c' + tone + '">' + (r.cpb != null ? money0(r.cpb) + (r.uncov ? "*" : "")
