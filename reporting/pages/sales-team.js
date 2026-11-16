@@ -401,6 +401,7 @@
     .st-attach{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
     .st-attach .rs-inp{flex:1;min-width:200px}
     .st-attmsg{flex-basis:100%;font-size:12.5px;color:var(--muted)}.st-attmsg.bad{color:var(--neg,#c62828)}
+    .st-onum{margin-left:6px;font-size:12px;color:var(--muted);cursor:help;border-bottom:1px dotted currentColor}
     .st-dact a,.st-dact button{appearance:none;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:700;
       color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer;text-decoration:none}
     .st-dact a:hover,.st-dact button:hover{border-color:var(--brand);background:var(--brand-glow)}
@@ -739,6 +740,10 @@
   const EV_LABEL = { lead_created: "Lead created", call_out: "Outbound call", call_in: "Incoming call",
     sms_out: "Text sent", sms_in: "Text received", confirmed: "Confirmed", closing: "Job closed",
     refund: "Refund" };
+  // how the lead journey tied a call from another number to the lead (src/call_links.py)
+  const LINK_HOW = { "attached": "Attached to this lead by hand",
+    "rep and time": "The rep who answered created this lead during the call",
+    "zip in summary": "The call's summary names this lead's pickup zip" };
 
   /* ---------------- Lead File drawer (BIG) ---------------- */
   let drawerEl = null;
@@ -1106,7 +1111,10 @@
       const what = e["Kind"] === "SMS"
         ? `<span class="dim">text</span> ${esc(body.slice(0, 120))}${body.length > 120 ? "&hellip;" : ""}`
         : `${out ? "called" : "called in"}${e["Duration Seconds"] ? " &middot; " + secH(e["Duration Seconds"]) : ""}${
-            missed ? ` <span class="st-bad">${esc(e["Result"])}</span>` : ""}`;
+            missed ? ` <span class="st-bad">${esc(e["Result"])}</span>` : ""}${
+            // ZTZ-43: a call from ANOTHER number that the lead journey linked to this lead
+            e["Other Number"] ? ` <span class="st-onum" title="${esc(LINK_HOW[e["Link How"]] || "linked to this lead")}">from another number &hellip;${
+              esc(e["Other Number"])}${e["Agent"] && !out ? " &middot; answered by " + esc(stripExt(e["Agent"])) : ""}</span>` : ""}`;
       return sep + `<div class="st-srow ${out ? "out" : "in"}${missed ? " miss" : ""}">
         <div class="tm">${esc(tm)}</div>
         <div class="ic">${e["Kind"] === "SMS" ? "&#9993;" : (out ? "&#8599;" : (missed ? "&#10005;" : "&#8600;"))}</div>
