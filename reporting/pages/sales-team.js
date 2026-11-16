@@ -398,6 +398,9 @@
     .st-db>.st-sheet{max-width:1260px;margin:0 auto;width:100%}
     .st-dh{padding-left:max(24px,calc((100vw - 1260px)/2 + 24px));padding-right:max(24px,calc((100vw - 1260px)/2 + 24px))}
     .st-dact{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .st-attach{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    .st-attach .rs-inp{flex:1;min-width:200px}
+    .st-attmsg{flex-basis:100%;font-size:12.5px;color:var(--muted)}.st-attmsg.bad{color:var(--neg,#c62828)}
     .st-dact a,.st-dact button{appearance:none;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12.5px;font-weight:700;
       color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;cursor:pointer;text-decoration:none}
     .st-dact a:hover,.st-dact button:hover{border-color:var(--brand);background:var(--brand-glow)}
@@ -1610,6 +1613,12 @@
       });
       return Object.values(by).sort((a, b) => b.last.localeCompare(a.last));
     };
+    // every call of this number still on the list, whatever the period: "Attach to lead" moves them all (ZTZ-43)
+    const tsidsOf = ph => {
+      const out = [];
+      ctx.nolead.forEach(r => { const t = r["Telephony Session Id"]; if (r["Phone Norm"] === ph && t && out.indexOf(t) < 0) out.push(t); });
+      return out;
+    };
     const VIEWS = [["new", "New callers", g => !g.ret], ["ret", "Returning (lead > 30 days away)", g => g.ret],
                    ["ans", "Someone answered", g => g.ans > 0], ["missed", "Never answered", g => !g.ans],
                    ["tr", "Has a transcript", g => g.tr > 0], ["all", "All", () => true]];
@@ -1643,7 +1652,7 @@
         : `<div class="st-note" style="padding:16px">No callers match.</div>`;
       host.querySelectorAll("#nlTbl tr.click").forEach(tr => tr.onclick = e => {
         if (e.target.closest("[data-lead]")) return;          // the earlier lead opens its own file
-        openCaller(tr.dataset.ph);
+        openCaller(tr.dataset.ph, tsidsOf(tr.dataset.ph));
       });
     };
     RSC.localSelect(host.querySelector("#nlDays"), { label: "Period", required: true,
@@ -1653,8 +1662,39 @@
     paint();
   }
 
+  /* ATTACH TO LEAD (ZTZ-43, 16 Nov 2026): a customer who rang from a number that is not on their lead lands
+     here. The lead journey links such a call itself when the rep who answered created the lead during the
+     call, or when the call's summary names the lead's zip; anything else a person attaches here, by the
+     lead's request number (bridge/call_attach.py). The next hourly refresh puts the calls on the lead and
+     takes them off this list. */
+  function attachBox(host, tsids) {
+    if (!tsids || !tsids.length) return;
+    const api = (q, opt) => fetch(ZTZ.API + "/api/_callattach" + (q || ""), Object.assign({ headers: { Authorization: "Bearer " + ZTZ.getToken(), "Content-Type": "application/json" } }, opt || {}))
+      .then(r => r.json().then(d => ({ ok: r.ok, d })).catch(() => ({ ok: false, d: {} })));
+    host.insertAdjacentHTML("beforeend", `<div class="st-attach"><input type="text" class="rs-inp" id="stAttJob" inputmode="numeric"
+        placeholder="Lead # it belongs to, e.g. 115667" aria-label="Request number of the lead these calls belong to">
+      <button type="button" class="rs-btn" id="stAttGo">Attach to lead</button><span class="st-attmsg" id="stAttMsg" role="status"></span></div>`);
+    const msg = host.querySelector("#stAttMsg"), inp = host.querySelector("#stAttJob");
+    const say = (t, bad) => { msg.textContent = t; msg.classList.toggle("bad", !!bad); };
+    api("?tsids=" + encodeURIComponent(tsids.join(","))).then(({ ok, d }) => {
+      const jks = ok ? [...new Set(Object.values(d.attached || {}))] : [];
+      if (jks.length) say("Already attached to " + jks.join(", ") + ". It moves at the next hourly refresh.");
+    });
+    const go = () => {
+      const job = inp.value.trim();
+      if (!job) { say("Type the lead's request number first.", true); inp.focus(); return; }
+      say("Attaching…");
+      api("", { method: "POST", body: JSON.stringify({ tsids, job }) }).then(({ ok, d }) => {
+        if (!ok) { say((d.error || "Couldn't attach.") + (d.choices ? ": " + d.choices.join(" or ") : ""), true); return; }
+        say(`Attached ${d.attached} call${d.attached === 1 ? "" : "s"} to ${d.jk}. They show on the lead, and leave this list, after the next hourly refresh.`);
+      });
+    };
+    host.querySelector("#stAttGo").onclick = go;
+    inp.onkeydown = e => { if (e.key === "Enter") go(); };
+  }
+
   // a caller's calls in the lead-file sheet: same drawer, the Conversations thread renderer inside
-  function openCaller(ph) {
+  function openCaller(ph, tsids) {
     ensureDrawer();
     drawerEl.querySelector(".st-scrim").classList.add("on");
     drawerEl.querySelector(".st-drawer").classList.add("on");
@@ -1662,6 +1702,7 @@
     const nice = String(ph).replace(/^(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3");
     drawerEl.querySelector("#stDT").innerHTML = esc(nice) + ` <span class="st-cb none">No lead in Moveboard</span>`;
     drawerEl.querySelector("#stDS").innerHTML = `<div class="st-dact"><a href="tel:${esc(ph)}">&#9742; Call ${esc(nice)}</a><a href="sms:${esc(ph)}">&#9993; Text</a></div>`;
+    attachBox(drawerEl.querySelector("#stDS"), tsids);
     const body = drawerEl.querySelector("#stDB");
     body.innerHTML = `<div class="st-sheet"><div class="rs-loading" style="padding:24px">Loading the calls…</div></div>`;
     fetch(ZTZ.API + "/api/_convthread?phone=" + encodeURIComponent(ph), { headers: { Authorization: "Bearer " + ZTZ.getToken() } })
