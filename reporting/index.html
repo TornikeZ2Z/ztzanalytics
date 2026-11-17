@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="237a224d2d230a314ee53fad9490434064b0eadc">
+<meta name="ztz-ref" content="bcea947f62a679bff9e8188300c27c3a3d7cf289">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -242,10 +242,11 @@ const GROUP_OVERRIDE = {
   "data-quality": "admin", "refresh-log": "admin", "general-settings": "admin", "admin-users": "admin",
   "admin-activity": "admin",
   "general-tables": "admin",
+  // 2026-11-18 (his pick): Things to do, Data Migration and Bugs & Requests (ZTZ-49, the board behind the
+  // "Submit a bug" button) are admin-only, so they live in Administration -- access follows the group
+  "things-to-do": "admin", "data-migration": "admin", "bugs-requests": "admin",
   // Tech Team (Website Forms & UTM joined 2026-09-23, his call)
-  "things-to-do": "tech", "data-migration": "tech", "utm-campaigns": "tech",
-  // Bugs & Requests (2026-11-13, ZTZ-49): the board behind the "Submit a bug" button, admin-only
-  "bugs-requests": "tech",
+  "utm-campaigns": "tech",
   // Marketing — source attribution belongs with the marketing views
   // Source Analysis (2026-09-23): one source's leads, bookings, jobs and spend; first in the group
   "source-report": "marketing",
@@ -605,18 +606,15 @@ function pageFor(id) {
 /* ---------------- access control (per-user report grants) ---------------- */
 window.ME = null;   // {email, admin, reports:[report_id]} from /api/_me
 const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
-/* Pages only administrators may open, whatever grants a user holds: the Administration
-   container, Data Migration, and Things to do (2026-09-23, Tornike: "I am the one
-   answering, hide it from everyone"). The last two sit in the Tech Team group, and the
-   "tech" tile deliberately does not open them. check_acl_mirror.py reads this set. */
+/* Pages only administrators may open, whatever grants a user holds: the Administration group.
+   Things to do (2026-09-23, Tornike: "I am the one answering, hide it from everyone"), Data
+   Migration and Bugs & Requests moved there from Tech Team on 2026-11-18, so every page here sits in
+   Administration and access follows the group (check_acl_mirror.py fails otherwise; it reads this set). */
 const ADMIN_ONLY = new Set(["admin-users", "general-settings", "refresh-log", "data-quality",
   "general-tables", "admin-activity", "data-migration", "things-to-do", "bugs-requests"]);
-/* Pages opened by NAME, outside every grant -- and NOT implied by admin: the Bonus System
-   (2026-11-10, ZTZ-45: every office salary; Tornike's pick "named people only"). The bridge
-   decides who (bridge/bonus.py, checked on the REAL signed-in address and the View-as target)
-   and says so in /api/_me `named`; nothing about who lives in this public file. Not grantable
-   through Users & Access: check_acl_mirror.py leaves these out of every department. */
-const NAMED_ONLY = new Set(["bonus-system"]);
+/* NAMED_ONLY (pages opened by name, outside every grant) is GONE, 2026-11-18. Its only member was the
+   Bonus System, now an ordinary Financial page. Tornike: "all the access should be by group - if its
+   under sales - everyone who has acces to sales should see it". check_acl_mirror.py fails if it returns. */
 /* OPEN_TO_ALL (pages any authorized user could open without a grant) is GONE, 2026-09-23.
    Its only member was My Survey (hr-my-questionnaire), removed that day with /api/_hrq —
    Tornike: "we will keep sending those surveys via email - therefore you can literally
@@ -632,7 +630,6 @@ function heldDepts() {
 }
 function canSee(id) {
   if (!id || !ME) return false;
-  if (NAMED_ONLY.has(id)) return ((ME && ME.named) || []).includes(id);
   if (ME.admin) return true;
   if (ADMIN_ONLY.has(id)) return false;
   const reports = ME.reports || [];
@@ -2247,7 +2244,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Support Team", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis", "reviews-cases"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "branch-owner", "fixed-costs", "cl-analysis", "postcard-purchases", "subscriptions"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "bonus-system", "branch-owner", "fixed-costs", "cl-analysis", "postcard-purchases", "subscriptions"] },
   { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations", "review-map"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
@@ -2494,7 +2491,7 @@ registerPage({
 <script src="pages/flat-rate.js?v=2"></script>
 <script src="pages/subscriptions.js?v=3"></script>
 <script src="pages/fixed-costs.js?v=3"></script>
-<script src="pages/bonus-system.js?v=6"></script>
+<script src="pages/bonus-system.js?v=7"></script>
 <script src="pages/yoy-diff.js?v=8"></script>
 <script src="pages/leads-analysis.js?v=8"></script>
 <script src="pages/leads-by-state.js?v=7"></script>

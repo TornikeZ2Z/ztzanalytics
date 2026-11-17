@@ -19,9 +19,9 @@
    we calculate is not proper gross profit as we don't account for most in house expenses - it should be
    written and no reference needed"), so the page reads no portal dataset at all. People come from the
    TEAM DIRECTORY (hrq_roster), each with a bonus department that may differ from the directory's; and
-   the page is open to NAMED PEOPLE ONLY -- the bridge decides (bridge/bonus.py) and tells the shell
-   through /api/_me `named`; an admin does not bypass it. Nothing about who is named lives in this public
-   file.
+   since 18 Nov the page follows the FINANCIAL group like any page ("all the access should be by group"):
+   the group's grant opens it, admins too, and whoever sees it may edit it (his pick). 10-18 Nov it was
+   open by name only.
 
    Gvantsa's fixes (11 Nov, ZTZ-63): "Add next year" copies the year before EXACTLY (scores, salaries,
    raises, training, notes, settings); "Headroom left" = target less (bonuses paid + raises + training).
@@ -485,7 +485,7 @@ function bnsMerge(base, mine, theirs) {
             S.cur = ys.includes(ty) ? ty : ys[ys.length - 1];
           }
           if (alive()) paint();
-        }).catch(e => { S.err = e.code === "not_named" ? "This page is open only to the people named for it." : (e.message || String(e));
+        }).catch(e => { S.err = e.code === "no_access" ? "This page needs the Financial group." : (e.message || String(e));
                         if (alive()) paint(); });
       }
 
@@ -499,7 +499,7 @@ function bnsMerge(base, mine, theirs) {
         if (!alive() && S.loaded) return;
         injectStyle();
         const head = `<div class="rs-page-head"><h1>Bonus System</h1><p>Each person's scores pick a bonus level, and
-          the level sets the bonus in months of salary. Open only to the people named for it.</p></div>`;
+          the level sets the bonus in months of salary.</p></div>`;
         if (S.err) {
           host.innerHTML = `<div class="bns">${head}<section class="panel"><div class="bns-empty">${esc(S.err)}</div></section></div>`;
           return;
