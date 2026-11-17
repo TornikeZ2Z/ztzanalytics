@@ -16,7 +16,11 @@
    A MANUAL LIST (14 Nov 2026, ZTZ-93, bug ZP-2). Gvantsa: "I don't want it from the bank. I want a list like I had,
    and to add them myself manually." His picks: she adds a cost with a name, a date and an amount, monthly or a
    one-off (a cost with no set day counts in its month); she ticks payments paid and the bank only helps (a cost that
-   carries its bank line's words is also marked paid when the bank feed shows it); the bank suggestions are gone. */
+   carries its bank line's words is also marked paid when the bank feed shows it); the bank suggestions are gone.
+
+   EDIT OR REMOVE (17 Nov 2026, bug ZP-6). Gvantsa added a truck deposit as monthly by mistake and could neither fix nor
+   remove it: she works in the Month tab, and Edit was only on the "Fixed costs" tab. Each month row now has "Edit or
+   remove"; the panel has Remove, asked once more before it goes (it leaves every month, paid ones too). */
 registerPage({
   id: "fixed-costs",
   group: "financial",
@@ -147,7 +151,8 @@ registerPage({
           + "<td><b>" + esc(p.name) + '</b><div class="fxc-sub">' + esc([p.once ? "one-off" : "", p.category && p.category !== "Other" ? p.category : "", p.company !== "Zip to Zip" ? p.company : ""].filter(Boolean).join(" · ")) + (p.note && !fromBank ? " · " + esc(p.note) : "") + "</div></td>"
           + '<td class="num">' + money(p.amount) + "</td>"
           + '<td><span class="rs-pill ' + tone + '">' + esc(lab) + "</span>" + (how ? '<div class="fxc-sub">' + esc(how) + "</div>" : "") + "</td>"
-          + '<td class="fxc-act">' + quick + '<button type="button" class="rs-btn" data-mon-edit="' + p.cost_id + '" data-m="' + ym(p.month) + '">Change this month</button></td></tr>';
+          + '<td class="fxc-act">' + quick + '<button type="button" class="rs-btn" data-mon-edit="' + p.cost_id + '" data-m="' + ym(p.month) + '">Change this month</button>'
+          + '<button type="button" class="rs-btn" data-edit="' + p.cost_id + '">Edit or remove</button></td></tr>';
       });
       h += '</tbody><tfoot><tr><td colspan="2"><b>Total</b></td><td class="num"><b>' + money(sm.total) + "</b></td><td colspan=\"2\">" + money0(left) + " left to pay</td></tr></tfoot></table></div>";
       return h;
@@ -298,7 +303,8 @@ registerPage({
         + '<label class="fxc-check"><input id="fxcVary" type="checkbox"' + (v.vary ? " checked" : "") + "> The amount changes month to month: take whatever the bank shows</label>"
         + '<label for="fxcNote">Note</label><textarea id="fxcNote" class="rs-inp" rows="2">' + esc(v.note || "") + "</textarea></details>";
       const stopped = c && c.status === "stopped";
-      const foot = (c ? '<button type="button" class="rs-btn" id="fxcStop">' + (stopped ? "Start it again" : "Stop it from " + esc(mName(S.month, true))) + "</button>" : "<span></span>")
+      const foot = (c ? '<div class="fxc-foot-l"><button type="button" class="rs-btn" id="fxcRemove">Remove</button>'
+          + '<button type="button" class="rs-btn" id="fxcStop">' + (stopped ? "Start it again" : "Stop it from " + esc(mName(S.month, true))) + "</button></div>" : "<span></span>")
         + '<button type="button" class="rs-btn pri" id="fxcSave">' + (c ? "Save" : "Add it") + "</button>";
       const p = openPanel(c ? "Edit " + (c.name || "the fixed cost") : "Add a fixed cost", body, foot);
       const nd = p.querySelector("#fxcNoDay");
@@ -312,6 +318,16 @@ registerPage({
         match_text: val(p, "fxcMatch"), vary: val(p, "fxcVary"), note: val(p, "fxcNote") }, e.currentTarget);
       const st = p.querySelector("#fxcStop");
       if (st) st.onclick = e => save({ action: stopped ? "restart" : "stop", id: c.id, month: S.month }, e.currentTarget);
+      // ZP-6: asked once more, since it takes the paid months too; Stop is the way to end a cost that was real
+      const rm = p.querySelector("#fxcRemove");
+      if (rm) rm.onclick = async e => {
+        const btn = e.currentTarget;
+        const ok = await RSC.confirm({ title: "Remove " + (c.name || "this fixed cost") + "?",
+          body: "It goes from the list and from every month, the paid months too. Use this for a cost added by mistake."
+            + " To end a cost that was real and keep its past months, use Stop instead.",
+          yes: "Remove it", no: "Keep it", danger: true });
+        if (ok) save({ action: "remove", id: c.id }, btn);
+      };
     }
     function monthPanel(id, m) {
       const pay = S.data.payments.find(x => x.cost_id === id && ym(x.month) === m);
@@ -345,7 +361,7 @@ registerPage({
       const p = openPanel("History: " + (c.name || ""), RSC.loadingHtml("history"), "<span></span>");
       try {
         const rows = (await api("?history=" + id)).history || [];
-        const what = { add: "added", edit: "changed", stop: "stopped", restart: "started again", month: "changed a month", month_clear: "put a month back" };
+        const what = { add: "added", edit: "changed", stop: "stopped", restart: "started again", remove: "removed", month: "changed a month", month_clear: "put a month back" };
         p.querySelector(".fxc-form").innerHTML = rows.length ? '<ul class="fxc-hist">' + rows.map(r => "<li><b>" + esc(String(r.done_by || "").split("@")[0]) + "</b> "
           + esc(what[r.action] || r.action) + (r.month ? " (" + esc(mName(r.month, true)) + ")" : "") + '<div class="fxc-sub">' + esc(String(r.done_at || "").replace("T", " ").slice(0, 16)) + " UTC</div></li>").join("") + "</ul>"
           : '<p class="fxc-help">No changes yet.</p>';
@@ -374,6 +390,7 @@ registerPage({
         + ".fxc-panel .fxc-more{margin-top:14px;border-top:1px solid var(--line);padding-top:8px}"
         + ".fxc-panel .fxc-more>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:4px 0}"
         + ".fxc .fxc-t td.nowrap{white-space:nowrap}"
+        + ".fxc-panel .fxc-foot-l{display:flex;gap:8px}"
         + ".fxc-panel .fxc-hist li{padding:8px 0;border-bottom:1px solid var(--line)}";
       document.head.appendChild(st);
     }
