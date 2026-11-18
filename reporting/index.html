@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="0e4de4937920f3d9aaed880fdc7856d9cf990f17">
+<meta name="ztz-ref" content="6328dac6d650bede0130f29e75fd76386c62284d">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -298,7 +298,7 @@ const GROUP_OVERRIDE = {
   // Logistics
   "log-foreman": "logistics", "log-packing": "logistics",
   // Financial
-  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "month-outlook": "financial", "job-pnl": "financial", "flat-rate": "financial", "subscriptions": "financial", "fixed-costs": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "crew-pay-compare": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "day-closing": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
+  "fin-revenue": "financial", "fin-rr": "financial", "financial-overview": "financial", "month-outlook": "financial", "job-pnl": "financial", "flat-rate": "financial", "subscriptions": "financial", "fixed-costs": "financial", "pre-payroll": "financial", "salaries": "financial", "branch-owner": "financial", "bo-salary": "different", "crew-pay-compare": "different", "cl-analysis": "financial", "postcard-purchases": "financial", "postcard-expenditure": "logistics", "money-flow": "logistics", "day-closing": "logistics", "ld-planning": "logistics", "foreman-closings": "logistics",
   "packing-control": "logistics", "fuel-control": "logistics",
   "crew-salaries": "logistics",
   "foreman-late": "logistics",
@@ -334,7 +334,7 @@ const NAV_ORDER = {
   "hr-directory": 1, "hr-questionnaire": 2,
   "cleanup": 1,
   "straight-vs-local": 1, "area-plan": 1.7, "truck-economics": 3, "bo-salary": 4, "crew-pay-compare": 4.5,
-  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "job-pnl": 5, "flat-rate": 5.2, "salaries": 5.5, "bonus-system": 5.7, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "subscriptions": 6.8, "fixed-costs": 6.9, "postcard-expenditure": 9.5,
+  "fin-revenue": 1, "fin-rr": 2, "sales-geo": 3, "financial-overview": 0.5, "month-outlook": 0.55, "job-pnl": 5, "flat-rate": 5.2, "salaries": 5.5, "bonus-system": 5.7, "branch-owner": 6, "cl-analysis": 6.5, "postcard-purchases": 6.7, "subscriptions": 6.8, "fixed-costs": 6.9, "pre-payroll": 6.95, "postcard-expenditure": 9.5,
   "rev-production": 1, "review-performance": 2, "reviews-cases": 2.5, "claims-analysis": 2.6, "response-analysis": 3, "reviews-reminders": 4, "review-settings": 5, "surveys": 6, "email-automations": 6, "quality-reviews": 1.5, "review-map": 5.5, "competitor-map": 6.58,
   "sup-claims": 1, "sup-refunds": 2, "sup-phone": 3,
   "data-quality": 2, "refresh-log": 1, "general-settings": 3, "general-tables": 4, "admin-users": 5,
@@ -380,7 +380,7 @@ const icon = k => `<svg viewBox="0 0 24 24">${ICONS[k] || ICONS.doc}</svg>`;
 /* page id / planned title → icon key */
 const PAGE_ICONS = {
   "jobs-vs-hours": "activity", "yoy-diff": "trend", "leads-analysis": "funnel",
-  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass", "job-pnl": "receipt", "flat-rate": "gauge", "subscriptions": "receipt", "fixed-costs": "calendar", "customer-lookup": "search", "ct-report": "pin", "bonus-system": "dollar",
+  "leads-by-state": "pin", "storage": "archive", "analysis-by-category": "compass", "job-pnl": "receipt", "flat-rate": "gauge", "subscriptions": "receipt", "fixed-costs": "calendar", "pre-payroll": "clipboard", "customer-lookup": "search", "ct-report": "pin", "bonus-system": "dollar",
   "Analysis by Category": "compass", "Sales Person Analysis": "user",
   "sales-person-analysis": "user",
   "Ads Analysis": "megaphone", "CallRail": "phone", "Forman": "tool",
@@ -917,6 +917,7 @@ const PAGE_DATASETS = {
   "flat-rate": [],   // the whole flat-rate year on purpose; no global bar
   "subscriptions": [],   // its own company chips and every month of the bank; no global bar
   "fixed-costs": [],     // its own month picker; the payments come through /api/_fixed (ZTZ-88)
+  "pre-payroll": [],     // its own date range; the rows come through /api/_prepay (ZTZ-114)
   "customer-lookup": [], // its own search; the leads and calls come through /api/_lookup (ZTZ-92)
   "ct-report": [],       // its own month picker; CT's counts and sums come through /api/_ct (ZTZ-44)
   "bonus-system": [],    // its own year tabs; no global bar
@@ -1320,7 +1321,7 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   // another page emptied it completely, which is worse than useless -- it looked like there
   // were no Straight jobs at all.
   "straight-vs-local",
-  "area-plan", "truck-economics", "job-pnl", "flat-rate", "fixed-costs", "customer-lookup", "ct-report", "subscriptions", "bonus-system", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
+  "area-plan", "truck-economics", "job-pnl", "flat-rate", "fixed-costs", "pre-payroll", "customer-lookup", "ct-report", "subscriptions", "bonus-system", "data-migration", "admin-activity", "crew-pay-compare", "estimate-accuracy", "photoshoot",
   // Target Map (2026-10-19): Seasonal Planning locked to its map
   "target-map"]);
 /* Pages where the global filter bar MUST STAY VISIBLE, so Hide filters is not offered at all.
@@ -1424,6 +1425,7 @@ const NAV_TITLES = {
   "flat-rate": "Flat Rate Analysis",
   "subscriptions": "Subscriptions",
   "fixed-costs": "Fixed Costs",
+  "pre-payroll": "Pre-payroll Check",
   "customer-lookup": "Customer Lookup",
   "ct-report": "CT Branch Report",
   "bonus-system": "Bonus System",
@@ -1496,6 +1498,7 @@ const SEARCH_ALIASES = {
   "flat-rate": "flat rate flat price fixed price hourly vs flat local moving margin booking rate quote giga analysis",
   "bonus-system": "bonus system bonuses budget gross profit kpi manager peer hr score index level raise training salary department gvantsa",
   "subscriptions": "subscriptions recurring monthly charges bank card software saas tools marketing ads agencies ai phones rent lease insurance vendors price increase cancel",
+  "pre-payroll": "pre-payroll payroll check closing mistakes sales person commission crew wages entered twice duplicate carrier sandro gvantsa",
   "fixed-costs": "fixed costs monthly payments schedule left to pay paid due financing loan toyota rent lease insurance cash bank",
   "customer-lookup": "customer lookup search find lead customer phone job number email calls texts transcripts shift supervisors",
   "ct-report": "ct connecticut branch report branch owner giorgi kolbaia leads booked booking rate jobs revenue ad spend per lead per job month",
@@ -2145,6 +2148,7 @@ const REPORT_LABELS = {
   "flat-rate": "Flat Rate Analysis (flat vs hourly local moves)",
   "subscriptions": "Subscriptions (recurring bank charges by group)",
   "fixed-costs": "Fixed Costs (monthly payments: paid, left to pay, matched to the bank)",
+  "pre-payroll": "Pre-payroll Check (closing rows that disagree with the calendar, the contract or the carrier post)",
   "customer-lookup": "Customer Lookup (leads, calls and transcripts; quote and final bill only)",
   "ct-report": "CT Branch Report (CT leads, jobs, revenue and ad spend; no profit)",
   "insights": "Insights & Recommendations",
@@ -2244,7 +2248,7 @@ const ACL_DEPTS = [
   // need NO grant at all — this tile is for HR: managing it and reading the results.
   { id: "hr",        label: "Human Resources", icon: "user",      reports: ["hr-questionnaire", "hr-responses", "hr-directory"] },
   { id: "customer-service", label: "Support Team", icon: "calendar", reports: ["cleanup", "conversations", "claims-analysis", "reviews-cases"] },
-  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "bonus-system", "branch-owner", "fixed-costs", "cl-analysis", "postcard-purchases", "subscriptions"] },
+  { id: "financial", label: "Financial",        icon: "trend",     reports: ["financial-overview", "month-outlook", "job-pnl", "flat-rate", "salaries", "bonus-system", "branch-owner", "fixed-costs", "pre-payroll", "cl-analysis", "postcard-purchases", "subscriptions"] },
   { id: "reviews",   label: "Quality Team",     icon: "star",      reports: ["review-performance", "reviews-reminders", "response-analysis", "review-settings", "surveys", "promised-reviews", "birdeye-sends", "email-automations", "review-map"] },
   // Tech Team: Website Forms & UTM only. Things to do + Data Migration stay ADMIN_ONLY.
   { id: "tech",      label: "Tech Team",        icon: "sliders",   reports: ["utm-campaigns", "census-data"] },
@@ -2491,6 +2495,7 @@ registerPage({
 <script src="pages/flat-rate.js?v=2"></script>
 <script src="pages/subscriptions.js?v=3"></script>
 <script src="pages/fixed-costs.js?v=4"></script>
+<script src="pages/pre-payroll.js?v=1"></script>
 <script src="pages/bonus-system.js?v=7"></script>
 <script src="pages/yoy-diff.js?v=8"></script>
 <script src="pages/leads-analysis.js?v=8"></script>
