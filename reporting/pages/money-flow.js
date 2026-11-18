@@ -269,6 +269,9 @@ registerPage({
     function codeOf(x) { return String(x || "").trim().toUpperCase(); }
     function normMethod(m) { var s = String(m == null ? "" : m).trim(); return !s || /^cash$/i.test(s) ? "Cash" : s; }
     function isCashMethod(m) { return normMethod(m) === "Cash"; }
+    // a correction for money that moved on a day whose cash is already closed (18 Nov 2026, LM12-2947):
+    // the job's record is fixed, today's drawer is not touched. Reserved by the bridge, never in mf_methods.
+    var MF_EARLIER = "Counted earlier";
     function money(v) {
       if (v == null) return "—";
       var n = Math.round(v);
@@ -945,7 +948,7 @@ registerPage({
       if (/\b40[13]\b/.test(e)) return "Your portal sign-in has expired — sign in again, then open this job again.";
       return "Money Flow can’t reach the server right now" + (e ? " (" + e + ")" : "") + " — press Refresh at the top of the page.";
     }
-    function methodLabel(m) { var n = normMethod(m); return n === "Offset" ? "Against a job" : n; }
+    function methodLabel(m) { var n = normMethod(m); return n === "Offset" ? "Against a job" : n === MF_EARLIER ? "Counted on an earlier day" : n; }
 
     // ---------- the foreman balances (bridge-computed; three answers would be three numbers) ----------
     function balRow(name) {
@@ -1943,11 +1946,13 @@ registerPage({
       var amt = Math.abs(+en.amount || 0), meth = normMethod(en.method), gone = !en.current;
       var title, sub = [], kind = "";
       if (en.type === BROUGHT) {
-        title = meth === "Offset" ? "Balanced against a pay-out" : meth === "Cash" ? "Cash brought to the base" : "Brought by " + esc(meth);
+        title = meth === "Offset" ? "Balanced against a pay-out" : meth === "Cash" ? "Cash brought to the base"
+          : meth === MF_EARLIER ? "Brought in, counted on an earlier day" : "Brought by " + esc(meth);
         sub.push(esc(methodLabel(meth)));
       } else if (en.type === TAKEN) {
         kind = "out";
-        title = meth === "Offset" ? "Balanced against his other jobs" : meth === "Cash" ? "Paid out to the foreman in cash" : "Paid out by " + esc(meth);
+        title = meth === "Offset" ? "Balanced against his other jobs" : meth === "Cash" ? "Paid out to the foreman in cash"
+          : meth === MF_EARLIER ? "Paid out, counted on an earlier day" : "Paid out by " + esc(meth);
         sub.push(esc(methodLabel(meth)));
         if (meth === "Cash" && en.cash_amount != null && Math.abs(+en.cash_amount - amt) > 0.005)
           sub.push(money2(+en.cash_amount) + " of it in cash");
@@ -2003,7 +2008,8 @@ registerPage({
       var html = '<fieldset class="mf-fs"><legend class="mf-lg">' + (st.type === TAKEN ? "How was he paid?" : "How did it come in?") + "</legend>"
         + list.map(function (m) {
             var on = normMethod(m.name) === normMethod(cur);
-            var hint = st.type === TAKEN ? (m.name === "Cash" ? "Out of today’s cash at the base" : "Not cash — the drawer doesn’t change")
+            var hint = m.name === MF_EARLIER ? "Already in an earlier day’s cash — today’s drawer doesn’t change"
+              : st.type === TAKEN ? (m.name === "Cash" ? "Out of today’s cash at the base" : "Not cash — the drawer doesn’t change")
               : HINT[m.name] || "Not cash · " + esc(m.name);
             var off = !w && m.name !== "Cash";
             return '<label class="mf-mcard' + (on ? " mf-on" : "") + (off ? " mf-off" : "") + '"><input type="radio" name="mfMeth" data-mfp="method" data-v="' + esc(m.name) + '"' + (on ? " checked" : "") + (off ? " disabled" : "") + ">"
@@ -2178,6 +2184,8 @@ registerPage({
       var form = "";
       if (st.correcting) {
         var list = methodsFor(allMethods(), st.type === TAKEN ? "out" : "in");
+        // the money moved on a day whose cash is already closed (LM12-2947): only with an entry to correct
+        if (cur) list = list.concat([{ id: -2, name: MF_EARLIER }]);
         if (!list.some(function (m) { return normMethod(m.name) === normMethod(st.method); })) {
           // the method it was saved with may since have been turned off: still offer it here
           list = list.concat([{ id: -1, name: normMethod(st.method) }]);
@@ -3279,7 +3287,7 @@ registerPage({
             "Open the job: press " + k("Review") + " in Waiting, or click the job in <b>Settled</b>.",
             "Press " + k("Add a correction") + ".",
             "Under <b>Which way did the money go?</b>, check the direction: " + q("He brought money to the base") + " or " + q("The base paid him") + ". Change it if the first entry went the wrong way.",
-            "Pick the right method and type the right amount.",
+            "Pick the right method and type the right amount. If the money really moved on a day that is already closed, pick " + k("Counted earlier") + ": the job is fixed and today’s cash doesn’t change. Say which day in the reason.",
             "Under <b>Why the correction</b>, say what was wrong, for example " + q("He brought $1,000, not $1,134") + ". A reason is required.",
             "Press " + k("Save correction", "pri") + ".",
           ])
