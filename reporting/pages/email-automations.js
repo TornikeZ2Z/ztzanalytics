@@ -109,6 +109,8 @@
       + ".eam tr.eam-dim td{opacity:.6}"
       + ".eam-sw{appearance:none;width:36px;height:22px;border-radius:99px;background:var(--line);position:relative;cursor:pointer;vertical-align:middle}"
       + ".eam-sw:checked{background:var(--brand)}"
+      + ".eam-pg{font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}"
+      + ".eam-pg.on{border-color:#d97706;background:rgba(217,119,6,.1);font-weight:600}"
       + ".eam-sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}"
       + ".eam-sw:checked::after{left:17px}.eam-sw:disabled{opacity:.35;cursor:not-allowed}"
       + ".eam-link{color:var(--brand-d,var(--brand));cursor:pointer;font-weight:600;text-decoration:underline;background:none;border:0;font:inherit;padding:0}"
@@ -266,7 +268,7 @@
       function openItem(what, it, part) {
         if (what === "auto" && it && it.kind === "survey") { location.hash = "#page=surveys"; return; }
         S.view = "item"; S.what = what; S.id = it ? it.id : null; S.item = it || null; S.draft = null;
-        S.queue = null; S.sends = null; S.tests = null; S.count = null; S.save = "saved"; S.savedAt = null; say("");
+        S.queue = null; S.sends = null; S.tests = null; S.count = null; S.save = "saved"; S.savedAt = null; S.linkState = {}; say("");
         S.liveTpl = null; S.emdUi = { testTo: S.testTo || ZTZ.email() || "" }; S.testedJson = null;
         if (!it) {
           S.part = "s1";
@@ -593,8 +595,13 @@
         h += '<div class="eam-qtabs" role="tablist" aria-label="Who gets it">' + QTABS.map(([k, l]) => '<button type="button" role="tab" class="eam-qtab'
           + (S.qtab === k ? " on" : "") + '" aria-selected="' + (S.qtab === k) + '" data-qtab="' + k + '">' + esc(l) + ' <span class="n">' + n[k] + "</span></button>").join("") + "</div>";
         const who = (d.audience || {}).source === "promised" ? "Promised" : "Moved";
+        // THE GOOGLE PAGE (ZTZ-54, his pick 19 Nov: "Own state, can override"): each person starts on their own
+        // state's page; the reviews person may pick another before pressing Send. Only on Will get it.
+        const pages = S.queue.review_states || [], pick = S.qtab === "will" && pages.length > 0;
+        if (pick) h += '<div class="eam-help" style="margin:0 2px 8px">The button opens the Google page in the <b>Google page</b> column: '
+          + "the customer's own state unless you pick another. Google wants a review on the location that served the customer, so change it only with a reason.</div>";
         return h + '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th></th><th>Customer</th><th>" + who + "</th><th>Foreman</th><th>"
+          + "<th></th><th>Customer</th><th>" + who + "</th><th>Foreman</th>" + (pick ? "<th>Google page</th>" : "") + "<th>"
           + ({ will: "Notes", off: "Switched off", cant: "Why they can't get it" }[S.qtab]) + "</th></tr></thead><tbody>"
           + (shown.length ? shown.slice(0, 500).map(r => {
             const hard = r.hard || [];
@@ -604,9 +611,17 @@
               : hard.map(x => pill(x, "eam-bad")).join(" ") + (r.flags || []).map(x => pill(x, "eam-warn")).join(" ");
             return '<tr class="' + (S.qtab === "cant" ? "eam-dim" : "") + '"><td style="white-space:nowrap;width:1%">' + act + "</td><td><b>" + esc(r.customer || "—") + '</b><span class="eam-sub">' + esc(r.email || "no email") + "</span></td>"
               + "<td>" + esc(d10(r.when)) + '<span class="eam-sub">' + esc(r.state || "") + "</span></td><td>" + esc(r.foreman || "—")
-              + (r.score != null ? '<span class="eam-sub">score ' + esc(r.score) + "/10</span>" : "") + "</td><td>" + note + "</td></tr>";
-          }).join("") : '<tr><td colspan="5" class="dim">' + ({ will: "Nobody can get it right now.", off: "Nobody is switched off.", cant: "Nobody is held back." }[S.qtab]) + "</td></tr>")
+              + (r.score != null ? '<span class="eam-sub">score ' + esc(r.score) + "/10</span>" : "") + "</td>"
+              + (pick ? "<td>" + pageSel(r, pages) + "</td>" : "") + "<td>" + note + "</td></tr>";
+          }).join("") : '<tr><td colspan="' + (pick ? 6 : 5) + '" class="dim">' + ({ will: "Nobody can get it right now.", off: "Nobody is switched off.", cant: "Nobody is held back." }[S.qtab]) + "</td></tr>")
           + "</tbody></table></div></div>";
+      }
+      // one person's Google page: their default (own state, or the fallback) unless picked; a pick shows as changed
+      function pageSel(r, pages) {
+        const def = r.link_default || "", cur = (S.linkState || {})[r.key] || def;
+        return '<select class="eam-pg' + (cur !== def ? " on" : "") + '" data-pg="' + esc(r.key) + '" aria-label="Google page for ' + esc(r.customer || "this customer") + '">'   // std-ok: one small picker per table row (the kit's select is one per bar)
+          + pages.map(st => '<option value="' + esc(st) + '"' + (st === cur ? " selected" : "") + ">" + esc(st) + (st === def ? " (own)" : "") + "</option>").join("")
+          + "</select>";
       }
       // a small "done, Undo" note at the bottom of the screen (outside the page's box, so a repaint keeps it)
       function toast(text, undo) {
@@ -937,12 +952,21 @@
         $$("[data-qtab]").forEach(b => { b.onclick = () => { S.qtab = b.dataset.qtab; say(""); paintMain(); }; });
         $$("[data-off]").forEach(cb => { cb.onchange = () => { cb.disabled = true; setOff(cb.dataset.off, !cb.checked); }; });
         $$("[data-back]").forEach(b => { b.onclick = () => { b.disabled = true; setOff(b.dataset.back, false); }; });
+        $$("[data-pg]").forEach(sel => { sel.onchange = () => {
+          const r = ((S.queue || {}).rows || []).find(x => x.key === sel.dataset.pg); if (!r) return;
+          const next = Object.assign({}, S.linkState || {});
+          if (sel.value === r.link_default) next[r.key] = undefined; else next[r.key] = sel.value;
+          S.linkState = next;
+          sel.classList.toggle("on", sel.value !== r.link_default);
+        }; });
         const sendB = $("#eamSend");
         if (sendB) sendB.onclick = () => {
           const ready = (S.queue.rows || []).filter(r => !(r.hard || []).length && !r.off).slice(0, MAX_PER_SEND);
           if (!ready.length || !confirm("Send \"" + S.draft.name + "\" to " + ready.length + " customer" + (ready.length === 1 ? "" : "s") + " now? Each move gets it only once.")) return;
           S.busy = true; say("Sending…"); paintMain();
-          post({ action: "send", what: "auto", id: S.id, keys: ready.map(r => r.key) }).then(j => {
+          const picks = {}; ready.forEach(r => { const st = (S.linkState || {})[r.key]; if (st && st !== r.link_default) picks[r.key] = st; });
+          post({ action: "send", what: "auto", id: S.id, keys: ready.map(r => r.key), states: picks }).then(j => {
+            S.linkState = {};
             S.busy = false; say("Sent " + j.sent + (j.failed ? ", " + j.failed + " failed" : "") + (j.skipped && j.skipped.length ? ", " + j.skipped.length + " skipped" : "") + ".", !!j.failed);
             loadQueue(); loadItem(true);
           }).catch(e => { S.busy = false; say(e.message, true); loadQueue(); });

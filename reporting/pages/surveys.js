@@ -13,6 +13,10 @@
  *              (Answered, Opened no answer, Not opened, Issue or low mark, Bounced or failed). A row opens the side
  *              panel: the timeline, the email that went out, the answers and a link to the customer's story in
  *              Conversations. Answers from the public link or a QR code are rows of their own.
+ *   ANSWERS    (19 Nov, ZTZ-54) every answer as a card, newest first, the customer's own words on top. Chips: Needs
+ *              follow-up (a negative or neutral answer nobody has handled), With comments, Handled, All. On a
+ *              negative or neutral answer one person presses Take it, then Mark handled with what was done; the
+ *              Slack alert in #support-tech-team links here (&tab=answers).
  *   EMAIL      the shared email editor (assets/email-designer.js, 12 Nov, ZTZ-69 step 3): a header with
  *              "N changes not live yet", Discard changes / Send a test… / Make changes live; the parts,
  *              the email (click a part) and the settings. Edits save by themselves as a DRAFT on the
@@ -51,6 +55,21 @@
       + ".svy-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}"
       + "@media (max-width:1100px){.svy-row2,.svy-row3{grid-template-columns:minmax(0,1fr)}}"
       + ".svy-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}"
+      + ".svy-chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}"
+      + ".svy-chipb{font:inherit;font-size:13px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}"
+      + ".svy-chipb.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}"
+      + ".svy-chipb .n{opacity:.7;margin-left:4px}"
+      + ".svy-acard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin:0 0 12px}"
+      + ".svy-acard.svy-needs{border-left:4px solid #d97706}"
+      + ".svy-ah{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;margin:0 0 8px}"
+      + ".svy-ah b{font-size:14.5px;color:var(--ink)}"
+      + ".svy-ah span{font-size:12.5px;color:var(--muted)}"
+      + ".svy-q{margin:8px 0;padding:8px 12px;border-radius:10px;background:var(--panel-2)}"
+      + ".svy-q i{display:block;font-style:normal;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin-bottom:3px}"
+      + ".svy-q p{margin:0;font-size:14px;line-height:1.5;color:var(--ink);white-space:pre-wrap}"
+      + ".svy-sc{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}"
+      + ".svy-fu{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}"
+      + ".svy-fu .who{color:var(--muted)}"
       + ".svy-h{font-size:14px;font-weight:700;color:var(--ink);margin:0 0 3px}"
       + ".svy-hs{font-size:12px;color:var(--faint);margin:0 0 14px}"
       + ".svy-br{display:grid;grid-template-columns:150px minmax(0,1fr) 92px;gap:10px;align-items:center;margin:9px 0;font-size:13px}"
@@ -138,7 +157,7 @@
     id: "surveys",
     group: "reviews",
     title: "Customer Survey",
-    subtitle: "Tako's feedback survey by email: the results, who gets it, every send and answer, and the email itself.",
+    subtitle: "The customer feedback survey by email: the answers and their follow-up, who gets it, every send, and the email itself.",
     datasets: [],
 
     render(host) {
@@ -281,7 +300,7 @@
         if (!bar || !window.RSC) return;
         const kind = bar.dataset.kind;
         const fld = label => { const w = document.createElement("div"); w.className = "rs-fld"; w.innerHTML = "<span>" + label + "</span>"; bar.appendChild(w); return w; };
-        if (RSC.dateRange) RSC.dateRange(fld(kind === "act" ? "Sent or answered" : "Sent"), {
+        if (RSC.dateRange) RSC.dateRange(fld(kind === "act" ? "Sent or answered" : kind === "answers" ? "Answered" : "Sent"), {
           get: () => ({ from: S.plo, to: S.phi }),
           set: (f, t) => { S.plo = f || ""; S.phi = t || ""; S.phiAuto = !t || t === iso(new Date()); },
           onChange: () => { S.sPage = 0; loadPeriod(); } });
@@ -296,11 +315,11 @@
           if (S._focusP) { S._focusP = 0; setTimeout(() => { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 0); }
         }
         const sp = document.createElement("span"); sp.className = "rs-spacer"; bar.appendChild(sp);
-        if (kind !== "over") {
+        if (kind === "act") {
           const b = document.createElement("button"); b.className = "rs-btn"; b.type = "button"; b.textContent = "Download CSV";
           b.onclick = () => csv(kind); bar.appendChild(b);
         }
-        if (!RSC.filterPanel) return;
+        if (!RSC.filterPanel || kind === "answers") return;     // the Answers tab filters with its chips and the search
         const data = kind === "act" ? actRows() : (S.sends || []);
         const fields = pfKeys(kind).map(k => {
           const n = {}; data.forEach(x => { const v = PF[k].of(x); n[v] = (n[v] || 0) + 1; });
@@ -925,7 +944,7 @@
 
       // ---- paint + wire ------------------------------------------------------------------------
       // ZP-11 (18 Nov): Sends and Responses became the one Activity tab
-      const TABS = [["over", "Overview"], ["list", "Audience"], ["act", "Activity"], ["email", "Email"]];
+      const TABS = [["over", "Overview"], ["answers", "Answers"], ["list", "Audience"], ["act", "Activity"], ["email", "Email"]];
       // THE PAGE STANDARD (ZTZ-80): the kit head (the page had no title of its own), the explanations in
       // "How it's counted", and the five views as the kit's underline tabs (same data-tab, same go()).
       // "Who gets it" reads the Audience's own tab notes, so the left-out wording stays in one place.
@@ -941,15 +960,20 @@
         + "the link means the email was delivered and opened even when those were not seen. Not opened = no open seen; opens "
         + "are seen only since open tracking was switched on. Issue or low mark = they reported an issue, gave 3 or less "
         + "overall or for recommending, 2 or less for booking, crew or transit, or said it was not worth the price.</p>"
-        + "<h3>By foreman</h3><p>Answers from personal links carry the move's foreman. Few answers swing an average, so read the count too.</p>";
+        + "<h3>By foreman</h3><p>Answers from personal links carry the move's foreman. Few answers swing an average, so read the count too.</p>"
+        + "<h3>Answers and follow-up</h3><p>Answers shows every answer of the period, newest first, with the customer's own words on top. "
+        + "A negative or neutral answer (an issue, 3 or less overall or for recommending, 2 or less for booking, crew or transit, or not worth "
+        + "the price) is posted to #support-tech-team as it comes in. One person presses Take it, follows up with the customer, then presses "
+        + "Mark handled and says what was done. Needs follow-up lists the ones nobody has handled yet.</p>";
       function paint() {
         if (!alive()) return;
         if (S.tab !== "act") closeAct();
-        const v = S.tab === "over" ? overView() : S.tab === "list" ? listView() : S.tab === "act" ? activityView() : emailView();
+        const v = S.tab === "over" ? overView() : S.tab === "answers" ? answersTabView() : S.tab === "list" ? listView()
+          : S.tab === "act" ? activityView() : emailView();
         // the survey is automation #1 on Email Automations (10 Nov, ZTZ-60) and opens from its card there
         host.innerHTML = '<div class="svy"><a class="svy-link svy-back" href="#page=email-automations">&larr; Email Automations</a>'
           + RSC.pageHeadHtml({ title: "Customer Survey", key: "surveys",
-              sub: "Tako's feedback survey by email: the results, who gets it, every send and answer, and the email itself.", how: howHtml })
+              sub: "The customer feedback survey by email: the answers and their follow-up, who gets it, every send, and the email itself.", how: howHtml })
           + RSC.tabsHtml(TABS.map(t => ({ id: t[0], label: t[1] })), S.tab, "tab") + v + "</div>";
         wire();
       }
@@ -957,6 +981,7 @@
         if (tab === "sends" || tab === "ans") tab = "act";          // a tab left open before ZP-11
         S.tab = tab; say("");
         if ((tab === "over" || tab === "act") && (S.sends === null || S.ans === null)) loadPeriod();
+        else if (tab === "answers" && S.ans === null) { paint(); loadAnswers(); }
         else if (tab === "list" && (S.rows === null || S.err)) loadList();
         else if (tab === "email" && !S.design) loadTemplate();
         else paint();
@@ -968,7 +993,10 @@
         host.querySelectorAll("[data-retry]").forEach(b => { b.onclick = () => {
           if (b.dataset.retry === "list") loadList(); else { S.tplErr = ""; paint(); loadTemplate(); } }; });
         // the shared period (overview, sends, responses)
-        if (S.tab === "over" || S.tab === "act") mountPeriodBar();
+        if (S.tab === "over" || S.tab === "act" || S.tab === "answers") mountPeriodBar();
+        // answers: the chips and the follow-up buttons (ZTZ-54)
+        host.querySelectorAll("[data-achip]").forEach(b => { b.onclick = () => { S.achip = b.dataset.achip; paint(); }; });
+        host.querySelectorAll("[data-fu]").forEach(b => { b.onclick = () => followUp(b.dataset.fu, +b.dataset.id, b); });
         host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.openAns = +b.dataset.openans; go("act"); }; });
         // sends
         host.querySelectorAll("[data-spg]").forEach(b => { b.onclick = () => { S.sPage += +b.dataset.spg; paint(); }; });
@@ -1015,6 +1043,94 @@
         if (S.tab === "email") mountDesigner();
       }
 
+      // ---- ANSWERS (19 Nov, ZTZ-54): his pick "Portal page only - but easier to access answers and better UX" ------
+      const fuDone = a => !!a.fu_done_at;
+      const needs = a => !!+a.flagged && !fuDone(a);
+      const words = a => [["What went wrong", a.issue === "Yes" ? a.issue_text : ""], ["What they would change", a.change_text],
+        ["What they enjoyed", [a.enjoyed, a.enjoyed_other].filter(Boolean).join(" — ")]].filter(x => String(x[1] || "").trim());
+      const ANS_CHIPS = [["needs", "Needs follow-up", needs], ["words", "With comments", a => words(a).length > 0],
+                      ["done", "Handled", fuDone], ["all", "All answers", () => true]];
+      const short = e => String(e || "").split("@")[0];
+      function scoreChip(label, v, max, bad) {
+        if (v == null || v === "") return "";
+        const cls = +v <= bad ? "svy-bad" : +v >= max - 1 ? "svy-ok" : "svy-mute";
+        return '<span class="svy-flag ' + cls + '">' + esc(label) + " " + esc(v) + "/" + max + "</span>";
+      }
+      function fuHtml(a) {
+        if (!+a.flagged && !a.fu_taken_by) return "";
+        const me = (window.ZTZ && ZTZ.email && ZTZ.email()) || "";
+        let h = '<div class="svy-fu">';
+        if (fuDone(a)) {
+          h += '<span class="svy-flag svy-ok">Handled</span><span class="who">by ' + esc(short(a.fu_done_by)) + ", " + esc(dt(a.fu_done_at)) + "</span>"
+            + (a.fu_note ? '<span>' + esc(a.fu_note) + "</span>" : "")
+            + '<button type="button" class="rs-btn" data-fu="reopen" data-id="' + a.id + '">Reopen</button>';
+        } else if (a.fu_taken_by) {
+          const mine = a.fu_taken_by === me;
+          h += '<span class="svy-flag svy-blue">' + (mine ? "You're following it up" : "Taken by " + esc(short(a.fu_taken_by))) + "</span>"
+            + '<span class="who">since ' + esc(dt(a.fu_taken_at)) + "</span>"
+            + (mine ? '<button type="button" class="rs-btn pri" data-fu="done" data-id="' + a.id + '">Mark handled</button>'
+                    : '<button type="button" class="rs-btn" data-fu="take" data-id="' + a.id + '">Take it over</button>');
+        } else {
+          h += '<span class="svy-flag svy-bad">Nobody has it yet</span>'
+            + '<button type="button" class="rs-btn pri" data-fu="take" data-id="' + a.id + '">Take it</button>'
+            + '<button type="button" class="rs-btn" data-fu="done" data-id="' + a.id + '">Mark handled</button>';
+        }
+        return h + "</div>";
+      }
+      function answerCard(a) {
+        const who = a.name || a.invite_customer || "A customer";
+        const meta = [a.move_date ? "moved " + d10(a.move_date) : "", a.state, a.foreman ? "foreman " + a.foreman : "",
+          a.job_no ? "job " + a.job_no : "", a.source && a.source !== "email" ? "via " + a.source : ""].filter(Boolean);
+        const ws = words(a);
+        return '<div class="svy-acard' + (needs(a) ? " svy-needs" : "") + '"><div class="svy-ah"><b>' + esc(who) + "</b>"
+          + "<span>" + esc(meta.join(" · ")) + "</span><span>answered " + esc(dt(a.submitted_at)) + "</span>"
+          + (a.test ? '<span class="svy-flag svy-mute">Test</span>' : "") + "</div>"
+          + ws.map(([l, t]) => '<div class="svy-q"><i>' + esc(l) + "</i><p>" + esc(t) + "</p></div>").join("")
+          + '<div class="svy-sc">' + scoreChip("Overall", a.overall, 5, 3) + scoreChip("Recommend", a.recommend, 5, 3)
+          + scoreChip("Booking", a.booking, 5, 2) + scoreChip("Crew", a.crew, 5, 2) + scoreChip("Transit", a.transit, 5, 2)
+          + (a.worth ? '<span class="svy-flag ' + (a.worth === "No" ? "svy-bad" : a.worth === "Yes" ? "svy-ok" : "svy-mute") + '">Worth the price: ' + esc(a.worth) + "</span>" : "")
+          + (+a.flagged ? '<span class="svy-flag">' + esc(a.flag_reason || "negative or neutral") + "</span>" : "") + "</div>"
+          + (a.email || a.phone ? '<div class="svy-note" style="margin:6px 0 0">' + esc([a.email, a.phone].filter(Boolean).join(" · ")) + "</div>" : "")
+          + fuHtml(a) + "</div>";
+      }
+      function answersTabView() {
+        let h = periodBar("answers") + (S.msg ? '<p class="svy-note' + (S.msgErr ? " svy-err" : "") + '">' + esc(S.msg) + "</p>" : "");
+        if (S.ans === null) return h + '<div class="panel">Loading the answers…</div>';
+        if (S.aErr) return h + '<div class="panel">Could not load the answers: ' + esc(S.aErr) + "</div>";
+        if (!S.achip) S.achip = S.ans.some(needs) ? "needs" : "all";
+        const q = String(S.actQ || "").trim().toLowerCase();
+        const hay = a => [a.name, a.invite_customer, a.email, a.phone, a.foreman, a.state, a.job_no, a.issue_text, a.change_text,
+          a.enjoyed, a.enjoyed_other, a.flag_reason, a.fu_note].join(" ").toLowerCase();
+        const rows = S.ans.filter(a => !q || hay(a).indexOf(q) >= 0)
+          .sort((x, y) => String(y.submitted_at).localeCompare(String(x.submitted_at)));
+        h += '<div class="svy-chips" role="group" aria-label="Which answers">' + ANS_CHIPS.map(([k, l, f]) =>
+          '<button type="button" class="svy-chipb' + (S.achip === k ? " on" : "") + '" data-achip="' + k + '" aria-pressed="' + (S.achip === k) + '">'
+          + esc(l) + '<span class="n">' + rows.filter(f).length + "</span></button>").join("") + "</div>";
+        const f = (ANS_CHIPS.find(c => c[0] === S.achip) || ANS_CHIPS[3])[2], shown = rows.filter(f);
+        if (!shown.length) return h + '<div class="panel">' + ({ needs: "Nothing needs a follow-up: every negative or neutral answer of the period is handled.",
+          words: "No answer of the period has comments.", done: "Nothing handled in this period yet.", all: "No answers in this period." }[S.achip] || "") + "</div>";
+        return h + shown.slice(0, 200).map(answerCard).join("")
+          + (shown.length > 200 ? '<p class="svy-note">The newest 200 of ' + shown.length + ". Narrow the period to see older ones.</p>" : "");
+      }
+      function followUp(what, id, btn) {
+        const a = (S.ans || []).find(x => +x.id === id); if (!a) return;
+        let note = "";
+        if (what === "done") {
+          note = prompt("What was done? (it shows on the answer, for whoever reads it next)", a.fu_note || "");
+          if (note === null) return;
+        }
+        if (what === "take" && a.fu_taken_by && !fuDone(a) && !confirm(short(a.fu_taken_by) + " is following this one up. Take it over?")) return;
+        if (btn) btn.disabled = true;
+        const force = what === "take" && !!a.fu_taken_by;
+        post({ action: "fu_" + what, id, note, force }).then(j => {
+          const f = j.fu || {};
+          Object.assign(a, { fu_taken_by: f.taken_by || null, fu_taken_at: f.taken_at || null, fu_done_by: f.done_by || null,
+                             fu_done_at: f.done_at || null, fu_note: f.note || null });
+          say(what === "done" ? "Marked handled." : what === "take" ? "It's yours." : "Reopened.");
+          paint();
+        }).catch(e => { say(e.message || String(e), true); paint(); });
+      }
+
       // one row per customer, the send and its answer side by side (ZP-11)
       function csv() {
         const rs = actVisible().filter(x => chipOk(x, S.chip)).map(x => Object.assign({}, x.s || {}, x.a ? {
@@ -1036,6 +1152,12 @@
 
       // Email Automations' survey card opens a tab directly ("Review and send" = Audience, "Edit the email")
       if (window.__SVY_OPEN_TAB) { S.tab = window.__SVY_OPEN_TAB; window.__SVY_OPEN_TAB = null; }
+      // THE SUPPORT ALERT LINKS HERE (ZTZ-54): "#page=surveys&tab=answers" opens the Answers tab on Needs follow-up
+      const tm = location.hash.match(/[?&]tab=(answers)\b/);
+      if (tm) {
+        S.tab = "answers"; S.achip = "needs";
+        try { history.replaceState(null, "", "#" + location.hash.slice(1).replace(/[?&]tab=[^&]*/g, "")); } catch (e) { /* keep the hash */ }
+      }
       // A CUSTOMER'S STORY LINKS HERE (ZP-11): "#page=surveys&ans=<answer id>&from=<sent date>" opens that answer's
       // side panel; the period reaches back to the send so its row is in the list. The two words leave the address.
       const hm = location.hash.match(/[?&]ans=(\d+)/);
