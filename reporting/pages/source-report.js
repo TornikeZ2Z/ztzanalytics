@@ -26,6 +26,12 @@
  *   Local / LD      service_type_map: everything except Service Type 'Long Distance' is Local.
  *   Dead            Status Category 'Bad Lead' -- shown as an EXIT from the funnel with its
  *                   reasons (the rep's Flag), never as a funnel step.
+ *   Outcome         ZP-8 (18 Nov 2026, his pick "a group on top of flags, and do it based on that"):
+ *                   every lead in ONE group -- Booked (Confirmed), Invalid (the rep's Flag says it
+ *                   could not be worked), Lost (workable, went elsewhere or did not buy), Still open,
+ *                   or No reason recorded (closed with only a follow-up note or an unclear flag).
+ *                   OUTCOME_INVALID / OUTCOME_LOST below hold the Flag patterns. A lead that only
+ *                   expired with "Booked with others" is LOST here, though MoveBoard never marked it dead.
  *   Not quoted      a lead whose Max Quote is not positive. Moveboard files those at a fake
  *                   $500, which would make "$501-$1,000" look like where leads go to die.
  *   States          the 8 service states by pickup state; every other state and a blank one are
@@ -133,6 +139,19 @@
   }
   function isQual(r) { return r["Status Category"] !== "Bad Lead"; }
   function isDead(r) { return r["Status Category"] === "Bad Lead"; }
+  /* ZP-8: the outcome group on top of the rep's Flag (MoveBoard's disposition) */
+  var OUTCOME_INVALID = /out of service area|duplicate|copy lead|invalid phone|invalid email|wrong number|truck rental|low quality|not moving|change of plans|spam|test lead/i;
+  var OUTCOME_LOST = /booked with others|exceeded their budget|over budget|too expensive|not interested|small job|rate was given|no respond|no response|left a voicemail|mailbox is full/i;
+  var OUTCOME_OPEN_STATUS = /^(not confirmed|pending|date pending|to call back)$/i;
+  var OUTCOME_ORDER = ["Booked", "Lost", "Invalid", "Still open", "No reason recorded"];
+  function outcomeOf(r) {
+    if (r["Status Category"] === "Confirmed") return "Booked";
+    var f = r.Flag || "";
+    if (OUTCOME_INVALID.test(f)) return "Invalid";
+    if (OUTCOME_LOST.test(f)) return "Lost";
+    if (r["Status Category"] === "Incoming Lead" && OUTCOME_OPEN_STATUS.test(String(r.Status || "").trim())) return "Still open";
+    return "No reason recorded";
+  }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -224,6 +243,7 @@
       + ".sra .sra-cols .sra-reset{margin-top:8px;width:100%}"
       + ".sra .sra-save{font-size:12px;color:var(--faint)}"
       + ".sra .sra-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
+      + ".sra tr.sra-og td{border-top:1px solid var(--line)}.sra td.sra-ofl{padding-left:22px;color:var(--muted)}"
       + "@media(max-width:700px){.sra .sra-rr{grid-template-columns:52px minmax(0,1fr) 96px}}";
     document.head.appendChild(st);
   }
@@ -700,7 +720,16 @@
       + "<b>This period's own leads</b> follow only the leads created in the period: how many of them are booked, "
       + "moved and billed today.</p>"
       + "<h3>Dead leads</h3><p>A lead's current status. Its reason is the rep's disposition (Flag), often set after a "
-      + "quote, so a dead lead is not one that left before qualifying. The reasons are charted under Breakdowns.</p>"
+      + "quote, so a dead lead is not one that left before qualifying.</p>"
+      + "<h3>What happened to the leads</h3><p>Every lead created in the period is in one outcome group, put on top of "
+      + "the rep's disposition (Flag) in MoveBoard: <b>Booked</b> (confirmed); <b>Invalid</b>, a lead that could not be "
+      + "worked (out of service area, not moving, low quality, wrong phone or email, duplicate, truck rental); <b>Lost</b>, "
+      + "a workable lead that went elsewhere or did not buy (booked with others, over budget, not interested or a small "
+      + "job, a rate given and no answer, no reply after follow-ups, voicemail); <b>Still open</b> (not confirmed yet, "
+      + "pending, to call back); and <b>No reason recorded</b>, a lead closed with only a follow-up note or a flag that "
+      + "says no outcome (Read Note, Quote in Process). A lead that simply expired with \"Booked with others\" counts "
+      + "as lost here, though MoveBoard never marked it dead. The table lists the flags under each group; the same "
+      + "groups are a row choice under Analyze by.</p>"
       + "<h3>Revenue per $1</h3><p>Revenue per $1 of ads, by the state the money was placed in: the same shared "
       + 'calculation as <a href="#page=marketing-roi">Return on Investment</a>, where the spend and its drills live. It '
       + "follows Source, Company and Period only. The Filters panel's state, size, rep and move type do not reach it, "
@@ -866,6 +895,7 @@
                 kb: function (r) { return r.Status || "(none)"; } },
       flag: { label: "Rep disposition (Flag)", kc: function (r) { return r.Flag || "(no reason recorded)"; },
               kb: function (r) { return r.Flag || "(no reason recorded)"; } },
+      outcome: { label: "Outcome (booked, lost, invalid)", kc: outcomeOf, kb: outcomeOf, order: OUTCOME_ORDER },
       label: { label: "Source label", kc: function (r) { return r.Source || "(none)"; },
                kb: function (r) { return r.Source || "(none)"; } },
       campaign: { label: "Post-card campaign", onlyPC: true,
@@ -915,38 +945,46 @@
         buildTable: function () { return dimTable(keys, g, dim, false); },
       });
     });
-    // why leads die: the Flag on dead leads created in the period
-    var dead = created.filter(isDead);
-    var rc = {};
-    dead.forEach(function (r) { var k = r.Flag || "(no reason recorded)"; rc[k] = (rc[k] || 0) + 1; });
-    var rk = Object.keys(rc).sort(function (a, b) { return rc[b] - rc[a]; });
-    var topK = rk.slice(0, 12);
-    var restN = rk.slice(12).reduce(function (a, k) { return a + rc[k]; }, 0);
-    if (restN) { topK.push("All other reasons"); rc["All other reasons"] = restN; }
+    // ZP-8: what happened to the leads created in the period -- the outcome group on top, the flags under it
+    var byG = {}, byF = {};
+    OUTCOME_ORDER.forEach(function (k) { byG[k] = 0; byF[k] = {}; });
+    created.forEach(function (r) {
+      var o = outcomeOf(r), f = o === "Booked" ? "Booked" : (r.Flag || "(no reason recorded)");
+      byG[o]++; byF[o][f] = (byF[o][f] || 0) + 1;
+    });
+    var gk = OUTCOME_ORDER.filter(function (k) { return byG[k]; });
+    var nAll = Math.max(created.length, 1);
     RSC.chartCard(grid, {
-      title: "Why leads die" + mtName + " · " + fmtN(dead.length) + " dead of " + fmtN(created.length),
-      key: "sra-dead",
+      title: "What happened to the leads" + mtName + " · " + fmtN(byG.Lost) + " lost, " + fmtN(byG.Invalid)
+        + " invalid of " + fmtN(created.length),
+      key: "sra-outcome",
       buildChart: function (canvas) {
         var C = palette();
+        var col = { "Booked": C.brand, "Lost": C.violet, "Invalid": C.faint, "Still open": C.blue, "No reason recorded": C.muted };
         return new Chart(canvas, {
           type: "bar",
-          data: { labels: topK, datasets: [{ label: "Dead leads", data: topK.map(function (k) { return rc[k]; }),
-                                             backgroundColor: C.faint }] },
+          data: { labels: gk, datasets: [{ label: "Leads", data: gk.map(function (k) { return byG[k]; }),
+                                           backgroundColor: gk.map(function (k) { return col[k]; }) }] },
           options: { indexAxis: "y", responsive: true, maintainAspectRatio: false,
                      plugins: { legend: { display: false },
                                 tooltip: { callbacks: { label: function (ctx) {
-                                  return fmtN(ctx.raw) + " dead leads · " + pct1(ctx.raw / Math.max(dead.length, 1)) + " of dead";
+                                  return fmtN(ctx.raw) + " leads · " + pct1(ctx.raw / nAll) + " of the period's leads";
                                 } } } },
                      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } },
         });
       },
       buildTable: function () {
-        if (!rk.length) return '<div class="sra-empty">No dead leads in this period.</div>';
-        return '<table class="rs-table"><thead><tr><th>Reason (rep disposition)</th>'
-          + '<th class="num">Dead leads</th><th class="num">Share of dead</th></tr></thead><tbody>'
-          + rk.map(function (k) {
-              return "<tr><td>" + esc(k) + '</td><td class="num">' + fmtN(rc[k]) + '</td><td class="num">'
-                + pct1(rc[k] / Math.max(dead.length, 1)) + "</td></tr>";
+        if (!gk.length) return '<div class="sra-empty">No leads in this period.</div>';
+        return '<table class="rs-table"><thead><tr><th>Outcome, then the rep\'s reason (Flag)</th>'
+          + '<th class="num">Leads</th><th class="num">Share</th></tr></thead><tbody>'
+          + gk.map(function (k) {
+              var fk = Object.keys(byF[k]).sort(function (a, b) { return byF[k][b] - byF[k][a]; });
+              return '<tr class="sra-og"><td><b>' + esc(k) + '</b></td><td class="num"><b>' + fmtN(byG[k]) + '</b></td><td class="num"><b>'
+                + pct1(byG[k] / nAll) + "</b></td></tr>"
+                + (k === "Booked" ? "" : fk.map(function (f) {
+                    return '<tr><td class="sra-ofl">' + esc(f) + '</td><td class="num">' + fmtN(byF[k][f]) + '</td><td class="num">'
+                      + pct1(byF[k][f] / Math.max(byG[k], 1)) + " of " + esc(k.toLowerCase()) + "</td></tr>";
+                  }).join(""));
             }).join("") + "</tbody></table>";
       },
     });
