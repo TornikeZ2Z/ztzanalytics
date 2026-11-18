@@ -20,7 +20,13 @@
 
    EDIT OR REMOVE (17 Nov 2026, bug ZP-6). Gvantsa added a truck deposit as monthly by mistake and could neither fix nor
    remove it: she works in the Month tab, and Edit was only on the "Fixed costs" tab. Each month row now has "Edit or
-   remove"; the panel has Remove, asked once more before it goes (it leaves every month, paid ones too). */
+   remove"; the panel has Remove, asked once more before it goes (it leaves every month, paid ones too).
+
+   BY STATUS, WITH TYPES (17 Nov 2026, bug ZP-3). His words: "i dont like the table setup and design here ... i need
+   TYPE of subscription too, like MONTHLY FIXED, MONTHLY USAGE BASED, YEARLY and etc." His picks from three mockups on
+   the real data: layout A, by status ("Past its date, not paid" first, then "Coming up", then "Paid"), and five types
+   (Monthly fixed, Monthly usage-based, Quarterly, Yearly, One-off). A round tick marks a payment paid -- a usage-based
+   one asks what it really was -- and "..." holds Change this month / Edit or remove, so a row carries no buttons. */
 registerPage({
   id: "fixed-costs",
   group: "financial",
@@ -42,6 +48,12 @@ registerPage({
     const nth = d => d + ((d % 100 >= 11 && d % 100 <= 13) ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[d % 10] || "th"));
     // "No set day" for a cost that counts in its month without a date (his pick, ZTZ-93)
     const payDate = p => p.no_day ? "No set day" : day(p.due);
+    // the five types (ZP-3): bridge/fixed_costs.py KINDS; a cost saved before them comes with one worked out
+    const KIND = { monthly: "Monthly fixed", usage: "Monthly usage-based", quarterly: "Quarterly", yearly: "Yearly", once: "One-off" };
+    const KIND_HELP = { monthly: "The same amount every month.", usage: "The amount is an estimate: when you tick it paid, you enter what it really was.",
+                        quarterly: "Every 3 months, starting on the date below.", yearly: "Once a year, on the date below.", once: "Once, on the date below." };
+    const kindOf = x => KIND[x && x.kind] ? x.kind : (x && x.once ? "once" : "monthly");
+    const kindPill = x => '<span class="fxc-kind fxc-k-' + kindOf(x) + '">' + esc(KIND[kindOf(x)]) + "</span>";
     const CATS = ["Truck financing", "Rent and lease", "Insurance", "Utilities", "Loans", "Software and phones", "Taxes", "Other"];
     let S = window.__fxcState || (window.__fxcState = { view: "month", month: null, data: null });
     if (!["month", "year", "costs"].includes(S.view)) S.view = "month";
@@ -78,9 +90,11 @@ registerPage({
     // ------------------------------------------------------------------ the page
     function through() { return S.data && S.data.through ? String(S.data.through).slice(0, 10) : ""; }
     function howHtml() {
-      return "<p><b>A fixed cost</b> is something we pay: a name, an amount and a date. It repeats every month unless it is a"
-        + " one-off, and a cost with <i>no set day</i> counts in its month without a date. Any single month can be moved, changed"
-        + " or skipped (<i>Change this month</i>), and a cost can be stopped from any month on.</p>"
+      return "<p><b>A fixed cost</b> is something we pay: a name, an amount, a date and a <b>type</b>. <i>Monthly fixed</i> is the"
+        + " same amount every month; <i>Monthly usage-based</i> is an estimate until it is paid (ticking it paid asks what it really"
+        + " was, and its row shows &asymp; until then); <i>Quarterly</i> repeats every 3 months and <i>Yearly</i> every 12 from their"
+        + " first date; a <i>One-off</i> is paid once. A cost with <i>no set day</i> counts in its month without a date. Any single"
+        + " month can be moved, changed or skipped (<i>Change this month</i>), and a cost can be stopped from any month on.</p>"
         + "<p><b>Paid.</b> You tick a payment <i>Mark paid</i>. The bank helps: a cost that carries the words of its bank line"
         + " (e.g. <i>TOYOTA</i>) is also marked paid when the bank feed shows its charge in that month (several lines a month"
         + " are added up). The bank feed is filled by hand and runs about two weeks behind; today it reaches "
@@ -88,7 +102,8 @@ registerPage({
         + "<p><b>The states.</b> <i>Paid</i>: ticked, or the bank shows it. <i>Coming up</i>: its date is ahead (a cost with no set day"
         + " stays here until its month ends). <i>Due, not ticked</i>: its date has passed and it isn't ticked."
         + " <i>Due, not in the bank</i>: the bank feed covers its date and shows no charge.</p>"
-        + "<p><b>Left to pay</b> = everything not paid and not skipped.</p>"
+        + "<p><b>The Month view</b> lists what is past its date and not paid first, then what is coming up, then what is paid."
+        + " <b>Left to pay</b> = everything not paid and not skipped.</p>"
         + "<p>The list started from Gvantsa's sheet (November 2026); January 2025 to October 2026 come from the bank feed for the"
         + " costs with one clear bank payee. Every change is kept with who made it and when (a cost's <i>History</i>).</p>";
     }
@@ -112,7 +127,7 @@ registerPage({
       wire();
     }
 
-    // ---- MONTH: each payment on its date, the month's totals and what is left
+    // ---- MONTH (ZP-3, his pick A): by status -- past its date and not paid first, then coming up, then paid
     function monthHtml() {
       const d = S.data, m = S.month;
       // dated payments first by date, then the ones with no set day
@@ -133,29 +148,41 @@ registerPage({
         { label: "Paid", value: money0(sm.paid), sub: sm.total ? Math.round(100 * sm.paid / sm.total) + "% of the month" : "" },
         { label: "Left to pay", value: money0(left), sub: pastAll ? money0(pastAll) + " of it past its date" : "nothing past its date", tone: pastAll ? "bad" : "" },
       ]);
-      h += '<div class="rs-tablewrap"><table class="rs-table fxc-t"><thead><tr><th>Date</th><th>Fixed cost</th>'
-        + '<th class="num">Amount</th><th>State</th><th></th></tr></thead><tbody>';
-      pays.forEach(p => {
-        const [lab, tone] = STATE[p.state] || [p.state, "mute"];
-        const b = p.bank;
-        // a month filled from the bank feed when her list was loaded (Jan 2025 - Oct 2026) says so, not "ticked by"
-        const fromBank = /^(From the bank feed|No charge in the bank)/.test(p.note || "");
-        const how = fromBank ? p.note : b ? "bank " + day(b.date) + (b.n > 1 ? " · " + b.n + " lines" : "") + (Math.abs(b.amount - p.amount) >= 0.01 ? " · " + money(b.amount) : "")
-          : p.paid_hand === true ? "ticked" + (p.paid_by ? " by " + String(p.paid_by).split("@")[0] : "")
-          : p.paid_hand === false ? "marked not paid" : "";
-        // she ticks any payment that isn't paid yet; one she ticked can be unticked
-        const quick = p.state === "skipped" ? ""
-          : p.paid_hand === true ? '<button type="button" class="rs-btn" data-paid="auto" data-c="' + p.cost_id + '" data-m="' + ym(p.month) + '">Untick</button>'
-          : p.state !== "paid" ? '<button type="button" class="rs-btn" data-paid="1" data-c="' + p.cost_id + '" data-m="' + ym(p.month) + '">Mark paid</button>' : "";
-        h += '<tr class="' + (p.state === "skipped" ? "fxc-skip" : "") + '"><td class="nowrap">' + esc(payDate(p)) + (p.changed && !fromBank ? ' <span class="fxc-mark" title="Changed for this month">changed</span>' : "") + "</td>"
-          + "<td><b>" + esc(p.name) + '</b><div class="fxc-sub">' + esc([p.once ? "one-off" : "", p.category && p.category !== "Other" ? p.category : "", p.company !== "Zip to Zip" ? p.company : ""].filter(Boolean).join(" · ")) + (p.note && !fromBank ? " · " + esc(p.note) : "") + "</div></td>"
-          + '<td class="num">' + money(p.amount) + "</td>"
-          + '<td><span class="rs-pill ' + tone + '">' + esc(lab) + "</span>" + (how ? '<div class="fxc-sub">' + esc(how) + "</div>" : "") + "</td>"
-          + '<td class="fxc-act">' + quick + '<button type="button" class="rs-btn" data-mon-edit="' + p.cost_id + '" data-m="' + ym(p.month) + '">Change this month</button>'
-          + '<button type="button" class="rs-btn" data-edit="' + p.cost_id + '">Edit or remove</button></td></tr>';
+      const groups = [
+        ["past", "Past its date, not paid", pays.filter(p => ["due", "waiting_bank", "missing"].includes(p.state))],
+        ["next", "Coming up", pays.filter(p => p.state === "upcoming")],
+        ["paid", "Paid", pays.filter(p => p.state === "paid")],
+        ["skip", "Skipped this month", pays.filter(p => p.state === "skipped")],
+      ];
+      h += '<div class="fxc-groups">';
+      groups.forEach(([key, title, list]) => {
+        if (!list.length) return;
+        const sum = list.reduce((a, p) => a + (+p.amount || 0), 0);
+        h += '<section class="fxc-grp fxc-g-' + key + '"><h3>' + esc(title) + " <span>" + list.length + " · " + money0(sum) + "</span></h3>"
+          + '<ul class="fxc-list">' + list.map(rowHtml).join("") + "</ul></section>";
       });
-      h += '</tbody><tfoot><tr><td colspan="2"><b>Total</b></td><td class="num"><b>' + money(sm.total) + "</b></td><td colspan=\"2\">" + money0(left) + " left to pay</td></tr></tfoot></table></div>";
-      return h;
+      return h + '<p class="fxc-total"><b>Total ' + money(sm.total) + "</b> · " + money0(left) + " left to pay</p></div>";
+    }
+    // one payment: the tick, its date, the cost with its type, the amount, and "..." for the rest
+    function rowHtml(p) {
+      const b = p.bank, paid = p.state === "paid", usage = kindOf(p) === "usage";
+      // a month filled from the bank feed when her list was loaded (Jan 2025 - Oct 2026) says so, not "ticked by"
+      const fromBank = /^(From the bank feed|No charge in the bank)/.test(p.note || "");
+      const how = fromBank ? p.note : b ? "bank " + day(b.date) + (b.n > 1 ? " · " + b.n + " lines" : "") + (Math.abs(b.amount - p.amount) >= 0.01 ? " · " + money(b.amount) : "")
+        : p.paid_hand === true ? "ticked" + (p.paid_by ? " by " + String(p.paid_by).split("@")[0] : "")
+        : p.paid_hand === false ? "marked not paid" : p.state === "missing" ? "not found in the bank" : "";
+      const sub = [p.category && p.category !== "Other" ? p.category : "", p.company !== "Zip to Zip" ? p.company : "", how,
+                   p.note && !fromBank ? p.note : ""].filter(Boolean).join(" · ");
+      // the tick: a paid one she ticked can be unticked; one the bank shows stays paid (change the month to override)
+      const tick = p.state === "skipped" ? '<span class="fxc-tick off" aria-hidden="true"></span>'
+        : paid && p.paid_hand !== true ? '<span class="fxc-tick on" title="The bank shows it">✓</span>'
+        : '<button type="button" class="fxc-tick' + (paid ? " on" : "") + '" data-tick="' + (paid ? "auto" : "1") + '" data-c="' + p.cost_id + '" data-m="' + ym(p.month) + '" aria-label="'
+          + esc((paid ? "Untick " : "Mark paid: ") + p.name) + '">' + (paid ? "✓" : "") + "</button>";
+      return '<li class="fxc-row' + (paid ? " paid" : "") + '">' + tick
+        + '<span class="fxc-date">' + esc(payDate(p)) + (p.moved && !fromBank ? ' <i class="fxc-mark" title="Another date or amount this month">changed</i>' : "") + "</span>"
+        + '<span class="fxc-name"><b>' + esc(p.name) + "</b> " + kindPill(p) + (sub ? '<span class="fxc-sub">' + esc(sub) + "</span>" : "") + "</span>"
+        + '<span class="fxc-amt">' + (usage && !paid ? '<i class="fxc-est" title="An estimate until it is paid">≈ </i>' : "") + money(p.amount) + "</span>"
+        + '<button type="button" class="fxc-more" data-more="' + p.cost_id + '" data-m="' + ym(p.month) + '" aria-label="' + esc("More for " + p.name) + '">⋯</button></li>';
     }
 
     // ---- 12 MONTHS: every cost across the months in view, with the monthly totals
@@ -172,7 +199,8 @@ registerPage({
       h += '<div class="rs-tablewrap" data-rsfit><table class="rs-table fxc-t fxc-y"><thead><tr><th>Fixed cost</th>'
         + months.map(m => '<th class="num' + (m === ym(d.today) ? " fxc-now" : "") + '">' + esc(mName(m, true)) + "</th>").join("") + "</tr></thead><tbody>";
       ids.forEach(id => {
-        h += "<tr><td><b>" + esc(nameOf(id)) + "</b></td>" + months.map(m => {
+        const c0 = d.payments.find(p => p.cost_id === id) || {};
+        h += "<tr><td><b>" + esc(nameOf(id)) + '</b><div class="fxc-sub">' + esc(KIND[kindOf(c0)]) + "</div></td>" + months.map(m => {
           const p = byKey[id + "|" + m];
           if (!p) return '<td class="num fxc-none">—</td>';
           const tone = (STATE[p.state] || [])[1] || "";
@@ -190,22 +218,28 @@ registerPage({
 
     // ---- FIXED COSTS: the list itself
     function whenOf(c) {
-      const d = +c.day || 0, once = ym(c.start_month) === ym(c.end_month);
-      if (once) return "One-off, " + (d ? day(ym(c.start_month) + "-" + String(d).padStart(2, "0")) + " " : "") + mName(c.start_month, true).split(" ")[1];
+      const d = +c.day || 0, k = kindOf(c), first = ym(c.start_month);
+      const on = d ? day(first + "-" + String(d).padStart(2, "0")) : "";
+      if (k === "once") return (on ? on + " " : mName(first, true).split(" ")[0] + " ") + mName(first, true).split(" ")[1];
+      if (k === "yearly") return "Every year" + (on ? ", " + on : ", in " + mName(first, true).split(" ")[0]);
+      if (k === "quarterly") return "Every 3 months from " + mName(first, true) + (d ? ", the " + nth(d) : "");
       return "Every month, " + (d ? "the " + nth(d) : "no set day");
     }
     function costsHtml() {
       const cs = (S.data.costs || []).slice().sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1) || String(a.name).localeCompare(String(b.name)));
       if (!cs.length) return RSC.emptyHtml({ title: "No fixed costs yet", body: "Add a cost with its name, date and amount.", actionId: "fxcAddE", actionLabel: "Add a fixed cost" });
-      const monthly = cs.filter(c => c.status === "active" && ym(c.start_month) !== ym(c.end_month));
-      const total = monthly.reduce((a, c) => a + (+c.amount || 0), 0);
-      let h = RSC.headlineHtml("<b>" + cs.filter(c => c.status === "active").length + "</b> fixed costs; the monthly ones come to <b>" + money0(total) + "</b> a month at their usual amounts.");
-      h += '<div class="rs-tablewrap"><table class="rs-table fxc-t"><thead><tr><th>Fixed cost</th><th class="num">Amount</th><th>When</th>'
+      const act = cs.filter(c => c.status === "active");
+      const total = act.filter(c => ["monthly", "usage"].includes(kindOf(c))).reduce((a, c) => a + (+c.amount || 0), 0);
+      const yearly = act.filter(c => ["quarterly", "yearly"].includes(kindOf(c))).reduce((a, c) => a + (+c.amount || 0) * (kindOf(c) === "quarterly" ? 4 : 1), 0);
+      let h = RSC.headlineHtml("<b>" + act.length + "</b> fixed costs; the monthly ones come to <b>" + money0(total) + "</b> a month at their usual amounts"
+        + (yearly ? ", and the quarterly and yearly ones to <b>" + money0(yearly) + "</b> a year." : "."));
+      h += '<div class="rs-tablewrap"><table class="rs-table fxc-t"><thead><tr><th>Fixed cost</th><th>Type</th><th class="num">Amount</th><th>When</th>'
         + "<th>From – to</th><th>The bank helps</th><th></th></tr></thead><tbody>";
       cs.forEach(c => {
-        const once = ym(c.start_month) === ym(c.end_month);
+        const once = kindOf(c) === "once";
         h += '<tr class="' + (c.status === "stopped" ? "fxc-skip" : "") + '"><td><b>' + esc(c.name) + '</b><div class="fxc-sub">' + esc([c.category && c.category !== "Other" ? c.category : "", c.company !== "Zip to Zip" ? c.company : "", c.status === "stopped" ? "stopped from " + mName(c.stopped_at, true) : ""].filter(Boolean).join(" · ")) + "</div></td>"
-          + '<td class="num">' + money(c.amount) + (c.vary ? '<div class="fxc-sub">varies</div>' : "") + "</td>"
+          + "<td>" + kindPill(c) + "</td>"
+          + '<td class="num">' + (kindOf(c) === "usage" ? '<i class="fxc-est">≈ </i>' : "") + money(c.amount) + "</td>"
           + "<td>" + esc(whenOf(c)) + "</td><td>" + (once ? "—" : esc(mName(c.start_month, true)) + " – " + (c.end_month ? esc(mName(c.end_month, true)) : "no end")) + "</td>"
           + "<td>" + (c.match_text ? "<code>" + esc(c.match_text) + "</code>" : '<span class="fxc-sub">no, ticked by hand</span>') + "</td>"
           + '<td class="fxc-act"><button type="button" class="rs-btn" data-edit="' + c.id + '">Edit</button>'
@@ -231,9 +265,33 @@ registerPage({
       const addE = host.querySelector("#fxcAddE");
       if (addE) addE.onclick = () => costPanel(null);
       q("[data-paid]", b => b.onclick = () => save({ action: "month", id: +b.dataset.c, month: b.dataset.m, paid: b.dataset.paid }, b));
+      q("[data-tick]", b => b.onclick = () => tick(+b.dataset.c, b.dataset.m, b.dataset.tick, b));
+      q("[data-more]", b => b.onclick = () => more(+b.dataset.more, b.dataset.m));
       q("[data-mon-edit]", b => b.onclick = () => monthPanel(+b.dataset.monEdit, b.dataset.m));
       q("[data-edit]", b => b.onclick = () => costPanel(S.data.costs.find(c => c.id === +b.dataset.edit)));
       q("[data-hist]", b => b.onclick = () => histPanel(+b.dataset.hist));
+    }
+    // the round tick (ZP-3): paid / untick; a usage-based payment asks what it really was
+    async function tick(id, m, how, btn) {
+      const pay = S.data.payments.find(x => x.cost_id === id && ym(x.month) === m);
+      if (!pay) return;
+      if (how === "1" && kindOf(pay) === "usage") {
+        const got = await RSC.ask({ title: "Paid: " + pay.name, body: "How much was it in " + mName(m) + "? The usual estimate is " + money(pay.amount) + ".",
+                                    value: (+pay.amount).toFixed(2), yes: "Mark paid" });
+        if (got == null) return;
+        const amt = parseFloat(String(got).replace(/[$,\s]/g, ""));
+        if (!(amt > 0)) return RSC.notice({ title: "Not saved", body: "Enter the amount it was, e.g. 1250.00." });
+        const cost = S.data.costs.find(c => c.id === id) || {};
+        return save({ action: "month", id, month: m, paid: "1", amount: Math.abs(amt - (+cost.amount || 0)) >= 0.005 ? amt : "" }, btn);
+      }
+      return save({ action: "month", id, month: m, paid: how }, btn);
+    }
+    async function more(id, m) {
+      const pay = S.data.payments.find(x => x.cost_id === id && ym(x.month) === m) || {};
+      const pick = await RSC.choice({ title: pay.name || "Fixed cost", body: mName(m) + " · " + KIND[kindOf(pay)],
+        choices: [{ v: "month", label: "Change this month" }, { v: "edit", label: "Edit or remove", pri: true }] });
+      if (pick === "month") monthPanel(id, m);
+      if (pick === "edit") costPanel(S.data.costs.find(c => c.id === id));
     }
     async function save(body, btn) {
       if (btn) btn.disabled = true;
@@ -282,14 +340,15 @@ registerPage({
       const today = String(S.data.today).slice(0, 10);
       const v = Object.assign({ company: "Zip to Zip", day: +today.slice(8, 10), start_month: S.month || ym(today) }, c || {}, pre || {});
       const noDay = c ? !(+c.day) : false;
-      const once = c ? ym(c.start_month) === ym(c.end_month) : false;
+      const kind = c ? kindOf(c) : "monthly", once = kind === "once";
       // the cost's day in its first month; the 31st is a shorter month's last day
       const [fy, fm] = ym(v.start_month).split("-").map(Number), dim = new Date(Date.UTC(fy, fm, 0)).getUTCDate();
       const first = ym(v.start_month) + "-" + String(Math.max(1, Math.min(+v.day || 1, dim))).padStart(2, "0");
       const more = !!(c && (c.match_text || c.note || (c.category && c.category !== "Other") || c.company !== "Zip to Zip"));
       const body = '<label for="fxcName">Name</label><input id="fxcName" class="rs-inp" value="' + esc(v.name || "") + '" placeholder="e.g. Warehouse rent">'
         + '<label for="fxcAmt">Amount ($)</label><input id="fxcAmt" class="rs-num" inputmode="decimal" value="' + esc(v.amount != null ? (+v.amount).toFixed(2) : "") + '">'
-        + "<label>Repeats</label>" + seg("repeat", once ? "once" : "monthly", [["monthly", "Every month"], ["once", "One-off"]])
+        + "<label>Type</label>" + seg("kind", kind, Object.keys(KIND).map(k => [k, KIND[k]]))
+        + '<p class="fxc-help" id="fxcKindHelp">' + esc(KIND_HELP[kind]) + "</p>"
         + '<div class="fxc-2"><div class="fxc-dt"' + (noDay ? " hidden" : "") + '><label for="fxcDate">Date</label><input id="fxcDate" class="rs-inp" type="date" value="' + esc(first) + '"></div>'
         + '<div class="fxc-mo"' + (noDay ? "" : " hidden") + '><label for="fxcMonth">Month</label><input id="fxcMonth" class="rs-inp" type="month" value="' + esc(ym(v.start_month)) + '"></div>'
         + '<div class="fxc-end"' + (once ? " hidden" : "") + '><label for="fxcTo">Last month <span class="fxc-sub">(optional)</span></label><input id="fxcTo" class="rs-inp" type="month" value="' + esc(ym(v.end_month)) + '"></div></div>'
@@ -299,8 +358,7 @@ registerPage({
         + '<datalist id="fxcCats">' + CATS.map(x => '<option value="' + esc(x) + '">').join("") + "</datalist>"
         + "<label>Company</label>" + seg("company", v.company, [["Zip to Zip", "Zip to Zip"], ["Tuji", "Tuji"]])
         + '<label for="fxcMatch">The bank helps: its bank line contains</label><input id="fxcMatch" class="rs-inp" value="' + esc(v.match_text || "") + '" placeholder="e.g. TOYOTA (leave empty to tick it by hand)">'
-        + '<p class="fxc-help">With these words, the bank feed also marks it paid when it shows the charge that month. You can always tick it yourself.</p>'
-        + '<label class="fxc-check"><input id="fxcVary" type="checkbox"' + (v.vary ? " checked" : "") + "> The amount changes month to month: take whatever the bank shows</label>"
+        + '<p class="fxc-help">With these words, the bank feed also marks it paid when it shows the charge that month (a usage-based cost takes whatever the charge is). You can always tick it yourself.</p>'
         + '<label for="fxcNote">Note</label><textarea id="fxcNote" class="rs-inp" rows="2">' + esc(v.note || "") + "</textarea></details>";
       const stopped = c && c.status === "stopped";
       const foot = (c ? '<div class="fxc-foot-l"><button type="button" class="rs-btn" id="fxcRemove">Remove</button>'
@@ -310,12 +368,15 @@ registerPage({
       const nd = p.querySelector("#fxcNoDay");
       nd.onchange = () => { p.querySelector(".fxc-dt").hidden = nd.checked; p.querySelector(".fxc-mo").hidden = !nd.checked;
         if (nd.checked) p.querySelector("#fxcMonth").value = (val(p, "fxcDate") || "").slice(0, 7) || p.querySelector("#fxcMonth").value; };
-      p.querySelectorAll('[data-seg="repeat"] button').forEach(b => b.addEventListener("click", () => { p.querySelector(".fxc-end").hidden = b.dataset.v === "once"; }));
+      p.querySelectorAll('[data-seg="kind"] button').forEach(b => b.addEventListener("click", () => {
+        p.querySelector(".fxc-end").hidden = b.dataset.v === "once";
+        p.querySelector("#fxcKindHelp").textContent = KIND_HELP[b.dataset.v] || "";
+      }));
       p.querySelector("#fxcSave").onclick = e => save({
         action: c ? "edit" : "add", id: c ? c.id : undefined, name: val(p, "fxcName"), amount: val(p, "fxcAmt"),
-        repeat: segVal(p, "repeat"), no_day: nd.checked ? 1 : 0, date: nd.checked ? "" : val(p, "fxcDate"), month: val(p, "fxcMonth"),
-        end_month: segVal(p, "repeat") === "once" ? "" : val(p, "fxcTo"), category: val(p, "fxcCat"), company: segVal(p, "company"),
-        match_text: val(p, "fxcMatch"), vary: val(p, "fxcVary"), note: val(p, "fxcNote") }, e.currentTarget);
+        kind: segVal(p, "kind"), no_day: nd.checked ? 1 : 0, date: nd.checked ? "" : val(p, "fxcDate"), month: val(p, "fxcMonth"),
+        end_month: segVal(p, "kind") === "once" ? "" : val(p, "fxcTo"), category: val(p, "fxcCat"), company: segVal(p, "company"),
+        match_text: val(p, "fxcMatch"), note: val(p, "fxcNote") }, e.currentTarget);
       const st = p.querySelector("#fxcStop");
       if (st) st.onclick = e => save({ action: stopped ? "restart" : "stop", id: c.id, month: S.month }, e.currentTarget);
       // ZP-6: asked once more, since it takes the paid months too; Stop is the way to end a cost that was real
@@ -382,7 +443,8 @@ registerPage({
         + ".fxc .fxc-y .fxc-now{background:var(--panel-2)}.fxc .fxc-y .fxc-none{color:var(--faint)}"
         + ".fxc .fxc-legend{font-size:12px;color:var(--muted);margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap}"
         + ".fxc-panel .fxc-form label{display:block;font-size:13px;font-weight:700;margin:12px 0 4px}"
-        + ".fxc-panel .fxc-form .rs-inp,.fxc-panel .fxc-form .rs-num{width:100%;box-sizing:border-box}"
+        // min-width:0 -- the kit's 210px minimum pushed the second date of a row out of the 400px panel
+        + ".fxc-panel .fxc-form .rs-inp,.fxc-panel .fxc-form .rs-num{width:100%;min-width:0;box-sizing:border-box}"
         + ".fxc-panel .fxc-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.fxc-panel .fxc-2>div{min-width:0}"
         + ".fxc-panel .fxc-check{display:flex;gap:8px;align-items:flex-start;font-weight:500}"
         + ".fxc-panel .fxc-help{font-size:12.5px;color:var(--muted);margin:6px 0 0}.fxc-panel .fxc-err{color:var(--neg);font-size:13px;min-height:1em}"
@@ -391,6 +453,32 @@ registerPage({
         + ".fxc-panel .fxc-more>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:4px 0}"
         + ".fxc .fxc-t td.nowrap{white-space:nowrap}"
         + ".fxc-panel .fxc-foot-l{display:flex;gap:8px}"
+        // ZP-3: the Month view by status, and the type labels
+        + ".fxc .fxc-groups{max-width:1040px}.fxc .fxc-grp{margin:18px 0 0}"
+        + ".fxc .fxc-grp h3{font-size:14px;font-weight:700;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}"
+        + ".fxc .fxc-grp h3 span{font-weight:500;font-size:13px;color:var(--muted)}.fxc .fxc-g-past h3{color:var(--neg)}"
+        + ".fxc .fxc-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}"
+        + ".fxc .fxc-row{display:grid;grid-template-columns:28px 96px minmax(0,1fr) auto 32px;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}"
+        + ".fxc .fxc-row:first-child{border-top:0}.fxc .fxc-g-past .fxc-row{background:color-mix(in srgb,var(--neg) 5%,transparent)}"
+        + ".fxc .fxc-g-skip .fxc-row{opacity:.6}.fxc .fxc-row.paid .fxc-name b,.fxc .fxc-row.paid .fxc-amt{color:var(--muted)}"
+        + ".fxc .fxc-date{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}.fxc .fxc-date .fxc-mark{font-style:normal}"
+        + ".fxc .fxc-name{min-width:0}.fxc .fxc-name .fxc-sub{display:block}"
+        + ".fxc .fxc-amt{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}"
+        + ".fxc .fxc-est{font-style:normal;font-weight:500;color:var(--muted)}"
+        + ".fxc .fxc-tick{width:24px;height:24px;border-radius:50%;border:2px solid var(--line-2);background:transparent;padding:0;"
+        + "display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:#fff;box-sizing:border-box}"
+        + ".fxc button.fxc-tick{cursor:pointer}.fxc button.fxc-tick:hover:not(.on){border-color:var(--pos)}"
+        + ".fxc .fxc-tick.on{background:var(--pos);border-color:var(--pos)}.fxc .fxc-tick.off{border-style:dashed}"
+        + ".fxc .fxc-more{border:0;background:transparent;font-size:18px;line-height:1;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px}"
+        + ".fxc .fxc-more:hover{background:var(--panel-2);color:var(--ink)}"
+        + ".fxc .fxc-total{font-size:13px;color:var(--muted);margin:12px 0 0}"
+        + ".fxc .fxc-kind{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:4px;"
+        + "background:var(--panel-2);color:var(--muted);vertical-align:1px;white-space:nowrap}"
+        + ".fxc .fxc-k-usage{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}"
+        + ".fxc .fxc-k-once{background:color-mix(in srgb,var(--info,#2563eb) 12%,transparent);color:var(--info,#2563eb)}"
+        + ".fxc .fxc-k-quarterly,.fxc .fxc-k-yearly{background:color-mix(in srgb,var(--pos) 12%,transparent);color:var(--pos)}"
+        + ".fxc-panel [data-seg=kind]{flex-wrap:wrap;border-radius:12px}"
+        + "@media (max-width:640px){.fxc .fxc-row{grid-template-columns:28px minmax(0,1fr) auto 28px;gap:8px}.fxc .fxc-date{display:none}}"
         + ".fxc-panel .fxc-hist li{padding:8px 0;border-bottom:1px solid var(--line)}";
       document.head.appendChild(st);
     }
