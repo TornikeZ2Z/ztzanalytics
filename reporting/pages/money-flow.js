@@ -80,6 +80,13 @@ registerPage({
     if (S.company == null) S.company = "";
     if (S.need == null) S.need = "";
     if (S.q == null) S.q = "";
+    // ZP-12 / ZP-13 (18 Nov 2026): Waiting gets its own JOB-date range (Settled's range is by the
+    // day it was settled), and can group by month instead of by foreman
+    if (S.wBy !== "month") S.wBy = "foreman";
+    if (!S.mx) S.mx = {};
+    if (!S.mAll) S.mAll = {};
+    if (S.jobFrom === undefined) S.jobFrom = null;
+    if (S.jobTo === undefined) S.jobTo = null;
 
     mfCss();
     var ICON = {
@@ -960,7 +967,17 @@ registerPage({
     function inScope(r) {
       if (S.company && r.company !== S.company) return false;
       if (S.formen.length && S.formen.indexOf(r.forman) < 0) return false;
+      if (S.view === "waiting" && !inJobDates(r)) return false;
       return true;
+    }
+    /* THE DATE FILTER (ZP-12, his ask from the bug board 18 Nov 2026: "date filter next to the
+       company filter"). On Waiting it is the JOB date, and like Company it scopes the whole tab:
+       the totals, Needs a look and the list. A job with no date drops out once a range is set. */
+    function inJobDates(r) {
+      if (!S.jobFrom && !S.jobTo) return true;
+      var d = String(r.date || "").slice(0, 10);
+      if (!d) return false;
+      return !(S.jobFrom && d < S.jobFrom) && !(S.jobTo && d > S.jobTo);
     }
     // SEARCH EVERYTHING: customer, request #, job code, foreman — and plain numbers match amounts
     function matches(r, q) {
@@ -1000,7 +1017,7 @@ registerPage({
       var el = $("mfTools"); if (!el) return;
       el.innerHTML = '<label class="mf-search">' + ICON.search
         + '<input type="search" id="mfQ" placeholder="Find a job, customer or foreman" aria-label="Find a job, customer or foreman" value="' + esc(S.q) + '"></label>'
-        + '<div id="mfCo"></div><div id="mfFm"></div>' + (S.view === "settled" ? '<div id="mfDt"></div>' : "")
+        + '<div id="mfCo"></div>' + (S.view === "balances" ? "" : '<div id="mfDt"></div>') + '<div id="mfFm"></div>'
         + '<div class="mf-dens" role="group" aria-label="Row height">'
         + '<button type="button" data-mfd="0" aria-pressed="' + (!S.compact) + '">Roomy</button>'
         + '<button type="button" data-mfd="1" aria-pressed="' + (!!S.compact) + '">Compact</button></div>';
@@ -1018,6 +1035,7 @@ registerPage({
         : rows.filter(function (r) { return MAINSET[r.status] || r.status === "Missing Closing"; });
       src.forEach(function (r) {
         if (S.company && r.company !== S.company) return;
+        if (S.view === "waiting" && !inJobDates(r)) return;
         if (r.forman && r.forman !== MF_NO_FOREMAN) cnt[r.forman] = (cnt[r.forman] || 0) + 1;
       });
       if (S.view === "balances") ((S.fines || {}).balances || []).forEach(function (b) { if (b.entries > 0 && !(b.foreman in cnt)) cnt[b.foreman] = 0; });
@@ -1031,6 +1049,12 @@ registerPage({
           get: function () { return { from: S.dateFrom, to: S.dateTo }; },
           set: function (f, t) { S.dateFrom = f || null; S.dateTo = t || null; },
           onChange: function () { paint(); } });
+      } else if (S.view === "waiting") {
+        // the job date (ZP-12): the foreman counts above follow it, so the bar is repainted too
+        RSC.dateRange($("mfDt"), {
+          get: function () { return { from: S.jobFrom, to: S.jobTo }; },
+          set: function (f, t) { S.jobFrom = f || null; S.jobTo = t || null; },
+          onChange: function () { S.sel = {}; S.selFm = null; paintTools(); paint(); } });
       }
       var q = $("mfQ");
       if (q) q.oninput = function () { S.q = q.value; paint(); };
@@ -1119,9 +1143,18 @@ registerPage({
       else if (S.view === "balances") content = balancesHtml(main, q);
       else {
         var set = S.need ? (needs[S.need] || []) : main;
+        var picked = set.filter(function (r) { return matches(r, q); });
+        // ZP-13 (18 Nov 2026): the same jobs by foreman (as before) or by month
+        var byBar = '<div class="mf-byrow"><div class="mf-dens mf-by" role="group" aria-label="Group the waiting jobs">'
+          + '<span class="mf-bylab">Group by</span>'
+          + '<button type="button" data-mfa="wby" data-v="foreman" aria-pressed="' + (S.wBy !== "month") + '">Foreman</button>'
+          + '<button type="button" data-mfa="wby" data-v="month" aria-pressed="' + (S.wBy === "month") + '">Month</button></div>'
+          + (S.jobFrom || S.jobTo ? '<span class="mf-mut">Jobs dated ' + (S.jobFrom ? fmtShort(S.jobFrom) : "any time") + " to " + (S.jobTo ? fmtShort(S.jobTo) : "today") + "</span>" : "")
+          + "</div>";
         content = (S.need ? '<div class="mf-filt"><span>Showing ' + nWait + " " + esc(NEED[S.need].pill.toLowerCase()) + " job" + (nWait === 1 ? "" : "s") + ".</span>"
           + '<button type="button" class="mf-linkbtn" data-mfa="needclear">Show every waiting job</button></div>' : "")
-          + waitingHtml(set.filter(function (r) { return matches(r, q); }), q);
+          + byBar
+          + (S.wBy === "month" ? monthsHtml(picked, q) : waitingHtml(picked, q));
       }
       var queue = '<section class="mf-q" aria-labelledby="mfQH">'
         + (S.busy ? '<div class="mf-veil"><div class="mf-spin"></div>Updating…</div>' : "")
@@ -1191,7 +1224,7 @@ registerPage({
         + '<div class="mf-jhd"><span class="mf-ck">' + (elig.length
             ? '<input type="checkbox" data-mfselall="' + esc(f) + '"' + (allOn ? " checked" : "") + ' aria-label="Select all of ' + esc(firstName(f)) + '’s jobs to the base">' : "")
         + "</span><span>Job date</span><span>Job</span><span>Customer</span><span>Type</span><span class=\"mf-r\">Amount</span><span>Money goes</span><span>Waiting</span><span>Open</span><span></span></div>"
-        + vis.map(jobRowHtml).join("");
+        + vis.map(function (r) { return jobRowHtml(r, false); }).join("");
       if (hid.length) {
         var hb = 0; hid.forEach(function (r) { if (dirOf(r) > 0) hb += r.balance; });
         sub += '<div class="mf-more"><button type="button" class="mf-morebtn" data-mfa="older" data-v="' + esc(f) + '">Show ' + hid.length + " older job" + (hid.length === 1 ? "" : "s")
@@ -1199,7 +1232,62 @@ registerPage({
       }
       return row + sub + "</div>";
     }
-    function jobRowHtml(r) {
+
+    /* ---- Waiting BY MONTH (ZP-13, his ask from the bug board 18 Nov 2026): a row per month of
+       the job date, newest first; opening one lists that month's jobs with the foreman as a
+       column. Same jobs, same filters and the same row buttons as the by-foreman view. Ticking
+       works as there (one foreman at a time); there is no select-all, as a month mixes foremen. */
+    var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var JOBS_MONTH = 25;
+    function monthKeyOf(r) { var d = String(r.date || ""); return /^\d{4}-\d\d/.test(d) ? d.slice(0, 7) : ""; }
+    function monthName(k) { return k ? MONTHS[+k.slice(5, 7) - 1] + " " + k.slice(0, 4) : "No job date"; }
+    function monthsHtml(jobs, q) {
+      var groups = {};
+      jobs.forEach(function (r) {
+        var k = monthKeyOf(r);
+        var g = groups[k] || (groups[k] = { key: k, jobs: [], toBase: 0, toFm: 0, fm: {}, look: 0 });
+        g.jobs.push(r);
+        var d = dirOf(r);
+        if (d > 0) g.toBase += r.balance; else if (d < 0) g.toFm += -r.balance;
+        if (r.forman && r.forman !== MF_NO_FOREMAN) g.fm[r.forman] = 1;
+        if (needOf(r)) g.look++;
+      });
+      // newest month first; jobs with no date (none today) go last
+      var keys = Object.keys(groups).sort(function (a, b) { return a < b ? 1 : a > b ? -1 : 0; });
+      if (!keys.length) return '<div class="mf-empty">' + (q ? "Nothing matches that search." : "Nothing is waiting. Every job is settled.") + "</div>";
+      var html = '<div class="mf-scroll"><div class="mf-grid"><div class="mf-ghd mf-g-mon"><span></span><span>Month</span><span>Jobs: to the base</span>'
+        + "<span>Jobs: to the foremen</span><span>Foremen</span><span>Needs a look</span><span></span></div>";
+      keys.forEach(function (k) { html += monthGroupHtml(groups[k], q); });
+      return html + "</div></div>";
+    }
+    function monthGroupHtml(g, q) {
+      var k = g.key, open = !!S.mx[k] || !!q || !!S.need, nFm = Object.keys(g.fm).length;
+      var row = '<button type="button" class="mf-grow mf-g-mon' + (open ? " mf-open" : "") + '" data-mfa="mgrp" data-v="' + esc(k) + '" aria-expanded="' + open + '">'
+        + '<span class="mf-av mf-av-mon">' + esc(k ? MONTHS[+k.slice(5, 7) - 1].slice(0, 3) : "—") + "</span>"
+        + '<span class="mf-nm"><span class="mf-b">' + esc(monthName(k)) + '</span><span class="mf-mut">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s") + "</span></span>"
+        + '<span class="mf-b">' + (g.toBase > 0.005 ? money(g.toBase) : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (g.toFm > 0.005 ? '<span class="mf-outc">' + money(g.toFm) + "</span>" : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (nFm ? nFm + (nFm === 1 ? " foreman" : " foremen") : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (g.look ? '<span class="mf-old">' + g.look + " job" + (g.look === 1 ? "" : "s") + "</span>" : '<span class="mf-dim">—</span>') + "</span>"
+        + '<span class="mf-chev">' + ICON.chev + "</span></button>";
+      if (!open) return row;
+      var jobs = g.jobs.slice().sort(function (a, b) {
+        return a.date < b.date ? 1 : a.date > b.date ? -1 : String(a.forman || "").localeCompare(String(b.forman || ""));
+      });
+      var full = !!S.mAll[k] || !!q || !!S.need;
+      var vis = full ? jobs : jobs.slice(0, JOBS_MONTH), hid = full ? [] : jobs.slice(JOBS_MONTH);
+      vis.filter(nettable).forEach(function (r) { _visible[r.ev] = true; });
+      var sub = '<div class="mf-gsub"><div class="mf-jhd mf-jm"><span class="mf-ck"></span>'
+        + "<span>Job date</span><span>Job</span><span>Customer</span><span>Foreman</span><span>Type</span><span class=\"mf-r\">Amount</span><span>Money goes</span><span>Waiting</span><span>Open</span><span></span></div>"
+        + vis.map(function (r) { return jobRowHtml(r, true); }).join("");
+      if (hid.length) {
+        var hb = 0; hid.forEach(function (r) { if (dirOf(r) > 0) hb += r.balance; });
+        sub += '<div class="mf-more"><button type="button" class="mf-morebtn" data-mfa="molder" data-v="' + esc(k) + '">Show ' + hid.length + " more job" + (hid.length === 1 ? "" : "s")
+          + " from " + esc(monthName(k)) + (hb > 0.005 ? " · " + money(hb) + " to the base" : "") + "</button></div>";
+      }
+      return row + sub + "</div>";
+    }
+    function jobRowHtml(r, withFm) {
       var d = dirOf(r), need = needOf(r), pf = portalFlow(r), can = nettable(r);
       var ck = can ? '<label class="mf-ck"><input type="checkbox" data-mfsel="' + esc(r.ev) + '"' + (S.sel[r.ev] ? " checked" : "")
         + ' aria-label="Select ' + esc(r.customer || r.jobCode || "job") + '"></label>' : "<span></span>";
@@ -1217,10 +1305,12 @@ registerPage({
       else if (need === "cnr") act = '<button type="button" class="mf-act mf-act-mute" data-mfa="job" data-v="' + esc(r.ev) + '">Enter cash</button>';
       else if (isPayout(r)) act = '<button type="button" class="mf-act mf-act-out" data-mfa="job" data-v="' + esc(r.ev) + '">Pay out</button>';
       else act = '<button type="button" class="mf-act" data-mfa="job" data-v="' + esc(r.ev) + '">Settle</button>';
-      return '<div class="mf-jrow">' + ck
+      var fmName = r.forman && r.forman !== MF_NO_FOREMAN ? r.forman : "Not identified";
+      return '<div class="mf-jrow' + (withFm ? " mf-jm" : "") + '">' + ck
         + '<span class="mf-mut mf-nowrap" title="' + esc(fmtD(r.date)) + '">' + fmtRowDate(r.date) + "</span>"
         + '<span class="mf-code" title="' + esc(r.jobCode || "") + '">' + esc(r.jobCode || "—") + "</span>"
         + custCellHtml(r, need)
+        + (withFm ? '<span class="mf-ell" title="' + esc(fmName) + '">' + esc(fmName) + "</span>" : "")
         + '<span class="mf-mut mf-ell">' + esc(r.jobType || "—") + "</span>"
         // a job to fix shows the gap between the contract and the correction, not its $0 balance
         + '<span class="mf-r mf-b">' + (need === "fix" ? money(Math.abs(r.fix - r.recorded))
@@ -2096,6 +2186,12 @@ registerPage({
           + (cur ? '<p class="mf-mut">Replaces the ' + money2(Math.abs(+cur.amount || 0)) + " " + esc(methodLabel(cur.method)) + " entry of " + fmtWhen(cur.at) + " by " + esc(shortBy(cur.by))
               + (bareEv(cur.event_id) !== bareEv(r.ev) ? ", recorded on this job’s " + fmtD(rr.date) + " calendar day" : "") + ". Nothing is deleted.</p>"
               : '<p class="mf-mut">Adds a portal entry for this job. Nothing is deleted.</p>')
+          /* THE DIRECTION CAN BE WRONG TOO (18 Nov 2026, LM12-2947): Irakli recorded "paid out" on
+             a job where the foreman owed the base $866, and the correction could only change how
+             much was paid out. The bridge has always accepted a correction of the other kind. */
+          + '<div class="mf-fs"><span class="mf-lg">Which way did the money go?</span><div class="mf-ways" role="radiogroup">'
+          + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.type === BROUGHT) + '" data-mfp="dir" data-v="in">He brought money to the base</button>'
+          + '<button type="button" class="mf-way" role="radio" aria-checked="' + (st.type === TAKEN) + '" data-mfp="dir" data-v="out">The base paid him</button></div></div>'
           + methodCards(list, st.method, false, st)
           + '<div class="mf-fld"><label for="mfAmt" class="mf-lg">' + (st.type === TAKEN ? "How much was paid to him?" : "How much did he bring?") + "</label>"
           + '<div class="mf-amt"><span class="mf-mut">$</span><input id="mfAmt" inputmode="decimal" autocomplete="off" value="' + esc(st.amt) + '" data-mffocus></div>'
@@ -2146,6 +2242,7 @@ registerPage({
           tocorr: function () { st.correcting = true; renderPanel(); },
           corrcancel: function () { st.correcting = false; st.already = null; st.amt = null; st.method = null; st.type = null; st.note = ""; renderPanel(true); },
           method: function (a) { st.method = a.getAttribute("data-v"); renderPanel(true); },
+          dir: function (a) { st.type = a.getAttribute("data-v") === "out" ? TAKEN : BROUGHT; st.method = "Cash"; renderPanel(true); },
           fm: function () { openFm(rr.forman, true); },
           story: toggleStory,
           corrsave: function () {
@@ -3098,6 +3195,8 @@ registerPage({
             "Click a <b>customer’s name</b> to see everything that happened on that job.",
             "The search box finds a customer, a job code, a request number or a foreman. Type a number, like 1134, to find an amount.",
             "At first only 12 foremen are listed: press " + k("Show every foreman") + " for the rest. Inside a foreman, his 8 newest jobs show first: press " + k("Show … older jobs") + " for the rest.",
+            "The <b>date</b> button next to Company keeps only jobs dated in that range. On Waiting it is the job date, and the totals and Needs a look follow it. On Settled it is the day the job was settled.",
+            "<b>Group by</b> " + k("Foreman") + " or " + k("Month") + ". By month, each row is a month of job dates, newest first. Open one to see its jobs, with the foreman in its own column.",
             "<b>Needs a look</b> shows jobs with no contract, jobs that don’t add up, jobs with no closing, and jobs whose net cash was corrected (" + q("net cash to fix") + ", part 9). Press " + k("Open the … jobs") + " on a card to list only those.",
           ])
           + tip("On a narrower screen, Calendar and Contract sit one above the other instead of side by side. They work the same.") },
@@ -3179,6 +3278,7 @@ registerPage({
           + steps([
             "Open the job: press " + k("Review") + " in Waiting, or click the job in <b>Settled</b>.",
             "Press " + k("Add a correction") + ".",
+            "Under <b>Which way did the money go?</b>, check the direction: " + q("He brought money to the base") + " or " + q("The base paid him") + ". Change it if the first entry went the wrong way.",
             "Pick the right method and type the right amount.",
             "Under <b>Why the correction</b>, say what was wrong, for example " + q("He brought $1,000, not $1,134") + ". A reason is required.",
             "Press " + k("Save correction", "pri") + ".",
@@ -3357,6 +3457,9 @@ registerPage({
       else if (act === "grp") { S.fmx[v] = !S.fmx[v]; paint(); }
       else if (act === "older") { S.fmAll[v] = true; paint(); }
       else if (act === "allfm") { S.allFm = true; paint(); }
+      else if (act === "wby") { S.wBy = v === "month" ? "month" : "foreman"; paint(); }
+      else if (act === "mgrp") { S.mx[v] = !S.mx[v]; paint(); }
+      else if (act === "molder") { S.mAll[v] = true; paint(); }
       else if (act === "sgrp") { S.sfx[v] = !S.sfx[v]; paint(); }
       else if (act === "solder") { S.sfAll[v] = true; paint(); }
       else if (act === "sallfm") { S.allSFm = true; paint(); }
@@ -3622,6 +3725,23 @@ function mfCss() {
     .mf-spin{width:22px;height:22px;border:3px solid var(--mf-line2);border-top-color:var(--mf-acc);border-radius:50%;animation:mfspin .8s linear infinite}
     @keyframes mfspin{to{transform:rotate(360deg)}}
     .mf-ghd.mf-g-set,.mf-grow.mf-g-set{grid-template-columns:44px minmax(180px,1fr) 150px 150px 190px 28px}
+    /* Waiting by month (ZP-13): the month row, and job rows that carry a Foreman column */
+    .mf-ghd.mf-g-mon,.mf-grow.mf-g-mon{grid-template-columns:44px minmax(180px,1fr) 140px 150px 120px 130px 28px}
+    .mf-av-mon{border-radius:10px;background:var(--mf-chip);color:var(--mf-ink2)}
+    .mf-jhd.mf-jm,.mf-jrow.mf-jm{grid-template-columns:44px 64px 104px minmax(140px,1fr) 140px 96px 96px 140px 70px 180px 112px}
+    /* the Foreman column costs ~150 px: below 1350 px the month rows give up Type (6th cell)
+       rather than scroll sideways; the by-foreman rows keep it */
+    @container mfscroll (max-width:1349px){
+      .mf-jhd.mf-jm>:nth-child(6),.mf-jrow.mf-jm>:nth-child(6){display:none}
+      .mf-jhd.mf-jm,.mf-jrow.mf-jm{grid-template-columns:44px 64px 104px minmax(120px,1fr) 120px 96px 140px 70px 180px 112px}
+    }
+    @container mfscroll (max-width:1199px){
+      .mf-jhd.mf-jm,.mf-jrow.mf-jm{grid-template-columns:44px 64px 96px minmax(110px,1fr) 112px 84px 128px 64px 92px 104px}
+    }
+    .mf-byrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 20px;border-top:1px solid var(--mf-line)}
+    .mf-by{align-items:center}
+    .mf-by button{height:30px}
+    .mf-bylab{padding:0 8px 0 6px;color:var(--mf-muted);font-size:12.5px}
     .mf-shd,.mf-srow{display:grid;grid-template-columns:44px 92px 104px minmax(150px,1fr) 130px 96px 130px 110px;align-items:center;gap:0 12px;padding:4px 20px 4px 12px;border-top:1px solid var(--mf-soft)}
     .mf-shd{color:var(--mf-muted);font-size:12px;font-weight:500;border-top-color:var(--mf-line)}
     .mf-srow{padding:0 20px 0 12px;min-height:50px;cursor:pointer}
