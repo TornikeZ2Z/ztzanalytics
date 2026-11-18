@@ -95,6 +95,9 @@ registerPage({
         + " was, and its row shows &asymp; until then); <i>Quarterly</i> repeats every 3 months and <i>Yearly</i> every 12 from their"
         + " first date; a <i>One-off</i> is paid once. A cost with <i>no set day</i> counts in its month without a date. Any single"
         + " month can be moved, changed or skipped (<i>Change this month</i>), and a cost can be stopped from any month on.</p>"
+        + "<p><b>Paid in parts.</b> <i>Paid part of it</i> (in the &hellip; menu) records what is paid so far of a month's payment,"
+        + " e.g. $40,000 of $80,000. The payment stays coming up or past its date until it is paid in full; the month's <i>Paid</i>"
+        + " counts the part and <i>Left to pay</i> only the rest. Ticking it marks it paid in full.</p>"
         + "<p><b>Paid.</b> You tick a payment <i>Mark paid</i>. The bank helps: a cost that carries the words of its bank line"
         + " (e.g. <i>TOYOTA</i>) is also marked paid when the bank feed shows its charge in that month (several lines a month"
         + " are added up). The bank feed is filled by hand and runs about two weeks behind; today it reaches "
@@ -145,7 +148,8 @@ registerPage({
         + money0(left) + "</b> left to pay.");
       h += RSC.kpisHtml([
         { label: "This month", value: money0(sm.total), sub: sm.n + " payment" + (sm.n === 1 ? "" : "s") },
-        { label: "Paid", value: money0(sm.paid), sub: sm.total ? Math.round(100 * sm.paid / sm.total) + "% of the month" : "" },
+        { label: "Paid", value: money0(sm.paid), sub: (sm.total ? Math.round(100 * sm.paid / sm.total) + "% of the month" : "")
+          + (sm.part ? " · " + money0(sm.part) + " of it paid in part" : "") },
         { label: "Left to pay", value: money0(left), sub: pastAll ? money0(pastAll) + " of it past its date" : "nothing past its date", tone: pastAll ? "bad" : "" },
       ]);
       const groups = [
@@ -157,7 +161,8 @@ registerPage({
       h += '<div class="fxc-groups">';
       groups.forEach(([key, title, list]) => {
         if (!list.length) return;
-        const sum = list.reduce((a, p) => a + (+p.amount || 0), 0);
+        // a payment paid in part counts only what is left (ZP-7)
+        const sum = list.reduce((a, p) => a + (+p.amount || 0) - (key === "next" || key === "past" ? (+p.paid_part || 0) : 0), 0);
         h += '<section class="fxc-grp fxc-g-' + key + '"><h3>' + esc(title) + " <span>" + list.length + " · " + money0(sum) + "</span></h3>"
           + '<ul class="fxc-list">' + list.map(rowHtml).join("") + "</ul></section>";
       });
@@ -181,7 +186,8 @@ registerPage({
       return '<li class="fxc-row' + (paid ? " paid" : "") + '">' + tick
         + '<span class="fxc-date">' + esc(payDate(p)) + (p.moved && !fromBank ? ' <i class="fxc-mark" title="Another date or amount this month">changed</i>' : "") + "</span>"
         + '<span class="fxc-name"><b>' + esc(p.name) + "</b> " + kindPill(p) + (sub ? '<span class="fxc-sub">' + esc(sub) + "</span>" : "") + "</span>"
-        + '<span class="fxc-amt">' + (usage && !paid ? '<i class="fxc-est" title="An estimate until it is paid">≈ </i>' : "") + money(p.amount) + "</span>"
+        + '<span class="fxc-amt">' + (usage && !paid ? '<i class="fxc-est" title="An estimate until it is paid">≈ </i>' : "") + money(p.amount)
+        + (p.paid_part && !paid && p.state !== "skipped" ? '<span class="fxc-part">' + money0(p.paid_part) + " paid · " + money0(Math.max(0, (+p.amount || 0) - p.paid_part)) + " left</span>" : "") + "</span>"
         + '<button type="button" class="fxc-more" data-more="' + p.cost_id + '" data-m="' + ym(p.month) + '" aria-label="' + esc("More for " + p.name) + '">⋯</button></li>';
     }
 
@@ -289,9 +295,26 @@ registerPage({
     async function more(id, m) {
       const pay = S.data.payments.find(x => x.cost_id === id && ym(x.month) === m) || {};
       const pick = await RSC.choice({ title: pay.name || "Fixed cost", body: mName(m) + " · " + KIND[kindOf(pay)],
-        choices: [{ v: "month", label: "Change this month" }, { v: "edit", label: "Edit or remove", pri: true }] });
+        choices: [{ v: "part", label: pay.paid_part ? "Change the part paid" : "Paid part of it" },
+                  { v: "month", label: "Change this month" }, { v: "edit", label: "Edit or remove", pri: true }] });
+      if (pick === "part") partAsk(id, m);
       if (pick === "month") monthPanel(id, m);
       if (pick === "edit") costPanel(S.data.costs.find(c => c.id === id));
+    }
+    // ZP-7 (Gvantsa): pay a month in parts -- what is paid so far; the rest stays left to pay
+    async function partAsk(id, m) {
+      const pay = S.data.payments.find(x => x.cost_id === id && ym(x.month) === m);
+      if (!pay) return;
+      const got = await RSC.ask({ title: "Paid part: " + pay.name,
+        body: "How much of the " + money(pay.amount) + " for " + mName(m) + " is paid so far? The rest stays left to pay. Empty = nothing paid yet.",
+        value: pay.paid_part ? (+pay.paid_part).toFixed(2) : "", yes: "Save" });
+      if (got == null) return;
+      const txt = String(got).replace(/[$,\s]/g, "");
+      if (txt === "") return save({ action: "month", id, month: m, paid_amount: "" });
+      const amt = parseFloat(txt);
+      if (!(amt > 0)) return RSC.notice({ title: "Not saved", body: "Enter the amount paid so far, e.g. 40000." });
+      if (amt > (+pay.amount || 0) + 0.005) return RSC.notice({ title: "Not saved", body: "That is more than the " + money(pay.amount) + " due. Use the tick to mark it paid in full." });
+      return save(amt >= (+pay.amount || 0) - 0.005 ? { action: "month", id, month: m, paid: "1" } : { action: "month", id, month: m, paid_amount: amt });
     }
     async function save(body, btn) {
       if (btn) btn.disabled = true;
@@ -438,6 +461,7 @@ registerPage({
         + ".fxc .fxc-sub{font-size:12px;color:var(--muted);margin-top:2px}"
         + ".fxc .fxc-act{white-space:nowrap;text-align:right}.fxc .fxc-act .rs-btn{margin-left:6px}"
         + ".fxc .fxc-skip td{opacity:.6}.fxc .fxc-mark{font-size:12px;color:var(--warn)}"
+        + ".fxc .fxc-part{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px;white-space:nowrap}"
         + ".fxc .fxc-y td.fxc-c.fxc-ok{color:var(--pos)}.fxc .fxc-y td.fxc-c.fxc-bad{color:var(--neg);font-weight:700}"
         + ".fxc .fxc-y td.fxc-c.fxc-warn{color:var(--warn);font-weight:700}.fxc .fxc-y td.fxc-c.fxc-mute{color:var(--muted)}"
         + ".fxc .fxc-y .fxc-now{background:var(--panel-2)}.fxc .fxc-y .fxc-none{color:var(--faint)}"

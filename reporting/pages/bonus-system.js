@@ -716,7 +716,7 @@ function bnsMerge(base, mine, theirs) {
               <div class="sc" style="grid-column:7 / span 6">Scores</div><div style="grid-column:13 / span 3">Bonus</div>
               <div class="nx" style="grid-column:16 / span 3">Next year</div><div class="e"></div></div>
             <div class="bns-g hd" role="row"><div class="l" role="columnheader">Person</div>
-              <div role="columnheader">Salary</div><div role="columnheader">Months</div><div role="columnheader">Raised to</div><div role="columnheader">Months</div><div role="columnheader">Average</div>
+              <div role="columnheader" title="The salary at the start of the year, before any raise">Salary</div><div role="columnheader" title="Months paid at that salary">Months</div><div role="columnheader" title="The salary after this year's raise (empty = no raise)">Raised to</div><div role="columnheader" title="Months paid at the raised salary">Months</div><div role="columnheader">Average</div>
               <div role="columnheader">KPI</div><div role="columnheader">Manager</div><div role="columnheader">Peer</div><div role="columnheader">HR</div><div role="columnheader">Index</div><div role="columnheader">Level</div>
               <div role="columnheader">Earned</div><div role="columnheader" title="The amount decided. Empty = the calculated bonus">Final</div><div role="columnheader">Paid</div>
               <div role="columnheader">Raise / mo</div><div role="columnheader">Months</div><div role="columnheader">Training</div><div></div></div>
