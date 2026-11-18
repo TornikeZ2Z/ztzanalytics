@@ -87,7 +87,7 @@ if (window.RS && RS.DATASETS && !RS.DATASETS.crew_pay_compare) {
            "Has Contract", "Travel Hours", "Stairs Fee", "Bulky Fee", "Stairs Paid", "Bulky Paid", "Review Paid", "Other Extras Paid",
            "Job Type", "Labor Charge", "Cash Discount Pct", "Packing Charged", "Fees Charged", "Discounts",
            "Sales Commission", "Card Fee", "Profit Before Fixed", "Claims Filed", "GPS Base Miles",
-           "Estimated CF", "Final CF", "Price per CF"],
+           "Estimated CF", "Final CF", "Price per CF", "Contract Travel Miles"],
     dateCols: {}, defaultDate: null,
   };
 }
@@ -370,20 +370,29 @@ registerPage({
       });
       // APPROVED (the plan from 1 Feb 2027, ZTZ-127): every hour -- the work and the travel -- at the seat's base
       // plus the bonus. TRAVEL comes from the miles: the first 50 pay 1 hour, then half an hour per further 25,
-      // each started 25 counted (the deck doesn't say; a setting). The miles are the GPS form's base legs -- the
-      // same miles today's table turns into hours; a job without a GPS form gets its paid travel × the ratio the
-      // GPS jobs show. WORK hours = the hours paid less today's table travel. A NEW MOVER (under 3 months since
+      // each started 25 counted (his word 19 Nov). The miles are the contract's Travel Miles, both directions (see
+      // THE MILES below), then the GPS form's base legs, then the paid travel × the ratio. WORK hours = the hours
+      // paid less today's table travel, so the minimum hours stay in (his word 19 Nov: "it still applies"). A NEW MOVER (under 3 months since
       // the first job, the page's tenure rule) gets the base less $1. LONG DISTANCE: day-rate rows at the plan's
-      // day rates, hourly legs at the new hourly rate with no travel, and the LD foreman 15% × (final − estimated
+      // day rates, hourly legs at the new hourly rate with no travel, and the LD foreman 15% × (sold − max(estimated, real)
       // CF) × price per CF. FOREMAN OF THE MONTH: $500 a month, spread over that month's foreman lines. Packing
       // commission, stairs, bulky, reviews and hoisting/storage/junk as today; tips the crew's.
       const apTravel = mi => { const f = num(c.apTravelFirstMiles), st = Math.max(1, num(c.apTravelStepMiles));
         return mi <= f ? num(c.apTravelFirstH) : num(c.apTravelFirstH) + num(c.apTravelStepH) * Math.ceil((mi - f) / st - 1e-9); };
-      const GA = { paid: 0, ap: 0, jobs: 0 };
-      Object.values(jobs).forEach(j => { if (j.pct.isLd || j.trav.miles == null) return;
-        GA.jobs++; GA.paid += j.trav.paid; GA.ap += apTravel(j.trav.miles); });
+      // THE MILES (his word 19 Nov 2026): pay follows the contract's TRAVEL MILES field, both directions -- GPS
+      // will fill it automatically later. A job whose contract has none falls back to the GPS form's base legs,
+      // then to its paid travel × the ratio the jobs with miles show.
+      const GA = { paid: 0, ap: 0, jobs: 0, contract: 0, gps: 0 };
+      Object.values(jobs).forEach(j => {
+        const cm = num(j.r0["Contract Travel Miles"]);
+        j.trav.apMiles = j.pct.isLd ? null : cm > 0 ? cm : j.trav.miles != null ? j.trav.miles : null;
+        j.trav.apSrc = j.pct.isLd ? "ld" : cm > 0 ? "contract" : j.trav.miles != null ? "gps" : "ratio";
+        if (j.trav.apMiles == null) return;
+        GA.jobs++; GA[j.trav.apSrc]++; GA.paid += j.trav.paid; GA.ap += apTravel(j.trav.apMiles); });
       GA.ratio = GA.paid ? GA.ap / GA.paid : 1;
-      Object.values(jobs).forEach(j => { j.ap = { travel: j.pct.isLd ? 0 : j.trav.miles != null ? apTravel(j.trav.miles) : j.trav.paid * GA.ratio };
+      Object.values(jobs).forEach(j => { j.ap = { travel: j.pct.isLd ? 0 : j.trav.apMiles != null ? apTravel(j.trav.apMiles) : j.trav.paid * GA.ratio };
+        // THE EXTRA CF (his rule, 19 Nov; the software's since 29 Oct): sold CF − max(estimated, real CF). The old
+        // long-distance rows carry no real CF (no contract), so the estimate is the floor here.
         const est = num(j.r0["Estimated CF"]), fin = num(j.r0["Final CF"]), pcf = num(j.r0["Price per CF"]);
         j.ap.cfExtra = j.pct.isLd && est > 0 && fin > est && pcf > 0 ? fin - est : 0;
         j.ap.cf = j.ap.cfExtra * pcf * num(c.apLdCfPct) / 100; j.ap.pcf = pcf;
@@ -586,7 +595,7 @@ registerPage({
         ["Base pay", `every hour, work and travel, at the seat's base: foreman ${money(num(c.apBaseForeman))}, driver ${money(num(c.apBaseDriver))}, helper ${money(num(c.apBaseHelper))} (a new mover ${money(num(c.apNewCut))} less)`, x => x.ap.basePay],
         ["Bonus", `${money(num(c.apBonus))} on every hour, work and travel`, x => x.ap.bonusPay],
         ["Long-distance day pay", `days × foreman ${money(num(c.apLdForeman))}, driver ${money(num(c.apLdDriver))}, helper ${money(num(c.apLdHelper))}`, x => x.ap.dayPay],
-        ["LD foreman's CF share", `${num(c.apLdCfPct)}% × (final − estimated CF) × the price per CF`, x => x.ap.cf],
+        ["LD foreman's CF share", `${num(c.apLdCfPct)}% × (sold − max(estimated, real) CF) × the price per CF`, x => x.ap.cf],
         ["Foreman of the Month", `${money(num(c.apFotm))} a month`, x => x.ap.fotm],
         ["Paid as today", "the foreman's packing commission, stairs, bulky, review and hoisting/storage/junk pay", x => x.ap.kept]];
       const held = sumOf(SC.lines, x => x.hr.withheld), claimJobs = Object.values(SC.jobs).filter(j => num(j.r0["Claims Filed"]) > 0).length;
@@ -606,7 +615,7 @@ registerPage({
         pct: `The crew shares a pool from every job: <b>${num(c.pctPool)}%</b> of the bill on local moves, <b>${num(c.pctStraight)}%</b> on straight and <b>${num(c.pctRegular)}%</b> on regular long distance. Local jobs add a <b>${num(c.pctBonus)}%</b> bonus pool, cut when something goes wrong. The foreman takes one share plus an extra that grows with the bill (${Math.min(...bands)}% to ${Math.max(...bands)}%); the driver and every helper take one share each. Each salary is rounded up to the dollar. Nothing else is paid on top, and tips stay with the crew.`,
         hourly: `Today's hourly structure, with travel and the job paid apart. <b>Travel</b> — the real drive, from the GPS miles at <b>${num(c.travelMph)} mph</b> (never less than today's table pays): foreman <b>${$(c.hrTravelForeman)}</b>, driver ${$(c.hrTravelDriver)}, helper ${$(c.hrTravelHelper)} an hour. <b>The job</b>: foreman <b>${$(c.hrJobForeman)} + ${$(c.hrBonusForeman)}</b> bonus, driver ${$(c.hrJobDriver)} + ${$(c.hrBonusDriver)}, helper ${$(c.hrJobHelper)} + ${$(c.hrBonusHelper)} an hour; the bonus part is withheld on a job with a claim. <b>Packing</b>: the foreman ${num(c.hrFmPackPct)}% of materials sold, and a ${num(c.hrCrewPackPct)}% pool split over the driver and helpers. Everything else as today — stairs, bulky items, reviews, hoisting/storage/junk, long-distance day pay. Tips stay with the crew.`,
         approved: `<b>The plan from 1 February 2027</b> (Bacho's deck, 18 Nov). Every hour — the work and the travel — is paid at the seat's base plus a <b>${$(c.apBonus)}</b> bonus: foreman <b>${$(c.apBaseForeman)} + ${$(c.apBonus)}</b>, driver ${$(c.apBaseDriver)} + ${$(c.apBonus)}, helper ${$(c.apBaseHelper)} + ${$(c.apBonus)} an hour. <b>Travel</b> comes from the miles: ${num(c.apTravelFirstH)} h for the first ${num(c.apTravelFirstMiles)} miles, then ${num(c.apTravelStepH) * 60} minutes per further ${num(c.apTravelStepMiles)} miles. A <b>new mover</b> gets ${$(c.apNewCut)} less on the base. <b>Long distance</b> is paid by the day — foreman ${$(c.apLdForeman)}, driver ${$(c.apLdDriver)}, helper ${$(c.apLdHelper)} — and the long-distance foreman gets <b>${num(c.apLdCfPct)}%</b> of the extra CF. <b>Foreman of the Month</b>: ${$(c.apFotm)} a month. Unchanged: the foreman's 20% of packing, stairs, bulky items, hoisting and long carry, the review share, and tips.</p>
-          <p><b>Where the deck is silent, this replay assumes</b> (each is a setting): each <i>started</i> ${num(c.apTravelStepMiles)} miles counts; "new mover" is under ${num(c.apNewMonths)} months since the first job; the LD ${num(c.apLdCfPct)}% is ${num(c.apLdCfPct)}% × (final − estimated CF) × the price per CF; Foreman of the Month is a fixed ${$(num(c.apFotm) * 12)} a year. Deductions (uniform, documents, lateness, dirty truck, disposal, tickets), the 50/50 damage split and returned tips are <b>not</b> modelled, and overtime still isn't.`,
+          <p><b>Where the deck is silent, this replay assumes</b> (each is a setting): each <i>started</i> ${num(c.apTravelStepMiles)} miles counts; "new mover" is under ${num(c.apNewMonths)} months since the first job; the LD ${num(c.apLdCfPct)}% is ${num(c.apLdCfPct)}% × (sold − max(estimated, real) CF) × the price per CF, and the old long-distance rows have no real CF, so the estimate is the floor; Foreman of the Month is a fixed ${$(num(c.apFotm) * 12)} a year. Deductions (uniform, documents, lateness, dirty truck, disposal, tickets), the 50/50 damage split and returned tips are <b>not</b> modelled, and overtime still isn't.`,
         custom: `Enter a job — the crew, the job hours, the base-leg miles and the bill — and see what each seat earns today and under both options, with the working under every amount. Today's pay uses this year's average rates (Settings can change them); start from a real job to fill everything in.`,
       };
       return `<p>${T[key]}</p>`;
@@ -637,7 +646,7 @@ registerPage({
             <td class="num ${r.d > 0.5 ? "cpc-up" : r.d < -0.5 ? "cpc-down" : ""}">${r.now ? (r.d > 0 ? "+" : r.d < 0 ? "−" : "") + money(Math.abs(r.d)).replace("−", "") : "—"}</td><td class="num">${Math.round(r.days).toLocaleString()}</td></tr>`).join("")}</tbody>
         </table></div>
         <p class="cpc-note">${ldRows.some(r => r.now && Math.abs(r.d) > 5) ? `<b>Check:</b> the deck calls the long-distance day rates "same as today", but today's day-rate rows average ${ldRows.filter(r => r.now).map(r => r.s.toLowerCase() + " " + money(r.now)).join(", ")} a day. At the deck's rates long-distance day pay changes by <b>${signK(ldRaise)}</b> a year.` : "The plan's long-distance day rates match today's rows."}</p>
-        <p class="cpc-note"><b>Travel:</b> on local jobs today's table paid ${Math.round(tPaid).toLocaleString()} crew-hours of travel; the plan's miles formula pays ${Math.round(tAp).toLocaleString()} (${pc(tPaid ? (tAp - tPaid) / tPaid * 100 : 0)}). ${SC.GA.jobs.toLocaleString()} jobs have the GPS form's miles; the rest get their paid travel × ${SC.GA.ratio.toFixed(2)}, the GPS jobs' ratio. <b>New movers:</b> ${news.toLocaleString()} crew lines fall under ${num(c.apNewMonths)} months and get the base ${money(num(c.apNewCut))} less.</p>
+        <p class="cpc-note"><b>Travel:</b> on local jobs today's table paid ${Math.round(tPaid).toLocaleString()} crew-hours of travel; the plan's miles formula pays ${Math.round(tAp).toLocaleString()} (${pc(tPaid ? (tAp - tPaid) / tPaid * 100 : 0)}). The miles are the contract's Travel Miles (both directions) on ${SC.GA.contract.toLocaleString()} job${SC.GA.contract === 1 ? "" : "s"} and the GPS form's base legs on ${SC.GA.gps.toLocaleString()} more; the rest get their paid travel × ${SC.GA.ratio.toFixed(2)}, the ratio those jobs show. <b>New movers:</b> ${news.toLocaleString()} crew lines fall under ${num(c.apNewMonths)} months and get the base ${money(num(c.apNewCut))} less.</p>
       </section>`;
     }
     function paintModel(body, c, SC, P) {
@@ -674,7 +683,7 @@ registerPage({
           <li><b>Actual</b> is everything paid on these jobs — wages, the foreman's packing commission, stairs, bulky-item, hoisting/storage/junk pay and review bonuses. Tips are the crew's in every option and sit apart.</li>
           <li><b>Hours</b> are the hours the wage was paid for (wage ÷ rate): labor or the minimum, plus travel from the miles table. The closing sheet shows them rounded to whole hours.</li>
           ${key === "pct" ? `<li><b>Splitable bill</b> comes from the digital contract — the moving fee at the cash price, packing and the fees, less discounts; ${Object.values(SC.jobs).filter(j => j.pct.s.src === "bill").length.toLocaleString()} of ${nj.toLocaleString()} jobs have no contract and use the closing's bill. Long-distance jobs split their whole bill. There is no hourly floor (your call).</li>` : ""}
-          ${key === "approved" ? `<li><b>Hours</b> are the hours paid (wage ÷ rate). Work hours = those less today's table travel; travel = the plan's miles formula on the GPS form's base-leg miles (${SC.GA.jobs.toLocaleString()} jobs), or today's travel × ${SC.GA.ratio.toFixed(2)} without a form. Long-distance hourly legs (loading and the like) are all work hours.</li>
+          ${key === "approved" ? `<li><b>Hours</b> are the hours paid (wage ÷ rate). Work hours = those less today's table travel; travel = the plan's miles formula on the contract's Travel Miles (${SC.GA.contract.toLocaleString()} jobs), else the GPS form's base legs (${SC.GA.gps.toLocaleString()}), else today's travel × ${SC.GA.ratio.toFixed(2)}. The minimum hours stay in the work hours, as today. Long-distance hourly legs (loading and the like) are all work hours.</li>
           <li><b>Long distance:</b> rows paid by the day today — drivers, helpers, and on most straight moves the foreman — are paid days × the plan's day rate. The LD foreman's ${num(c.apLdCfPct)}% needs the estimated CF, the final CF and the price per CF: ${Object.values(SC.jobs).filter(j => j.ap.cfExtra > 0).length.toLocaleString()} long-distance jobs have all three with extra CF.</li>
           <li><b>Not modelled:</b> deductions, the damage split, returned tips and overtime.</li>` : ""}
           ${key === "hourly" ? `<li><b>Long distance:</b> rows paid by the day today — drivers, helpers, and on most straight moves the foreman — keep today's day pay; hourly long-distance rows (loading and the like) are all job hours.</li>
@@ -1225,7 +1234,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
       const tv = j.trav || {};
       const facts = P.key === "approved"
         ? (tv.src === "ld" ? "a long-distance job: hourly legs are all work hours; day-rate rows get the plan's day rates"
-          : `travel: today's table paid <b>${h2(tv.paid)} h</b>${tv.miles != null ? `; the GPS form's base legs are ${Math.round(tv.miles)} miles — the plan's formula pays <b>${h2(j.ap.travel)} h</b>` : `; no GPS form — × ${SC.GA.ratio.toFixed(2)}, the GPS jobs' ratio = <b>${h2(j.ap.travel)} h</b>`}`)
+          : `travel: today's table paid <b>${h2(tv.paid)} h</b>${tv.apMiles != null ? `; ${tv.apSrc === "contract" ? "the contract's Travel Miles are" : "no Travel Miles on the contract; the GPS form's base legs are"} ${Math.round(tv.apMiles)} miles — the plan's formula pays <b>${h2(j.ap.travel)} h</b>` : `; no miles — × ${SC.GA.ratio.toFixed(2)}, the ratio of the jobs with miles = <b>${h2(j.ap.travel)} h</b>`}`)
         : P.key === "pct"
         ? (s.src === "contract"
           ? `splitable bill: moving fee ${m2(s.lab)}${s.cp ? ` at the cash price (−${+(s.cp * 100).toFixed(2)}%) ${m2(s.lab * (1 - s.cp))}` : ""} + packing ${m2(s.pack)} + fees ${m2(s.fees)} − discounts ${m2(s.disc)} = <b>${m2(s.v)}</b>`
@@ -1319,7 +1328,7 @@ ${examples.length ? `<p><b>Real jobs</b> (crew travel pay today against the real
             fields(["apBaseForeman", "apBaseDriver", "apBaseHelper", "apBonus", "apNewCut", "apNewMonths"]))}
           ${sec("Travel from the miles", "The first miles pay a fixed time, then each further step of miles adds time — each started step counts. The miles are the GPS form's base legs.",
             fields(["apTravelFirstMiles", "apTravelFirstH", "apTravelStepMiles", "apTravelStepH"]))}
-          ${sec("Long distance and Foreman of the Month", "Long distance is paid by the day; the long-distance foreman also gets the % of the extra CF (final − estimated) × the price per CF. Foreman of the Month is paid every month.",
+          ${sec("Long distance and Foreman of the Month", "Long distance is paid by the day; the long-distance foreman also gets the % of the extra CF (sold − max(estimated, real)) × the price per CF. Foreman of the Month is paid every month.",
             fields(["apLdForeman", "apLdDriver", "apLdHelper", "apLdCfPct", "apFotm"]))}
         </div>
 
