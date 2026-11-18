@@ -249,9 +249,10 @@
         ${fact("Quote", q ? esc(q) : "—", lo && hi && lo !== hi ? esc(lo + " to " + hi) : "")}
         ${fact("Final bill", bill && +L["Total Bill"] > 0 ? esc(bill) : "Not billed yet", closing ? esc(closing + (L["Closing Date"] ? " · " + day(L["Closing Date"]) : "")) : "")}
       </div>
-      <div class="clk-sec">Calls and texts · ${RS.fmtN(cv.events.length)}${nTr ? " · " + RS.fmtN(nTr) + " transcribed" : ""}</div>
+      <div class="clk-sec">Calls and texts · ${RS.fmtN(cv.events.length)}${nTr ? " · " + RS.fmtN(nTr) + " transcribed" : ""}${
+        (d.emails || []).length ? " · " + plural((d.emails || []).length, "email") : ""}</div>
       <div id="clkThreadBox"></div>`;
-    mountThread(p.querySelector("#clkThreadBox"), cv, L["Customer"]);
+    mountThread(p.querySelector("#clkThreadBox"), cv, L["Customer"], d.emails);
   }
 
   async function openCaller(ph) {
@@ -276,13 +277,15 @@
   }
 
   // the Conversations renderer, with its find-a-word, inside the file
-  function mountThread(box, cv, who) {
+  // `emails` (ZP-11): the survey and review emails, drawn in the same stream by Conversations' renderer
+  function mountThread(box, cv, who, emails) {
     const ev = cv.events || [];
-    if (!ev.length) { box.innerHTML = RSC.emptyHtml({ title: "No calls or texts recorded", body: "Nothing with this customer has reached RingCentral's records yet." }); return; }
     if (!window.CONV) { box.innerHTML = RSC.emptyHtml({ title: "The conversation viewer didn't load", body: "Reload the portal." }); return; }
+    const em = CONV.emailExtras ? CONV.emailExtras(emails) : [];
+    if (!ev.length && !em.length) { box.innerHTML = RSC.emptyHtml({ title: "No calls or texts recorded", body: "Nothing with this customer has reached RingCentral's records yet." }); return; }
     CONV.injectStyle();
     box.innerHTML = `<div class="clk-find"><input id="clkKw" class="rs-inp" type="search" autocomplete="off" placeholder="Find a word in this conversation" value="${esc(S.kw)}"><span id="clkKwN"></span></div><div id="clkThread"></div>`;
-    const ctl = CONV.mountThread(box.querySelector("#clkThread"), ev, cv.transcripts || {}, who);
+    const ctl = CONV.mountThread(box.querySelector("#clkThread"), ev, cv.transcripts || {}, who, em);
     const kw = box.querySelector("#clkKw"), out = box.querySelector("#clkKwN");
     const apply = () => {
       S.kw = kw.value;
@@ -313,6 +316,8 @@
           how: "<p>One search over two lists. Type a name, a phone number (any part of it), a job number or an email, then pick a row "
             + "to open the customer's file: the move, the rep, the quote and the final bill, and every call and text with the "
             + "transcript of each recorded call.</p>"
+            + "<h3>Emails</h3><p>The customer survey and the review request show in the same stream, with how far each got "
+            + "(delivered, opened, clicked) and the survey's overall mark.</p>"
             + "<h3>Leads</h3><p>Every lead registered in Moveboard. Leads arrive with Moveboard's export each morning (about 6:20 AM "
             + "New York), so a lead created today may not be here until tomorrow. Its calls show on the other tab already.</p>"
             + "<h3>Calls and texts</h3><p>Every call and text with a customer from RingCentral, attached to the customer's lead. "
@@ -336,6 +341,12 @@
         if (v.length >= 2 || !v) t = setTimeout(go, 450); };
       if (S.data) paint(host); else runSearch(host);
       q.focus({ preventScroll: true });      // ready to type, without scrolling the page head away
+      // A LINK NAMES A LEAD (ZP-11: the Customer Survey's "Open in Customer Lookup"): "&jk=<joinkey>" opens its file
+      const jm = location.hash.match(/[?&]jk=([^&]+)/);
+      if (jm) {
+        try { history.replaceState(null, "", "#" + location.hash.slice(1).replace(/[?&]jk=[^&]*/, "")); } catch (e) { /* keep it */ }
+        openLead(decodeURIComponent(jm[1]));
+      }
     },
   });
 })();

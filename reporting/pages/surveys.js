@@ -8,8 +8,11 @@
  *              sent, Already sent. Tako's rule (foreman's score 9-10, nothing on the Claims /
  *              Complaints board) sorts moves into the tabs; a switch moves one person to Switched off
  *              with an Undo, and ONE button sends to everyone in Will get it. Nothing sends by itself.
- *   SENDS      every email, one row each, with how far it got (Resend's webhook) and its answer.
- *   RESPONSES  every filled survey; bad answers flagged here only (an issue, or a low mark).
+ *   ACTIVITY   (18 Nov, ZP-11; Sends and Responses until then) one row per customer: how far the email got
+ *              (sent > delivered > opened > clicked > answered, from Resend's webhook) and the answer, with chips
+ *              (Answered, Opened no answer, Not opened, Issue or low mark, Bounced or failed). A row opens the side
+ *              panel: the timeline, the email that went out, the answers and a link to the customer's story in
+ *              Conversations. Answers from the public link or a QR code are rows of their own.
  *   EMAIL      the shared email editor (assets/email-designer.js, 12 Nov, ZTZ-69 step 3): a header with
  *              "N changes not live yet", Discard changes / Send a test… / Make changes live; the parts,
  *              the email (click a part) and the settings. Edits save by themselves as a DRAFT on the
@@ -88,6 +91,27 @@
       + ".svy-act{white-space:nowrap;width:1%}"
       + ".svy-mini{font:inherit;font-size:12px;font-weight:600;color:var(--muted);background:none;border:0;padding:4px 6px;"
       + "margin-left:6px;cursor:pointer;text-decoration:underline;min-height:28px}"
+      // the Activity tab and its side panel (18 Nov, ZP-11)
+      + ".svy-prog{display:inline-flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--faint)}"
+      + ".svy-prog span::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;border:1.5px solid var(--line);"
+      + "margin-right:4px;vertical-align:0}"
+      + ".svy-prog span.on{color:var(--ink);font-weight:600}.svy-prog span.on::before{background:var(--brand);border-color:var(--brand)}"
+      + ".svy tr.click{cursor:pointer}.svy tr.svy-on td{background:var(--brand-glow)}"
+      + ".svy tr.click:focus-visible{outline:2px solid var(--brand-d,#5f7c20);outline-offset:-2px}"
+      + ".rs-fpanel.svy-panel{width:min(460px,100%)}"
+      + ".svy-panel .svy-pm{font-size:13.5px;color:var(--ink);line-height:1.6;margin:0 0 4px}"
+      + ".svy-panel .svy-faint{color:var(--faint);font-size:12.5px}"
+      + ".svy-panel .svy-ps{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}"
+      + ".svy-panel .svy-pe{font-size:13.5px;color:var(--ink);margin:0 0 4px;line-height:1.5}"
+      + ".svy-tline{list-style:none;margin:0;padding:0 0 0 4px}"
+      + ".svy-tline li{position:relative;display:grid;grid-template-columns:82px minmax(0,1fr);gap:8px;padding:0 0 10px 20px;font-size:13px;color:var(--faint)}"
+      + ".svy-tline li::before{content:'';position:absolute;left:0;top:4px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line);background:var(--panel)}"
+      + ".svy-tline li::after{content:'';position:absolute;left:5px;top:16px;bottom:0;width:1px;background:var(--line)}"
+      + ".svy-tline li:last-child::after{display:none}"
+      + ".svy-tline li.on::before{background:var(--brand);border-color:var(--brand)}.svy-tline li.bad::before{background:#d1495b;border-color:#d1495b}"
+      + ".svy-tline li b{color:var(--ink);font-weight:600}.svy-tline li:not(.on):not(.bad) b{color:var(--faint);font-weight:500}"
+      + ".svy-pa{display:grid;gap:10px;font-size:13.5px;color:var(--ink);line-height:1.5}"
+      + ".svy-pa b{display:block;font-size:12px;color:var(--faint);font-weight:600}"
       + ".svy-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;"
       + "background:#0f172a;color:#fff;border-radius:12px;padding:9px 10px 9px 16px;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:14px;max-width:calc(100vw - 32px)}"
       + ".svy-toast .u{font:inherit;font-size:13.5px;font-weight:700;border:0;border-radius:8px;background:#b7e23b;color:#14200a;padding:7px 14px;cursor:pointer}"
@@ -131,8 +155,8 @@
       const iso = d => d.toISOString().slice(0, 10);
       const S = window.__SVY2 || (window.__SVY2 = {
         tab: "over", plo: iso(new Date(Date.now() - 90 * 864e5)), phi: iso(new Date()), phiAuto: true, tests: false,
-        sends: null, sErr: "", tracking: false, sQ: "", sPage: 0, pf: null,
-        ans: null, aErr: "", aOpen: null, aQ: "",
+        sends: null, sErr: "", tracking: false, sPage: 0, pf: null,
+        ans: null, aErr: "", actQ: "", chip: "all", actOpen: null, openAns: null, subject: "",
         lo: "", hi: "", rows: null, resend: false, err: "", msg: "", msgErr: false, page: 0,
         af: null, q: "",
         tpl: null, draft: null, from: "", address: "", testTo: "", pv: "desk", pvHtml: "", pvSubject: "", busy: false,
@@ -157,6 +181,8 @@
         return d.toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " NJ";
       };
       const say = (m, bad) => { S.msg = m; S.msgErr = !!bad; };
+      // the subject a send uses: the designed email's own when it has a design (bridge/survey.py render_email)
+      const subjectOf = t => String((t && ((t.design && t.design.subject) || t.subject)) || "");
       const num = v => (typeof v === "number" ? v.toLocaleString() : v);
       const pct = (a, b) => (b ? Math.round(100 * a / b) + "%" : "—");
       const avgOf = (rs, k) => { const v = rs.map(r => +r[k]).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
@@ -194,6 +220,7 @@
       function loadTemplate() {
         return api("/api/_surveyadmin?view=template").then(j => {
           S.tpl = j.template; S.draft = Object.assign({}, j.template); S.from = j.from; S.address = j.address;
+          S.subject = subjectOf(j.template);
           S.kit = j.kit || {};
           // the live email, and the edits waiting on top of it (12 Nov): the editor opens on the waiting ones
           S.liveDesign = JSON.parse(JSON.stringify(j.template.design || j.template.design_default || { subject: "", blocks: [] }));
@@ -229,23 +256,23 @@
       const legend = items => '<div class="svy-leg">' + items.map(i => '<span style="--c:' + i[1] + '">' + esc(i[0]) + "</span>").join("") + "</div>";
       const card = (title, sub, body) => '<div class="svy-card"><p class="svy-h">' + esc(title) + "</p>"
         + (sub ? '<p class="svy-hs">' + esc(sub) + "</p>" : '<div style="height:10px"></div>') + body + "</div>";
-      // THE PORTAL'S FILTER LOOK on Overview / Sends / Responses too (his rule, 10 Nov): one bar --
+      // THE PORTAL'S FILTER LOOK on Overview and Activity too (his rule, 10 Nov): one bar --
       // the dates (RSC.dateRange), Find, the Filters button opening the side panel -- and the
       // "Filtered by" chips under it. The panel: State, Foreman, Send, Test sends on every tab; Status
-      // on Sends; Flag, Answer came from and Overall rating on Responses.
+      // was on Sends; Flag, Answer came from and Overall rating on Responses (since ZP-11 Status and Flag are
+      // the Activity tab's chips).
       function periodBar(kind) { return '<div class="rs-bar" id="svyPBar" data-kind="' + kind + '"></div><div id="svyPChips"></div>'; }
       if (!S.pf) S.pf = {};
       const srcOf = r => (r.source === "email" ? "Emailed link" : /qr/i.test(r.source || "") ? "QR code"
         : /site|web/i.test(r.source || "") ? "Website" : "Public link");
       const sendLabel = c => String(c || "—").replace(/^survey-/, "").replace(/-(\d\d)(\d\d)$/, " $1:$2 UTC");
       const PF = {
-        state: { label: "State", of: x => x.state || "Unknown", kinds: ["over", "sends", "ans"] },
-        foreman: { label: "Foreman", of: x => x.foreman || "—", kinds: ["over", "sends", "ans"] },
-        campaign: { label: "Send", of: x => x.campaign || "—", lab: sendLabel, kinds: ["over", "sends", "ans"] },
-        status: { label: "Status", of: x => (STATE[x.state_now] || [x.state_now])[0], kinds: ["sends"] },
-        flag: { label: "Flag", of: x => (+x.flagged === 1 ? "Flagged" : "Not flagged"), kinds: ["ans"] },
-        source: { label: "Answer came from", of: srcOf, kinds: ["ans"] },
-        overall: { label: "Overall rating", of: x => (x.overall ? String(x.overall) + " / 5" : "—"), kinds: ["ans"] },
+        // ZP-11: how far it got and the flag are the Activity tab's chips, so the panel no longer repeats them
+        state: { label: "State", of: x => x.state || "Unknown", kinds: ["over", "act"] },
+        foreman: { label: "Foreman", of: x => x.foreman || "—", kinds: ["over", "act"] },
+        campaign: { label: "Send", of: x => x.campaign || "—", lab: sendLabel, kinds: ["over", "act"] },
+        source: { label: "Answer came from", of: x => x.source || "No answer yet", kinds: ["act"] },
+        overall: { label: "Overall rating", of: x => (x.overall ? String(x.overall) + " / 5" : "—"), kinds: ["act"] },
       };
       const pfKeys = kind => Object.keys(PF).filter(k => PF[k].kinds.indexOf(kind) >= 0);
       const pfOk = (x, kind) => pfKeys(kind).every(k => { const set = S.pf[k]; return !set || !set.size || set.has(PF[k].of(x)); });
@@ -254,14 +281,14 @@
         if (!bar || !window.RSC) return;
         const kind = bar.dataset.kind;
         const fld = label => { const w = document.createElement("div"); w.className = "rs-fld"; w.innerHTML = "<span>" + label + "</span>"; bar.appendChild(w); return w; };
-        if (RSC.dateRange) RSC.dateRange(fld(kind === "ans" ? "Answered" : "Sent"), {
+        if (RSC.dateRange) RSC.dateRange(fld(kind === "act" ? "Sent or answered" : "Sent"), {
           get: () => ({ from: S.plo, to: S.phi }),
           set: (f, t) => { S.plo = f || ""; S.phi = t || ""; S.phiAuto = !t || t === iso(new Date()); },
           onChange: () => { S.sPage = 0; loadPeriod(); } });
         if (kind !== "over") {
-          const key = kind === "sends" ? "sQ" : "aQ";
+          const key = "actQ";
           const q = document.createElement("input");
-          q.className = "rs-inp"; q.placeholder = kind === "sends" ? "Find a customer, email, foreman…" : "Find a name, foreman, words…";
+          q.className = "rs-inp"; q.placeholder = "Find a customer, email, foreman, words…";
           q.value = S[key]; q.style.flex = "0 1 260px";
           let qt = null;
           q.oninput = () => { clearTimeout(qt); qt = setTimeout(() => { S[key] = q.value; S.sPage = 0; S._focusP = 1; paint(); }, 300); };
@@ -274,7 +301,7 @@
           b.onclick = () => csv(kind); bar.appendChild(b);
         }
         if (!RSC.filterPanel) return;
-        const data = kind === "ans" ? (S.ans || []) : (S.sends || []);
+        const data = kind === "act" ? actRows() : (S.sends || []);
         const fields = pfKeys(kind).map(k => {
           const n = {}; data.forEach(x => { const v = PF[k].of(x); n[v] = (n[v] || 0) + 1; });
           (S.pf[k] || new Set()).forEach(v => { if (!(v in n)) n[v] = 0; });
@@ -405,90 +432,186 @@
         return h;
       }
 
-      // ---- SENDS -------------------------------------------------------------------------------
-      function sendsVisible() {
-        const q = S.sQ.trim().toLowerCase();
-        return (S.sends || []).filter(s => {
-          if (!pfOk(s, "sends")) return false;
-          if (q && ![s.customer, s.email, s.foreman, s.state, s.campaign].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
-          return true;
-        });
+      // ---- ACTIVITY (ZP-11, 18 Nov 2026, his pick "One list + side panel + journey") ------------------
+      // Sends and Responses were two tabs: a send's row did not open, an answer opened into a loose grid with
+      // no timeline and no copy of the email. Now ONE list, one row per customer: how far their email got
+      // (sent > delivered > opened > clicked > answered) and their answer. A click opens the side panel with
+      // the timeline, the email that went out and the answers. An answer from the public link or a QR code
+      // has no send, so it is a row of its own. Every send now carries its whole answer (bridge/survey.py).
+      const STEPS = [["sent", "Sent"], ["delivered", "Delivered"], ["opened", "Opened"], ["clicked", "Clicked"], ["answered", "Answered"]];
+      const ACHIPS = [["all", "All"], ["answered", "Answered"], ["opened", "Opened, no answer"], ["unopened", "Not opened"],
+                      ["issue", "Issue or low mark"], ["bounced", "Bounced or failed"]];
+      const ANS_KEYS = ["overall", "recommend", "booking", "crew", "transit", "worth", "enjoyed", "enjoyed_other", "issue",
+                        "issue_text", "change_text", "move_type", "phone", "flagged", "flag_reason"];
+      if (!S.chip) S.chip = "all";
+      if (S.actQ == null) S.actQ = "";
+      const can = id => typeof window.canSee === "function" && window.canSee(id);
+      const firstOf = n => String(n || "").trim().split(/\s+/)[0] || "there";
+      // how far an email got: a later step proves the earlier ones (a delivery is seen only through Resend's
+      // webhook and an open only since open tracking, but a click proves both)
+      function reach(x) {
+        const s = x.s || {};
+        if (x.a) return 4;
+        if (s.clicked_at) return 3;
+        if (s.opened_at) return 2;
+        if (s.delivered_at) return 1;
+        return x.s ? 0 : -1;
       }
-      function sendsView() {
-        let h = periodBar("sends");
-        if (S.sends === null) return h + '<div class="panel">Loading the sends…</div>';
-        if (S.sErr) return h + '<div class="panel">Could not load the sends: ' + esc(S.sErr) + "</div>";
-        const list = sendsVisible();
+      const bad = x => !!(x.s && (x.s.bounced_at || x.s.complained_at || x.s.status === "failed"));
+      const lastAt = x => { const s = x.s || {};
+        return [s.sent_at || s.created_at, s.delivered_at, s.opened_at, s.clicked_at, x.a && x.a.submitted_at]
+          .filter(Boolean).map(v => String(v).replace("T", " ")).sort().pop() || ""; };
+      function actRows() {
+        const byId = {}; (S.ans || []).forEach(r => { byId[r.id] = r; });
+        const seen = new Set();
+        const rows = (S.sends || []).map(s => {
+          let a = null;
+          if (s.response_id) {
+            seen.add(+s.response_id);
+            a = byId[s.response_id] || ANS_KEYS.reduce((o, k) => { o[k] = s[k]; return o; },
+              { id: +s.response_id, submitted_at: s.answered_at, source: "email", campaign: s.campaign });
+          }
+          return { key: "s:" + s.job_key, s, a, name: s.customer, email: s.email, move_date: s.move_date, state: s.state,
+                   foreman: s.foreman, score: s.score, campaign: s.campaign, test: s.test, job_no: s.job_no, job_key: s.job_key,
+                   sales_rep: s.sales_rep, overall: a ? a.overall : null, source: a ? srcOf(a) : "", flagged: !!a && +a.flagged === 1 };
+        });
+        (S.ans || []).forEach(r => {
+          if (seen.has(+r.id)) return;
+          rows.push({ key: "r:" + r.id, s: null, a: r, name: r.name || r.invite_customer, email: r.email, move_date: r.move_date,
+                      state: r.state, foreman: r.foreman, score: null, campaign: r.campaign, test: r.test, job_no: r.job_no,
+                      job_key: r.job_key, sales_rep: r.sales_rep, overall: r.overall, source: srcOf(r), flagged: +r.flagged === 1 });
+        });
+        rows.forEach(x => { x.reach = reach(x); x.last = lastAt(x); });
+        return rows.sort((p, q) => (q.last < p.last ? -1 : q.last > p.last ? 1 : 0));
+      }
+      const chipOk = (x, c) => c === "answered" ? !!x.a : c === "opened" ? !x.a && x.reach >= 2
+        : c === "unopened" ? !!x.s && !x.a && x.reach < 2 && !bad(x) : c === "issue" ? x.flagged : c === "bounced" ? bad(x) : true;
+      function actVisible(all) {
+        const q = S.actQ.trim().toLowerCase();
+        return (all || actRows()).filter(x => pfOk(x, "act") && (!q || [x.name, x.email, x.foreman, x.state, x.campaign, x.sales_rep,
+          x.job_no, x.a && x.a.issue_text, x.a && x.a.change_text].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)));
+      }
+      function progHtml(x) {
+        if (!x.s) return '<span class="svy-flag svy-mute">' + esc(x.source || "Public link") + "</span>";
+        if (x.s.status === "failed") return '<span class="svy-flag svy-bad">Failed</span>' + (x.s.error ? '<span class="svy-sub">' + esc(x.s.error) + "</span>" : "");
+        if (x.s.status === "sending") return '<span class="svy-flag">Sending…</span>';
+        return '<span class="svy-prog">' + STEPS.map(([k, l], i) => '<span class="' + (i <= x.reach ? "on" : "") + '">' + l + "</span>").join("") + "</span>"
+          + (x.s.bounced_at ? ' <span class="svy-flag svy-bad">Bounced</span>' : x.s.complained_at ? ' <span class="svy-flag svy-bad">Marked as spam</span>' : "");
+      }
+      function activityView() {
+        let h = periodBar("act");
+        if (S.sends === null || S.ans === null) return h + '<div class="panel">Loading the activity…</div>';
+        if (S.sErr || S.aErr) return h + '<div class="panel">Could not load the activity: ' + esc(S.sErr || S.aErr) + "</div>";
+        const rows = actRows();
+        if (S.openAns) {                                  // "Open the answer" (Overview) or a link from a customer's story
+          const hit = rows.find(x => x.a && +x.a.id === +S.openAns);
+          S.openAns = null;
+          if (hit) S.actOpen = hit.key;
+        }
+        const shown = actVisible(rows);
+        const n = {}; ACHIPS.forEach(([k]) => { n[k] = shown.filter(x => chipOk(x, k)).length; });
+        const list = shown.filter(x => chipOk(x, S.chip));
         const pages = Math.max(1, Math.ceil(list.length / PAGE));
         if (S.sPage >= pages) S.sPage = pages - 1;
         const slice = list.slice(S.sPage * PAGE, S.sPage * PAGE + PAGE);
-        h += '<p class="svy-note">' + list.length + " of " + (S.sends || []).length + " send" + ((S.sends || []).length === 1 ? "" : "s") + " shown.</p>";
+        h += '<div class="svy-atabs" role="tablist" aria-label="Show">' + ACHIPS.map(([k, l]) =>
+          '<button type="button" role="tab" class="svy-atab' + (S.chip === k ? " on" : "") + '" aria-selected="' + (S.chip === k) + '" data-chip="' + k + '">'
+          + esc(l) + '<span class="n">' + n[k] + "</span></button>").join("") + "</div>";
+        h += '<p class="svy-note">' + list.length + " of " + rows.length + " customer" + (rows.length === 1 ? "" : "s") + " shown, latest activity first. Click a row for the timeline, the email and the answers."
+          + (!S.tests && S.aHidden ? " " + S.aHidden + " answer" + (S.aHidden === 1 ? "" : "s") + " to test sends "
+            + (S.aHidden === 1 ? "is" : "are") + ' hidden. <span class="svy-link" id="svyShowTests">Show test sends</span>' : "") + "</p>";
         if (!S.tracking) h += '<p class="svy-note">Delivered and opened fill in once Resend\'s webhook is connected. Clicked (they opened their link) and answered are always tracked.</p>';
         else if (!(S.sends || []).some(s => s.opened_at)) h += '<p class="svy-note">Email opens show once open tracking is switched on in Resend. Delivered, clicked (they opened their link) and answered are tracked now.</p>';
-        const tl = s => [["Delivered", s.delivered_at], ["Opened", s.opened_at], ["Clicked", s.clicked_at], ["Answered", s.answered_at], ["Bounced", s.bounced_at]]
-          .filter(x => x[1]).map(x => x[0] + " " + dt(x[1]).replace(" NJ", "")).join(" · ");
         h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th>Customer</th><th>Move</th><th>Foreman · score</th><th>Sent</th><th>Status</th><th>Answer</th></tr></thead><tbody>"
-          + (slice.length ? slice.map(s => {
-            const st = STATE[s.state_now] || [s.state_now, ""];
-            return "<tr><td><b>" + esc(s.customer || "—") + '</b><span class="svy-sub">' + esc(s.email || "") + (s.test ? " · test" : "") + "</span></td>"
-              + "<td>" + esc(d10(s.move_date)) + '<span class="svy-sub">' + esc(s.state || "") + "</span></td>"
-              + "<td>" + esc(s.foreman || "—") + '<span class="svy-sub">' + (s.score != null ? "score " + esc(s.score) + "/10" : "") + "</span></td>"
-              + "<td>" + esc(dt(s.sent_at || s.created_at)) + '<span class="svy-sub">' + esc(String(s.sent_by || "").split("@")[0]) + " · " + esc(s.campaign || "") + "</span></td>"
-              + '<td><span class="svy-flag ' + st[1] + '">' + esc(st[0]) + "</span>"
-              + (s.opens > 1 ? '<span class="svy-sub">opened ' + s.opens + " times</span>" : "")
-              + '<div class="svy-tl">' + esc(tl(s)) + (s.error ? " · " + esc(s.error) : "") + (s.bounce_note ? " · " + esc(s.bounce_note) : "") + "</div></td>"
-              + "<td>" + (s.response_id ? "<b>" + esc(s.overall) + "/5</b> overall" + (+s.flagged === 1 ? '<div><span class="svy-flag svy-bad">' + esc(s.flag_reason || "flagged") + "</span></div>" : "")
-                + '<div><span class="svy-link" data-openans="' + s.response_id + '" style="font-size:12px">Open the answer</span></div>' : '<span class="svy-sub">—</span>') + "</td></tr>";
-          }).join("") : '<tr><td colspan="6" class="dim">No sends match.</td></tr>')
+          + "<th>Customer</th><th>Move</th><th>How far it got</th><th>Answer</th><th>Latest</th></tr></thead><tbody>"
+          + (slice.length ? slice.map(x => '<tr class="click' + (S.actOpen === x.key ? " svy-on" : "") + '" data-act="' + esc(x.key) + '" tabindex="0">'
+              + "<td><b>" + esc(x.name || "—") + '</b><span class="svy-sub">' + esc(x.email || "") + (x.test ? " · test" : "") + "</span></td>"
+              + "<td>" + esc(d10(x.move_date)) + '<span class="svy-sub">' + esc([x.state, x.foreman].filter(Boolean).join(" · ")) + "</span></td>"
+              + "<td>" + progHtml(x) + "</td>"
+              + "<td>" + (x.a ? "<b>" + esc(x.a.overall) + "</b>/5" + (x.flagged ? '<div><span class="svy-flag svy-bad">' + esc(x.a.flag_reason || "flagged") + "</span></div>" : "")
+                : '<span class="svy-sub" style="display:inline">no answer</span>') + "</td>"
+              + "<td>" + esc(dt(x.last)) + "</td></tr>").join("")
+            : '<tr><td colspan="5" class="dim">Nobody matches.</td></tr>')
           + "</tbody></table></div>"
-          + (pages > 1 ? '<div class="rs-bar" style="padding:10px 14px"><span class="svy-sub">' + list.length + " sends</span><span class=\"rs-spacer\"></span>"
+          + (pages > 1 ? '<div class="rs-bar" style="padding:10px 14px"><span class="svy-sub">' + list.length + " customers</span><span class=\"rs-spacer\"></span>"
             + '<button class="rs-btn" data-spg="-1"' + (S.sPage ? "" : " disabled") + ">Previous</button><span class=\"svy-sub\">Page " + (S.sPage + 1) + " of " + pages + "</span>"
             + '<button class="rs-btn" data-spg="1"' + (S.sPage >= pages - 1 ? " disabled" : "") + ">Next</button></div>" : "")
           + "</div>";
         return h;
       }
 
-      // ---- RESPONSES ---------------------------------------------------------------------------
-      function ansVisible() {
-        const q = S.aQ.trim().toLowerCase();
-        return (S.ans || []).filter(r => {
-          if (!pfOk(r, "ans")) return false;
-          if (q && ![r.name, r.email, r.foreman, r.state, r.change_text, r.issue_text].some(v => String(v || "").toLowerCase().indexOf(q) >= 0)) return false;
-          return true;
-        });
+      // ---- the side panel: the timeline, the email that went out, the answers, the customer's story ------
+      function closeAct() { ["svyAct", "svyActScrim"].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); }); }
+      if (!window.__SVY_HC) {
+        window.__SVY_HC = 1;
+        window.addEventListener("hashchange", () => { if (!/(^|[#&])page=surveys(&|$)/.test(location.hash)) closeAct(); });
       }
-      function answersView() {
-        let h = periodBar("ans");
-        if (S.ans === null) return h + '<div class="panel">Loading the answers…</div>';
-        if (S.aErr) return h + '<div class="panel">Could not load the answers: ' + esc(S.aErr) + "</div>";
-        const list = ansVisible();
-        const all = S.ans;
-        h += '<p class="svy-note">' + list.length + " of " + all.length + " answer" + (all.length === 1 ? "" : "s") + " shown."
-          // answers to test sends stay out unless switched on: say so, so a test answer never looks lost (11 Nov)
-          + (!S.tests && S.aHidden ? " " + S.aHidden + " answer" + (S.aHidden === 1 ? "" : "s") + " to test sends "
-            + (S.aHidden === 1 ? "is" : "are") + ' hidden. <span class="svy-link" id="svyShowTests">Show test sends</span>' : "")
-          + "</p>";
-        h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
-          + "<th>Answered</th><th>Customer</th><th>Move</th><th>Overall</th><th>Recommend</th><th>Booking · crew · transit</th><th>Worth it</th><th>Flag</th></tr></thead><tbody>"
-          + (list.length ? list.map(r => {
-            const open = S.aOpen === r.id;
-            return '<tr data-open="' + r.id + '" style="cursor:pointer"><td>' + esc(dt(r.submitted_at)) + '<span class="svy-sub">'
-              + esc(r.source === "email" ? "emailed link" + (r.campaign ? " · " + r.campaign : "") : (r.utm_source || "public link")) + (r.test ? " · test" : "") + "</span></td>"
-              + "<td><b>" + esc(r.name || "—") + '</b><span class="svy-sub">' + esc(r.email || "") + "</span></td>"
-              + "<td>" + esc(d10(r.move_date)) + '<span class="svy-sub">' + esc([r.move_type, r.state].filter(Boolean).join(" · ")) + "</span></td>"
-              + "<td><b>" + esc(r.overall) + "</b>/5</td><td>" + esc(r.recommend) + "/5</td>"
-              + "<td>" + [r.booking, r.crew, r.transit].map(v => esc(v)).join(" · ") + "</td><td>" + esc(r.worth || "") + "</td>"
-              + "<td>" + (+r.flagged === 1 ? '<span class="svy-flag svy-bad">' + esc(r.flag_reason || "flagged") + "</span>" : "") + "</td></tr>"
-              + (open ? '<tr><td colspan="8" style="padding:0"><div class="svy-ans">'
-                + ans("Phone", r.phone) + ans("Enjoyed most", [r.enjoyed, r.enjoyed_other].filter(Boolean).join(" — "))
-                + ans("Booking", SCALE5.booking[r.booking - 1]) + ans("Crew on moving day", SCALE5.crew[r.crew - 1])
-                + ans("Kept informed in transit", SCALE5.transit[r.transit - 1]) + ans("Any issues", r.issue || "—")
-                + ans("What happened", r.issue_text) + ans("What they'd change", r.change_text)
-                + ans("Foreman", r.foreman) + ans("Send", r.campaign || r.utm_campaign) + "</div></td></tr>" : "");
-          }).join("") : '<tr><td colspan="8" class="dim">No answers match.</td></tr>')
-          + "</tbody></table></div></div>";
+      function actPanelHtml(x) {
+        const s = x.s, a = x.a;
+        const mt = (a && a.move_type) || "Move";
+        const md = x.move_date ? new Date(String(x.move_date).slice(0, 10) + "T12:00:00Z")
+          .toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }) : "";
+        const people = [x.sales_rep ? "Sales: " + x.sales_rep : "", x.foreman ? "Foreman: " + x.foreman + (x.score != null ? " (" + x.score + "/10)" : "") : ""]
+          .filter(Boolean).join(" · ");
+        let h = '<p class="svy-pm">' + esc([mt + (md ? " on " + md : ""), x.state].filter(Boolean).join(" · "))
+          + (people ? "<br>" + esc(people) : "") + (x.email ? '<br><span class="svy-faint">' + esc(x.email) + "</span>" : "") + "</p>";
+        h += '<p class="svy-ps">Timeline</p><ol class="svy-tline">';
+        if (s) {
+          const at = { sent: s.sent_at || s.created_at, delivered: s.delivered_at, opened: s.opened_at, clicked: s.clicked_at, answered: a && a.submitted_at };
+          const more = { sent: [s.sent_by ? "by " + String(s.sent_by).split("@")[0] : ""],
+                         opened: [s.opens > 1 ? "opened " + s.opens + " times" : ""], clicked: [s.clicks > 1 ? "clicked " + s.clicks + " times" : ""],
+                         answered: [a ? srcOf(a) : ""] };
+          STEPS.forEach(([k, l], i) => {
+            const on = i <= x.reach;
+            const note = at[k] ? dt(at[k]) : on ? "shown by a later step" : k === "opened" && !(S.sends || []).some(z => z.opened_at) ? "opens not tracked yet" : "not yet";
+            h += '<li class="' + (on ? "on" : "") + '"><b>' + l + "</b><span>" + esc([note].concat(on ? (more[k] || []) : []).filter(Boolean).join(" · ")) + "</span></li>";
+          });
+          if (s.bounced_at) h += '<li class="bad"><b>Bounced</b><span>' + esc([dt(s.bounced_at), s.bounce_note].filter(Boolean).join(" · ")) + "</span></li>";
+          if (s.complained_at) h += '<li class="bad"><b>Marked as spam</b><span>' + esc(dt(s.complained_at)) + "</span></li>";
+          if (s.status === "failed") h += '<li class="bad"><b>Failed</b><span>' + esc(s.error || "the send did not go") + "</span></li>";
+        } else {
+          h += '<li class="on"><b>Answered</b><span>' + esc([dt(a.submitted_at), x.source].filter(Boolean).join(" · ")) + "</span></li>";
+        }
+        h += "</ol>";
+        if (s) {
+          const subj = String(S.subject || "").replace(/\{first\}/g, firstOf(x.name)).replace(/\{name\}/g, x.name || "")
+            .replace(/\{move_date\}/g, d10(x.move_date));
+          h += '<p class="svy-ps">The email we sent</p><p class="svy-pe">' + (subj ? "“" + esc(subj) + "” · " : "")
+            + '<span class="svy-link" data-go="email" tabindex="0">See the email</span></p>'
+            + '<p class="svy-tl">The survey email as it reads today; older versions are not kept.</p>';
+        }
+        h += '<p class="svy-ps">Their answers</p>';
+        if (a) {
+          const sc = (k, v) => (SCALE5[k][v - 1] || "—").toLowerCase();
+          h += (x.flagged ? '<p><span class="svy-flag svy-bad">' + esc(a.flag_reason || "flagged") + "</span></p>" : "")
+            + '<div class="svy-pa">'
+            + ans("Overall", (a.overall || "—") + "/5 · would recommend " + (a.recommend || "—") + "/5")
+            + ans("Booking · crew · in transit", "booking " + sc("booking", a.booking) + " · crew " + sc("crew", a.crew) + " · transit " + sc("transit", a.transit))
+            + ans("Worth the price", a.worth) + ans("Enjoyed most", [a.enjoyed, a.enjoyed_other].filter(Boolean).join(" — "))
+            + ans("Any issues", a.issue || "—") + (a.issue_text ? ans("What happened", a.issue_text) : "")
+            + ans("What they'd change", a.change_text) + (a.phone ? ans("Phone", a.phone) : "") + "</div>";
+        } else h += '<p class="svy-tl">No answer yet.</p>';
+        if (x.job_no && can("conversations"))
+          h += '<p style="margin-top:18px"><a class="rs-btn" href="#page=conversations&amp;job=' + encodeURIComponent(x.job_no) + '">Open in Conversations ↗</a></p>';
+        else if (x.job_key && can("customer-lookup"))
+          h += '<p style="margin-top:18px"><a class="rs-btn" href="#page=customer-lookup&amp;jk=' + encodeURIComponent(x.job_key) + '">Open in Customer Lookup ↗</a></p>';
         return h;
+      }
+      function openAct(x) {
+        closeAct();
+        S.actOpen = x.key;
+        const scrim = document.createElement("div"); scrim.className = "rs-fscrim"; scrim.id = "svyActScrim";
+        const p = document.createElement("aside"); p.className = "rs-fpanel svy-panel"; p.id = "svyAct";
+        p.setAttribute("role", "dialog"); p.setAttribute("aria-modal", "true"); p.setAttribute("aria-label", x.name || "Customer");
+        p.innerHTML = '<div class="rs-fp-head"><h2>' + esc(x.name || "—") + '</h2><button type="button" class="rs-fp-x" aria-label="Close">&times;</button></div>'
+          + '<div class="rs-fp-body">' + actPanelHtml(x) + "</div>";
+        document.body.appendChild(scrim); document.body.appendChild(p);
+        const close = () => { S.actOpen = null; closeAct(); host.querySelectorAll("tr.svy-on").forEach(t => t.classList.remove("svy-on")); };
+        scrim.onclick = close;
+        p.querySelector(".rs-fp-x").onclick = close;
+        p.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+        p.querySelectorAll("[data-go]").forEach(b => { b.onclick = () => { close(); go(b.dataset.go); }; });
+        p.querySelector(".rs-fp-x").focus();
       }
       const ans = (k, v) => "<div><b>" + esc(k) + "</b>" + esc(v == null || v === "" ? "—" : v) + "</div>";
 
@@ -542,7 +665,7 @@
         off: "Switched off by hand, with who did it and when. Put them back any time before the send.",
         rule: "Tako's rule leaves these out (the rating, a complaint, a final bill " + RISE_P + "% or more over the estimate, or a move into storage). Add one by hand to ask them anyway.",
         cant: "These can never get it, whatever anyone picks: long distance, no email, unsubscribed, or under 14 days since the move.",
-        sent: "One survey per move: these already got theirs. Each send's results are on the Sends tab.",
+        sent: "One survey per move: these already got theirs. Each one's timeline and answer are on the Activity tab.",
       };
       function afFields(rows) {
         return AF.map(k => {
@@ -801,7 +924,8 @@
       }
 
       // ---- paint + wire ------------------------------------------------------------------------
-      const TABS = [["over", "Overview"], ["list", "Audience"], ["sends", "Sends"], ["ans", "Responses"], ["email", "Email"]];
+      // ZP-11 (18 Nov): Sends and Responses became the one Activity tab
+      const TABS = [["over", "Overview"], ["list", "Audience"], ["act", "Activity"], ["email", "Email"]];
       // THE PAGE STANDARD (ZTZ-80): the kit head (the page had no title of its own), the explanations in
       // "How it's counted", and the five views as the kit's underline tabs (same data-tab, same go()).
       // "Who gets it" reads the Audience's own tab notes, so the left-out wording stays in one place.
@@ -813,11 +937,15 @@
         + "<h3>When the list updates</h3><p>Moves, ratings, complaints and emails update every hour. Sends, switch-offs and answers show at once.</p>"
         + "<h3>Test sends</h3><p>Test sends (to you or a company inbox) stay out of every count unless switched on in Filters. "
         + "A test carries a real personal link: open the survey and answer it like a customer.</p>"
+        + "<h3>Activity</h3><p>One row per customer, latest activity first. A later step proves the earlier ones: a click on "
+        + "the link means the email was delivered and opened even when those were not seen. Not opened = no open seen; opens "
+        + "are seen only since open tracking was switched on. Issue or low mark = they reported an issue, gave 3 or less "
+        + "overall or for recommending, 2 or less for booking, crew or transit, or said it was not worth the price.</p>"
         + "<h3>By foreman</h3><p>Answers from personal links carry the move's foreman. Few answers swing an average, so read the count too.</p>";
       function paint() {
         if (!alive()) return;
-        const v = S.tab === "over" ? overView() : S.tab === "list" ? listView() : S.tab === "sends" ? sendsView()
-          : S.tab === "ans" ? answersView() : emailView();
+        if (S.tab !== "act") closeAct();
+        const v = S.tab === "over" ? overView() : S.tab === "list" ? listView() : S.tab === "act" ? activityView() : emailView();
         // the survey is automation #1 on Email Automations (10 Nov, ZTZ-60) and opens from its card there
         host.innerHTML = '<div class="svy"><a class="svy-link svy-back" href="#page=email-automations">&larr; Email Automations</a>'
           + RSC.pageHeadHtml({ title: "Customer Survey", key: "surveys",
@@ -826,8 +954,9 @@
         wire();
       }
       function go(tab) {
+        if (tab === "sends" || tab === "ans") tab = "act";          // a tab left open before ZP-11
         S.tab = tab; say("");
-        if ((tab === "over" || tab === "sends" || tab === "ans") && (S.sends === null || S.ans === null)) loadPeriod();
+        if ((tab === "over" || tab === "act") && (S.sends === null || S.ans === null)) loadPeriod();
         else if (tab === "list" && (S.rows === null || S.err)) loadList();
         else if (tab === "email" && !S.design) loadTemplate();
         else paint();
@@ -839,12 +968,23 @@
         host.querySelectorAll("[data-retry]").forEach(b => { b.onclick = () => {
           if (b.dataset.retry === "list") loadList(); else { S.tplErr = ""; paint(); loadTemplate(); } }; });
         // the shared period (overview, sends, responses)
-        if (S.tab === "over" || S.tab === "sends" || S.tab === "ans") mountPeriodBar();
-        host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.aOpen = +b.dataset.openans; ["flag", "source", "overall"].forEach(k => { S.pf[k] = new Set(); }); S.aQ = ""; go("ans"); }; });
+        if (S.tab === "over" || S.tab === "act") mountPeriodBar();
+        host.querySelectorAll("[data-openans]").forEach(b => { b.onclick = () => { S.openAns = +b.dataset.openans; go("act"); }; });
         // sends
         host.querySelectorAll("[data-spg]").forEach(b => { b.onclick = () => { S.sPage += +b.dataset.spg; paint(); }; });
-        // responses
-        host.querySelectorAll("[data-open]").forEach(tr => { tr.onclick = () => { const id = +tr.dataset.open; S.aOpen = S.aOpen === id ? null : id; paint(); }; });
+        // activity: the chips, a row opens the side panel (a click, Enter or Space)
+        host.querySelectorAll("[data-chip]").forEach(b => { b.onclick = () => { S.chip = b.dataset.chip; S.sPage = 0; paint(); }; });
+        if (S.tab === "act") {
+          const rows = actRows(), byKey = {}; rows.forEach(x => { byKey[x.key] = x; });
+          host.querySelectorAll("[data-act]").forEach(tr => {
+            const x = byKey[tr.dataset.act];
+            const open = () => { if (!x) return; host.querySelectorAll("tr.svy-on").forEach(t => t.classList.remove("svy-on")); tr.classList.add("svy-on"); openAct(x); };
+            tr.onclick = open;
+            tr.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+          });
+          if (S.actOpen && !document.getElementById("svyAct") && byKey[S.actOpen]) openAct(byKey[S.actOpen]);
+          else if (S.actOpen && !byKey[S.actOpen]) { S.actOpen = null; closeAct(); }
+        }
         const st = host.querySelector("#svyShowTests"); if (st) st.onclick = () => { S.tests = true; loadPeriod(); };
         // audience
         if (S.tab === "list") mountAudienceBar();
@@ -875,26 +1015,41 @@
         if (S.tab === "email") mountDesigner();
       }
 
-      function csv(which) {
-        const rs = which === "sends" ? sendsVisible() : ansVisible();
-        const cols = which === "sends"
-          ? ["customer", "email", "move_date", "state", "foreman", "score", "campaign", "sent_at", "sent_by", "state_now", "delivered_at",
-             "opened_at", "opens", "clicked_at", "clicks", "bounced_at", "bounce_note", "answered_at", "overall", "recommend", "flag_reason", "error"]
-          : ["submitted_at", "source", "campaign", "name", "email", "phone", "move_date", "move_type", "state", "foreman", "enjoyed", "enjoyed_other",
-             "booking", "crew", "transit", "worth", "issue", "issue_text", "overall", "recommend", "change_text", "flag_reason", "utm_source",
-             "utm_medium", "utm_campaign"];
+      // one row per customer, the send and its answer side by side (ZP-11)
+      function csv() {
+        const rs = actVisible().filter(x => chipOk(x, S.chip)).map(x => Object.assign({}, x.s || {}, x.a ? {
+          answered_at: x.a.submitted_at, source: x.source, overall: x.a.overall, recommend: x.a.recommend, booking: x.a.booking,
+          crew: x.a.crew, transit: x.a.transit, worth: x.a.worth, enjoyed: [x.a.enjoyed, x.a.enjoyed_other].filter(Boolean).join(" — "),
+          issue: x.a.issue, issue_text: x.a.issue_text, change_text: x.a.change_text, flag_reason: x.a.flag_reason } : {},
+          { customer: x.name, email: x.email, move_date: x.move_date, state: x.state, foreman: x.foreman, sales_rep: x.sales_rep,
+            job_no: x.job_no, campaign: x.campaign, how_far: x.s ? (STATE[x.s.state_now] || [x.s.state_now])[0] : x.source }));
+        const cols = ["customer", "email", "move_date", "state", "foreman", "score", "sales_rep", "job_no", "campaign", "sent_at", "sent_by",
+          "how_far", "delivered_at", "opened_at", "opens", "clicked_at", "bounced_at", "bounce_note", "answered_at", "source", "overall",
+          "recommend", "booking", "crew", "transit", "worth", "enjoyed", "issue", "issue_text", "change_text", "flag_reason", "error"];
         const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s; return '"' + s.replace(/"/g, '""') + '"'; };
         const lines = [cols.join(",")].concat(rs.map(r => cols.map(c => cell(r[c])).join(",")));
-        const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+        const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "customer-survey-" + (which === "sends" ? "sends" : "answers") + "-" + iso(new Date()) + ".csv";
+        a.download = "customer-survey-activity-" + iso(new Date()) + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
 
       // Email Automations' survey card opens a tab directly ("Review and send" = Audience, "Edit the email")
       if (window.__SVY_OPEN_TAB) { S.tab = window.__SVY_OPEN_TAB; window.__SVY_OPEN_TAB = null; }
+      // A CUSTOMER'S STORY LINKS HERE (ZP-11): "#page=surveys&ans=<answer id>&from=<sent date>" opens that answer's
+      // side panel; the period reaches back to the send so its row is in the list. The two words leave the address.
+      const hm = location.hash.match(/[?&]ans=(\d+)/);
+      if (hm) {
+        const fm = location.hash.match(/[?&]from=(\d{4}-\d\d-\d\d)/);
+        S.tab = "act"; S.openAns = +hm[1]; S.chip = "all";
+        if (fm && fm[1] < S.plo) { S.plo = fm[1]; S.sends = null; S.ans = null; }
+        try { history.replaceState(null, "", "#" + location.hash.slice(1).replace(/[?&](ans|from)=[^&]*/g, "")); } catch (e) { /* keep the hash */ }
+      }
       go(S.tab);
-      if (S.tab !== "email") api("/api/_surveyadmin?view=template").then(j => { S.resend = !!j.resend; S.tracking = !!j.tracking || S.tracking; }).catch(() => {});
+      if (S.tab !== "email") api("/api/_surveyadmin?view=template").then(j => {
+        S.resend = !!j.resend; S.tracking = !!j.tracking || S.tracking; S.subject = subjectOf(j.template);
+        if (S.actOpen && document.getElementById("svyAct") && alive()) paint();
+      }).catch(() => {});
     },
   });
 })();

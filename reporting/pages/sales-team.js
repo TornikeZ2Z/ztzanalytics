@@ -1095,6 +1095,8 @@
 
     const items = cvEv.map((e, i) => ({ at: String(e["Event At"] || ""), e: e, i: i }))
       .concat(milestones.map(m => ({ at: String(m["Event At"] || ""), ms: m })))
+      // ZP-11: the survey and review emails, one line each in Conversations' words (CONV.emailLine)
+      .concat((d.emails || []).filter(x => x && x.at).map(x => ({ at: String(x.at), em: x })))
       .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 
     let lastDay = "";
@@ -1102,6 +1104,11 @@
       const day = it.at.slice(0, 10), tm = it.at.slice(11, 16);
       let sep = "";
       if (day !== lastDay) { lastDay = day; sep = `<div class="st-sday">${esc(day)}</div>`; }
+      if (it.em) {
+        return sep + `<div class="st-srow ms">
+          <div class="tm">${esc(tm)}</div><div class="ic">@</div>
+          <div class="tx">${window.CONV && CONV.emailLine ? CONV.emailLine(it.em) : `<b>${esc(it.em.what || "Email")}</b>`}</div></div>`;
+      }
       if (it.ms) {
         const m = it.ms;
         return sep + `<div class="st-srow ms">

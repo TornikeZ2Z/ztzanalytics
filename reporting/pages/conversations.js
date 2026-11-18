@@ -104,6 +104,13 @@ const CONV = (() => {
     .cnv-tbtn .n{color:var(--warn);font-weight:600}
     .cnv-empty{color:var(--muted);text-align:center;padding:70px 20px;font-size:14px}
     .cnv-x{align-self:center;width:min(760px,86%);opacity:.95}
+    /* ZP-11: an email in the thread -- a quiet centred line, like the lead file's milestones */
+    .cnv-email{display:flex;gap:8px;align-items:baseline;justify-content:center;font-size:12.5px;color:var(--muted);
+      padding:6px 10px;border:1px dashed var(--line);border-radius:10px;background:var(--panel)}
+    .cnv-email b{color:var(--ink);font-weight:650}
+    .cnv-eico{font-weight:800;color:var(--blue)}
+    .cnv-ebad{color:var(--red,#b91c1c);font-weight:600}
+    .cnv-elink{color:var(--brand);font-weight:600;text-decoration:underline}
     .cnv-day{align-self:center;font-size:12px;color:var(--muted);background:var(--bg);
       border:1px solid var(--line);border-radius:999px;padding:2px 12px}
 
@@ -332,6 +339,33 @@ const CONV = (() => {
     return `<div class="cnv-tr">${extra}${rows || `<div class="cnv-empty" style="padding:14px">No speech captured.</div>`}</div>`;
   }
 
+  /* THE EMAILS IN THE STORY (ZP-11, 18 Nov 2026): the survey and the review request, from the bridge's
+     customer_emails.events (New York wall time, like the calls). One line each, shared by this page, Customer
+     Lookup and the Sales lead file, so the three stories say the same thing. "see the answers" opens the answer on
+     the Customer Survey page, for people who hold that page. */
+  const STEP_WORD = { delivered: "delivered", opened: "opened", clicked: "clicked the link", bounced: "bounced",
+                      complained: "marked as spam", unsubscribed: "unsubscribed" };
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const shortDay = v => { const d = dOf(v); return d ? MON[+d.slice(5, 7) - 1] + " " + +d.slice(8, 10) : ""; };
+  function emailLine(x) {
+    if (x.kind === "answer") {
+      const link = x.response_id && typeof window.canSee === "function" && window.canSee("surveys")
+        ? ` · <a class="cnv-elink" href="#page=surveys&amp;ans=${encodeURIComponent(x.response_id)}&amp;from=${encodeURIComponent(x.sent_on || "")}">see the answers</a>` : "";
+      return `<b>Survey answered</b>${x.overall ? ` · ${esc(x.overall)}/5 overall` : ""}${
+        x.flagged ? ` · <span class="cnv-ebad">${esc(x.flag_reason || "flagged")}</span>` : ""}${link}`;
+    }
+    const day = dOf(x.at);
+    const steps = (x.steps || []).map(([k, at]) => {
+      const w = k === "opened" && x.opens > 1 ? "opened " + x.opens + " times" : (STEP_WORD[k] || k);
+      const bad = k === "bounced" || k === "complained" || k === "unsubscribed";
+      const t = esc(w) + (at && dOf(at) !== day ? " " + esc(shortDay(at)) : "");
+      return bad ? `<span class="cnv-ebad">${t}</span>` : t;
+    }).join(" · ");
+    return `<b>${esc(x.what || "Email")}</b> ${x.status === "failed" ? '<span class="cnv-ebad">failed to send</span>' : "sent"}${steps ? " · " + steps : ""}`;
+  }
+  const emailExtras = list => (list || []).filter(x => x && x.at).map(x => ({ at: String(x.at),
+    html: `<div class="cnv-email"><span class="cnv-eico" aria-hidden="true">@</span><span>${esc(tOf(x.at))} · ${emailLine(x)}</span></div>` }));
+
   /* The thread renderer, shared. The Sales Person Analysis drawer mounts the SAME
      markup (CONV.mountThread) so a conversation looks and behaves identically
      wherever it is read — one renderer, not two that drift apart. */
@@ -429,8 +463,9 @@ const CONV = (() => {
     if (!S.thread) { box.innerHTML = `<div class="rs-loading" style="padding:40px">Loading the conversation…</div>`; return; }
     if (S.thread.error) { box.innerHTML = `<div class="cnv-empty">${esc(S.thread.error)}</div>`; return; }
     const ev = S.thread.events || [];
-    if (!ev.length) { box.innerHTML = `<div class="cnv-empty">No calls or texts recorded for this lead.</div>`; return; }
-    const h = ev[0];
+    const em = emailExtras(S.thread.emails);          // ZP-11: the survey and review emails join the thread
+    if (!ev.length && !em.length) { box.innerHTML = `<div class="cnv-empty">No calls or texts recorded for this lead.</div>`; return; }
+    const h = ev[0] || {};
     const nTr = ev.filter(e => e["Has Transcript"]).length;
     box.innerHTML = `
       <div class="cnv-lead">
@@ -438,7 +473,7 @@ const CONV = (() => {
         <div class="meta">${esc(S.job)} · ${esc(h["Phone Norm"] || "")}</div>
         <div class="meta">${esc(h["Status"] || "")}${h["Assigned"] ? " · " + esc(h["Assigned"]) : ""}${
           h["Source"] ? " · " + esc(h["Source"]) : ""}</div>
-        <div class="meta" style="margin-left:auto">${ev.length} events · ${nTr} transcribed</div>
+        <div class="meta" style="margin-left:auto">${ev.length} events · ${nTr} transcribed${em.length ? " · " + em.length + " email" + (em.length === 1 ? "" : "s") : ""}</div>
         <div class="cnv-find">
           <input id="cnvKw" class="rs-inp" type="search" autocomplete="off"
             placeholder="Find a word in this conversation…" value="${esc(S.kw)}">
@@ -462,7 +497,7 @@ const CONV = (() => {
     fx.ontoggle = () => { S.factsOpen = fx.open; if (fx.open) loadFacts(); };
     if (fx.open) loadFacts();
     const trs = S.thread.transcripts || {};
-    const ctl = mountThread(box.querySelector("#cnvThread"), ev, trs, h["Customer"]);
+    const ctl = mountThread(box.querySelector("#cnvThread"), ev, trs, h["Customer"], em);
     const kwEl = box.querySelector("#cnvKw"), nEl = box.querySelector("#cnvKwN");
 
     // THE COUNT COMES FROM THE DATA, NOT THE PAGE. Transcripts render only when opened,
@@ -486,7 +521,7 @@ const CONV = (() => {
     if (S.kw) apply();
   }
 
-  return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, transcriptHtml, S };
+  return { injectStyle, search, openLead, paintSide, paintMain, mountThread, threadHtml, transcriptHtml, emailLine, emailExtras, S };
 })();
 
 /* EXPLICIT export. `const CONV` at the top level of a classic script lives in the
@@ -526,6 +561,16 @@ registerPage({
     q.onkeydown = e => { if (e.key === "Enter") go(); };
     CONV.paintSide(host);
     CONV.paintMain(host);
+    // A LINK NAMES A LEAD (ZP-11: the Customer Survey's "Open in Conversations"): "&job=<Job No>" finds it and opens
+    // its conversation; the word then leaves the address so a reload does not reopen it
+    const jm = location.hash.match(/[?&]job=([^&]+)/);
+    if (jm) {
+      const job = decodeURIComponent(jm[1]);
+      try { history.replaceState(null, "", "#" + location.hash.slice(1).replace(/[?&]job=[^&]*/, "")); } catch (e) { /* keep it */ }
+      q.value = CONV.S.q = job;
+      CONV.search(host);
+      CONV.openLead(host, job);
+    }
     requestAnimationFrame(() => RSC.fit());
   },
 });
