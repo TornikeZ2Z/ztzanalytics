@@ -90,7 +90,7 @@
   var S = {
     fam: null, camp: "", co: "Zip to Zip", from: null, to: null, cmp: "ly",
     states: new Set(), mts: new Set(), sizes: new Set(), reps: new Set(), by: "month",
-    list: { page: 0, per: 50, q: "", cat: "" },
+    list: { page: 0, per: 50, q: "", cat: "", out: "", rep: null },   // out + rep: ZTZ-124, a click on a rep
     cols: null, bootDone: false,
   };
   /* THE FILTERS PANEL (his ask 2026-10-15: "apply it to montlhy report and other reports too"):
@@ -141,7 +141,7 @@
   function isDead(r) { return r["Status Category"] === "Bad Lead"; }
   /* ZP-8: the outcome group on top of the rep's Flag (MoveBoard's disposition) */
   var OUTCOME_INVALID = /out of service area|duplicate|copy lead|invalid phone|invalid email|wrong number|truck rental|low quality|not moving|change of plans|spam|test lead/i;
-  var OUTCOME_LOST = /booked with others|exceeded their budget|over budget|too expensive|not interested|small job|rate was given|no respond|no response|left a voicemail|mailbox is full/i;
+  var OUTCOME_LOST = /booked with others|already hired a mover|exceeded their budget|over budget|too expensive|not interested|small job|rate was given|no respond|no response|left a voicemail|mailbox is full/i;
   var OUTCOME_OPEN_STATUS = /^(not confirmed|pending|date pending|to call back)$/i;
   var OUTCOME_ORDER = ["Booked", "Lost", "Invalid", "Still open", "No reason recorded"];
   function outcomeOf(r) {
@@ -151,6 +151,31 @@
     if (OUTCOME_LOST.test(f)) return "Lost";
     if (r["Status Category"] === "Incoming Lead" && OUTCOME_OPEN_STATUS.test(String(r.Status || "").trim())) return "Still open";
     return "No reason recorded";
+  }
+  /* ZTZ-124 (18 Nov 2026, his "Yes, add it"): who leaves leads without a reason. Per rep, the period's leads whose
+     outcome is "No reason recorded", their share of that rep's OWN leads in the slice, and the rep's last flags on
+     them -- the working step the lead stopped at (Read Note, Follow up 1...). Most-first. */
+  var NO_REP = "(no rep)";
+  function repOf(r) { return String(r.Rep || "").trim() || NO_REP; }
+  function repName(k) { return k === NO_REP ? "No rep assigned" : k; }
+  function noReasonByRep(created) {
+    var by = {};
+    created.forEach(function (r) {
+      var k = repOf(r), x = by[k] || (by[k] = { rep: k, n: 0, all: 0, flags: {} });
+      x.all++;
+      if (outcomeOf(r) !== "No reason recorded") return;
+      x.n++;
+      var f = String(r.Flag || "").trim() || "(no flag)";
+      x.flags[f] = (x.flags[f] || 0) + 1;
+    });
+    return Object.keys(by).map(function (k) { return by[k]; }).filter(function (x) { return x.n; })
+      .map(function (x) {
+        x.share = x.n / x.all;
+        x.top = Object.keys(x.flags).map(function (f) { return [f, x.flags[f]]; })
+          .sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0); });
+        return x;
+      })
+      .sort(function (a, b) { return b.n - a.n || b.share - a.share || (a.rep < b.rep ? -1 : a.rep > b.rep ? 1 : 0); });
   }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -243,6 +268,8 @@
       + ".sra .sra-cols .sra-reset{margin-top:8px;width:100%}"
       + ".sra .sra-save{font-size:12px;color:var(--faint)}"
       + ".sra .sra-empty{padding:26px 14px;text-align:center;color:var(--faint);font-size:13px}"
+      + ".sra tr.sra-nrr{cursor:pointer}"
+      + ".sra td.sra-nrf{color:var(--muted);font-size:12.5px;min-width:180px}"
       + ".sra tr.sra-og td{border-top:1px solid var(--line)}.sra td.sra-ofl{padding-left:22px;color:var(--muted)}"
       + "@media(max-width:700px){.sra .sra-rr{grid-template-columns:52px minmax(0,1fr) 96px}}";
     document.head.appendChild(st);
@@ -724,12 +751,16 @@
       + "<h3>What happened to the leads</h3><p>Every lead created in the period is in one outcome group, put on top of "
       + "the rep's disposition (Flag) in MoveBoard: <b>Booked</b> (confirmed); <b>Invalid</b>, a lead that could not be "
       + "worked (out of service area, not moving, low quality, wrong phone or email, duplicate, truck rental); <b>Lost</b>, "
-      + "a workable lead that went elsewhere or did not buy (booked with others, over budget, not interested or a small "
+      + "a workable lead that went elsewhere or did not buy (booked with others or already hired a mover, over budget, not interested or a small "
       + "job, a rate given and no answer, no reply after follow-ups, voicemail); <b>Still open</b> (not confirmed yet, "
       + "pending, to call back); and <b>No reason recorded</b>, a lead closed with only a follow-up note or a flag that "
       + "says no outcome (Read Note, Quote in Process). A lead that simply expired with \"Booked with others\" counts "
       + "as lost here, though MoveBoard never marked it dead. The table lists the flags under each group; the same "
       + "groups are a row choice under Analyze by.</p>"
+      + "<h3>No reason recorded, by rep</h3><p>The leads in <b>No reason recorded</b>, per rep (the lead's Assigned rep "
+      + "in MoveBoard), with their share of that rep's own leads in the same slice and the rep's last flags on them: "
+      + "the working step the lead stopped at. It follows every filter, the Rep filter too. A click on a rep lists "
+      + "those leads under <b>Leads</b>, where each row opens the lead file; the chip there shows every lead again.</p>"
       + "<h3>Revenue per $1</h3><p>Revenue per $1 of ads, by the state the money was placed in: the same shared "
       + 'calculation as <a href="#page=marketing-roi">Return on Investment</a>, where the spend and its drills live. It '
       + "follows Source, Company and Period only. The Filters panel's state, size, rep and move type do not reach it, "
@@ -988,6 +1019,61 @@
             }).join("") + "</tbody></table>";
       },
     });
+    // ZTZ-124: who leaves them without a reason -- a click on a rep lists those leads in Leads below
+    var nr = noReasonByRep(created);
+    var nrAll = nr.reduce(function (a, x) { return a + x.n; }, 0);
+    var nrTop = nr.slice(0, 12);
+    var flagsTxt = function (x, k) {
+      return x.top.slice(0, k).map(function (f) { return f[0] + " (" + fmtN(f[1]) + ")"; }).join(" · ");
+    };
+    var nrCard = RSC.chartCard(grid, {
+      title: "No reason recorded, by rep" + mtName + " · " + fmtN(nrAll) + " of " + fmtN(created.length) + " leads",
+      key: "sra-noreason",
+      buildChart: function (canvas) {
+        var C = palette();
+        return new Chart(canvas, {
+          type: "bar",
+          data: { labels: nrTop.map(function (x) { return repName(x.rep); }),
+                  datasets: [{ label: "No reason recorded", data: nrTop.map(function (x) { return x.n; }), backgroundColor: C.muted }] },
+          options: { indexAxis: "y", responsive: true, maintainAspectRatio: false,
+                     onClick: function (e, els) { if (els && els.length) showNoReason(host, nrTop[els[0].index].rep); },
+                     onHover: function (e, els) { var t = e.native && e.native.target; if (t) t.style.cursor = els && els.length ? "pointer" : ""; },
+                     plugins: { legend: { display: false },
+                                tooltip: { callbacks: {
+                                  label: function (ctx) {
+                                    var x = nrTop[ctx.dataIndex];
+                                    return fmtN(x.n) + " with no reason · " + pct1(x.share) + " of their " + fmtN(x.all) + " leads";
+                                  },
+                                  afterLabel: function (ctx) { return "Last flags: " + flagsTxt(nrTop[ctx.dataIndex], 3); },
+                                  footer: function () { return "Click to list these leads"; } } } },
+                     scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } },
+        });
+      },
+      buildTable: function () {
+        if (!nr.length) return '<div class="sra-empty">Every lead in this period has an outcome.</div>';
+        return '<table class="rs-table"><thead><tr><th>Rep</th><th class="num">No reason</th>'
+          + '<th class="num">Of their leads</th><th>Their last flags on these leads</th></tr></thead><tbody>'
+          + nr.map(function (x) {
+              return '<tr class="sra-nrr" data-nrrep="' + esc(x.rep) + '" title="List these leads under Leads">'
+                + "<td><b>" + esc(repName(x.rep)) + '</b></td><td class="num">' + fmtN(x.n) + '</td><td class="num">'
+                + pct1(x.share) + ' <span class="sra-thin">of ' + fmtN(x.all) + "</span></td>"
+                + '<td class="sra-nrf">' + esc(flagsTxt(x, 3))
+                + (x.top.length > 3 ? ' <span class="sra-thin">+ ' + fmtN(x.top.length - 3) + " more</span>" : "") + "</td></tr>";
+            }).join("") + "</tbody></table>";
+      },
+    });
+    nrCard.card.addEventListener("click", function (e) {
+      var t = e.target.closest && e.target.closest("[data-nrrep]");
+      if (t) showNoReason(host, t.getAttribute("data-nrrep"));
+    });
+  }
+
+  /* a rep's no-reason leads in the Leads list below (the list's rows open the lead file) */
+  function showNoReason(host, rep) {
+    S.list.out = "No reason recorded"; S.list.rep = rep; S.list.cat = ""; S.list.page = 0;
+    paintList(host, CUR.w, CUR.leadsSt);   // the slice the page was last painted with
+    var el = host.querySelector("#sraList");
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   /* `timeline`: months get a rate LINE; states and bands get rate MARKERS only -- a line
@@ -1133,6 +1219,7 @@
                                 : { h: '<span class="sra-thin">not quoted</span>', t: "not quoted" }; } },
     { k: "rep", label: "Rep", def: true, cls: "nowrap", get: function (r) { return txt(r.Rep); } },
     { k: "reason", label: "Reason (Flag)", def: true, get: function (r) { return txt(r.Flag); } },
+    { k: "outcome", label: "Outcome", cls: "nowrap", get: function (r) { return txt(outcomeOf(r)); } },
     // offered through "Add columns"
     { k: "size", label: "Size of move", cls: "nowrap", get: function (r) { return txt(r["Size of Move"]); } },
     { k: "booked", label: "Booked date", cls: "nowrap", get: function (r) { return txt(r._bd || null); } },
@@ -1248,6 +1335,8 @@
   function listRows(w, leadsSt) {
     var rows = sliceMt(leadsSt).filter(function (r) { return inR(r._cd, w.a, w.bEff); });
     if (S.list.cat) rows = rows.filter(function (r) { return r["Status Category"] === S.list.cat; });
+    if (S.list.out) rows = rows.filter(function (r) { return outcomeOf(r) === S.list.out; });
+    if (S.list.rep != null) rows = rows.filter(function (r) { return repOf(r) === S.list.rep; });
     // newest first: by the counted date, then the Moveboard number (numeric -- "99999" must not
     // sort above "114516" as a string would)
     var no = function (r) { return +String(r["Request Joinkey"] || "").split(" ").pop() || 0; };
@@ -1284,6 +1373,9 @@
       + '<div class="rs-fld"><span>Status</span><div class="rs-seg" id="sraCat">'
       + catBtn("", "All") + catBtn("Incoming Lead", "Open") + catBtn("Confirmed", "Confirmed") + catBtn("Bad Lead", "Dead")
       + "</div></div>"
+      + (S.list.out || S.list.rep != null
+          ? '<span class="rs-chip" id="sraNr">' + esc([S.list.out, S.list.rep != null ? repName(S.list.rep) : ""].filter(Boolean).join(" · "))
+            + ' <button type="button" title="Show every lead again" aria-label="Clear">✕</button></span>' : "")
       + '<label class="rs-fld"><span>Find</span><input class="rs-inp" id="sraQ" placeholder="Name, phone, email, request #…" value="'
       + esc(S.list.q) + '"></label>'
       + '<span class="rs-spacer"></span>'
@@ -1336,6 +1428,8 @@
         };
       });
     }
+    var nrc = el.querySelector("#sraNr button");
+    if (nrc) nrc.onclick = function () { S.list.out = ""; S.list.rep = null; S.list.page = 0; paintList(host, w, leadsSt); };
     el.querySelectorAll("#sraCat button").forEach(function (b) {
       b.onclick = function () { S.list.cat = b.dataset.cat; S.list.page = 0; paintList(host, w, leadsSt); };
     });

@@ -27,7 +27,7 @@
   const sum = (rs, c) => rs.reduce((a, r) => a + (+r[c] || 0), 0);
   /* ZP-8's outcome groups (analytics/pages/source-report.js keeps the same patterns; a test holds them equal) */
   const OUTCOME_INVALID = /out of service area|duplicate|copy lead|invalid phone|invalid email|wrong number|truck rental|low quality|not moving|change of plans|spam|test lead/i;
-  const OUTCOME_LOST = /booked with others|exceeded their budget|over budget|too expensive|not interested|small job|rate was given|no respond|no response|left a voicemail|mailbox is full/i;
+  const OUTCOME_LOST = /booked with others|already hired a mover|exceeded their budget|over budget|too expensive|not interested|small job|rate was given|no respond|no response|left a voicemail|mailbox is full/i;
   const OUTCOME_OPEN_STATUS = /^(not confirmed|pending|date pending|to call back)$/i;
   const OUTCOME_ORDER = ["Booked", "Lost", "Invalid", "Still open", "No reason recorded"];
   const outcomeOf = r => r.cat === "Confirmed" ? "Booked" : OUTCOME_INVALID.test(r.flag || "") ? "Invalid"
