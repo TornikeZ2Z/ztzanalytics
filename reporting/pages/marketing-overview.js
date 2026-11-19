@@ -60,6 +60,9 @@
  *     per campaign, UTC days, and the Company Page (followers, page views, post statistics). The
  *     bank files LinkedIn as not advertising, so the Channels table has no LinkedIn spend; the cost
  *     per booking is the account's spend over LinkedIn's bookings (marked ‡).
+ *     EVERY PAGE POST (ext_linkedin_post, 2026-11-19, ZTZ-02): the Social tab's Company Page section lists
+ *     each post with LinkedIn's numbers to date and a by-format table, and the LinkedIn segment cards
+ *     score them (reach = unique impressions). Ad-only creatives are left out.
  *   * COST PER BOOKING on every platform (2026-10-23, the marketing team), and per Google Ads campaign:
  *     bookings traced by the form's UTM campaign or the campaign's CallRail number
  *     (mart_mkt_campaign_lead), the rest on one "not traced" row; coloured against $600.
@@ -212,6 +215,9 @@
                                                          "Post Reactions", "Post Comments", "Post Shares", "Followers"] },
     // 2026-11-09: who follows the Company Page, one lifetime snapshot per pull day (src/linkedin_ads.py)
     mkt_limix: { table: "ext_linkedin_follower_mix", cols: ["Date", "Dimension", "Key", "Label", "Organic", "Paid"] },
+    // 2026-11-19: every Company Page post with LinkedIn's numbers to date (src/linkedin_ads.py, ZTZ-02)
+    mkt_lipost: { table: "ext_linkedin_post", cols: ["Post Id", "Date", "Format", "Feed", "Text", "Link", "Has Link", "Impressions",
+                                                     "Unique Impressions", "Clicks", "Reactions", "Comments", "Shares"] },
     // 2026-11-09: TikTok organic, @ziptozipmoving (src/tiktok_organic.py), built ahead of TikTok's approval
     mkt_ttacc: { table: "ext_tiktok_account_day", cols: ["Date", "Followers", "Video Views", "Profile Views", "Likes", "Comments", "Shares"] },
     mkt_ttvid: { table: "ext_tiktok_video", cols: ["Video Id", "Published At", "Caption", "Url", "Duration"] },
@@ -316,7 +322,7 @@
   const P = { ads: [], lsaC: [], lsaL: [], meta: [], gpt: [], gsc: [], gscq: [], gsca: [], ahd: [], ahm: [], bl: [],
               ga4: [], ga4ch: [], demo: [], geo: [], conv: [], camp: {}, net: [], netc: [], gptad: [], gptads: {}, audit: null,
               issues: [], rc: [], rg: [], gscp: [], links: [], ga4ev: [], ga4dev: [], ga4lp: [], ga4u: {}, neg: [], marks: [],
-              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], limix: [], tt: [], tto: [], ttvid: {}, ttvday: [], ttsrc: [], ttaud: [], utmc: [], fsrc: [], mform: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
+              gscqd: [], gscpd: [], reddit: [], li: [], lip: [], limix: [], lipost: [], tt: [], tto: [], ttvid: {}, ttvday: [], ttsrc: [], ttaud: [], utmc: [], fsrc: [], mform: [], mpost: [], mpd: [], msoc: [], mad: {}, mlife: {}, refdom: [], anchor: [], ctrace: [], brA: [], brM: [], brC: [],
               ahU: [], ahQ: [],
               smOv: [], smOrg: [], smAs: [], smKw: [], smKwDay: null, smAud: [], smHist: [], smU: [], sm: {},
               first: {}, last: {}, err: {} };
@@ -2538,6 +2544,54 @@
         + "areas and industries above include our own people.</p>" : "")
       + '<p class="rs-hint">Each list counts only the followers LinkedIn could place, so it can add up to less than the total.</p></div>';
   }
+  /* every Company Page post (ZTZ-02, 2026-11-19, Elene's "LinkedIn shows only the surface"): the Page app
+     lists them, the Ads app reads LinkedIn's numbers for each since it went up. Ad-only creatives never
+     showed on the Page, so they are left out here and on the segment cards. LinkedIn answers a post's
+     numbers for about a year after it goes up; past that a row keeps the last numbers read, and a post
+     already older than that on the first pull (19 Nov 2026) has none (known = false). */
+  const liPagePosts = (a, b) => (P.lipost || []).filter(p => !p.adOnly && p.d >= a && p.d <= b);
+  const liRate = p => ratio(p.clk + p.eng, p.imp);
+  const liLine = p => { const t = String(p.text || "").split("\n")[0].trim() || "(no words)"; return t.length > 80 ? t.slice(0, 78) + "…" : t; };
+  const LI_POST_COLS = [
+    { h: "Post", name: true, cell: p => (p.link ? '<a href="' + esc(p.link) + '" target="_blank" rel="noopener">' + esc(liLine(p)) + "</a>" : esc(liLine(p)))
+        + '<div class="mko-sub">' + esc([day(p.d), p.fmt].filter(Boolean).join(" · ")) + (p.known ? "" : " · no numbers from LinkedIn") + "</div>" },
+    { h: "Impr.", num: true, tip: "impressions: times it was shown", cell: p => (p.known ? fmtN(p.imp) : "—") },
+    { h: "Reached", num: true, tip: "unique impressions: members who saw it", cell: p => (p.known ? fmtN(p.uimp) : "—") },
+    { h: "Clicks", num: true, tip: "any click on the post, its link included", cell: p => (p.known ? fmtN(p.clk) : "—") },
+    { h: "Reactions", num: true, cell: p => (p.known ? fmtN(p.react) : "—") },
+    { h: "Comments", num: true, cell: p => (p.known ? fmtN(p.com) : "—") },
+    { h: "Reposts", num: true, cell: p => (p.known ? fmtN(p.sh) : "—") },
+    { h: "Engagement", num: true, tip: "clicks, reactions, comments and reposts ÷ impressions (LinkedIn's own rate)",
+      cell: p => (p.known ? pct2(liRate(p)) : "—") },
+  ];
+  function liPostsHtml(pw) {
+    const panel = (sub, body) => '<div class="panel"><div class="panel-head"><span class="panel-title">Posts</span><span class="mko-sub">'
+      + sub + "</span></div>" + body + "</div>";
+    if (P.err.lipost) return panel("", '<div class="mko-empty">Could not load the posts — ' + esc(P.err.lipost) + "</div>");
+    if (!P.lipost.length) return panel("", '<div class="mko-empty">The posts arrive with the next daily LinkedIn pull.</div>');
+    const all = (P.lipost || []).filter(p => p.d >= pw.a && p.d <= pw.b), posts = all.filter(p => !p.adOnly);
+    const ad = all.length - posts.length, known = posts.filter(p => p.known);
+    if (!posts.length) return panel("", '<div class="mko-empty">No post went up on the Page in this period.</div>');
+    const imp = sum(known, "imp"), avg = (v, n) => (n ? (v / n >= 10 ? fmtN(v / n) : (v / n).toFixed(1)) : "—");
+    const fmts = groupBy(known.filter(p => p.fmt), p => p.fmt).map(x => ({ k: x.k, n: x.rows.length, imp: sum(x.rows, "imp"),
+      uimp: sum(x.rows, "uimp"), clk: sum(x.rows, "clk"), eng: sum(x.rows, "eng") })).sort((a, b) => b.imp / b.n - a.imp / a.n);
+    const byFmt = fmts.length > 1 ? '<h4 class="mkd-h4">By format</h4>' + ptable([
+      { h: "Format", name: true, cell: x => "<b>" + esc(x.k) + "</b>" },
+      { h: "Posts", num: true, cell: x => fmtN(x.n) },
+      { h: "Avg. impr.", num: true, cell: x => avg(x.imp, x.n) },
+      { h: "Avg. reached", num: true, cell: x => avg(x.uimp, x.n) },
+      { h: "Avg. clicks", num: true, cell: x => avg(x.clk, x.n) },
+      { h: "Engagement", num: true, tip: "the format's clicks, reactions, comments and reposts ÷ its impressions",
+        cell: x => pct2(ratio(x.clk + x.eng, x.imp)) },
+    ], fmts, null, true) : "";
+    return panel(fmtN(posts.length) + " published in the period · " + fmtN(imp) + " impressions · each post's numbers to date · newest first",
+      '<div id="mkoLiList"></div>' + byFmt
+      + '<p class="rs-hint">LinkedIn\'s own numbers for each post since it went up, read daily. LinkedIn gives them for about a year after a post '
+      + "goes up; past that a post keeps the last numbers read. A click is any click on the post, its link included."
+      + (ad ? " " + fmtN(ad) + " ad-only post" + (ad === 1 ? "" : "s") + " (shown only as ads, never on the Page) left out." : "")
+      + (posts.length > known.length ? " " + fmtN(posts.length - known.length) + " older post" + (posts.length - known.length === 1 ? " has" : "s have")
+        + " no numbers: LinkedIn no longer gave them when the pull started (19 Nov 2026)." : "") + "</p>");
+  }
   /* the Company Page: followers, page views and what its posts reached, for the same period */
   function linkedinPage(w, cw) {
     const pw = platWin("lip", w, cw);
@@ -2552,7 +2606,7 @@
     const rate = x => (x.imp ? (x.clk + x.eng) / x.imp : null);
     const end = followersAt(pw.b);
     return {
-      html: head + '<div class="rs-kpis" id="mkoK-lip"></div>' + liFollowerMix(pw),
+      html: head + '<div class="rs-kpis" id="mkoK-lip"></div>' + liPostsHtml(pw) + liFollowerMix(pw),
       wire(host) {
         RSC.kpis(host.querySelector("#mkoK-lip"), [
           { label: "Followers", value: end == null ? "—" : fmtN(end),
@@ -2563,7 +2617,11 @@
           kp("Post clicks", cur.clk, prev.clk, fmtN, false, "", pw),
           kp("Engagement rate", rate(cur), cmp ? rate(prev) : undefined, pct2, false,
              "clicks, reactions, comments and shares ÷ impressions", pw),
+          kp("Posts published", liPagePosts(pw.a, pw.b).length, cmp ? liPagePosts(pw.cw.a, pw.cw.b).length : undefined, fmtN, false,
+             "on the Page, ad-only posts left out", pw),
         ]);
+        const list = host.querySelector("#mkoLiList");
+        if (list) pagedTable(list, LI_POST_COLS, liPagePosts(pw.a, pw.b).sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)), 10, true);
       },
     };
   }
@@ -4043,6 +4101,16 @@
   }
   // the channel's posts published in [a, b], each with its organic side and its tags
   function segPosts(net, a, b) {
+    // LinkedIn (2026-11-19): reach = unique impressions; a click is any click on the post, so its CTR is
+    // clicks ÷ impressions; no boosted split (LinkedIn's numbers are the post's own)
+    if (net === "LinkedIn") {
+      return (P.lipost || []).filter(p => !p.adOnly && p.known && p.d >= a && p.d <= b).map(p => {
+        const t = P.tags[net + "|" + p.id] || {};
+        return { id: p.id, net, d: p.d, fmt: p.fmt, text: p.text, link: p.link, boosted: false, reach: p.uimp, eng: p.eng,
+                 views: p.imp, hasLink: p.hasLink, lclk: p.hasLink ? p.clk : null, er: p.uimp > 0 ? p.eng / p.uimp : 0,
+                 ctr: p.hasLink ? (p.imp > 0 ? p.clk / p.imp : 0) : null, seg: t.seg || "", pil: t.pil || "" };
+      });
+    }
     return P.mpost.filter(p => p.net === net && p.d >= a && p.d <= b).map(p => {
       const share = p.paidV > 0 && p.views ? p.orgV / p.views : 1, t = P.tags[net + "|" + p.id] || {};
       const hasLink = net !== "Instagram" && (p.lclk > 0 || /https?:\/\/|www\.|ziptozipmoving\.com/i.test(p.text));
@@ -4181,7 +4249,7 @@
   }
   function segPaint(box, w, cw) {
     const net = SEG_CFG.channels[SG.net] ? SG.net : "Instagram", ch = SEG_CFG.channels[net];
-    const pw = platWin("msoc", w, cw) || { a: w.a, b: w.bEff };
+    const pw = platWin(net === "LinkedIn" ? "lip" : "msoc", w, cw) || { a: w.a, b: w.bEff };
     const role = SEG_CFG.role[net] || {}, prim = SEG_CFG.segments.filter(s => role[s.k] === "P");
     const months = dayCount(pw.a, pw.b) / (365.25 / 12), settled = addDays(today(), -META_SETTLE);
     const tabs = '<div class="mko-topics" id="mkoSegNet">' + Object.keys(SEG_CFG.channels).map(k => '<button type="button" data-net="' + k + '" class="'
@@ -4189,10 +4257,12 @@
     const head = '<div class="mko-ph"><h3>Audience segments</h3><span class="mko-sub">organic posts by the audience each was made for · '
       + esc(day(pw.a)) + " to " + esc(day(pw.b)) + "</span></div>" + tabs;
     const foot = '<p class="rs-hint">Platforms do not report reach by our segments: a post\'s segment is the audience it was made for, set by our tag. '
+      + (net === "LinkedIn" ? "On LinkedIn a post's reach is its unique impressions, and a click is any click on the post, so its CTR is clicks ÷ impressions; "
+        + "ad-only posts are left out. " : "")
       + "Targets, the segment map, the post mix and the score weights are Elene's brief (Nov 2026).</p>";
     const fol = net === "LinkedIn" ? followersAt(pw.b)
       : ((P.msoc || []).filter(r => r.net === net && r.fol != null && r.d <= pw.b).reduce((a, r) => (!a || r.d > a.d ? r : a), null) || {}).fol;
-    const sc = net === "LinkedIn" ? { posts: [], med: null } : segScored(net, pw.a, pw.b);
+    const sc = segScored(net, pw.a, pw.b);
     const reachSum = sum(sc.posts, "reach"), target = ch.monthReach * months;
     const hdr = '<div class="mkd-segh">'
       + '<div class="mkd-sk"><span>Followers</span><b>' + fmtN(fol == null ? ch.followers : fol) + "</b><em>"
@@ -4200,17 +4270,10 @@
       + '<div class="mkd-sk"><span>Target a post</span><b>' + fmtN(ch.reachPost) + " reach</b><em>" + ch.intPost + " interactions (" + esc(ch.ints) + ")</em></div>"
       + '<div class="mkd-sk"' + (ch.tip ? ' title="' + esc(ch.tip) + '"' : "") + "><span>Engagement benchmark</span><b>" + pct2(ch.er) + "</b><em>interactions ÷ reach"
         + (ch.tip ? " · why ⓘ" : "") + "</em></div>"
-      + '<div class="mkd-sk ' + segBand(net === "LinkedIn" ? null : reachSum / target) + '"><span>Cumulative post reach</span><b>' + (net === "LinkedIn" ? "—" : fmtN(reachSum))
+      + '<div class="mkd-sk ' + segBand(reachSum / target) + '"><span>Cumulative post reach</span><b>' + fmtN(reachSum)
         + "</b><em>target " + fmtN(target) + " for the period</em>"
-        + (net === "LinkedIn" ? "" : '<div class="mkd-pbar"><i style="width:' + Math.min(100, Math.round(100 * reachSum / (target || 1))) + '%"></i></div>') + "</div>"
+        + '<div class="mkd-pbar"><i style="width:' + Math.min(100, Math.round(100 * reachSum / (target || 1))) + '%"></i></div></div>'
       + '</div><p class="mkd-why">' + esc(ch.why) + "</p>";
-    if (net === "LinkedIn") {
-      box.innerHTML = head + hdr + '<div class="mko-empty">LinkedIn per-post numbers are not on file yet: they arrive once the LinkedIn Page app\'s '
-        + "per-post statistics are signed in (Tornike, once). The targets, the segments and the planned mix (" + prim.map(s => s.name + " "
-        + SEG_CFG.mix.LinkedIn[s.k]).join(" · ") + ") are ready.</div>" + foot;
-      wireNet();
-      return;
-    }
     const tagErr = P.err.tags ? '<p class="rs-hint">Tags could not be read: ' + esc(P.err.tags) + "</p>" : "";
     const bySeg = k => sc.posts.filter(p => p.seg === k);
     const cards = prim.map(s => segCard(net, s, bySeg(s.k), ((SEG_CFG.mix[net] || {})[s.k] || 0) * months, settled, sc.med)).join("");
@@ -6603,7 +6666,7 @@
         plat("mkt_smaud", "smaud"), plat("mkt_smhist", "smhist"), plat("mkt_smuse", "smuse"),
         plat("mkt_li", "li"), plat("mkt_lipage", "lip"), plat("mkt_tt", "tt"),
         plat("mkt_mpost", "mpost"), plat("mkt_mad", "mad"), plat("mkt_mlife", "mlife"), plat("mkt_mpd", "mpd"), plat("mkt_msoc", "msoc"),
-        plat("mkt_limix", "limix"),
+        plat("mkt_limix", "limix"), plat("mkt_lipost", "lipost"),
         plat("mkt_ttacc", "tto"), plat("mkt_ttvid", "tto"), plat("mkt_ttvday", "tto"), plat("mkt_ttsrc", "tto"), plat("mkt_ttaud", "tto"),
         plat("mkt_ytday", "yt"), plat("mkt_ytsrc", "yt"), plat("mkt_ytvid", "yt"), plat("mkt_ytvmon", "yt"),
         plat("mkt_mform", "mform"),
@@ -6613,7 +6676,7 @@
                 conv, camp, gptad, gptads, audit, issue, rc, rg, net, netc,
                 gscp, links, ga4ev, ga4dev, ga4lp, ga4u, neg, marks, gscqd, gscpd, reddit, refdom, anchor, ctrace, utmc, fsrc,
                 brans, brmen, brcit, ahuse, ahquota, smov, smas, smorg, smkw, smaud, smhist, smuse, li, lip, tt, mpost, mad, mlife, mpd, msoc,
-                limix, ttacc, ttvid, ttvday, ttsrc, ttaud, ytday, ytsrc, ytvid, ytvmon, mform, tags]) => {
+                limix, lipost, ttacc, ttvid, ttvday, ttsrc, ttaud, ytday, ytsrc, ytvid, ytvmon, mform, tags]) => {
         D.conn = (conn || []).slice().sort((a, b) => (+a.Sort || 0) - (+b.Sort || 0));
         index(ch || []);
         indexPlatforms(ads, lsaC, lsaL, meta, gpt);
@@ -6625,6 +6688,12 @@
         indexLinkedIn(li, lip);
         P.limix = (limix || []).map(r => ({ d: d10(r.Date), dim: r.Dimension || "", key: r.Key || "", label: r.Label || r.Key || "",
           n: num(r.Organic) + num(r.Paid) })).filter(r => r.d && r.dim);
+        // a post LinkedIn gave no numbers for (older than about a year when first read) has known = false
+        P.lipost = (lipost || []).map(r => ({ id: r["Post Id"], d: d10(r.Date), fmt: r.Format || "", text: r.Text || "",
+          link: r.Link || "", adOnly: r.Feed === "Ad only", hasLink: num(r["Has Link"]) === 1,
+          known: r.Impressions != null && r.Impressions !== "", imp: num(r.Impressions), uimp: num(r["Unique Impressions"]),
+          clk: num(r.Clicks), react: num(r.Reactions), com: num(r.Comments), sh: num(r.Shares),
+          eng: num(r.Reactions) + num(r.Comments) + num(r.Shares) })).filter(r => r.d && r.id);
         indexTikTok(tt);
         indexTikTokOrganic({ ttacc, ttvid, ttvday, ttsrc, ttaud });
         indexMeta({ mpost, mad, mlife, mpd, msoc });
