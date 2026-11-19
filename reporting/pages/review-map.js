@@ -13,7 +13,14 @@
  *   NOW          a page's latest known count; a site's Now is its pages' sum. TARGET is per site.
  *   CHANGES      every time a page's known count moved, from the check history.
  *
- * Google, Yelp, Facebook and the other big platforms stay on the Review Counts sheet (Settings tab).
+ *   MONTHLY      19 Nov 2026, tracker ZTZ-135: the 36 lines of Tako's "Number of Reviews" sheet (Google per
+ *                state, Yelp, Facebook, Trustpilot, Angi ... and Tuji's five) are pages here too, each with
+ *                the line it counts toward (rv_page `Report As`). Google is read through the Places API and
+ *                our Facebook Page through the Graph API; the rest like any page. On the 1st of each month
+ *                the loader saves every page's count (rv_month, src/review_month.py) and the portal's monthly
+ *                review numbers read that from Dec 2026 instead of the sheet. The Monthly counts tab shows the
+ *                lines, the saved months and the sheet beside them (the November check). Line pages stay out
+ *                of the directory views (map, table, targets): those are Tako's smaller sites.
  */
 (() => {
   const TARGET_DATE = "30 Apr 2027";
@@ -74,6 +81,12 @@
       + ".rvm-edit-pages li{display:flex;gap:8px;align-items:center;padding:3px 0}"
       + ".rvm-edit-pages li a{max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}"
       + ".rvm-x{border:0;background:none;color:#B3261E;cursor:pointer;font-size:12.5px;padding:0 4px}"
+      // the Monthly counts tab (ZTZ-135): a difference reads green up / red down, a missing link takes a paste
+      + ".rvm-dif{font-weight:700;white-space:nowrap}"
+      + ".rvm-dif.up{color:#3F7D20}"
+      + ".rvm-dif.down{color:#B3261E}"
+      + ".rvm-linkin{width:220px}"
+      + ".rvm-edit-pages li .rs-pill{flex:none}"
       // the Edit view's two headings sat at the browser's sizes; on the type scale now (ZTZ-80)
       + ".rvm .panel h3{font-size:16px;font-weight:600}"
       + ".rvm .panel h4{font-size:14px;font-weight:600}";
@@ -131,30 +144,53 @@
       /* ---- the model ------------------------------------------------------------------------- */
       const STALE_DAYS = 28;
       const STALE_FROM = new Date(Date.now() - STALE_DAYS * 864e5).toISOString().slice(0, 10);
+      /* a monthly line needs a count once a month: when the check cannot read it and its last count is from
+         before the 25th that opens this month's window (25th to the 3rd: the 1st's save takes what is typed
+         by the 3rd) */
+      const NY_TODAY = (() => {
+        try { return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); }
+        catch (e) { return new Date().toISOString().slice(0, 10); }
+      })();
+      const LINE_FROM = (() => {
+        const [y, m, d] = NY_TODAY.split("-").map(Number);
+        const [yy, mm] = d >= 25 ? [y, m] : (m === 1 ? [y - 1, 12] : [y, m - 1]);
+        return yy + "-" + String(mm).padStart(2, "0") + "-25";
+      })();
+      const CO0 = "Zip to Zip";
+      const lineOf = pg => String(pg["Report As"] || "").trim() || null;
+      const coOf = pg => String(pg["Company"] || "").trim() || CO0;
       function model() {
         const byPage = {};
         CHECKS.slice().sort((a, b) => String(a["Checked At"]).localeCompare(String(b["Checked At"])))
           .forEach(c => { (byPage[c["Page Key"]] = byPage[c["Page Key"]] || []).push(c); });
         const plats = {};
-        ST.platforms.forEach(p => { plats[p["Platform Key"]] = Object.assign({ pages: [], now: 0, known: 0 }, p); });
+        ST.platforms.forEach(p => { plats[p["Platform Key"]] = Object.assign({ pages: [], lines: [], now: 0, known: 0 }, p); });
         const pages = ST.pages.filter(pg => plats[pg["Platform Key"]]).map(pg => {
           const hist = byPage[pg["Page Key"]] || [];
           let known = null, last = null;
           hist.forEach(c => { last = c; if (c["Count"] != null && c["Count"] !== "") known = c; });
-          return Object.assign({}, pg, { hist, known, last,
+          const line = lineOf(pg);
+          return Object.assign({}, pg, { hist, known, last, line, co: coOf(pg),
             now: known ? +known["Count"] : null,
             /* a page the check cannot read needs a typed count only once its last known count is older
                than STALE_DAYS -- otherwise Tako would retype two thirds of the list every week */
             /* "skipped": the site shows Google's reviews, never counted (Tako's rule) -- nothing to type */
-            needs: !last || (last["Status"] !== "ok" && last["Status"] !== "manual" && last["Status"] !== "skipped"
-              && (!known || String(known["Checked At"]).slice(0, 10) < STALE_FROM)) });
+            needs: line
+              ? (!last || last["Status"] !== "ok") && (!known || String(known["Checked At"]).slice(0, 10) < LINE_FROM)
+              : !last || (last["Status"] !== "ok" && last["Status"] !== "manual" && last["Status"] !== "skipped"
+                && (!known || String(known["Checked At"]).slice(0, 10) < STALE_FROM)) });
         });
+        // a site's directory pages make its Now and its place on the map; its line pages are the Monthly tab's
         pages.forEach(pg => {
           const p = plats[pg["Platform Key"]];
+          if (pg.line) { p.lines.push(pg); return; }
           p.pages.push(pg);
           if (pg.now != null) { p.now += pg.now; p.known++; }
         });
-        const list = Object.values(plats);
+        const all = Object.values(plats);
+        // the directory views: every site with a directory page, or none yet (just added)
+        const list = all.filter(p => p.pages.length || !p.lines.length);
+        const dirPages = pages.filter(pg => !pg.line), linePages = pages.filter(pg => pg.line);
         list.forEach(p => { p.target = p["Target"] != null ? +p["Target"] : null;
           p.reached = p.target != null && p.now >= p.target; p.togo = p.target != null ? Math.max(0, p.target - p.now) : null; });
         // changes: every move of a page's known count, newest first
@@ -165,13 +201,69 @@
             if (c["Count"] == null || c["Count"] === "") return;
             const n = +c["Count"];
             if (prev == null || n !== prev) changes.push({ at: String(c["Checked At"]).slice(0, 10), pg, before: prev, after: n,
-              how: c["Status"] === "manual" ? "typed by " + String(c["Entered By"] || "").split("@")[0] : "weekly check" });
+              how: /^sheet/i.test(String(c["Method"] || "")) ? "Tako's sheet"
+                : c["Status"] === "manual" ? "typed by " + String(c["Entered By"] || "").split("@")[0]
+                : c["Method"] === "Places API" || c["Method"] === "Graph API" ? "check · " + c["Method"] : "weekly check" });
             prev = n;
           });
         });
         changes.sort((a, b) => b.at.localeCompare(a.at));
         const lastAuto = CHECKS.filter(c => c["Status"] !== "manual").map(c => String(c["Checked At"])).sort().pop() || null;
-        return { plats, list, pages, changes, lastAuto };
+        return { plats, all, list, pages, dirPages, linePages, changes, lastAuto, mo: monthly(linePages) };
+      }
+
+      /* the monthly lines, the months the loader saved (rv_month) and Tako's sheet as typed (review_counts) */
+      function monthly(linePages) {
+        const lines = {};
+        linePages.forEach(pg => {
+          const k = pg.co + "|" + pg.line;
+          const L = lines[k] || (lines[k] = { k, co: pg.co, line: pg.line, pages: [], now: null, needs: false, auto: true });
+          L.pages.push(pg);
+          if (pg.now != null) L.now = (L.now || 0) + pg.now;
+          if (pg.needs) L.needs = true;
+          if (!pg.last || pg.last["Status"] !== "ok") L.auto = false;
+        });
+        const months = {}, sheet = {};
+        (ST.months || []).forEach(r => {
+          const d = String(r["Date"]).slice(0, 10), k = (r["Company"] || CO0) + "|" + r["Platform"];
+          const e = (months[d] = months[d] || {})[k] || (months[d][k] = { n: null, how: [] });
+          if (r["Count"] != null && r["Count"] !== "") e.n = (e.n || 0) + +r["Count"];
+          e.how.push((r["Source"] || "not known") + (r["Known At"] ? " " + String(r["Known At"]).slice(0, 10) : ""));
+        });
+        (ST.sheet || []).forEach(r => {
+          (sheet[String(r["Date"]).slice(0, 10)] = sheet[String(r["Date"]).slice(0, 10)] || {})[(r["Company"] || CO0) + "|" + r["Platform"]] = +r["Count"];
+        });
+        const mDates = Object.keys(months).sort(), sDates = Object.keys(sheet).sort();
+        /* the side-by-side: the latest saved month (against the sheet's column for the same month, when typed);
+           before the first save, the Review Map now against the sheet's latest column */
+        let cmp = null;
+        if (mDates.length) {
+          const withSheet = mDates.filter(d => sheet[d]);
+          const d = withSheet.length ? withSheet[withSheet.length - 1] : mDates[mDates.length - 1];
+          const portal = {}, how = {};
+          Object.entries(months[d]).forEach(([k, e]) => { portal[k] = e.n; how[k] = e.how.join(" + "); });
+          cmp = { live: false, date: d, sheet: sheet[d] || {}, portal, how };
+        } else if (sDates.length) {
+          const d = sDates[sDates.length - 1], portal = {}, how = {};
+          Object.values(lines).forEach(L => { portal[L.k] = L.now; how[L.k] = L.pages.map(knownHow).join(" + "); });
+          cmp = { live: true, date: d, sheet: sheet[d], portal, how };
+        }
+        const order = Object.values(lines).sort((a, b) => (a.co !== CO0) - (b.co !== CO0) || a.co.localeCompare(b.co)
+          || (b.now || 0) - (a.now || 0) || a.line.localeCompare(b.line));
+        return { lines: order, byKey: lines, months, mDates, sheet, sDates, cmp };
+      }
+      function knownHow(pg) {
+        const c = pg.known, l = pg.last;
+        // why the last check did not read it, when it did not
+        const why = !l || l === c || l["Status"] === "ok" || l["Status"] === "manual" ? ""
+          : " · last check: " + (l["Status"] === "blocked" ? "the site refuses it" : l["Status"] === "no link" ? "no link"
+            : l["Status"] === "suspect" ? "held back (" + String(l["Note"] || "").split(":")[0] + ")"
+            : l["Status"] === "unreadable" ? (l["Note"] ? String(l["Note"]).split(":")[0] : "no count on the page") : "error");
+        if (!c) return "not known" + why;
+        const d = fmtD(c["Checked At"]), m = String(c["Method"] || "");
+        if (/^(sheet|tako)/i.test(m)) return "Tako's sheet, " + d + why;
+        if (c["Status"] === "manual") return "typed " + d + (c["Entered By"] ? " by " + String(c["Entered By"]).split("@")[0] : "") + why;
+        return "read " + d + (m ? " · " + m : "") + why;
       }
 
       /* ---- painting --------------------------------------------------------------------------- */
@@ -191,30 +283,32 @@
         const togo = M.list.reduce((a, p) => a + (p.togo || 0), 0);
         const reached = M.list.filter(p => p.reached).length;
         const needs = M.pages.filter(pg => pg.needs).length;
+        const nLines = M.mo.lines.length;
         // a view of the Reviews hub: the hub draws the big head, this one sits a size down (ZTZ-80)
         let h = '<div class="rvm">'
           + RSC.pageHeadHtml({ title: "Review Map", key: "review-map",
-              sub: "Every page of ours on the smaller review sites, the reviews on each, and the target for "
-                + TARGET_DATE + "." });
+              sub: "Every page of ours on the smaller review sites, the reviews on each and the target for "
+                + TARGET_DATE + "; and the monthly review counts the reports use." });
         h += '<div class="rs-kpis" style="--kpi-cols:6">'
-          + kpi(fmt(M.list.length), "Review sites", fmt(M.pages.length) + " pages of ours", "")
+          + kpi(fmt(M.list.length), "Review sites", fmt(M.dirPages.length) + " pages of ours", "")
           + kpi(fmt(tot), "Reviews now", "the pages' latest known counts", "")
           + kpi(fmt(tgt), "Target", "by " + TARGET_DATE + " · " + fmt(togo) + " still to go", "")
           + kpi(fmt(reached) + " of " + fmt(M.list.length), "Sites at target", M.list.length ? Math.round(100 * reached / M.list.length) + "%" : "", reached ? "pos" : "")
-          + kpi(fmt(needs), "Needs a count", "unreadable, last count over " + STALE_DAYS + " days old", needs ? "warn" : "")
+          + kpi(fmt(needs), "Needs a count", "pages the check cannot read, with an old count", needs ? "warn" : "")
           + kpi(M.lastAuto ? M.lastAuto.slice(0, 10) : "—", "Last check", "weekly, automatic", "")
           + "</div>";
-        const tabs = [["map", "Map"], ["table", "Table"], ["changes", "Changes · " + M.changes.length],
-                      ["needs", "Needs a count · " + needs], ["edit", "Edit the list"]];
+        const tabs = [["map", "Map"], ["table", "Table"], ["monthly", "Monthly counts · " + nLines],
+                      ["changes", "Changes · " + M.changes.length], ["needs", "Needs a count · " + needs], ["edit", "Edit the list"]];
         h += '<div class="rvm-tabs">' + tabs.map(([k, l]) => '<div class="rs-tog' + (S.tab === k ? " on" : "")
           + '" data-rvtab="' + k + '"><i></i>' + esc(l) + "</div>").join("") + "</div>";
         if (S.err) h += '<div class="rvm-err">' + esc(S.err) + "</div>";
         if (S.msg) h += '<div class="rvm-ok">' + esc(S.msg) + "</div>";
-        if (!M.list.length && S.tab !== "edit") {
+        if (!M.all.length && S.tab !== "edit") {
           h += '<div class="panel">No review sites yet. Tako\'s list arrives with the import of her page, or add sites '
             + 'under <b>Edit the list</b>.</div>';
         } else if (S.tab === "map") h += mapView(M);
         else if (S.tab === "table") h += tableView(M);
+        else if (S.tab === "monthly") h += monthlyView(M);
         else if (S.tab === "changes") h += changesView(M);
         else if (S.tab === "needs") h += needsView(M);
         else h += editView(M);
@@ -227,7 +321,7 @@
       function locStats(M) {
         const out = {};
         ORDER.forEach(k => { out[k] = { pages: 0, now: 0 }; });
-        M.pages.forEach(pg => { const o = out[pg["Location"]]; if (!o) return; o.pages++; o.now += pg.now || 0; });
+        M.dirPages.forEach(pg => { const o = out[pg["Location"]]; if (!o) return; o.pages++; o.now += pg.now || 0; });
         return out;
       }
 
@@ -270,6 +364,93 @@
         return h + "</tbody></table></div></div>";
       }
 
+      const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const fmtD = d => { const [y, m, dd] = String(d).slice(0, 10).split("-"); return +dd + " " + MON[+m - 1] + " " + y; };
+      const sign = n => n == null ? "—" : (n > 0 ? "+" : "") + fmt(n);
+      function monthlyView(M) {
+        const mo = M.mo;
+        const from = ST.snapshot_from || "2026-12-01", grace = ST.grace_days || 3;
+        if (!mo.lines.length) {
+          return '<div class="panel">No monthly lines yet. They arrive with the seed of Tako\'s sheet '
+            + "(scripts/seed_review_lines.py); until then the monthly review numbers come from her sheet.</div>";
+        }
+        const auto = mo.lines.filter(L => L.auto).length, need = mo.lines.filter(L => L.needs).length;
+        const nowTot = mo.lines.reduce((a, L) => a + (L.now || 0), 0);
+        let h = '<p class="rvm-note">From <b>' + esc(fmtD(from)) + "</b> the monthly review numbers in the Monthly Report, "
+          + "Reviews, the Seasonal Report and the Marketing Overview come from these lines instead of Tako's "
+          + "“Number of Reviews” sheet. On the 1st of each month the portal reads every line and saves it as the "
+          + "month's opening count; a line it cannot read needs a count typed under <b>Needs a count</b> between the "
+          + "25th and the " + grace + "rd. Google is read through Google's own API, Facebook through our Page, the rest "
+          + "off their pages.</p>";
+        h += '<div class="rs-kpis" style="--kpi-cols:4">'
+          + kpi(fmt(mo.lines.length), "Monthly lines", "the sheet's rows, " + fmt(M.linePages.length) + " pages", "")
+          + kpi(fmt(nowTot), "Reviews now", "the lines' latest known counts", "")
+          + kpi(fmt(auto) + " of " + fmt(mo.lines.length), "Read automatically", "at the last check", auto ? "pos" : "")
+          + kpi(fmt(need), "Need a count", need ? "type them under Needs a count"
+              : fmt(mo.lines.length - auto) + " the check cannot read: asked for from the 25th", need ? "warn" : "")
+          + "</div>";
+        h += compareView(mo);
+        // the lines, with the last three saved months beside Now
+        const shown = mo.mDates.slice(-3);
+        h += '<div class="panel" style="padding:0;margin-top:12px"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
+          + "<th>Line</th><th>Site · location</th>" + shown.map(d => "<th>" + esc(fmtD(d)) + "</th>").join("")
+          + "<th>Now</th><th>How the portal knows it</th><th>Page</th></tr></thead><tbody>";
+        h += mo.lines.map(L => {
+          const pg = L.pages[0], site = (M.plats[pg["Platform Key"]] || {})["Platform"] || "";
+          return "<tr><td><b>" + esc(L.line) + "</b>" + (L.co !== CO0 ? ' <span class="rs-pill info">' + esc(L.co) + "</span>" : "")
+            + (L.needs ? ' <span class="rs-pill warn">needs a count</span>' : "") + "</td>"
+            + '<td class="muted">' + esc(site + " · " + ((LOC[pg["Location"]] || {}).label || pg["Location"])) + "</td>"
+            + shown.map(d => { const e = (mo.months[d] || {})[L.k]; return "<td>" + (e ? fmt(e.n) : "—") + "</td>"; }).join("")
+            + "<td><b>" + fmt(L.now) + "</b></td>"
+            + '<td class="muted">' + esc(L.pages.map(knownHow).join(" + ")) + "</td>"
+            + '<td class="rvm-cell">' + L.pages.map(q => q["URL"]
+                ? '<a href="' + esc(q["URL"]) + '" target="_blank" rel="noopener">Open ↗</a>'
+                : '<input class="rs-inp rvm-linkin" placeholder="paste the page\'s link" data-rvlinkin="' + esc(q["Page Key"]) + '"> '
+                  + '<button class="rs-btn" data-rvlink="' + esc(q["Page Key"]) + '">Save the link</button>').join("<br>") + "</td></tr>";
+        }).join("");
+        return h + "</tbody></table></div></div>";
+      }
+
+      /* Tako's sheet beside the Review Map, line by line: the November check, and every month after it the
+         sheet still has a column for */
+      function compareView(mo) {
+        const c = mo.cmp;
+        if (!c) return "";
+        const keys = Array.from(new Set(Object.keys(c.sheet).concat(Object.keys(c.portal))));
+        const rows = keys.map(k => {
+          const [co, line] = k.split("|"), sv = c.sheet[k], pv = c.portal[k];
+          return { co, line, sv: sv == null ? null : sv, pv: pv == null ? null : pv,
+                   d: sv != null && pv != null ? pv - sv : null, how: c.how[k] || "not on the Review Map" };
+        }).sort((a, b) => (b.d == null ? 1e9 : Math.abs(b.d)) - (a.d == null ? 1e9 : Math.abs(a.d)) || a.line.localeCompare(b.line));
+        const sheetHas = Object.keys(c.sheet).length > 0;
+        // no sheet column for the month: nothing to set beside the save, so no total and no difference
+        const st = sheetHas ? rows.reduce((a, r) => a + (r.sv || 0), 0) : null, pt = rows.reduce((a, r) => a + (r.pv || 0), 0);
+        const differ = sheetHas ? rows.filter(r => r.d !== 0).length : null;
+        const title = c.live ? "Preview: Tako's sheet (" + fmtD(c.date) + ") beside the Review Map now"
+          : "Tako's sheet beside the Review Map's save of " + fmtD(c.date);
+        let h = '<div class="panel" style="margin-top:12px"><div class="panel-title">' + esc(title) + "</div>"
+          + '<p class="rvm-note">' + (c.live
+            ? "No month is saved yet: the first save is on " + fmtD(ST.snapshot_from || "2026-12-01") + ". Until then this puts the "
+              + "sheet's latest column beside what the Review Map knows now, so a line that reads differently shows early."
+            : sheetHas ? "The sheet's " + fmtD(c.date) + " column as Tako typed it, and what the Review Map saved for the same day. "
+              + "A difference is either a line the sheet and the site count differently or a count that moved between the two readings."
+            : "The sheet has no " + fmtD(c.date) + " column yet: the Review Map's save is shown alone.") + "</p>"
+          + '<div class="rs-kpis" style="--kpi-cols:4">'
+          + kpi(st == null ? "—" : fmt(st), "Tako's sheet", fmtD(c.date) + " column" + (st == null ? ": not typed yet" : ""), "")
+          + kpi(fmt(pt), "Review Map", c.live ? "now" : "saved " + fmtD(c.date), "")
+          + kpi(st == null ? "—" : sign(pt - st), "Difference", "Review Map minus sheet", st == null ? "" : pt === st ? "pos" : "warn")
+          + kpi(differ == null ? "—" : fmt(differ) + " of " + fmt(rows.length), "Lines that differ", "",
+              differ == null ? "" : differ ? "warn" : "pos")
+          + "</div>"
+          + '<div class="rs-tablewrap"><table class="rs-table rs-even"><thead><tr><th>Line</th><th>Tako\'s sheet</th>'
+          + "<th>Review Map</th><th>Difference</th><th>How the Review Map knows it</th></tr></thead><tbody>"
+          + rows.map(r => "<tr><td><b>" + esc(r.line) + "</b>" + (r.co !== CO0 ? ' <span class="rs-pill info">' + esc(r.co) + "</span>" : "")
+            + "</td><td>" + fmt(r.sv) + "</td><td>" + fmt(r.pv) + '</td><td><span class="rvm-dif' + (r.d > 0 ? " up" : r.d < 0 ? " down" : "")
+            + '">' + esc(sign(r.d)) + '</span></td><td class="muted">' + esc(r.how) + "</td></tr>").join("")
+          + "</tbody></table></div></div>";
+        return h;
+      }
+
       function changesView(M) {
         const rows = M.changes.slice(0, 500);
         return '<p class="rvm-note">Every time a page\'s known review count moved: from the weekly check, or typed in under Needs a count.</p>'
@@ -278,7 +459,9 @@
           + (rows.length ? rows.map(c => {
               const p = M.plats[c.pg["Platform Key"]] || {};
               const d = c.before == null ? "first count" : (c.after - c.before > 0 ? "+" : "") + (c.after - c.before);
-              return "<tr><td class=\"nowrap\">" + esc(c.at) + "</td><td><b>" + esc(p["Platform"] || "") + "</b></td><td>"
+              return "<tr><td class=\"nowrap\">" + esc(c.at) + "</td><td><b>" + esc(p["Platform"] || "") + "</b>"
+                + (c.pg.line ? ' <span class="rs-pill mute">' + esc((c.pg.co !== CO0 ? c.pg.co + " · " : "") + c.pg.line) + "</span>" : "")
+                + "</td><td>"
                 + esc((LOC[c.pg["Location"]] || {}).label || c.pg["Location"]) + "</td><td>" + (c.before == null ? "?" : fmt(c.before))
                 + " → " + fmt(c.after) + ' <small class="dim">' + esc(d) + "</small></td><td class=\"muted\">" + esc(c.how)
                 + '</td><td class="rvm-cell"><a href="' + esc(c.pg["URL"]) + '" target="_blank" rel="noopener">Open ↗</a></td></tr>';
@@ -290,18 +473,24 @@
         const rows = M.pages.filter(pg => pg.needs).sort((a, b) =>
           ((M.plats[a["Platform Key"]] || {})["Platform"] || "").localeCompare((M.plats[b["Platform Key"]] || {})["Platform"] || ""));
         const why = pg => !pg.last ? "not checked yet" : pg.last["Status"] === "blocked" ? "the site refuses automated visits"
-          : pg.last["Status"] === "unreadable" ? "no count found on the page"
+          : pg.last["Status"] === "no link" ? "no link yet: add it on the Monthly counts tab, or type the count"
+          : pg.last["Status"] === "manual" ? "a monthly line: its last count is from before the 25th"
+          : pg.last["Status"] === "unreadable" ? (pg.last["Note"] || "no count found on the page")
           : pg.last["Status"] === "suspect" || pg.last["Status"] === "rejected" ? "the number on the page looked wrong: " + (pg.last["Note"] || "")
           : "the page did not open";
         return '<p class="rvm-note">The weekly check could not read these pages, and their last count is more than '
           + STALE_DAYS + " days old (or there is none). Open the page, count the reviews and type the number: it stands "
-          + "until the check reads one, or for " + STALE_DAYS + " days.</p>"
+          + "until the check reads one, or for " + STALE_DAYS + " days. A <b>monthly line</b> (Google NJ, Yelp CT …) "
+          + "is asked for once a month, from the 25th: the count typed by the " + (ST.grace_days || 3) + "rd is the one the "
+          + "1st's save keeps for the monthly review numbers.</p>"
           + '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Site</th><th>Location</th><th>Why</th><th>Last known</th><th>Page</th><th>Reviews now</th></tr></thead><tbody>"
-          + (rows.length ? rows.map(pg => "<tr><td><b>" + esc((M.plats[pg["Platform Key"]] || {})["Platform"]) + "</b></td><td>"
+          + (rows.length ? rows.map(pg => "<tr><td><b>" + esc((M.plats[pg["Platform Key"]] || {})["Platform"]) + "</b>"
+              + (pg.line ? ' <span class="rs-pill info">' + esc((pg.co !== CO0 ? pg.co + " · " : "") + pg.line) + "</span>" : "") + "</td><td>"
               + esc((LOC[pg["Location"]] || {}).label || pg["Location"]) + '</td><td class="muted">' + esc(why(pg)) + "</td><td>"
               + (pg.known ? fmt(pg.now) + ' <small class="dim">' + esc(String(pg.known["Checked At"]).slice(0, 10)) + "</small>" : "?")
-              + '</td><td class="rvm-cell"><a href="' + esc(pg["URL"]) + '" target="_blank" rel="noopener">Open ↗</a></td>'
+              + '</td><td class="rvm-cell">' + (pg["URL"] ? '<a href="' + esc(pg["URL"]) + '" target="_blank" rel="noopener">Open ↗</a>'
+                : '<span class="dim">no link</span>') + "</td>"
               + '<td class="nowrap"><input class="rs-inp rvm-inp" type="number" min="0" data-rvcount="' + esc(pg["Page Key"]) + '"> '
               + '<button class="rs-btn" data-rvsave="' + esc(pg["Page Key"]) + '">Save</button></td></tr>').join("")
             : '<tr><td colspan="6" class="dim">Every page has a count.</td></tr>')
@@ -321,20 +510,26 @@
           + (p ? '<button class="rs-btn" id="rvfCancel">New site instead</button>' : "") + "</div>";
         if (p) {
           h += '<h4 style="margin:12px 0 4px">Its pages</h4><ul class="rvm-edit-pages">'
-            + (p.pages.length ? p.pages.map(pg => "<li><b>" + esc((LOC[pg["Location"]] || {}).label || pg["Location"]) + '</b><a href="'
-              + esc(pg["URL"]) + '" target="_blank" rel="noopener">' + esc(pg["URL"]) + '</a><button class="rvm-x" data-rvdelpage="'
-              + esc(pg["Page Key"]) + '">remove</button></li>').join("") : '<li class="dim">No pages yet.</li>') + "</ul>"
+            + (p.pages.concat(p.lines).length ? p.pages.concat(p.lines).map(pg => "<li><b>" + esc((LOC[pg["Location"]] || {}).label || pg["Location"]) + "</b>"
+              + (pg.line ? '<span class="rs-pill info">' + esc((pg.co !== CO0 ? pg.co + " · " : "") + pg.line) + "</span>" : "")
+              + (pg["URL"] ? '<a href="' + esc(pg["URL"]) + '" target="_blank" rel="noopener">' + esc(pg["URL"]) + "</a>" : '<span class="dim">no link yet</span>')
+              + '<button class="rvm-x" data-rvdelpage="' + esc(pg["Page Key"]) + '">remove</button></li>').join("") : '<li class="dim">No pages yet.</li>') + "</ul>"
             + '<div class="rvm-form"><div class="rs-fld"><span>Location</span><div id="rvpLoc"></div></div>'
             + '<label class="rs-fld wide"><span>Page address</span><input class="rs-inp" id="rvpUrl" placeholder="https://…"></label>'
+            + '<div class="rs-fld"><span>Company</span><div id="rvpCo"></div></div>'
+            + '<label class="rs-fld"><span>Monthly line (only for one)</span><input class="rs-inp" id="rvpLine" list="rvpLines" placeholder="e.g. Google NJ"></label>'
+            + '<datalist id="rvpLines">' + M.mo.lines.map(L => '<option value="' + esc(L.line) + '">').join("") + "</datalist>"
             + '<button class="rs-btn" id="rvpAdd">Add the page</button>'
             + '<button class="rs-btn" id="rvfDel">Remove this site</button></div>';
         }
         h += "</div>";
-        const list = M.list.slice().sort((a, b) => a["Platform"].localeCompare(b["Platform"]));
+        // every site, the big ones whose pages are all monthly lines too
+        const list = M.all.slice().sort((a, b) => a["Platform"].localeCompare(b["Platform"]));
         h += '<div class="panel" style="padding:0;margin-top:12px"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
           + "<th>Site</th><th>Pages</th><th>Target</th><th>Last change</th><th></th></tr></thead><tbody>"
           + (list.length ? list.map(q => "<tr><td><b>" + esc(q["Platform"]) + '</b><span class="rvm-dom">' + esc(q["Domain"] || "") + "</span></td><td>"
-              + fmt(q.pages.length) + "</td><td>" + (q.target != null ? fmt(q.target) : "—") + '</td><td class="muted">'
+              + fmt(q.pages.length + q.lines.length) + (q.lines.length ? ' <small class="dim">(' + q.lines.length + " monthly)</small>" : "")
+              + "</td><td>" + (q.target != null ? fmt(q.target) : "—") + '</td><td class="muted">'
               + esc(String(q["Entered At"] || "").slice(0, 10)) + " · " + esc(String(q["Entered By"] || "").split("@")[0]) + "</td>"
               + '<td><button class="rs-btn" data-rvedit="' + esc(q["Platform Key"]) + '">Edit</button></td></tr>').join("")
             : '<tr><td colspan="5" class="dim">No sites yet.</td></tr>') + "</tbody></table></div></div>";
@@ -421,6 +616,21 @@
         const pl = host.querySelector("#rvpLoc");
         if (pl) RSC.localSelect(pl, { label: "Location", form: true, required: true, value: pageLoc,
           values: ORDER.map(k => ({ v: k, l: LOC[k].label })), onChange: v => { pageLoc = v; } });
+        let pageCo = CO0;
+        const pc = host.querySelector("#rvpCo");
+        if (pc) RSC.localSelect(pc, { label: "Company", form: true, required: true, value: pageCo,
+          values: (ST.companies || [CO0, "Tuji"]).map(c => ({ v: c, l: c })), onChange: v => { pageCo = v; } });
+        // a monthly line without a link: the pasted link becomes the page's (its line and company stay)
+        host.querySelectorAll("[data-rvlink]").forEach(b => {
+          b.onclick = () => {
+            const pg = M.pages.find(x => x["Page Key"] === b.dataset.rvlink);
+            const inp = host.querySelector('[data-rvlinkin="' + b.dataset.rvlink + '"]');
+            const u = inp && inp.value.trim();
+            if (!pg || !u) { S.err = "paste the page's link first"; paint(); return; }
+            act({ op: "page", key: pg["Page Key"], platform_key: pg["Platform Key"], location: pg["Location"], url: u,
+                  registered: pg["Registered"] || "" }, "Link saved: the next check reads it.");
+          };
+        });
         const csv = host.querySelector("#rvmCsv");
         if (csv) csv.onclick = () => download(M);
         host.querySelectorAll("[data-rvsave]").forEach(b => {
@@ -449,8 +659,8 @@
           act({ op: "remove-platform", key: S.edit.plat }, "Site removed.").then(() => { S.edit = null; paint(); });
         };
         const pa = host.querySelector("#rvpAdd");
-        if (pa) pa.onclick = () => act({ op: "page", platform_key: S.edit.plat, location: pageLoc, url: val("#rvpUrl") },
-          "Page added: the next weekly check reads it.");
+        if (pa) pa.onclick = () => act({ op: "page", platform_key: S.edit.plat, location: pageLoc, url: val("#rvpUrl"),
+          company: pageCo, report_as: val("#rvpLine") }, "Page added: the next weekly check reads it.");
         host.querySelectorAll("[data-rvdelpage]").forEach(b => {
           b.onclick = () => { if (confirm("Remove this page from the list?")) act({ op: "remove-page", key: b.dataset.rvdelpage }, "Page removed."); };
         });
@@ -458,9 +668,10 @@
 
       function download(M) {
         const cell = x => { let s = String(x == null ? "" : x); if (/^[=+\-@]/.test(s)) s = " " + s; return '"' + s.replace(/"/g, '""') + '"'; };
-        const lines = [["Site", "Domain", "Category", "Target", "Location", "Page", "Reviews now", "Last read", "Status"].map(cell).join(",")];
+        const lines = [["Site", "Domain", "Category", "Target", "Location", "Company", "Monthly line", "Page", "Reviews now", "Last read",
+          "Status"].map(cell).join(",")];
         M.pages.forEach(pg => { const p = M.plats[pg["Platform Key"]] || {};
-          lines.push([p["Platform"], p["Domain"], p["Category"], p["Target"], pg["Location"], pg["URL"], pg.now,
+          lines.push([p["Platform"], p["Domain"], p["Category"], p["Target"], pg["Location"], pg.co, pg.line || "", pg["URL"], pg.now,
             pg.known ? String(pg.known["Checked At"]).slice(0, 10) : "", pg.last ? pg.last["Status"] : "not checked"].map(cell).join(",")); });
         const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a");
