@@ -85,6 +85,11 @@ registerPage({
     if (S.wBy !== "month") S.wBy = "foreman";
     if (!S.mx) S.mx = {};
     if (!S.mAll) S.mAll = {};
+    // ZTZ-139 (19 Nov 2026): Settled groups by foreman or by month too -- the month each job
+    // was settled, the date that tab sorts and filters by
+    if (S.sBy !== "month") S.sBy = "foreman";
+    if (!S.smx) S.smx = {};
+    if (!S.smAll) S.smAll = {};
     if (S.jobFrom === undefined) S.jobFrom = null;
     if (S.jobTo === undefined) S.jobTo = null;
 
@@ -1138,25 +1143,31 @@ registerPage({
       };
       var head = HEAD[S.view];
       if (S.view === "waiting" && S.need && NEED[S.need]) head = [NEED[S.need].head, NEED[S.need].sub];
+      if (S.view === "settled" && S.sBy === "month") head = [head[0], "Every confirmation, by the month it was settled: the newest month comes first. Open a job to see its whole story."];
       var nWait = S.need ? (needs[S.need] || []).length : main.length;
       var tabs = [["waiting", "Waiting · " + nWait], ["settled", "Settled"], ["balances", "Foreman balances"]];
       var content;
       _visible = {};
-      if (S.view === "settled") content = settledHtml(scope, q);
+      // ZP-13 (18 Nov 2026) and ZTZ-139 (19 Nov): the same jobs by foreman (as before) or by month
+      var byBar = function (act, by, label, from, to, what) {
+        return '<div class="mf-byrow"><div class="mf-dens mf-by" role="group" aria-label="' + esc(label) + '">'
+          + '<span class="mf-bylab">Group by</span>'
+          + '<button type="button" data-mfa="' + act + '" data-v="foreman" aria-pressed="' + (by !== "month") + '">Foreman</button>'
+          + '<button type="button" data-mfa="' + act + '" data-v="month" aria-pressed="' + (by === "month") + '">Month</button></div>'
+          + (from || to ? '<span class="mf-mut">' + what + " " + (from ? fmtShort(from) : "any time") + " to " + (to ? fmtShort(to) : "today") + "</span>" : "")
+          + "</div>";
+      };
+      if (S.view === "settled") {
+        content = byBar("sby", S.sBy, "Group the settled jobs", S.dateFrom, S.dateTo, "Settled")
+          + (S.sBy === "month" ? settledMonthsHtml(scope, q) : settledHtml(scope, q));
+      }
       else if (S.view === "balances") content = balancesHtml(main, q);
       else {
         var set = S.need ? (needs[S.need] || []) : main;
         var picked = set.filter(function (r) { return matches(r, q); });
-        // ZP-13 (18 Nov 2026): the same jobs by foreman (as before) or by month
-        var byBar = '<div class="mf-byrow"><div class="mf-dens mf-by" role="group" aria-label="Group the waiting jobs">'
-          + '<span class="mf-bylab">Group by</span>'
-          + '<button type="button" data-mfa="wby" data-v="foreman" aria-pressed="' + (S.wBy !== "month") + '">Foreman</button>'
-          + '<button type="button" data-mfa="wby" data-v="month" aria-pressed="' + (S.wBy === "month") + '">Month</button></div>'
-          + (S.jobFrom || S.jobTo ? '<span class="mf-mut">Jobs dated ' + (S.jobFrom ? fmtShort(S.jobFrom) : "any time") + " to " + (S.jobTo ? fmtShort(S.jobTo) : "today") + "</span>" : "")
-          + "</div>";
         content = (S.need ? '<div class="mf-filt"><span>Showing ' + nWait + " " + esc(NEED[S.need].pill.toLowerCase()) + " job" + (nWait === 1 ? "" : "s") + ".</span>"
           + '<button type="button" class="mf-linkbtn" data-mfa="needclear">Show every waiting job</button></div>' : "")
-          + byBar
+          + byBar("wby", S.wBy, "Group the waiting jobs", S.jobFrom, S.jobTo, "Jobs dated")
           + (S.wBy === "month" ? monthsHtml(picked, q) : waitingHtml(picked, q));
       }
       var queue = '<section class="mf-q" aria-labelledby="mfQH">'
@@ -1429,20 +1440,68 @@ registerPage({
             + '<button type="button" class="mf-btn mf-sm mf-acc mf-push" data-mfa="fm" data-v="' + esc(f) + '">Open his balance</button></div>' : "")
         + '<div class="mf-shd"><span></span><span>Settled</span><span>Job</span><span>Customer</span>'
         + '<span>Method</span><span class="mf-r">Amount</span><span>Money went</span><span>By</span></div>'
-        + vis.map(settledRowHtml).join("");
+        + vis.map(function (r) { return settledRowHtml(r, false); }).join("");
       if (hid.length) {
         sub += '<div class="mf-more"><button type="button" class="mf-morebtn" data-mfa="solder" data-v="' + esc(f) + '">Show ' + hid.length + " older job" + (hid.length === 1 ? "" : "s")
           + " · oldest settled " + fmtShort(settledKey(hid[hid.length - 1])) + "</button></div>";
       }
       return row + sub + "</div>";
     }
-    // a settled job: the columns the flat list had (the foreman is the group now); a click opens it settled
-    function settledRowHtml(r) {
+    /* ---- Settled BY MONTH (ZTZ-139, his ask 19 Nov 2026: "you added GROUP BY for foreman and
+       month - but its only on WAITING - i need same on SETTLED too"). Waiting's month view, on this
+       tab's own date: a row per month in which jobs were SETTLED, newest first -- the date Settled
+       already sorts and filters by -- opening to that month's settled jobs with the foreman as a
+       column. Same jobs, search and dates as by foreman, and a click still opens the job. */
+    function settledMonthsHtml(scope, q) {
+      var cur = settledRows(scope, q);
+      if (!cur.length) return '<div class="mf-empty">' + (q || S.dateFrom || S.dateTo ? "Nothing settled matches." : "Nothing confirmed yet.") + "</div>";
+      var groups = {};
+      cur.forEach(function (r) {          // cur is newest first, so each month's jobs are too
+        var s = settledKey(r), k = /^\d{4}-\d\d/.test(s) ? s.slice(0, 7) : "";
+        var g = groups[k] || (groups[k] = { key: k, jobs: [], toBase: 0, toFm: 0, fm: {} });
+        g.jobs.push(r);
+        if (r.flow != null && r.flow > 0.005) g.toBase += r.flow;
+        else if (r.flow != null && r.flow < -0.005) g.toFm += -r.flow;
+        if (r.forman && r.forman !== MF_NO_FOREMAN) g.fm[r.forman] = 1;
+      });
+      var keys = Object.keys(groups).sort(function (a, b) { return a < b ? 1 : a > b ? -1 : 0; });
+      var html = '<div class="mf-scroll"><div class="mf-grid"><div class="mf-ghd mf-g-set"><span></span><span>Month settled</span><span>Jobs: to the base</span>'
+        + "<span>Jobs: to the foremen</span><span>Foremen</span><span></span></div>";
+      keys.forEach(function (k) { html += settledMonthHtml(groups[k], q); });
+      return html + "</div></div>";
+    }
+    function settledMonthHtml(g, q) {
+      var k = g.key, open = !!S.smx[k] || !!q, nFm = Object.keys(g.fm).length;
+      var label = k ? monthName(k) : "No date";
+      var row = '<button type="button" class="mf-grow mf-g-set' + (open ? " mf-open" : "") + '" data-mfa="smgrp" data-v="' + esc(k) + '" aria-expanded="' + open + '">'
+        + '<span class="mf-av mf-av-mon">' + esc(k ? MONTHS[+k.slice(5, 7) - 1].slice(0, 3) : "—") + "</span>"
+        + '<span class="mf-nm"><span class="mf-b">' + esc(label) + '</span><span class="mf-mut">' + g.jobs.length + " job" + (g.jobs.length === 1 ? "" : "s") + " settled</span></span>"
+        + '<span class="mf-b">' + (g.toBase > 0.005 ? money(g.toBase) : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (g.toFm > 0.005 ? '<span class="mf-outc">' + money(g.toFm) + "</span>" : '<span class="mf-dim">—</span>') + "</span>"
+        + "<span>" + (nFm ? nFm + (nFm === 1 ? " foreman" : " foremen") : '<span class="mf-dim">—</span>') + "</span>"
+        + '<span class="mf-chev">' + ICON.chev + "</span></button>";
+      if (!open) return row;
+      var full = !!S.smAll[k] || !!q;
+      var vis = full ? g.jobs : g.jobs.slice(0, JOBS_MONTH), hid = full ? [] : g.jobs.slice(JOBS_MONTH);
+      var sub = '<div class="mf-gsub"><div class="mf-shd mf-sfm"><span></span><span>Settled</span><span>Job</span><span>Customer</span><span>Foreman</span>'
+        + '<span>Method</span><span class="mf-r">Amount</span><span>Money went</span><span>By</span></div>'
+        + vis.map(function (r) { return settledRowHtml(r, true); }).join("");
+      if (hid.length) {
+        sub += '<div class="mf-more"><button type="button" class="mf-morebtn" data-mfa="smolder" data-v="' + esc(k) + '">Show ' + hid.length + " more job" + (hid.length === 1 ? "" : "s")
+          + " settled in " + esc(label) + "</button></div>";
+      }
+      return row + sub + "</div>";
+    }
+    // a settled job: the columns the flat list had (the foreman is the group now, or his own column
+    // in the month view); a click opens it settled
+    function settledRowHtml(r, withFm) {
       var amt = r.flow == null ? 0 : Math.abs(r.flow);
-      return '<div class="mf-srow" role="button" tabindex="0" data-mfa="job" data-v="' + esc(r.ev) + '"><span></span>'
+      var fmName = r.forman && r.forman !== MF_NO_FOREMAN ? r.forman : "Not identified";
+      return '<div class="mf-srow' + (withFm ? " mf-sfm" : "") + '" role="button" tabindex="0" data-mfa="job" data-v="' + esc(r.ev) + '"><span></span>'
         + '<span class="mf-mut mf-nowrap">' + fmtShort(settledKey(r)) + "</span>"
         + '<span class="mf-code">' + esc(r.jobCode || "—") + "</span>"
         + '<span class="mf-custt mf-ell" title="' + esc(r.customer || "") + '">' + esc(r.customer || "—") + "</span>"
+        + (withFm ? '<span class="mf-ell" title="' + esc(fmName) + '">' + esc(fmName) + "</span>" : "")
         + '<span class="mf-pill mf-p-mute">' + esc(methodLabel(r.method)) + "</span>"
         + '<span class="mf-r mf-b">' + money(amt) + "</span>"
         + '<span class="mf-mut">' + (r.flow == null || Math.abs(r.flow) < 0.005 ? "Nothing to move" : r.flow < 0 ? "To the foreman" : "To the base") + "</span>"
@@ -3177,7 +3236,7 @@ registerPage({
           + h4("Inside the Money Flow tab")
           + defs([
             [k("Waiting"), "Jobs where money still has to move."],
-            [k("Settled"), "Jobs already confirmed, grouped by foreman. Pick dates to see one period."],
+            [k("Settled"), "Jobs already confirmed, grouped by foreman or by month. Pick dates to see one period."],
             [k("Foreman balances"), "Each foreman’s balance, next to what his open jobs owe."],
           ])
           + tip("The three cards at the top add it all up: what the foremen owe the base, what the base owes the foremen, and how many jobs need a look.") },
@@ -3204,7 +3263,7 @@ registerPage({
             "The search box finds a customer, a job code, a request number or a foreman. Type a number, like 1134, to find an amount.",
             "At first only 12 foremen are listed: press " + k("Show every foreman") + " for the rest. Inside a foreman, his 8 newest jobs show first: press " + k("Show … older jobs") + " for the rest.",
             "The <b>date</b> button next to Company keeps only jobs dated in that range. On Waiting it is the job date, and the totals and Needs a look follow it. On Settled it is the day the job was settled.",
-            "<b>Group by</b> " + k("Foreman") + " or " + k("Month") + ". By month, each row is a month of job dates, newest first. Open one to see its jobs, with the foreman in its own column.",
+            "<b>Group by</b> " + k("Foreman") + " or " + k("Month") + ". By month, each row is a month of job dates, newest first. Open one to see its jobs, with the foreman in its own column. Settled has the same choice; there a month is the month the jobs were settled.",
             "<b>Needs a look</b> shows jobs with no contract, jobs that don’t add up, jobs with no closing, and jobs whose net cash was corrected (" + q("net cash to fix") + ", part 9). Press " + k("Open the … jobs") + " on a card to list only those.",
           ])
           + tip("On a narrower screen, Calendar and Contract sit one above the other instead of side by side. They work the same.") },
@@ -3468,6 +3527,9 @@ registerPage({
       else if (act === "wby") { S.wBy = v === "month" ? "month" : "foreman"; paint(); }
       else if (act === "mgrp") { S.mx[v] = !S.mx[v]; paint(); }
       else if (act === "molder") { S.mAll[v] = true; paint(); }
+      else if (act === "sby") { S.sBy = v === "month" ? "month" : "foreman"; paint(); }
+      else if (act === "smgrp") { S.smx[v] = !S.smx[v]; paint(); }
+      else if (act === "smolder") { S.smAll[v] = true; paint(); }
       else if (act === "sgrp") { S.sfx[v] = !S.sfx[v]; paint(); }
       else if (act === "solder") { S.sfAll[v] = true; paint(); }
       else if (act === "sallfm") { S.allSFm = true; paint(); }
@@ -3754,6 +3816,13 @@ function mfCss() {
     .mf-shd{color:var(--mf-muted);font-size:12px;font-weight:500;border-top-color:var(--mf-line)}
     .mf-srow{padding:0 20px 0 12px;min-height:50px;cursor:pointer}
     .mf-srow:hover{background:var(--mf-panel2)}
+    /* Settled by month (ZTZ-139): its job rows carry a Foreman column; below 1150 px they give up
+       Method (6th cell) rather than scroll sideways, as Waiting's month rows give up Type */
+    .mf-shd.mf-sfm,.mf-srow.mf-sfm{grid-template-columns:44px 92px 104px minmax(140px,1fr) 150px 130px 96px 130px 110px}
+    @container mfscroll (max-width:1149px){
+      .mf-shd.mf-sfm>:nth-child(6),.mf-srow.mf-sfm>:nth-child(6){display:none}
+      .mf-shd.mf-sfm,.mf-srow.mf-sfm{grid-template-columns:44px 92px 104px minmax(120px,1fr) 130px 96px 130px 110px}
+    }
     .mf-bgrid{min-width:860px}
     .mf-bhd,.mf-brow{display:grid;grid-template-columns:minmax(200px,1fr) 170px 170px 170px 150px;align-items:center;gap:0 12px;padding:10px 20px;border-top:1px solid var(--mf-line)}
     .mf-bhd{color:var(--mf-muted);font-size:12px;font-weight:500}
