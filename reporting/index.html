@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="e90e261094f7889096c0746874ca94369ba343e3">
+<meta name="ztz-ref" content="765912c369bdf77143c587d4df4cbbe270208d43">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -280,6 +280,7 @@ const GROUP_OVERRIDE = {
   "email-automations": ["marketing-automations", "reviews"],
   "photoshoot": "marketing-automations",
   "referral-candidates": "marketing-automations",
+  "quick-responses": "marketing-automations",
   // Company Overview
   "monthly-report": "company", "seasonal-report": "company", "analysis-by-category": "company",
   // Seasonal Planning lives in Company Overview ONLY (his call 2026-09-29: "only have it in
@@ -341,7 +342,7 @@ const NAV_ORDER = {
   "admin-activity": 5.5,
   "customer-lookup": 1,
   "ct-report": 1,
-  "marketing-overview": 6.5, "partnership-strategy": 6.55, "target-map": 6.6, "source-report": 7, "marketing-roi": 7.1, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "jobs-by-area": 12,
+  "marketing-overview": 6.5, "partnership-strategy": 6.55, "target-map": 6.6, "source-report": 7, "marketing-roi": 7.1, "source-trace": 8, "meta-referrals": 10, "referral-candidates": 11, "quick-responses": 11.5, "jobs-by-area": 12,
   "relocation-trends": 13, "census-data": 13.2, "organic-search": 13.3, "angi-funnel": 13.5, "utm-campaigns": 13.7, "promised-reviews": 14, "birdeye-sends": 14.2, "photoshoot": 14.4,
 };
 
@@ -414,7 +415,7 @@ const PAGE_ICONS = {
   "log-foreman": "tool", "log-packing": "box",
   "fin-revenue": "trend", "fin-rr": "trend", "rev-production": "star",
   "sup-claims": "shield", "sup-refunds": "clipboard", "sup-phone": "phone",
-  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "partnership-strategy": "share-2", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "email-automations": "megaphone", "review-map": "map-pin", "competitor-map": "compass", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
+  "general-settings": "sliders", "general-tables": "grid", "admin-activity": "clock", "data-quality": "clipboard", "data-migration": "share-2", "refresh-log": "activity", "photoshoot": "camera", "marketing-overview": "gauge", "partnership-strategy": "share-2", "target-map": "map-pin", "source-report": "compass", "marketing-roi": "dollar", "source-trace": "activity", "meta-referrals": "upload-cloud", "referral-candidates": "gift", "quick-responses": "megaphone", "jobs-by-area": "map-pin", "packing-sales": "package", "relocation-trends": "trending-up", "census-data": "clipboard", "organic-search": "search", "angi-funnel": "funnel", "utm-campaigns": "link", "promised-reviews": "star", "birdeye-sends": "megaphone", "calendar-coverage": "calendar", "request-consistency": "alert-triangle", "review-performance": "star", "reviews-reminders": "megaphone", "response-analysis": "activity", "review-settings": "tool", "surveys": "clipboard", "email-automations": "megaphone", "review-map": "map-pin", "competitor-map": "compass", "reviews-cases": "star", "claims-analysis": "alert-triangle", "area-plan": "map-pin",
 };
 
 /* Pages not yet built — shown greyed with a SOON tag so the full scope is visible. */
@@ -967,6 +968,7 @@ const PAGE_DATASETS = {
   "marketing-roi": [],         // the same marts through roi-core.js; sources/company/period/state live on the page
   "meta-referrals": [],
   "referral-candidates": [],   // loads fct_referral_candidates itself; filters live on the page
+  "quick-responses": [],       // the Reddit finder's requests come through /api/_quickresp (ZTZ-72)
   "jobs-by-area": [],          // loads mart_jobs_geo itself; season/year/company live on the page
   "packing-sales": [],         // loads its two packing marts itself; period/company/size live on the page
   "relocation-trends": [],     // loads mart_relocation itself; year/window/company live on the page
@@ -1293,7 +1295,7 @@ function navigate(id, push) {
 /* Pages that bring their OWN toolbar and ignore the global filter bar (PAGE_DATASETS=[])
    render "bare" — the global date/slicer bar + company chip are hidden so the page's board
    starts right under the header instead of below two rows of greyed-out, unusable filters. */
-const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "surveys", "email-automations", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends", "review-map", "competitor-map",
+const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "review-performance", "reviews-cases", "claims-analysis", "demand-analysis", "reviews-reminders", "response-analysis", "review-settings", "surveys", "email-automations", "monthly-report", "seasonal-report", "money-flow", "day-closing", "ld-planning", "cleanup", "packing-control", "crew-salaries", "foreman-assessment", "fuel-control", "truck-control", "foreman-closings", "refresh-log", "general-tables", "hr-questionnaire", "hr-directory", "conversations", "sales-comms", "referral-candidates", "quick-responses", "jobs-by-area", "packing-sales", "meta-referrals", "relocation-trends", "angi-funnel", "utm-campaigns", "promised-reviews", "birdeye-sends", "review-map", "competitor-map",
   // Census Data (2026-09-23): a reference table with its own search and state/county filters
   "census-data",
   // Marketing Overview (2026-10-15): its source list has no date to slice
@@ -1460,6 +1462,7 @@ const NAV_TITLES = {
   "marketing-roi": "Return on Investment",
   "source-trace": "Source Trace", "meta-referrals": "Meta Referrals",
   "referral-candidates": "List of Possible Referrals",
+  "quick-responses": "Quick Responses",
   "jobs-by-area": "Jobs by Area",
   "packing-sales": "Packing Materials Sold",
   "angi-funnel": "Angi Lead Funnel",
@@ -1570,6 +1573,7 @@ const SEARCH_ALIASES = {
   "marketing-roi": "return on investment roi roas revenue per dollar ad spend by state split spend states placed not placed missing data drill cost per job yelp meta reddit nextdoor google angi post card marketing budget",
   "meta-referrals": "meta referral upload facebook instagram lead form fills csv export dedupe source",
   "referral-candidates": "referral candidates five star reviews customers email phone contact list marketing call sheet",
+  "quick-responses": "quick responses reddit finder recommender move requests subreddits elene slack posted tracked link",
   "jobs-by-area": "jobs by area state county summer season june july august month volume geography where we work marketing",
   "census-data": "census data acs american community survey population median income mover rate movers owner share zip zcta margin of error reliability state tie out coverage marketing demographics",
   "organic-search": "organic search google search console seo queries keywords brand clicks impressions position ranking business profile gbp gmb listing city pages landing pages near me movers searches share of search keyword planner marketing",
@@ -2125,6 +2129,7 @@ const REPORT_LABELS = {
   "census-data": "Census Data",
   "organic-search": "Organic Search",
   "referral-candidates": "List of Possible Referrals",
+  "quick-responses": "Quick Responses",
   "promised-reviews": "Promised Reviews",
   "birdeye-sends": "Birdeye Send-outs",
   "photoshoot": "Photoshoot Confirmation",
@@ -2240,7 +2245,7 @@ const ACL_DEPTS = [
   { id: "sales",     label: "Sales",            icon: "funnel",    reports: ["sales-command", "sales-roster", "sales-of-the-month", "support-of-the-month", "demand-analysis", "conversations", "sales-trackers", "estimate-accuracy"] },
   { id: "marketing", label: "Marketing",        icon: "megaphone", reports: ["marketing-overview", "target-map", "partnership-strategy", "source-report", "marketing-roi", "source-trace", "jobs-by-area", "relocation-trends", "organic-search"] },
   // granted on its own, and ALSO by holding Marketing (DEPT_IMPLIES)
-  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot", "email-automations", "surveys"] },
+  { id: "marketing-automations", label: "Marketing Automations", icon: "clock", reports: ["referral-candidates", "promised-reviews", "birdeye-sends", "angi-funnel", "photoshoot", "email-automations", "surveys", "quick-responses"] },
   { id: "logistics", label: "Logistics",        icon: "tool",      reports: ["postcard-expenditure", "money-flow", "day-closing", "ld-planning", "foreman-closings", "packing-control", "packing-sales", "crew-salaries", "foreman-assessment", "fuel-control", "foreman-late"] },
   // its own tile since 2026-09-23; it used to ride in on Logistics
   { id: "different", label: "Different Analysis", icon: "compass", reports: ["straight-vs-local", "truck-economics", "bo-salary", "crew-pay-compare"] },
@@ -2591,6 +2596,7 @@ registerPage({
 <script src="pages/reminders.js?v=56"></script>
 <script src="pages/surveys.js?v=19"></script>
 <script src="pages/email-automations.js?v=12"></script>
+<script src="pages/quick-responses.js?v=1"></script>
 <script src="pages/reviews-cases.js?v=20"></script>
 <script src="pages/claims-analysis.js?v=35"></script>
 <script src="pages/sales-of-the-month.js?v=10"></script>

@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- PUBLIC page for Quick Responses (Zip To Zip Moving), served by GitHub Pages at ziptozip.systems/go/
+     (analytics/_root/go/index.html; tracker ZTZ-72). /go/?c=CODE is a tracked link from a Reddit request: the bridge
+     counts the click and answers where it goes (the quote page with utm tags), then this page opens it.
+     No customer data lives in this file. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Zip To Zip Moving</title>
+<style>
+  :root{--lime:#9bba2a;--ink:#1e1f04;--muted:#5f6355;--line:#e3e6dc;--bg:#f6f7f3;--card:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:40px 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 26px}
+  .bar{height:5px;background:var(--lime);border-radius:14px 14px 0 0;margin:-28px -26px 22px}
+  img.logo{display:block;width:150px;height:auto;margin-bottom:18px}
+  h1{font-size:22px;margin:0 0 10px}
+  p{margin:0 0 14px;color:var(--muted)}
+  a{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="bar"></div>
+    <img class="logo" src="/survey/logo.png" alt="Zip To Zip Moving">
+    <h1>Opening&hellip;</h1>
+    <p id="t">One moment, we're taking you to Zip To Zip Moving.</p>
+  </div>
+</div>
+<script>
+(function () {
+  var API = "https://ztz-bridge-32168089642.us-east4.run.app/api/_rqgo";
+  var HOME = "https://ziptozipmoving.com/";
+  var c = new URLSearchParams(location.search).get("c") || "";
+  function home() { location.replace(HOME); }
+  if (!/^[A-Za-z0-9_-]{6,16}$/.test(c)) { home(); return; }
+  fetch(API + "?c=" + encodeURIComponent(c)).then(function (r) { return r.json(); }).then(function (j) {
+    if (j && j.url) location.replace(j.url); else home();
+  }).catch(home);
+  // never leave anyone on this page: the site opens even if the count fails
+  setTimeout(home, 4000);
+})();
+</script>
+</body>
+</html>
