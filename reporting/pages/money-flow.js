@@ -2943,10 +2943,19 @@ registerPage({
       if (sel) RSC.localSelect(sel, { label: "Month", required: true, value: S.mcMonth,
         values: mcMonths().map(function (m) { return { v: m, l: mcName(m) }; }),
         onChange: function (v) { if (v === S.mcMonth) return; S.mcMonth = v; paintMonth(true); } });
+      // ZP-16: whose sheet the Foreman PDF prints (All = everyone with something open, a page each)
+      var fsel = $("mfMcFm");
+      if (fsel) {
+        var fms = mcFmData(S.mcMonth).map(function (x) { return x.name; });
+        if (S.mcFm && fms.indexOf(S.mcFm) < 0) S.mcFm = "";
+        RSC.localSelect(fsel, { label: "Foreman", allLabel: "All foremen", value: S.mcFm || "", values: fms,
+          onChange: function (v) { S.mcFm = v || ""; } });
+      }
       pane.onclick = function (e) {
         var a = e.target.closest("[data-mfm]"); if (!a) return;
         var k = a.getAttribute("data-mfm");
         if (k === "csv") monthCsv(mcData(S.mcMonth));
+        else if (k === "pdf") foremanPdf(S.mcMonth, S.mcFm || "");
         else if (k === "refresh") {
           mcLoadDc(true);
           loadLive(true).then(function () { setLiveBadge(); paintMonth(true); });
@@ -2962,7 +2971,9 @@ registerPage({
         + "<p>What moved in the month, what the foremen repaid, the jobs’ extra expenses and net cash corrections, and what is still open. All companies.</p></div>"
         + '<div class="mf-topbtns"><div class="mf-mcsel" id="mfMcMonth"></div>'
         + '<button type="button" class="mf-btn" data-mfm="refresh">Refresh</button>'
-        + '<button type="button" class="mf-btn" data-mfm="csv">' + ICON.dl + "Download CSV</button></div></div>";
+        + '<button type="button" class="mf-btn" data-mfm="csv">' + ICON.dl + "Download CSV</button>"
+        + '<div class="mf-mcsel" id="mfMcFm"></div>'
+        + '<button type="button" class="mf-btn" data-mfm="pdf" title="Each foreman’s open jobs, jobs to check and balance, a page each">' + ICON.dl + "Foreman PDF</button></div></div>";
       var kp = '<div class="mf-kpis">'
         + '<div class="mf-kpi"><span class="mf-kl">Cash into the drawer (net)</span><span class="mf-kv">' + (MC.dc ? money(c.net) : "…") + "</span>"
         + '<span class="mf-ks">' + (MC.dc ? money(c.cash_in) + " in · " + money(Math.abs(c.card_out + c.advances)) + " out" : MC.dcErr ? "Day Closing didn’t load" : "Loading Day Closing…") + "</span></div>"
@@ -3106,6 +3117,186 @@ registerPage({
       a.download = "Money Flow — month close " + D.m + ".csv";
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    }
+
+    /* THE FOREMAN'S MONTH-CLOSE SHEET (ZP-16, Irakli on the bug board 19 Nov 2026: "For each monthly
+       closing, I need a PDF file for the foreman -- to serve as a reminder of which tasks have not yet
+       been completed"; Tornike's picks 20 Nov: his open jobs + the jobs to check + his balance; pick one
+       foreman or all of them; English; job code + customer as "J. Zackson", no phone or address).
+       One A4 sheet per foreman, each starting on a new page with its own header so a page can be sent
+       on its own. Built from the rows Month close's "Still open" already counts -- nothing is fetched,
+       nothing is stored. */
+    function custShort(n) {
+      var w = String(n || "").trim().split(/\s+/).filter(Boolean);
+      if (!w.length) return "—";
+      return w.length === 1 ? w[0] : w[0].charAt(0).toUpperCase() + ". " + w[w.length - 1];
+    }
+    // per foreman: the month's jobs still open (cash to hand in, pay-outs owed to him), the month's
+    // jobs to check, earlier months still open, and his balance outside jobs
+    function mcFmData(m) {
+      var fm = {};
+      var get = function (n) {
+        return fm[n] || (fm[n] = { name: n, cash: [], out: [], checks: [], earlier: { n: 0, toBase: 0, toFm: 0, oldest: "" }, ledger: [] });
+      };
+      overlaid().forEach(function (r) {
+        if (!r.forman || r.forman === MF_NO_FOREMAN || r.status === "Filter Out") return;
+        var mo = String(r.date || "").slice(0, 7);
+        if (!mo || mo > m) return;
+        var dir = MAINSET[r.status] ? dirOf(r) : 0;
+        if (mo < m) {
+          if (!dir) return;
+          var e = get(r.forman).earlier;
+          e.n++;
+          if (dir > 0) e.toBase += r.balance; else e.toFm += -r.balance;
+          if (!e.oldest || r.date < e.oldest) e.oldest = r.date;
+          return;
+        }
+        var need = needOf(r);
+        if (dir > 0) get(r.forman).cash.push(r);
+        else if (dir < 0) get(r.forman).out.push(r);
+        // "doesn't add up" is already a money line above (what is still missing); the rest has no amount yet
+        if (need && need !== "nib") get(r.forman).checks.push({ r: r, need: need });
+      });
+      ((S.fines || {}).entries || []).forEach(function (e) {
+        var n = String(e.Foreman || "").trim();
+        if (!e["Is Current"] || !n || n === MF_NO_FOREMAN || String(e["Fine Date"] || "").slice(0, 7) !== m) return;
+        get(n).ledger.push(e);
+      });
+      if (S.fines) ((S.fines.balances || [])).forEach(function (b) {
+        if (b.foreman && b.foreman !== MF_NO_FOREMAN && Math.abs(b.owes || 0) > 0.005) get(b.foreman);
+      });
+      return Object.keys(fm).map(function (n) {
+        var x = fm[n];
+        // a foreman whose only open things are from earlier months belongs on those months' sheets
+        if (!x.cash.length && !x.out.length && !x.checks.length && !x.ledger.length && !(S.fines && Math.abs(debtOf(n)) > 0.005)) return null;
+        var byDate = function (a, b) { var p = a.r || a, q = b.r || b; return p.date < q.date ? -1 : p.date > q.date ? 1 : String(p.jobCode).localeCompare(String(q.jobCode)); };
+        x.cash.sort(byDate); x.out.sort(byDate); x.checks.sort(byDate);
+        x.ledger.sort(function (a, b) { return String(a["Fine Date"]) < String(b["Fine Date"]) ? -1 : 1; });
+        x.toBase = r2(x.cash.reduce(function (s, r) { return s + r.balance; }, 0));
+        x.toFm = r2(x.out.reduce(function (s, r) { return s - r.balance; }, 0));
+        x.earlier.toBase = r2(x.earlier.toBase); x.earlier.toFm = r2(x.earlier.toFm);
+        return x;
+      }).filter(Boolean).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    }
+    var MCFM_CHECK = {
+      cnr: ["No contract yet", "Submit the job’s contract — nobody can say what is owed until it comes in."],
+      mc: ["No closing", "Fill in the closing sheet for this job — there is no net cash to settle without it."],
+      fix: ["Net cash to fix", ""],
+    };
+    function foremanPdf(m, who) {
+      var all = mcFmData(m), list = who ? all.filter(function (x) { return x.name === who; }) : all;
+      if (!list.length) { RSC.notice({ title: "Nothing to print", body: (who || "No foreman") + " has nothing open from " + mcName(m) + "." }); return; }
+      var month = mcName(m), mShort = new Date(m + "-15T12:00:00").toLocaleDateString("en-US", { month: "long" });
+      var printed = new Date().toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+      var logo = (function () { try { return new URL("logo-wide.png", document.baseURI).href; } catch (e) { return "logo-wide.png"; } })();
+      var cssStr = function (v) { return '"' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\r\n]+/g, " ") + '"'; };
+      var foot = "Zip to Zip Moving · Month close · " + month + (who ? " · " + who : "");
+      var amt = function (v) { return '<td class="r">' + money2(v) + "</td>"; };
+      var jobCells = function (r) {
+        // a job with no closing often has no code yet ("-"): its request number names it instead
+        var code = /[A-Za-z0-9]/.test(String(r.jobCode || "")) ? r.jobCode : r.jobNo ? "#" + r.jobNo : "—";
+        return '<td class="mut">' + esc(fmtShort(r.date)) + '</td><td class="code">' + esc(code) + "</td><td>" + esc(custShort(r.customer)) + "</td>";
+      };
+      var sheet = function (x, i) {
+        var bal = S.fines ? debtOf(x.name) : null, b = S.fines ? (balRow(x.name) || {}) : null;
+        var nJobs = x.cash.length + x.out.length + x.checks.length;
+        var tile = function (l, v, s) { return '<div class="t"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + s + "</div></div>"; };
+        var hero = '<section class="hero"><div class="big"><div class="l">CASH STILL TO HAND IN</div><div class="v">' + money2(x.toBase) + '</div><div class="s">'
+          + x.cash.length + " job" + (x.cash.length === 1 ? "" : "s") + " from " + esc(mShort) + "</div></div>"
+          + tile("Owed to him", money2(x.toFm), x.out.length + " pay-out" + (x.out.length === 1 ? "" : "s") + " waiting")
+          + tile("Jobs to check", String(x.checks.length), x.checks.length ? "see the list below" : "nothing missing")
+          + tile("His balance today", bal == null ? "—" : Math.abs(bal) < 0.005 ? "$0" : money2(Math.abs(bal)),
+                 bal == null ? "did not load" : bal > 0.005 ? "he owes the base" : bal < -0.005 ? "the base owes him" : "nothing either way")
+          + "</section>";
+        var cashT = x.cash.length ? '<h2>JOBS WITH CASH TO HAND IN</h2><table><thead><tr><th style="width:62px">Job date</th><th style="width:84px">Job</th><th>Customer</th><th>Type</th><th>Where it stands</th>'
+            + '<th class="r" style="width:74px">To hand in</th><th class="r" style="width:54px">Waiting</th></tr></thead><tbody>'
+            + x.cash.map(function (r) {
+                var part = r.flow != null && Math.abs(r.flow) > 0.005;
+                return "<tr>" + jobCells(r) + '<td class="mut">' + esc(r.jobType || "—") + "</td><td>"
+                  + (part ? "Part handed in (" + money2(Math.abs(r.flow)) + ")" : "Not handed in yet") + "</td>" + amt(r.balance)
+                  + '<td class="r mut">' + esc(ageText(daysWaiting(r.date))) + "</td></tr>";
+              }).join("")
+            + '<tr class="tot"><td colspan="5">' + x.cash.length + " job" + (x.cash.length === 1 ? "" : "s") + '</td><td class="r">' + money2(x.toBase) + "</td><td></td></tr></tbody></table>"
+          : '<h2>JOBS WITH CASH TO HAND IN</h2><p class="ok">None — every ' + esc(mShort) + " job’s cash is in.</p>";
+        var outT = x.out.length ? '<h2>PAY-OUTS OWED TO HIM</h2><table><thead><tr><th style="width:62px">Job date</th><th style="width:84px">Job</th><th>Customer</th><th>Type</th><th>Where it stands</th>'
+            + '<th class="r" style="width:74px">To pay him</th><th class="r" style="width:54px">Waiting</th></tr></thead><tbody>'
+            + x.out.map(function (r) {
+                var part = r.flow != null && Math.abs(r.flow) > 0.005;
+                return "<tr>" + jobCells(r) + '<td class="mut">' + esc(r.jobType || "—") + "</td><td>"
+                  + (part ? "Part paid out (" + money2(Math.abs(r.flow)) + ")" : "Not paid out yet") + "</td>" + amt(-r.balance)
+                  + '<td class="r mut">' + esc(ageText(daysWaiting(r.date))) + "</td></tr>";
+              }).join("")
+            + '<tr class="tot"><td colspan="5">' + x.out.length + " job" + (x.out.length === 1 ? "" : "s") + '</td><td class="r">' + money2(x.toFm) + "</td><td></td></tr></tbody></table>"
+          : "";
+        var chkT = x.checks.length ? '<h2>JOBS TO CHECK</h2><table><thead><tr><th style="width:62px">Job date</th><th style="width:84px">Job</th><th>Customer</th><th style="width:96px">What’s missing</th><th>What to do</th></tr></thead><tbody>'
+            + x.checks.map(function (c) {
+                var k = MCFM_CHECK[c.need] || [c.need, ""], r = c.r;
+                var todo = c.need === "fix" ? "The contract says " + money2(r.recorded) + "; the job was settled at " + money2(r.fix) + ". Correct the contract or closing." : k[1];
+                return "<tr>" + jobCells(r) + "<td><b>" + esc(k[0]) + '</b></td><td class="mut">' + esc(todo) + "</td></tr>";
+              }).join("") + "</tbody></table>"
+          : "";
+        var balT = "";
+        if (S.fines) {
+          var parts = [["Opening balance", b.opening], ["Fines", b.fined], ["Advances", b.advanced], ["Short hand-ins", b.short], ["Repaid", b.repaid ? -b.repaid : 0]]
+            .filter(function (p) { return Math.abs(+p[1] || 0) > 0.005; });
+          balT = '<h2>HIS BALANCE OUTSIDE JOBS</h2>'
+            + (parts.length ? '<table class="half"><tbody>' + parts.map(function (p) { return "<tr><td>" + p[0] + "</td>" + amt(p[1]) + "</tr>"; }).join("")
+                + '<tr class="tot"><td>' + (bal > 0.005 ? "He owes the base today" : bal < -0.005 ? "The base owes him today" : "Balance today") + '</td><td class="r">' + money2(Math.abs(bal)) + "</td></tr></tbody></table>"
+              : '<p class="ok">Nothing either way: no fines, advances or short hand-ins.</p>')
+            + (x.ledger.length ? '<h3>In ' + esc(mShort) + '</h3><table><thead><tr><th style="width:62px">Date</th><th style="width:110px">What</th><th>Note</th><th class="r" style="width:74px">Amount</th></tr></thead><tbody>'
+                + x.ledger.map(function (e) {
+                    var t = e["Entry Type"], lab = { fine: "Fine", advance: "Advance", short: "Short hand-in", repayment: e.readonly ? "Extra on a job" : "Repaid", opening: "Opening balance" }[t] || t;
+                    var v = (t === "repayment" ? -1 : 1) * (+e.Amount || 0);
+                    // a line Settle wrote reads "<what> · <customer> · …" (bridge _ffines_state): the What column
+                    // already says the what, and the customer is shortened like everywhere else on the sheet
+                    var why = String(e.Reason || ""), seg = why.split(" · ");
+                    if (e.readonly && seg.length >= 2) {
+                      var rest = seg.slice(1);
+                      if (!/^counts /.test(rest[0])) rest[0] = custShort(rest[0]);   // no customer: the note comes straight after
+                      why = rest.join(" · ");
+                    }
+                    return '<tr><td class="mut">' + esc(fmtShort(e["Fine Date"])) + "</td><td>" + esc(lab) + '</td><td class="mut">' + esc(why || "—")
+                      + (e["Job Code"] ? ' · <span class="code">' + esc(e["Job Code"]) + "</span>" : "") + "</td>" + amt(v) + "</tr>";
+                  }).join("") + "</tbody></table>" : "");
+        }
+        var e = x.earlier;
+        var earlier = e.n ? '<p class="note"><b>Also still open from earlier months:</b> ' + e.n + " job" + (e.n === 1 ? "" : "s")
+            + (e.toBase > 0.005 ? ", " + money2(e.toBase) + " to hand in" : "") + (e.toFm > 0.005 ? ", " + money2(e.toFm) + " owed to him" : "")
+            + " (the oldest from " + esc(fmtD(e.oldest)) + "). They are on those months’ sheets.</p>" : "";
+        return '<section' + (i ? ' class="brk"' : "") + '><header class="dh"><div class="brand"><img alt="Zip to Zip Moving" src="' + esc(logo) + '"></div>'
+          + '<div><div class="kind">MONTH CLOSE · WHAT IS STILL OPEN</div><h1>' + esc(x.name) + '</h1><div class="meta">' + esc(month) + " jobs · as of " + esc(fmtD(todayIso))
+          + " · " + nJobs + " job" + (nJobs === 1 ? "" : "s") + " open</div></div>"
+          + '<div class="ref">Printed ' + esc(printed) + "</div></header>"
+          + hero + cashT + outT + chkT + balT + earlier
+          + '<p class="foot">Something here looks wrong? Tell the office before the month is closed.</p></section>';
+      };
+      var css = "@page{size:A4 portrait;margin:13mm 12mm 15mm;"
+        + "@bottom-left{content:" + cssStr(foot) + ";font:500 8px 'Segoe UI',Arial,sans-serif;color:#64748B}"
+        + "@bottom-right{content:\"Page \" counter(page) \" of \" counter(pages);font:600 8px 'Segoe UI',Arial,sans-serif;color:#475569}}"
+        + "*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
+        + "body{margin:0;font:10px/1.42 'Segoe UI','IBM Plex Sans',Arial,sans-serif;color:#0F172A;font-variant-numeric:tabular-nums}"
+        + ".brk{break-before:page}"
+        + ".dh{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding-bottom:10px;border-bottom:2.5px solid #14301F;margin-bottom:12px}"
+        + ".dh .brand{background:#9BBB3B;border-radius:6px;padding:7px 10px}.dh .brand img{height:22px;display:block}"
+        + ".dh .kind{font-size:8.5px;font-weight:700;letter-spacing:.14em;color:#3F7D20}.dh h1{margin:1px 0 2px;font-size:19px;line-height:1.15}"   // std-ok: print sheet
+        + ".dh .meta{color:#475569;font-size:9.5px}.dh .ref{text-align:right;color:#64748B;font-size:8.5px;line-height:1.5}"   // std-ok: print sheet
+        + ".hero{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;margin:0 0 12px;break-inside:avoid}"
+        + ".hero .big{background:#14301F;color:#fff;border-radius:8px;padding:10px 13px}.hero .big .l{font-size:8.5px;letter-spacing:.1em;font-weight:700;color:#B7E23B}"   // std-ok: print sheet
+        + ".hero .big .v{font-size:25px;font-weight:700;line-height:1.15;margin-top:2px}.hero .big .s{font-size:8.5px;color:#D7E5C8;margin-top:2px}"   // std-ok: print sheet
+        + ".hero .t{border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px}.hero .t .l{font-size:8.5px;color:#475569;font-weight:600}"   // std-ok: print sheet
+        + ".hero .t .v{font-size:16px;font-weight:700;margin-top:3px}.hero .t .s{font-size:8px;color:#64748B;margin-top:1px}"   // std-ok: print sheet
+        + "h2{font-size:9px;letter-spacing:.12em;color:#3F7D20;margin:14px 0 5px;font-weight:800;break-after:avoid}"   // std-ok: print sheet
+        + "h3{font-size:9px;color:#475569;margin:10px 0 4px;font-weight:700;break-after:avoid}"   // std-ok: print sheet
+        + "table{width:100%;border-collapse:collapse;margin-bottom:4px}thead{display:table-header-group}table.half{width:55%}"
+        + "th{text-align:left;font-size:8px;font-weight:700;color:#475569;letter-spacing:.03em;text-transform:uppercase;padding:5px 6px;border-bottom:1.5px solid #0F172A}"   // std-ok: print sheet
+        + "td{padding:4px 6px;border-bottom:1px solid #EEF1F4;vertical-align:top}tr{break-inside:avoid}"
+        + ".r{text-align:right;white-space:nowrap}.mut{color:#64748B}.code{font-family:Consolas,'Courier New',monospace;font-size:9px}"   // std-ok: print sheet
+        + "tr.tot td{border-top:1.5px solid #0F172A;border-bottom:0;font-weight:800;font-size:10.5px;padding-top:6px}"   // std-ok: print sheet
+        + ".ok{margin:2px 0 6px;color:#3F7D20;font-weight:600}.note{margin:12px 0 0;color:#475569}"
+        + ".foot{margin:18px 0 0;padding-top:6px;border-top:1px dotted #94A3B8;color:#64748B;font-size:8.5px}";   // std-ok: print sheet
+      var title = "Month close · " + month + " · " + (who || "all foremen");
+      RSC.printDoc('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + "</title><style>" + css + "</style></head><body>"
+        + list.map(sheet).join("") + "</body></html>", { title: title, width: "210mm", height: "297mm" });
     }
 
     // ---------- the four tabs: Money Flow · Day Closing · Month close · How to use ----------
