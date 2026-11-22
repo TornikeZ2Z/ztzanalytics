@@ -28,7 +28,7 @@
 </script>
 <!-- the commit this copy of the portal was built from; scripts/safe_deploy.py stamps it on every
      portal deploy ("dev" = a local copy, which never asks to be refreshed) -->
-<meta name="ztz-ref" content="cfdece31778be798bfac35cf30f693b666bca369">
+<meta name="ztz-ref" content="58b59b469dc41120fe25fe915e4bc13bf3ec524b">
 <script>
   /* "A NEW VERSION IS LIVE" (his ask 2026-10-07: "tell user that new version is live and refresh
      when its there"). An open tab keeps running the code it loaded, so after a deploy people kept
@@ -247,6 +247,8 @@ const GROUP_OVERRIDE = {
   "things-to-do": "admin", "data-migration": "admin", "bugs-requests": "admin",
   // 2026-11-19 (ZTZ-133): the Ads Budget Planner is admins-only until he grants it, so it lives in Administration
   "budget-planner": "admin",
+  // 2026-11-21 (ZTZ-146): Watchers, admins only, so it lives in Administration
+  "watchers": "admin",
   // Tech Team (Website Forms & UTM joined 2026-09-23, his call)
   "utm-campaigns": "tech",
   // Marketing — source attribution belongs with the marketing views
@@ -330,7 +332,7 @@ const groupsOf = p => { const g = GROUP_OVERRIDE[p.id] || p.group;
 const groupOf = p => groupsOf(p)[0];
 /* explicit per-container item order (numbers are scoped within each group's display list) */
 const NAV_ORDER = {
-  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6, "bugs-requests": 0.5, "budget-planner": 0.4,
+  "monthly-report": 1, "seasonal-report": 1.5, "analysis-by-category": 2, "things-to-do": 0.6, "bugs-requests": 0.5, "budget-planner": 0.4, "watchers": 0.4,
   "sales-command": 0.5, "sales-roster": 0.55, "sales-of-the-month": 0.6, "support-of-the-month": 0.65, "conversations": 0.7, "sales-comms": 0.8, "sales-trackers": 0.9, "estimate-accuracy": 0.95, "sales-funnel": 1, "sales-perf": 2, "demand-analysis": 5,
   "mkt-roi": 1, "mkt-sources": 2, "mkt-phone": 3,
   "money-flow": 1, "day-closing": 1.5, "foreman-closings": 2, "ld-planning": 3, "packing-control": 4, "job-control": 4, "packing-sales": 4.5, "foreman-assessment": 6, "crew-salaries": 6.5, "fuel-control": 7, "foreman-late": 7.5, "log-foreman": 8, "log-packing": 9,
@@ -408,7 +410,7 @@ const PAGE_ICONS = {
   "foreman-closings": "receipt",
   "labor-analysis": "activity",
   "post-card-analysis": "megaphone",
-  "monthly-report": "spark", "seasonal-report": "calendar", "things-to-do": "tool", "bugs-requests": "bug", "budget-planner": "trend",
+  "monthly-report": "spark", "seasonal-report": "calendar", "things-to-do": "tool", "bugs-requests": "bug", "budget-planner": "trend", "watchers": "search",
   "angi-vs-moveboard": "compass", "reviews-team": "star", "support-team": "shield", "lead-source-analysis": "compass", "source-analysis": "compass", "movers-analysis": "megaphone",
   "financial-team": "trend", "sales-team": "user", "marketing-team": "megaphone", "logistics-team": "tool",
   // themed dashboards + settings (2026-07-09 restructure)
@@ -614,7 +616,7 @@ const idOwner = id => (id && MERGED_BY_TAB[id]) ? MERGED_BY_TAB[id].id : id;
    Migration and Bugs & Requests moved there from Tech Team on 2026-11-18, so every page here sits in
    Administration and access follows the group (check_acl_mirror.py fails otherwise; it reads this set). */
 const ADMIN_ONLY = new Set(["admin-users", "general-settings", "refresh-log", "data-quality",
-  "general-tables", "admin-activity", "data-migration", "things-to-do", "bugs-requests", "budget-planner"]);
+  "general-tables", "admin-activity", "data-migration", "things-to-do", "watchers", "bugs-requests", "budget-planner"]);
 /* NAMED_ONLY (pages opened by name, outside every grant) is GONE, 2026-11-18. Its only member was the
    Bonus System, now an ordinary Financial page. Tornike: "all the access should be by group - if its
    under sales - everyone who has acces to sales should see it". check_acl_mirror.py fails if it returns. */
@@ -1005,6 +1007,7 @@ const PAGE_DATASETS = {
   "things-to-do": [],       // everything moves through /api/_todo; no global slicers
   "bugs-requests": [],      // the board moves through /api/_zp (bridge/zp_board.py); no global slicers
   "budget-planner": [],     // ZTZ-133: loads its own four mart_budget_* tables; its own company / month bar
+  "watchers": [],           // ZTZ-146: loads mart_watch_alert and /api/_watch; nothing a global slicer could act on
   "conversations": [],
   "sales-comms": ["mart_sales_call_score"],
   "sales-trackers": [],      // loads its own eval + score tables; verdicts ignore the global bar
@@ -1323,6 +1326,8 @@ const BARE_CHROME = new Set(["sales-of-the-month", "support-of-the-month", "revi
   "bugs-requests",
   // Ads Budget Planner (ZTZ-133): its own company, month, foremen and budgets
   "budget-planner",
+  // Watchers (ZTZ-146): rule cards with their own windows; a date filter would hide what the rules found
+  "watchers",
   // Straight vs Local reads its whole history on purpose (Tornike 2026-08-19: "i dont need
   // any filters here, its just kinda analysis and directions"). A date filter left over from
   // another page emptied it completely, which is worse than useless -- it looked like there
@@ -1428,6 +1433,7 @@ const NAV_TITLES = {
   "sales-roster": "Sales team",
   "things-to-do": "Things to do",
   "budget-planner": "Ads Budget Planner",
+  "watchers": "Watchers",
   "analysis-by-category": "Custom Breakdown",
   "job-pnl": "Job P&L",
   "flat-rate": "Flat Rate Analysis",
@@ -1562,6 +1568,7 @@ const SEARCH_ALIASES = {
   "refresh-log": "refresh log pipeline curation raw source timing history update run duration",
   "admin-activity": "user activity log logins sign in sessions who logged in usage time spent engaged audit trail seen last active adoption",
   "budget-planner": "ads budget planner projection forecast spend roi return channels states google local yelp angi thumbtack morning jobs foremen what if",
+  "watchers": "watchers watch alerts pulse idle trucks rentals lead sources no jobs break even data feeds late loopholes",
   "bugs-requests": "bugs requests bug report submit a bug change request feature issue problem ticket zp board claude code token screenshot",
   "things-to-do": "things to do todo tasks checklist dispatch flow erp walkthrough bacho questions answer add job assignment contract inventory closing sheet money flow",
   "sales-of-the-month": "sales person of the month salesperson of the month best rep monthly score scorecard ranking award winner leaderboard conversion skill profit per lead",
@@ -2539,6 +2546,7 @@ registerPage({
 <script src="pages/things-to-do.js?v=5"></script>
 <script src="pages/bugs-requests.js?v=2"></script>
 <script src="pages/budget-planner.js?v=2"></script>
+<script src="pages/watchers.js?v=2"></script>
 <script src="pages/conversations.js?v=15"></script>
 <script src="pages/customer-lookup.js?v=2"></script>
 <script src="pages/ct-report.js?v=5"></script>
