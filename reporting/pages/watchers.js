@@ -6,7 +6,8 @@
    DATA: mart_watch_alert, built every hour by the loader (src/watchers.py), and the decisions through
    /api/_watch (bridge/watchers.py). A decided card is quiet until its money grows by half, or for 90 days at
    most; the loader's Monday Slack DM uses the same rule (watchers.quiet in src/watchers.py).
-   Admins only (it lives in Administration). No customer names anywhere: cards name trucks, sources, feeds. */
+   It lives in Financial (his word, 23 Nov 2026: "take it to financial group"): the Financial group sees it and
+   decides its cards, admins too. No customer names anywhere: cards name trucks, sources, feeds and staff. */
 (() => {
   const DS = {
     watch_alert: { table: "mart_watch_alert", cols: ["Key", "Group", "Rule", "Subject", "Company", "Severity",
@@ -241,7 +242,7 @@
 
   registerPage({
     id: "watchers",
-    group: "administration",
+    group: "financial",
     title: "Watchers",
     async render(host) {
       injectStyle();
