@@ -1,11 +1,13 @@
 /* MARKETING AUTOMATIONS page: Quick Responses (report id quick-responses; tracker ZTZ-72, 19 Nov 2026).
    The Reddit finder (src/reddit_watch.py, the loader) reads Elene's daily-watch subreddits and Reddit-wide mentions of
    us every hour and keeps the move requests her five rules catch, one per thread. Each one also goes to Slack
-   #quick-responses. A real, happy customer -- the recommender -- writes the reply in their own words; Elene presses
+   #reddit-post-audit-automation. A real, happy customer -- the recommender -- pastes the ready reply; Elene presses
    Posted. The finder also spots the recommender's own reply in the thread and logs it.
-   This page: the requests with their facts, talking points and tracked link (ziptozip.systems/go/?c=..., which counts
+   This page: the requests with their facts, the ready reply (Copy reply; 23 Nov, his word: "copy the whole message and
+   just paste it") and tracked link (ziptozip.systems/go/?c=..., which counts
    the clicks), Posted / Skip / Reopen, and the numbers. DATA PATH: /api/_quickresp only (bridge/quick_responses.py).
-   It never posts to Reddit and never writes a reply in anyone's name (his pick, 19 Nov: "Finder; they post"). */
+   It never posts to Reddit (his pick, 19 Nov: "Finder; they post"); the ready reply is only what is true for anyone who
+   moved with us. */
 (() => {
   const esc = s => RSC.esc(s == null ? "" : String(s));
   const S = { data: null, err: "", tab: "new", msg: "" };
@@ -44,6 +46,7 @@
       + ".qr-f{font-size:13px;color:var(--ink);margin:4px 0}"
       + ".qr-f span{color:var(--muted)}"
       + ".qr-pts{margin:6px 0 4px 18px;padding:0;font-size:13px;line-height:1.55}"
+      + ".qr-reply{margin:6px 0 0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:13.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;word-break:break-word}"
       + ".qr-link{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 0;font-size:13px}"
       + ".qr-link code{font-size:12.5px;padding:3px 8px;border-radius:8px;background:var(--panel-2);word-break:break-all}"
       + ".qr-foot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px}"
@@ -79,22 +82,27 @@
       + '<a class="qr-t" href="' + esc(r.link) + '" target="_blank" rel="noopener">' + esc(r.title || "Open on Reddit") + "</a>"
       + '<div class="qr-x">' + esc(r.body || "") + "</div>"
       + '<div class="qr-f"><span>What they need:</span> ' + esc(need.join(" · ") || "see the post") + '  <span>· Why it matched:</span> ' + esc(r.why || "") + "</div>"
-      + (pts.length ? '<div class="qr-f"><span>Talking points (the recommender writes the reply in their own words):</span></div><ul class="qr-pts">' + pts.map(p => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "")
+      + (f.reply
+          ? '<div class="qr-f"><span>Ready reply</span> (copy it whole and paste it on Reddit; for someone who moved with us and means it)'
+            + (r.rule === "brand" ? ' · <span>It names us:</span> read the post first; a complaint gets an answer from us as the company' : "")
+            + '</div><div class="qr-reply">' + esc(f.reply) + '</div><div class="qr-link"><button type="button" class="rs-btn pri" data-copy="'
+            + esc(f.reply) + '">Copy reply</button></div>'
+          : pts.length ? '<div class="qr-f"><span>Talking points (the recommender writes the reply in their own words):</span></div><ul class="qr-pts">' + pts.map(p => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "")
       + '<div class="qr-link"><span>Tracked link:</span><code>' + esc(link) + '</code><button type="button" class="rs-btn" data-copy="' + esc(link) + '">Copy</button>'
       + "<span>" + (+r.clicks || 0) + " click" + (+r.clicks === 1 ? "" : "s") + "</span></div>"
       + '<div class="qr-foot">' + foot + "</div></div>";
   }
 
   const how = () => "<h3>What it finds</h3><p>Every hour the finder reads the new posts and comments in Elene's daily-watch subreddits "
-    + "(r/moving, r/relocating and the main NJ, NY, PA, CT and DE ones) and posts that name Zip To Zip anywhere on Reddit. It keeps one request "
+    + "(r/moving, r/relocating and the main NJ, NY, PA, CT and DE ones) and posts that name Zip To Zip Moving anywhere on Reddit. It keeps one request "
     + "per thread when one of her five rules fits: it names us; a mover + asking for one + one of our places; a mover + urgency + a place; a "
     + "specific service question + a place; or a follow-on comment under an older mover thread. A broad word like \"moving\" or \"storage\" "
-    + "needs a second moving signal.</p><h3>What happens next</h3><p>Each request also goes to Slack #quick-responses. The recommender "
-    + "writes the reply in their own words, using the facts and talking points; Elene presses Posted (or Skip). When the recommender's "
+    + "needs a second moving signal, and someone has to be asking: advice and small talk never count.</p><h3>What happens next</h3><p>Each request also goes to Slack #reddit-post-audit-automation with a ready reply in its thread. "
+    + "A recommender who moved with us copies it whole, pastes it on Reddit and Elene presses Posted (or Skip). Whoever gets anything for posting adds that to the reply. When the recommender's "
     + "Reddit username is set, the finder also spots their reply in the thread and logs it.</p><h3>The tracked link</h3><p>Each request "
     + "has its own link (ziptozip.systems/go/…). It counts the clicks and opens our site with utm tags (utm_source=reddit, the thread in "
-    + "utm_content), so the leads it brings can be traced.</p><h3>What it never does</h3><p>It never posts to Reddit and never writes a "
-    + "reply in anyone's name.</p>";
+    + "utm_content), so the leads it brings can be traced.</p><h3>What it never does</h3><p>It never posts to Reddit: a person does, from their own "
+    + "account. The ready reply says only what is true for anyone who moved with us, never a made-up experience.</p>";
 
   function render(host) {
     const d = S.data, rows = d.rows || [];
