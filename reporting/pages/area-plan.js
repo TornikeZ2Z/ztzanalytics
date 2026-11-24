@@ -1800,6 +1800,18 @@ const AREA_PLAN_PAGE = {
       };
       /* a plan's main base: the register's own ("Existing base"), or one the plan moves (main: true) */
       const isMainSite = x => !!x.main || (!x.cand && !x.la);
+      /* A MOVED BASE REPLACES ITS REGISTER BASE (ZTZ-155, his screenshot 2026-11-24: "i see 2 CT bases - when we
+         should have only 1 ... turn off the main base for MAX plan ... the inbetween space is fucked up"). The first
+         cut only ADDED New Haven beside Bridgeport: Bridgeport stayed every area's distance origin with its flag and
+         ring, and New Haven, opening ~5 jobs of ground Bridgeport did not already reach, was pinned and re-tiered
+         nothing. Now a plan's main site with coordinates is the base: every area whose nearest base was the register
+         one is measured again from the nearest of the moved site and the OTHER register bases -- farther as well as
+         nearer -- and re-scored; the register base's flag and ring leave the map while the plan holds. Memory only:
+         ld_bases still says Bridgeport until the trucks move. */
+      const planMoves = () => !PLAN ? [] : PLAN.groups.reduce((a, g) => a.concat(g.sites
+        .filter(x => x.main && x.la && x.cand).map(x => ({ base: g.base, label: x.cand, la: x.la, lo: x.lo,
+          side: (NB_CANDS.find(c => c.label === x.cand) || {}).side || "" }))), []);
+      const movedAway = name => !!PLAN && planMoves().some(m => m.base === name && !!NB_ON[m.label]);
       let PLAN = null;           // the active plan: an editable copy of one of PLANS, with its key
       const NB_CAP = {};         // a new base given fewer crews than its ground needs: the share of its jobs it can carry
       const planSite = label => { let hit = null;
@@ -2017,7 +2029,8 @@ const AREA_PLAN_PAGE = {
         /* a place given by coordinates becomes a candidate for as long as the plan holds */
         PLAN.groups.forEach(g => g.sites.forEach(x => { if (!x.la) return;
           const c = nearCounty(x.la, x.lo); if (!c) return;
-          x.cand = x.name.split(" · ")[0].replace(/ [A-Z]{2}$/, "") + " " + c.State; x.pin = false;
+          const nm = x.name.split(" · ")[0];             // "CT base → New Haven" is New Haven
+          x.cand = (x.main && nm.indexOf("→") >= 0 ? nm.split("→").pop().trim() : nm).replace(/ [A-Z]{2}$/, "") + " " + c.State; x.pin = false;
           NB_CANDS.push({ label: x.cand, st: c.State, la: x.la, lo: x.lo, county: c.County, side: sideOf(c.State, c.County),
                           step: null, zip: "", plan: true }); }));
         PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand && x.fm > 0 && NB_CANDS.some(c => c.label === x.cand)) NB_ON[x.cand] = true; }));
@@ -2026,14 +2039,14 @@ const AREA_PLAN_PAGE = {
         /* a place that opens next to nothing (under ten jobs) is not a base with its own work: it is
            a pin, and its crews belong to the pool around it */
         let dropped = false;
-        PLAN.groups.forEach(g => g.sites.forEach(x => { if (!x.la || !NB_ON[x.cand]) return;
+        PLAN.groups.forEach(g => g.sites.forEach(x => { if (!x.la || !NB_ON[x.cand] || x.main) return;   // a moved base is the base, never a pin
           const o = (N1.nb || []).find(q => q.label === x.cand);
           if (!o || o.jobs < 10) { delete NB_ON[x.cand]; x.pin = true; dropped = true; } }));
         if (dropped) { nbApplyAreas(); N1 = nextCalc({ mult: {} }); }
         const targets = {};
         PLAN.groups.forEach(g => { let crew = 0;
           g.sites.forEach(x => { crew += x.fm;
-            if (!x.cand || !NB_ON[x.cand]) return;
+            if (!x.cand || !NB_ON[x.cand] || x.main) return;          // a moved base's crews stay the pool's
             const o = (N1.nb || []).find(q => q.label === x.cand), need = o ? o.fmSuggested : 1;
             const use = Math.max(1, Math.min(x.fm, need));
             NB_FM[x.cand] = use; if (use < need) NB_CAP[x.cand] = use / need;
@@ -2068,6 +2081,25 @@ const AREA_PLAN_PAGE = {
           const d = miBetween(num(a.Latitude), num(a.Longitude), b.la, b.lo);
           if (d < mi) { mi = d; base = b.label; } });
         if (!(mi < mi0 - 0.05)) return null;
+        return retierAt(a, mi, base);
+      }
+      /* the register's bases, for a moved base's areas to fall back on (the mart keeps only the nearest) */
+      const REG_BASES = ((model.depots || {}).bases || []).filter(b => b.lat && b.lon)
+        .map(b => ({ label: b.name, la: +b.lat, lo: +b.lon, side: b.side || "" }));
+      /* an area whose register base the plan moves: measured again from the moved site and the other register
+         bases, nearer or FARTHER (ZTZ-155); null when its base does not move */
+      function moveRow(a, moves) {
+        const mv = moves.find(q => q.base === a["Nearest Base"]); if (!mv) return null;
+        const side = sideOf(a.State, a.County || "");
+        let mi = Infinity, base = null;
+        [mv].concat(REG_BASES.filter(b => !moves.some(q => q.base === b.label))).forEach(b => {
+          if (acrossSound(b.side, side)) return;
+          const d = miBetween(num(a.Latitude), num(a.Longitude), b.la, b.lo);
+          if (d < mi) { mi = d; base = b.label; } });
+        if (!isFinite(mi)) return null;
+        return retierAt(a, mi, base);
+      }
+      function retierAt(a, mi, base) {
         /* the parts of the score the new distance moves ride along (pd, score, mtier), so the Target
            Map's download can print the plan's own Score Distance / Data Score / Market Tier */
         const pd = pDistOf(mi), m = a["Market Score"] != null ? num(a["Market Score"]) : null;
@@ -2078,7 +2110,14 @@ const AREA_PLAN_PAGE = {
           t = score >= NB_CUT.t1 ? (mi > 50 ? 2 : 1) : score >= NB_CUT.t2 ? 2 : score >= NB_CUT.t3 ? 3 : 4;
         } else if (m != null) {
           t = mtier;
-        } else return null;
+        } else {
+          /* NO CENSUS SCORE (ZTZ-155): the mart rates such an area by distance alone -- over 50 miles Tier 4,
+             within 50 not rated -- and the first version left it red whatever base came nearer (06353 stayed
+             "Over 50 mi" at 41.8 miles from New Haven) */
+          t = mi > 50 ? 4 : 0;
+          return { tier: t, mi, base, pd, score: null, mtier: t === 4 ? 4 : null,
+                   reason: (t === 4 ? "Over 50 mi from a base" : "No leads and no Census data") + " · with " + base };
+        }
         const reason = a["Tier Source"] === "Our data" ? "Scored on our leads and jobs"
           : mi > 50 ? "Over 50 mi from a base" : "Too few leads to measure - rated on its market";
         return { tier: t, mi, base, reason: reason + " · with " + base, pd, score, mtier };
@@ -2087,12 +2126,20 @@ const AREA_PLAN_PAGE = {
       /* the whole effect of a set of new bases: re-tiered areas, and per base the ground it opens,
          the leads and jobs that ground is expected to send, and the counties it now serves nearest */
       function nbEffect(active) {
-        const key = active.map(b => b.label + (b.custom ? "@" + b.la.toFixed(3) + "," + b.lo.toFixed(3) : "")).sort().join("|");
+        // a move counts only while its site is in the calculation (so "without" it is the plan before the move)
+        const moves = planMoves().filter(q => active.some(b => b.label === q.label));
+        const key = active.map(b => b.label + (b.custom ? "@" + b.la.toFixed(3) + "," + b.lo.toFixed(3) : ""))
+          .concat(moves.map(q => "move:" + q.base + ">" + q.label)).sort().join("|");
         if (NB_CACHE[key]) return NB_CACHE[key];
         const adj = {};
         if (active.length) AREA_BASE.forEach(a => { if (!SERVICE_AREAS.includes(a.State)) return;
-          const x = tierWith(a, active); if (x) adj[a.Level + "|" + a["Area Key"]] = x; });
-        const per = active.map(b => {
+          const mv = moves.length ? moveRow(a, moves) : null;
+          const a1 = mv ? Object.assign({}, a, { "Miles To Base": mv.mi, "Nearest Base": mv.base, Tier: mv.tier,
+            "Score Distance": mv.pd, "Data Score": mv.score != null ? mv.score : a["Data Score"] }) : a;
+          const x = tierWith(a1, active) || mv; if (x) adj[a.Level + "|" + a["Area Key"]] = x; });
+        /* a moved base is the old base in a new place, not a new one: it re-measures the map (above) but opens
+           no ground of its own and asks no crew of its own -- its crews are the pool's, as Bridgeport's were */
+        const per = active.filter(b => !moves.some(q => q.label === b.label)).map(b => {
           const opened = [], byState = {};
           let leadsYr = 0, jobsSeason = 0;
           AREA_BASE.forEach(a => {
@@ -6658,9 +6705,11 @@ const AREA_PLAN_PAGE = {
              still fires on top, brighter, for the one being read. */
           const ringPane = m.createPane("apRings");
           ringPane.style.zIndex = 390; ringPane.style.pointerEvents = "none";
-          B.have.forEach(b => L.circle([b.la, b.lo], { pane: "apRings", radius: B.work * MI_PER_M,
+          const haveRings = {};
+          B.have.forEach(b => { haveRings[b.name] = L.circle([b.la, b.lo], { pane: "apRings", radius: B.work * MI_PER_M,
             interactive: false, color: tok("--ink") || "#22303f", weight: 1, opacity: .28,
-            dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 }).addTo(m));
+            dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 });
+            if (!movedAway(b.name)) haveRings[b.name].addTo(m); });
           const baseLayer = L.layerGroup().addTo(m);
           /* Bases inside ~40 miles of one already placed get their label flipped to the other
              side, and every third one nudged up or down. Purely cosmetic, entirely deterministic:
@@ -6735,7 +6784,12 @@ const AREA_PLAN_PAGE = {
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
           /* the Target Map draws only the plan's own new bases: a candidate outside the picked plan (all of
              them under Current, Monroe under MID) leaves the map instead of standing there as a dashed flag */
-          const lockShow = x => { if (!LOCK || x.b.kind === "have") return;
+          /* a base the plan moves (ZTZ-155) leaves the map, ring and flag, until the plan is switched off */
+          const moveShow = x => { if (x.b.kind !== "have") return;
+            const gone = movedAway(x.b.name), r = haveRings[x.b.name];
+            if (gone && baseLayer.hasLayer(x.mk)) baseLayer.removeLayer(x.mk); else if (!gone && !baseLayer.hasLayer(x.mk)) x.mk.addTo(baseLayer);
+            if (r) { if (gone && m.hasLayer(r)) m.removeLayer(r); else if (!gone && !m.hasLayer(r)) r.addTo(m); } };
+          const lockShow = x => { moveShow(x); if (!LOCK || x.b.kind === "have") return;
             const on = !!NB_ON[x.b.label];
             if (on && !baseLayer.hasLayer(x.mk)) x.mk.addTo(baseLayer); else if (!on && baseLayer.hasLayer(x.mk)) baseLayer.removeLayer(x.mk); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
