@@ -146,6 +146,11 @@
                 spend: sum(P, "spend"), hasSpend: P.length > 0 };
     o.rate = rate(o.b, o.q);
     o.avg = o.jobs ? o.rev / o.jobs : null;
+    /* ZP-20 (Bacho, 24 Nov 2026): "add statistic for review per 100 job". Reviews that count (4-5 stars on a counted
+       platform, the Review Performance rule) on the period's CT jobs, and the whole company's line to compare. */
+    const JR = (d.jobrows || []).filter(inR), CO = (d.reviews_co || []).filter(inR);
+    o.jn = JR.length; o.rv = sum(JR, "rv_n"); o.rvj = JR.filter(r => r.rv_n > 0).length; o.nr = sum(JR, "nr_n");
+    o.coJobs = sum(CO, "jobs"); o.coRv = sum(CO, "rv");
     o.perLead = o.hasSpend && o.leads ? o.spend / o.leads : null;
     o.perJob = o.hasSpend && o.jobs ? o.spend / o.jobs : null;
     o.roas = o.hasSpend && o.spend > 0 ? o.rev / o.spend : null;
@@ -168,7 +173,8 @@
     rows.forEach(r => g[kindOf(r)].push(r));
     const st = list => ({ n: list.length, bill: list.length ? sum(list, "bill") / list.length : null,
       late: list.filter(r => r.late).length, late1h: list.filter(r => r.late1h).length,
-      cl: list.filter(r => r.cl_n).length, rf: list.filter(r => r.rf_n).length, nr: list.filter(r => r.nr_n).length });
+      cl: list.filter(r => r.cl_n).length, rf: list.filter(r => r.rf_n).length, nr: list.filter(r => r.nr_n).length,
+      rv: sum(list, "rv_n") });
     return { am: st(g.am), pm: st(g.pm), none: st(g.none), all: st(rows) };
   }
   const pctOf = (a, b) => b ? Math.round(100 * a / b) + "%" : "—";
@@ -239,13 +245,26 @@
       { id: "perjob", l: "Ad spend per job", v: M.perJob != null ? money(M.perJob) : "—", f: o => o.perJob, good: false },
       { id: "roas", l: "Revenue per $1 of ads", v: M.roas != null ? money2(M.roas) : "—", f: o => o.roas, good: true },
     ];
+    // ZP-20: a second row, reviews. Per 100 jobs is held as a share, so its chip's points are "per 100 jobs"
+    const p100 = (t, html) => t.p100 ? html.replace(" pts ", " per 100 ") : html;
+    const TILES2 = [
+      { id: "rv100", l: "Reviews per 100 jobs", v: M.jn ? per100(M.rv, M.jn) : "—", f: o => o.jn ? o.rv / o.jn : null, good: true, isRate: true, p100: true,
+        extra: M.coJobs ? `whole company ${per100(M.coRv, M.coJobs)}` : "" },
+      { id: "rvn", l: "Reviews that count", v: fmtN(M.rv), f: o => o.rv, good: true, extra: `on ${fmtN(M.jn)} jobs` },
+      { id: "rvj", l: "Jobs with a review", v: M.jn ? pctOf(M.rvj, M.jn) : "—", f: o => o.jn ? o.rvj / o.jn : null, good: true, isRate: true },
+      { id: "nr100", l: "Bad reviews per 100 jobs", v: M.jn ? per100(M.nr, M.jn) : "—", f: o => o.jn ? o.nr / o.jn : null, good: false, isRate: true, p100: true },
+    ];
     const tiles = `<div class="ctr-tiles">` + TILES.map(t => `<div class="ctr-tile${t.hero ? " ctr-hero" : ""}"><div class="k">${esc(t.l)}</div>
       <div class="v">${t.v}</div><div class="ctr-chips">${hasLY && !running ? chip(t.f(M), t.f(LY), "vs last year", t.isRate, t.good) : ""}${hasPM ? chip(t.f(M), t.f(PM), vsPM, t.isRate, t.good) : ""}</div>
-      <div class="ctr-spark" data-spark="${t.id}"></div></div>`).join("") + `</div>`;
+      <div class="ctr-spark" data-spark="${t.id}"></div></div>`).join("") + `</div>`
+      + `<div class="ctr-tiles" style="margin-top:12px">` + TILES2.map(t => `<div class="ctr-tile"><div class="k">${esc(t.l)}</div>
+      <div class="v">${t.v}</div><div class="ctr-chips">${hasLY && !running ? p100(t, chip(t.f(M), t.f(LY), "vs last year", t.isRate, t.good)) : ""}${hasPM ? p100(t, chip(t.f(M), t.f(PM), vsPM, t.isRate, t.good)) : ""}</div>
+      ${t.extra ? `<div class="ctr-note">${esc(t.extra)}</div>` : ""}<div class="ctr-spark" data-spark="${t.id}"></div></div>`).join("") + `</div>`;
     const better = TILES.filter(t => t.good === true && hasLY && t.f(M) != null && t.f(LY) != null && t.f(M) > t.f(LY)).length;
     const counted = TILES.filter(t => t.good === true && hasLY && t.f(M) != null && t.f(LY) != null).length;
     const say = `${running ? "So far in" : "In"} ${esc(lab)}, CT had <b>${fmtN(M.leads)}</b> leads and booked <b>${fmtN(M.b)}</b> (${pct(M.rate)} of qualified),
       did <b>${fmtN(M.jobs)}</b> jobs for <b>${money(M.rev)}</b>${M.hasSpend ? `, and we spent <b>${money(M.spend)}</b> on ads placed in CT` : ""}.`
+      + (M.jn ? ` The jobs earned <b>${fmtN(M.rv)}</b> reviews that count: <b>${per100(M.rv, M.jn)}</b> per 100 jobs${M.coJobs ? ` (the whole company ${per100(M.coRv, M.coJobs)})` : ""}.` : "")
       + (counted && !running ? ` ${better} of ${counted} headline numbers are better than ${esc(lyLab)}.` : "");
     // what changed most vs the month before: the biggest moves by source, in revenue and in leads
     const bySrc = (rows, key, a, b) => { const g = {}; rows.filter(r => r.mo >= a && r.mo <= b).forEach(r => { g[r.src] = (g[r.src] || 0) + (+r[key] || 0); }); return g; };
@@ -267,7 +286,9 @@
       + gl("Leads", c => fmtN(c.leads)) + gl("Booked", c => fmtN(c.b)) + gl("Booking rate", c => pct(c.rate), "booked ÷ leads without bad leads")
       + gl("Jobs done", c => fmtN(c.jobs)) + gl("Revenue", c => money(c.rev)) + gl("Average job", c => c.avg != null ? money(c.avg) : "—")
       + gl("Ad spend placed in CT", c => c.hasSpend ? money(c.spend) : "—") + gl("Ad spend per lead", c => c.perLead != null ? money(c.perLead) : "—")
-      + gl("Ad spend per job done", c => c.perJob != null ? money(c.perJob) : "—") + `</tbody></table></div></div>`;
+      + gl("Ad spend per job done", c => c.perJob != null ? money(c.perJob) : "—")
+      + gl("Reviews per 100 jobs", c => c.jn ? per100(c.rv, c.jn) : "—", "reviews that count")
+      + gl("Bad reviews per 100 jobs", c => c.jn ? per100(c.nr, c.jn) : "—") + `</tbody></table></div></div>`;
     const briefHtml = `<div class="ctr-card"><h4>Crews and problems</h4><div class="ctr-cs">${esc(lab)} · the detail is in 02 and 03</div>
       <div class="ctr-move"><span>Morning jobs / afternoon jobs</span><b>${fmtN(CM.am.n)} / ${fmtN(CM.pm.n)}</b></div>
       <div class="ctr-move"><span>Late arrivals (over an hour)</span><b>${fmtN(CM.all.late)} (${fmtN(CM.all.late1h)})</b></div>
@@ -298,7 +319,8 @@
     const crewSay = `<div class="ctr-card"><h4>What it says</h4><div class="ctr-cs">${esc(mShort(k12[0]))} – ${esc(mShort(k))}</div>
       <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th></th><th class="num">Morning</th><th class="num">Afternoon</th><th class="num">No arrival record</th></tr></thead><tbody>`
       + cmpRow("Jobs", x => fmtN(x.n)) + cmpRow("Average bill", x => x.bill != null ? money(x.bill) : "—") + cmpRow("Late", x => pctOf(x.late, x.n))
-      + cmpRow("Late over an hour", x => pctOf(x.late1h, x.n)) + cmpRow("Claims per 100 jobs", x => per100(x.cl, x.n)) + cmpRow("Refunds per 100 jobs", x => per100(x.rf, x.n))
+      + cmpRow("Late over an hour", x => pctOf(x.late1h, x.n)) + cmpRow("Reviews per 100 jobs", x => per100(x.rv, x.n))
+      + cmpRow("Claims per 100 jobs", x => per100(x.cl, x.n)) + cmpRow("Refunds per 100 jobs", x => per100(x.rf, x.n))
       + `</tbody></table></div><ul class="ctr-list" style="margin-top:10px">${says.map(x => `<li>${x}</li>`).join("")}</ul>
       <div class="ctr-note">An afternoon job is chained after another job the same day (the calendar's After Job Code). Long-distance jobs have no arrival window, so they sit under "no arrival record", with the few local jobs whose arrival wasn't logged.</div></div>`;
     const wd = WD.map(() => ({ n: 0, pm: 0 }));
@@ -326,9 +348,9 @@
       .sort((a, b) => b.st.n - a.st.n);
     const fmCard = `<div class="ctr-card"><h4>By foreman, last 12 months</h4><div class="ctr-cs">the CT jobs each foreman led · ${esc(mShort(k12[0]))} – ${esc(mShort(k))}</div>
       <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Foreman</th><th class="num">Jobs</th><th class="num">Afternoon</th><th class="num">Late</th>`
-      + `<th class="num">Over an hour</th><th class="num">Claims</th><th class="num">Refunds</th><th class="num">Bad reviews</th><th class="num">Average bill</th></tr></thead><tbody>`
+      + `<th class="num">Over an hour</th><th class="num">Reviews per 100</th><th class="num">Claims</th><th class="num">Refunds</th><th class="num">Bad reviews</th><th class="num">Average bill</th></tr></thead><tbody>`
       + capRows("fm", fmList, 10).map(x => `<tr><td>${esc(x.f)}</td><td class="num">${fmtN(x.st.n)}</td><td class="num">${fmtN(x.pm)}</td><td class="num">${pctOf(x.st.late, x.st.n)}</td>`
-        + `<td class="num">${fmtN(x.st.late1h)}</td><td class="num">${fmtN(x.st.cl)}</td><td class="num">${x.rf ? money(x.rf) : "—"}</td><td class="num">${fmtN(x.st.nr)}</td>`
+        + `<td class="num">${fmtN(x.st.late1h)}</td><td class="num">${per100(x.st.rv, x.st.n)}</td><td class="num">${fmtN(x.st.cl)}</td><td class="num">${x.rf ? money(x.rf) : "—"}</td><td class="num">${fmtN(x.st.nr)}</td>`
         + `<td class="num">${x.st.bill != null ? money(x.st.bill) : "—"}</td></tr>`).join("") + `</tbody></table></div>${moreBtn("fm", fmList.length, 10)}</div>`;
     const reasonN = {}, faultN = {};
     yrJobs.filter(r => r.cl_n).forEach(r => {
@@ -459,6 +481,10 @@
       <h3>Problem jobs</h3><p>A job with a claim (the Claims board), a late arrival, a refund (the refunds list, with its dollars) or a bad
         review (the negative-review board), matched by the job's request number. Each line names the customer and the foreman, and the
         foreman table counts the last 12 months of CT jobs each foreman led (his picks, 19 Nov 2026).</p>
+      <h3>Reviews</h3><p>Reviews that count: 4-5 stars on a counted platform, matched to the job by its request number, the same rule
+        as Review Performance (ZP-20). Per 100 jobs = those reviews on the period's CT jobs (first days) &times; 100 &divide; the jobs.
+        Reviews come in days after a move, so the newest weeks read low until they arrive. "Whole company" is every state's jobs
+        the same way. Bad reviews per 100 jobs are the negative-review board's, as in Problem jobs.</p>
       <h3>Reps</h3><p>The rep assigned to the lead in Moveboard, with that rep's leads, qualified leads and bookings in CT.</p>
       <h3>Jobs and revenue</h3><p>Jobs done in the month, from the closing sheets, each move counted once. Revenue is the closing's
         Total Bill. Local = Local Moving; long distance = every other moving type.</p>
@@ -498,7 +524,7 @@
       h.onclick = flip;
       h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
     });
-    TILES.forEach(t => spark(host.querySelector(`[data-spark="${t.id}"]`), last12.map(t.f)));
+    TILES.concat(TILES2).forEach(t => spark(host.querySelector(`[data-spark="${t.id}"]`), last12.map(t.f)));
     const mom = host.querySelector("#ctrMom");
     if (mom && typeof Chart !== "undefined" && !S.shut.has("05")) {
       const C = pal(), cv = document.createElement("canvas");
