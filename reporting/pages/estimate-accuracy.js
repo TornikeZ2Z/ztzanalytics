@@ -42,6 +42,14 @@ registerPage({
     const usdS = v => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + "$" + Math.round(Math.abs(v)).toLocaleString("en-US");
     const usdK = v => { const a = Math.abs(v || 0), s = v < 0 ? "−$" : "$"; return a >= 1e6 ? s + (a / 1e6).toFixed(2) + "M" : a >= 1e4 ? s + Math.round(a / 1e3) + "k" : s + Math.round(a).toLocaleString("en-US"); };
     const pct = (a, b) => b ? Math.round(a / b * 100) : null;
+    /* ZP-17 (Russo, 23 Nov 2026): "i want to see differences in percentage" -- the change from what was listed or
+       quoted, as a signed %, next to the dollars and the item counts. */
+    const pctCh = (from, to) => from > 0 && to != null ? (to - from) / from * 100 : null;
+    const pctTag = (from, to) => { const x = pctCh(from, to); return x == null ? "" : ` <span class="eav-pc">${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.round(Math.abs(x))}%</span>`; };
+    /* ZP-18 (Russo, 23 Nov 2026): a FLAT RATE job has no hours in its price. The mart puts the flat price's own change
+       where an hourly job's extra hours go (`Time Gap $`), so the word follows the jobs on screen. */
+    const isFlat = r => /^FLAT RATE$/i.test(r.type || "");
+    const tWord = rs => { const f = rs.filter(isFlat).length; return !f ? "hours" : f === rs.length ? "flat price" : "hours / flat price"; };
     const pctS = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
     const median = a => { const x = a.filter(v => v != null && isFinite(v)).sort((p, q) => p - q);
       if (!x.length) return null; const m = x.length >> 1; return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2; };
@@ -86,6 +94,8 @@ registerPage({
         ".eav-sb i{display:inline-block;height:9px;border-radius:3px;background:var(--neg);opacity:.75}",
         ".eav-drv{font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}",
         ".eav-up{color:var(--neg)}.eav-dn{color:var(--pos)}",
+        ".eav-pc{margin-left:4px;font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}",
+        ".eav-t td.nowrap{white-space:nowrap}",
         ".eav-dr td{background:var(--panel-2)!important;padding:14px 16px!important;white-space:normal!important;text-align:left!important}",
         ".eav-dg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:20px}",
         ".eav-dg h4{margin:0 0 6px;font-size:12.5px;color:var(--faint);font-weight:600}",
@@ -185,7 +195,8 @@ registerPage({
         const paceH = xs.filter(r => r.estH > 0 && r.billH > 0 && r.estCF > 0 && r.realCF > 0)
           .map(r => r.billH - r.estH * Math.min(Math.max(r.realCF / r.estCF, 0.2), 5));
         return { name, n: xs.length, det: det.length, sur: sur.length, sr: det.length ? sur.length / det.length : null,
-          extra: det.length ? mean(det.map(r => r.extra)) : null, driver: avgT >= avgP ? "hours" : "packing", avgT, avgP,
+          extra: det.length ? mean(det.map(r => r.extra)) : null, driver: avgT >= avgP ? tWord(det.length ? det : xs) : "packing", avgT, avgP,
+          tw: tWord(det.length ? det : xs),
           avgO: mean(det.map(r => r.og || 0)) || 0, items: ir.length ? Math.exp(median(ir.map(Math.log))) : null, irN: ir.length,
           cf: cf.length ? Math.exp(median(cf.map(Math.log))) : null, cfOff: cf.length ? cf.filter(x => Math.max(x, 1 / x) >= SURPRISE).length / cf.length : null,
           pace: median(pace), paceH: mean(paceH), claims: xs.filter(r => r.claim).length, cr: xs.length ? xs.filter(r => r.claim).length / xs.length : null,
@@ -230,22 +241,33 @@ registerPage({
 
     function waterfall(H) {
       if (!H.det.length) return '<div class="panel"><div class="panel-head"><div class="panel-title">Where the extra comes from</div></div><div class="eav-note">No finished contracts in this window.</div></div>';
-      const steps = [["Quote", H.avgQ, "base"], ["More hours", H.avgT, "d"], ["Packing", H.avgP, "d"], ["Discounts, fees", H.avgO, "d"], ["Bill", H.avgB, "base"]];
-      const top = Math.max(H.avgB, H.avgQ + Math.max(0, H.avgT) + Math.max(0, H.avgP)) * 1.08;
-      let run = 0;
+      const tw = tWord(H.det);
+      const steps = [["Quote", H.avgQ, "base"], [tw === "hours" ? "More hours" : tw === "flat price" ? "Flat price" : "Hours, flat price", H.avgT, "d"],
+                     ["Packing", H.avgP, "d"], ["Discounts, fees", H.avgO, "d"], ["Bill", H.avgB, "base"]];
+      /* ZP-18: the scale spans every point the running total reaches, below zero included -- a step that dips under
+         the baseline used to draw down out of the card, over the panels below */
+      const pts = [0, H.avgQ, H.avgB];
+      let run = H.avgQ;
+      [H.avgT, H.avgP, H.avgO].forEach(v => { run += v || 0; pts.push(run); });
+      const lo = Math.min(...pts), hi = Math.max(...pts), span = (hi - lo) * 1.08 || 1;
+      const at = v => (v - lo) / span * 100;
+      run = 0;
       const COL = { base: "#C9E68A", hours: "#F87171", pack: "#FBBF24", other: "#86EFAC" };
       const cols = steps.map(([lab, v, kind], i) => {
-        let bottom, hgt, color;
-        if (kind === "base") { bottom = 0; hgt = v; color = i === 0 ? COL.base : "var(--brand)"; run = i === 0 ? v : run; }
-        else { bottom = v >= 0 ? run : run + v; hgt = Math.abs(v); run += v; color = i === 1 ? COL.hours : i === 2 ? COL.pack : COL.other; }
-        const pb = bottom / top * 100, ph = Math.max(1, hgt / top * 100);
+        let a, b, color;
+        if (kind === "base") { a = 0; b = v; color = i === 0 ? COL.base : "var(--brand)"; run = i === 0 ? v : run; }
+        else { a = run; b = run + (v || 0); run = b; color = i === 1 ? COL.hours : i === 2 ? COL.pack : COL.other; }
+        const pb = at(Math.min(a, b)), ph = Math.max(1, at(Math.max(a, b)) - pb);
         const label = kind === "base" ? usd(v) : usdS(v);
         return `<div class="c"><b style="bottom:calc(${(pb + ph).toFixed(1)}% + 4px)">${label}</b><i style="height:${ph.toFixed(1)}%;bottom:${pb.toFixed(1)}%;background:${color}"></i></div>`;
       }).join("");
       const share = H.avgB - H.avgQ > 0 ? Math.round(Math.max(0, H.avgT) / (H.avgB - H.avgQ) * 100) : null;
+      const why = tw === "hours" ? "the crew needed more time than was sold, mostly because there was more to move than the rep listed"
+        : tw === "flat price" ? "the flat price itself went up on the day, mostly because there was more to move than the rep listed"
+        : "more hours on hourly jobs, a higher flat price on flat jobs";
       return `<div class="panel"><div class="panel-head"><div class="panel-title">Where the extra comes from</div><span class="rt">the average job</span></div>
         <div class="eav-wf">${cols}</div><div class="eav-wf-l">${steps.map(s => "<span>" + s[0] + "</span>").join("")}</div>
-        <div class="eav-note">${share != null ? "<b>" + share + "% of the extra is hours</b> — the crew needed more time than was sold, mostly because there was more to move than the rep listed. " : ""}Quote from Moveboard, bill from the closing sheet.</div></div>`;
+        <div class="eav-note">${share != null ? "<b>" + share + "% of the extra is " + tw + "</b> — " + why + ". " : ""}Quote from Moveboard, bill from the closing sheet${tw === "hours" ? "" : "; a flat job's price is its contract's moving fee after discounts"}.</div></div>`;
     }
 
     function heatmap(rs) {
@@ -313,7 +335,7 @@ registerPage({
         const moreLess = x => x == null ? "—" : Math.round(Math.abs(x - 1) * 100) + "% " + (x >= 1 ? "more" : "fewer");
         facts = `The crew counts <b>${moreLess(p.items)}</b> items than were listed on a typical job${team ? " (team: " + moreLess(team) + ")" : ""}<br>`
           + (worst ? `Misses most on <b>${esc(worst[0])}</b>: ${sgn(worst[1])} (${worst[2]} jobs)<br>` : "")
-          + `Customers paid <b>${usdS(p.extra)}</b> over the quote a job: ${usdS(p.avgT)} hours, ${usdS(p.avgP)} packing, ${usdS(p.avgO)} other<br>`
+          + `Customers paid <b>${usdS(p.extra)}</b> over the quote a job: ${usdS(p.avgT)} ${p.tw || "hours"}, ${usdS(p.avgP)} packing, ${usdS(p.avgO)} other<br>`
           + `<b>${int(p.claims)}</b> claims on ${int(p.n)} jobs${topR ? " — " + topR : ""}`;
       } else {
         facts = `The truck took <b>${p.cf ? sgn(p.cf) : "—"}</b> against the CF he sold on a typical job; ${p.cfOff == null ? "—" : Math.round(p.cfOff * 100) + "%"} of jobs off by 20%+<br>`
@@ -340,9 +362,9 @@ registerPage({
       const rows = xs.map(r => {
         const ir = r.estI > 0 && r.actI > 0 ? r.actI / r.estI : null, typo = ir != null && itemsRatio(r) == null;
         return `<tr><td><b>${esc(r.job)}</b></td><td>${esc(r.date.slice(5))}</td><td>${esc(r.rep)}</td><td>${esc(r.cust)}</td>
-          <td>${r.estI ? int(r.estI) + " → " + int(r.actI) + " items" : "—"}${typo ? ' <span class="rs-pill mute">check figures</span>' : ""}</td>
+          <td>${r.estI ? int(r.estI) + " → " + int(r.actI) + " items" + (typo ? "" : pctTag(r.estI, r.actI)) : "—"}${typo ? ' <span class="rs-pill mute">check figures</span>' : ""}</td>
           <td>${r.det ? usd(r.q) + " → " + usd(r.b) : '<span style="color:var(--faint)">no final bill yet</span>'}</td>
-          <td>${r.det ? `<b class="eav-up">${usdS(r.extra)}</b>` : ""}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
+          <td class="nowrap">${r.det ? `<b class="eav-up">${usdS(r.extra)}</b>${pctTag(r.q, r.b)}` : ""}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
           <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${CAN ? (typo ? `<button class="eav-btn" data-okfig="${esc(r.key)}">Figures right</button>` : "") + `<button class="eav-btn" data-exclude="${esc(r.key)}">Exclude</button>` : ""}</td></tr>`;
       }).join("");
       return `<div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">This week's review list</div><span class="rt">moves ${esc(from.slice(5))} – ${esc(last.slice(5))} · biggest surprises first</span></div>
@@ -361,9 +383,9 @@ registerPage({
       const th = (k, l) => `<th class="eav-sort" data-sort="${k}" style="cursor:pointer">${l}${S.sort === k ? (S.dir < 0 ? " ▼" : " ▲") : ""}</th>`;
       const rows = list.slice(S.page * S.per, S.page * S.per + S.per).map(r => `<tr><td><b>${esc(r.job)}</b></td><td>${esc(r.date)}</td><td>${esc(r.cust)}</td>
         <td>${esc(r.rep)}</td><td>${esc(r.fore)}</td><td>${esc(r.som || "—")}</td>
-        <td>${r.estI ? int(r.estI) + " → " + int(r.actI) : "—"}</td><td>${r.estCF ? int(r.estCF) + " → " + int(r.soldCF) + " → " + int(r.realCF) : "—"}</td>
-        <td>${r.estH ? r.estH + " → " + r.billH : "—"}</td><td>${r.det ? usd(r.q) + " → " + usd(r.b) : "—"}</td>
-        <td>${r.det ? (surprised(r) ? `<b class="eav-up">${usdS(r.extra)}</b>` : usdS(r.extra)) : "—"}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
+        <td>${r.estI ? int(r.estI) + " → " + int(r.actI) + (itemsRatio(r) == null ? "" : pctTag(r.estI, r.actI)) : "—"}</td><td>${r.estCF ? int(r.estCF) + " → " + int(r.soldCF) + " → " + int(r.realCF) : "—"}</td>
+        <td>${r.estH ? r.estH + " → " + r.billH + pctTag(r.estH, r.billH) : "—"}</td><td>${r.det ? usd(r.q) + " → " + usd(r.b) : "—"}</td>
+        <td class="nowrap">${r.det ? (surprised(r) ? `<b class="eav-up">${usdS(r.extra)}</b>` : usdS(r.extra)) + pctTag(r.q, r.b) : "—"}</td><td>${r.claim ? '<span class="rs-pill bad">claim</span>' : ""}</td>
         <td>${r.contract ? `<a class="eav-a" href="${esc(r.contract)}" target="_blank" rel="noopener">Contract</a>` : ""}${CAN ? `<button class="eav-btn" data-exclude="${esc(r.key)}">Exclude</button>` : ""}</td></tr>`).join("");
       const exN = ROWS.filter(isEx).length;
       return `<details class="panel eav-more" style="margin-top:14px" ${S.jobsOpen ? "open" : ""} id="eavJobs"><summary>All ${int(list.length)} jobs${exN ? " · " + exN + " excluded" : ""}</summary>

@@ -15,12 +15,17 @@
    ones, tables are tighter, long lists show 8 rows with "Show all". */
 (() => {
   const esc = s => RSC.esc(s == null ? "" : String(s));
-  const S = { data: null, err: "", month: "", shut: new Set(), all: new Set() };   // module-level: a re-render keeps the picks
+  // module-level: a re-render keeps the picks. ZP-19: `from` = the period's first month ("" = the same as `month`)
+  const S = { data: null, err: "", month: "", from: "", shut: new Set(), all: new Set() };
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const mShort = k => MON[+k.slice(5, 7) - 1] + " " + k.slice(0, 4);
   const mLong = k => MONL[+k.slice(5, 7) - 1] + " " + k.slice(0, 4);
   const addM = (k, n) => { const i = +k.slice(0, 4) * 12 + +k.slice(5, 7) - 1 + n; return Math.floor(i / 12) + "-" + String(i % 12 + 1).padStart(2, "0"); };
+  const mDiff = (a, b) => (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7));
+  /* ZP-19: a period's name -- "April 2026", "Jan – Apr 2026", or "Nov 2025 – Feb 2026" across a year */
+  const pShort = (a, b) => a === b ? mShort(a) : (a.slice(0, 4) === b.slice(0, 4) ? MON[+a.slice(5, 7) - 1] : mShort(a)) + " – " + mShort(b);
+  const pLong = (a, b) => a === b ? mLong(a) : (a.slice(0, 4) === b.slice(0, 4) ? MONL[+a.slice(5, 7) - 1] : mLong(a)) + " – " + mLong(b);
   const nyMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date()).slice(0, 7);
   const money = v => (v < 0 ? "-$" : "$") + Math.abs(Math.round(+v || 0)).toLocaleString("en-US");
   const money2 = v => "$" + (+v || 0).toFixed(2);
@@ -133,10 +138,11 @@
   }
 
   /* ---------- the month's numbers, from the endpoint's rows ---------- */
-  function monthOf(k) {
-    const d = S.data;
-    const L = d.leads.filter(r => r.mo === k), J = d.jobs.filter(r => r.mo === k), P = d.spend.filter(r => r.mo === k);
-    const o = { k, leads: sum(L, "leads"), q: sum(L, "q"), b: sum(L, "b"), jobs: sum(J, "jobs"), rev: sum(J, "rev"),
+  function monthOf(k) { return periodOf(k, k); }
+  function periodOf(a, b) {
+    const d = S.data, inR = r => r.mo >= a && r.mo <= b;
+    const L = d.leads.filter(inR), J = d.jobs.filter(inR), P = d.spend.filter(inR);
+    const o = { k: b, k0: a, lab: pShort(a, b), leads: sum(L, "leads"), q: sum(L, "q"), b: sum(L, "b"), jobs: sum(J, "jobs"), rev: sum(J, "rev"),
                 spend: sum(P, "spend"), hasSpend: P.length > 0 };
     o.rate = rate(o.b, o.q);
     o.avg = o.jobs ? o.rev / o.jobs : null;
@@ -201,15 +207,24 @@
     const months = [];
     for (let k = d.first; k <= cur; k = addM(k, 1)) months.push(k);
     if (!S.month || months.indexOf(S.month) < 0) S.month = months.length > 1 ? months[months.length - 2] : months[0];
-    const k = S.month, running = k === cur, ly = addM(k, -12), pm = addM(k, -1);
-    const M = monthOf(k), LY = monthOf(ly), PM = monthOf(pm);
-    const hasLY = ly >= d.first, hasPM = pm >= d.first;
+    if (S.from && (months.indexOf(S.from) < 0 || S.from >= S.month)) S.from = "";
+    /* ZP-19 (Bacho, 23 Nov 2026): "we need to have filter to merge few months". The report covers From..To (k0..k):
+       every figure sums those months, and the chips compare with the same months a year earlier and with as many
+       months just before. One month (From = To, the default) reads exactly as before. The 12-month tables and bars
+       stay monthly, with the picked months highlighted. */
+    const k = S.month, k0 = S.from || k, n = mDiff(k0, k) + 1, one = n === 1, inP = mo => mo >= k0 && mo <= k;
+    const running = k === cur, ly0 = addM(k0, -12), ly = addM(k, -12), pm0 = addM(k0, -n), pm = addM(k, -n);
+    const M = periodOf(k0, k), LY = periodOf(ly0, ly), PM = periodOf(pm0, pm);
+    const hasLY = ly0 >= d.first, hasPM = pm0 >= d.first;
+    const lab = pLong(k0, k), lyLab = pShort(ly0, ly), pmLab = pShort(pm0, pm);
+    const vsPM = one ? "vs last month" : "vs the " + n + " months before", thatP = one ? "that month" : "in those months";
+    const hl = one ? "the picked month is highlighted" : "the picked months are highlighted";
     const last12 = months.filter(x => x <= k).slice(-12).map(monthOf);
     const asOf = `Moveboard to ${day(d.as_of.moveboard)} · closings to ${day(d.as_of.closings)}`;
 
     // ZP-15: this month's jobs and the last 12 months', for the summary's brief and chapters 02-03
     const k12 = months.filter(x => x <= k).slice(-12);
-    const monthJobs = jobsOf(k), yrJobs = jobsOf(k12[0], k);
+    const monthJobs = jobsOf(k0, k), yrJobs = jobsOf(k12[0], k);
     const CM = crewStats(monthJobs), CY = crewStats(yrJobs);
     const rfMonth = sum(monthJobs.filter(r => r.rf_n), "rf_amt");
 
@@ -225,35 +240,35 @@
       { id: "roas", l: "Revenue per $1 of ads", v: M.roas != null ? money2(M.roas) : "—", f: o => o.roas, good: true },
     ];
     const tiles = `<div class="ctr-tiles">` + TILES.map(t => `<div class="ctr-tile${t.hero ? " ctr-hero" : ""}"><div class="k">${esc(t.l)}</div>
-      <div class="v">${t.v}</div><div class="ctr-chips">${hasLY && !running ? chip(t.f(M), t.f(LY), "vs last year", t.isRate, t.good) : ""}${hasPM ? chip(t.f(M), t.f(PM), "vs last month", t.isRate, t.good) : ""}</div>
+      <div class="v">${t.v}</div><div class="ctr-chips">${hasLY && !running ? chip(t.f(M), t.f(LY), "vs last year", t.isRate, t.good) : ""}${hasPM ? chip(t.f(M), t.f(PM), vsPM, t.isRate, t.good) : ""}</div>
       <div class="ctr-spark" data-spark="${t.id}"></div></div>`).join("") + `</div>`;
     const better = TILES.filter(t => t.good === true && hasLY && t.f(M) != null && t.f(LY) != null && t.f(M) > t.f(LY)).length;
     const counted = TILES.filter(t => t.good === true && hasLY && t.f(M) != null && t.f(LY) != null).length;
-    const say = `${running ? "So far in" : "In"} ${esc(mLong(k))}, CT had <b>${fmtN(M.leads)}</b> leads and booked <b>${fmtN(M.b)}</b> (${pct(M.rate)} of qualified),
+    const say = `${running ? "So far in" : "In"} ${esc(lab)}, CT had <b>${fmtN(M.leads)}</b> leads and booked <b>${fmtN(M.b)}</b> (${pct(M.rate)} of qualified),
       did <b>${fmtN(M.jobs)}</b> jobs for <b>${money(M.rev)}</b>${M.hasSpend ? `, and we spent <b>${money(M.spend)}</b> on ads placed in CT` : ""}.`
-      + (counted && !running ? ` ${better} of ${counted} headline numbers are better than ${esc(mShort(ly))}.` : "");
+      + (counted && !running ? ` ${better} of ${counted} headline numbers are better than ${esc(lyLab)}.` : "");
     // what changed most vs the month before: the biggest moves by source, in revenue and in leads
-    const bySrc = (rows, key, mo) => { const g = {}; rows.filter(r => r.mo === mo).forEach(r => { g[r.src] = (g[r.src] || 0) + (+r[key] || 0); }); return g; };
+    const bySrc = (rows, key, a, b) => { const g = {}; rows.filter(r => r.mo >= a && r.mo <= b).forEach(r => { g[r.src] = (g[r.src] || 0) + (+r[key] || 0); }); return g; };
     const moves = [];
     if (hasPM) {
-      const rn = bySrc(d.jobs, "rev", k), rp = bySrc(d.jobs, "rev", pm), ln = bySrc(d.leads, "leads", k), lp = bySrc(d.leads, "leads", pm);
+      const rn = bySrc(d.jobs, "rev", k0, k), rp = bySrc(d.jobs, "rev", pm0, pm), ln = bySrc(d.leads, "leads", k0, k), lp = bySrc(d.leads, "leads", pm0, pm);
       new Set([...Object.keys(rn), ...Object.keys(rp)]).forEach(s => { const dv = (rn[s] || 0) - (rp[s] || 0); if (Math.abs(dv) >= 500) moves.push({ w: Math.abs(dv), up: dv > 0, t: `${s} revenue ${dv > 0 ? "rose" : "fell"} ${money(Math.abs(dv))} (now ${money(rn[s] || 0)})` }); });
       new Set([...Object.keys(ln), ...Object.keys(lp)]).forEach(s => { const dv = (ln[s] || 0) - (lp[s] || 0); if (Math.abs(dv) >= 5) moves.push({ w: Math.abs(dv) * 150, up: dv > 0, t: `${s} leads ${dv > 0 ? "up" : "down"} ${Math.abs(dv)} (now ${ln[s] || 0})` }); });
       if (M.rate != null && PM.rate != null && Math.abs(M.rate - PM.rate) >= 0.02) moves.push({ w: 1e9, up: M.rate > PM.rate, t: `Booking rate moved ${(M.rate - PM.rate > 0 ? "+" : "")}${((M.rate - PM.rate) * 100).toFixed(1)} pts to ${pct(M.rate)}` });
     }
     const movers = moves.sort((a, b) => b.w - a.w).slice(0, 5);
-    const moversHtml = `<div class="ctr-card"><h4>What changed most</h4><div class="ctr-cs">${hasPM ? "vs " + esc(mShort(pm)) + " · the biggest moves" : "no month before to compare"}</div>`
+    const moversHtml = `<div class="ctr-card"><h4>What changed most</h4><div class="ctr-cs">${hasPM ? "vs " + esc(pmLab) + " · the biggest moves" : one ? "no month before to compare" : "no period before to compare"}</div>`
       + (movers.length ? movers.map(m => `<div class="ctr-move"><span class="${m.up ? "ctr-up" : "ctr-dn"}">${m.up ? "▲" : "▼"} ${esc(m.t)}</span></div>`).join("")
         : '<div class="ctr-note">No big moves.</div>') + `</div>`;
     const glanceCols = [M, hasLY ? LY : null, hasPM ? PM : null].filter(Boolean);
     const gl = (label, f, sub) => `<tr><td>${label}${sub ? `<span class="ctr-subt">${sub}</span>` : ""}</td>` + glanceCols.map(c => `<td class="num">${f(c)}</td>`).join("") + "</tr>";
-    const glance = `<div class="ctr-card"><h4>${esc(mShort(k))} against ${hasLY ? esc(mShort(ly)) + " and " : ""}${esc(mShort(pm))}</h4><div class="ctr-cs">every line, side by side</div>
-      <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th></th>` + glanceCols.map((c, i) => `<th class="num">${esc(mShort(c.k))}${i === 0 ? (running ? " (so far)" : "") : ""}</th>`).join("") + `</tr></thead><tbody>`
+    const glance = `<div class="ctr-card"><h4>${esc(pShort(k0, k))} against ${hasLY ? esc(lyLab) + " and " : ""}${esc(pmLab)}</h4><div class="ctr-cs">every line, side by side</div>
+      <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th></th>` + glanceCols.map((c, i) => `<th class="num">${esc(c.lab)}${i === 0 ? (running ? " (so far)" : "") : ""}</th>`).join("") + `</tr></thead><tbody>`
       + gl("Leads", c => fmtN(c.leads)) + gl("Booked", c => fmtN(c.b)) + gl("Booking rate", c => pct(c.rate), "booked ÷ leads without bad leads")
       + gl("Jobs done", c => fmtN(c.jobs)) + gl("Revenue", c => money(c.rev)) + gl("Average job", c => c.avg != null ? money(c.avg) : "—")
       + gl("Ad spend placed in CT", c => c.hasSpend ? money(c.spend) : "—") + gl("Ad spend per lead", c => c.perLead != null ? money(c.perLead) : "—")
       + gl("Ad spend per job done", c => c.perJob != null ? money(c.perJob) : "—") + `</tbody></table></div></div>`;
-    const briefHtml = `<div class="ctr-card"><h4>Crews and problems</h4><div class="ctr-cs">${esc(mLong(k))} · the detail is in 02 and 03</div>
+    const briefHtml = `<div class="ctr-card"><h4>Crews and problems</h4><div class="ctr-cs">${esc(lab)} · the detail is in 02 and 03</div>
       <div class="ctr-move"><span>Morning jobs / afternoon jobs</span><b>${fmtN(CM.am.n)} / ${fmtN(CM.pm.n)}</b></div>
       <div class="ctr-move"><span>Late arrivals (over an hour)</span><b>${fmtN(CM.all.late)} (${fmtN(CM.all.late1h)})</b></div>
       <div class="ctr-move"><span>Jobs with a claim</span><b>${fmtN(CM.all.cl)}</b></div>
@@ -264,14 +279,14 @@
     const withArr = CM.am.n + CM.pm.n;
     const onTime = st => st.n ? Math.round(100 * (st.n - st.late) / st.n) + "%" : "—";
     const crewTiles = `<div class="ctr-tiles">` + [
-      ["Morning jobs", fmtN(CM.am.n), withArr ? pctOf(CM.am.n, withArr) + " of the jobs with an arrival record" : "no arrival records this month"],
+      ["Morning jobs", fmtN(CM.am.n), withArr ? pctOf(CM.am.n, withArr) + " of the jobs with an arrival record" : "no arrival records " + (one ? "this month" : "in these months")],
       ["Afternoon jobs", fmtN(CM.pm.n), "chained after another job that day"],
       ["On time, morning", onTime(CM.am), fmtN(CM.am.late) + " late · " + fmtN(CM.am.late1h) + " over an hour"],
       ["On time, afternoon", onTime(CM.pm), fmtN(CM.pm.late) + " late · " + fmtN(CM.pm.late1h) + " over an hour"]].map(tileHtml).join("") + `</div>`;
-    const crewByMonth = `<div class="ctr-card"><h4>Morning and afternoon jobs by month</h4><div class="ctr-cs">the last 12 months · the picked month is highlighted</div>
+    const crewByMonth = `<div class="ctr-card"><h4>Morning and afternoon jobs by month</h4><div class="ctr-cs">the last 12 months · ${hl}</div>
       <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Month</th><th class="num">Morning</th><th class="num">Afternoon</th><th class="num">Afternoon share</th>`
       + `<th class="num">No arrival record</th><th class="num">Late, morning</th><th class="num">Late, afternoon</th></tr></thead><tbody>`
-      + k12.map(mo => { const c = crewStats(jobsOf(mo)); return `<tr${mo === k ? ' class="ctr-on"' : ""}><td class="nowrap">${esc(mShort(mo))}</td><td class="num">${fmtN(c.am.n)}</td>`
+      + k12.map(mo => { const c = crewStats(jobsOf(mo)); return `<tr${inP(mo) ? ' class="ctr-on"' : ""}><td class="nowrap">${esc(mShort(mo))}</td><td class="num">${fmtN(c.am.n)}</td>`
         + `<td class="num">${fmtN(c.pm.n)}</td><td class="num">${pctOf(c.pm.n, c.am.n + c.pm.n)}</td><td class="num">${fmtN(c.none.n)}</td>`
         + `<td class="num">${pctOf(c.am.late, c.am.n)}</td><td class="num">${pctOf(c.pm.late, c.pm.n)}</td></tr>`; }).join("") + `</tbody></table></div></div>`;
     const cmpRow = (l, f) => `<tr><td>${l}</td><td class="num">${f(CY.am)}</td><td class="num">${f(CY.pm)}</td><td class="num">${f(CY.none)}</td></tr>`;
@@ -299,8 +314,8 @@
       ["Claims", fmtN(sum(monthJobs, "cl_n")), fmtN(CM.all.cl) + " jobs with a claim"],
       ["Late over an hour", fmtN(CM.all.late1h), fmtN(CM.all.late) + " late arrivals in all"],
       ["Refunds", money(rfMonth), fmtN(sum(monthJobs, "rf_n")) + " refunds · " + fmtN(sum(monthJobs, "nr_n")) + " bad reviews"]].map(tileHtml).join("") + `</div>`;
-    const probList = `<div class="ctr-card"><h4>The month's problem jobs</h4><div class="ctr-cs">${esc(mLong(k))} · ${fmtN(probs.length)} of ${fmtN(monthJobs.length)} jobs had a claim, a late arrival, a refund or a bad review</div>`
-      + (!probs.length ? '<div class="ctr-note">No problem jobs this month.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Date</th><th>Request #</th><th>Customer</th><th>Foreman</th><th>Job</th><th>What went wrong</th><th class="num">Bill</th></tr></thead><tbody>`
+    const probList = `<div class="ctr-card"><h4>${one ? "The month's problem jobs" : "Problem jobs"}</h4><div class="ctr-cs">${esc(lab)} · ${fmtN(probs.length)} of ${fmtN(monthJobs.length)} jobs had a claim, a late arrival, a refund or a bad review</div>`
+      + (!probs.length ? '<div class="ctr-note">No problem jobs ' + (one ? "this month" : "in these months") + '.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Date</th><th>Request #</th><th>Customer</th><th>Foreman</th><th>Job</th><th>What went wrong</th><th class="num">Bill</th></tr></thead><tbody>`
         + capRows("pj", probs, 12).map(r => `<tr><td class="nowrap">${day(r.d)}</td><td>${esc(r.rq)}</td><td>${esc(r.cust || "—")}</td><td>${esc(r.fm)}</td>`
           + `<td class="nowrap">${/local/i.test(r.mt) ? "Local" : "Long distance"}${r.ch === 1 ? " · afternoon" : r.ch === 0 ? " · morning" : ""}</td>`
           + `<td><div class="ctr-tags">${problemsOf(r).map(([c, t]) => `<span class="ctr-tag ${c}">${esc(t)}</span>`).join("")}</div></td><td class="num">${money(r.bill)}</td></tr>`).join("")
@@ -330,52 +345,55 @@
 
     /* 02 LEADS AND SALES: funnel, what happened to the leads, reps, sources */
     const fMax = Math.max(M.leads, 1);
-    const funnel = `<div class="ctr-card"><h4>Lead funnel</h4><div class="ctr-cs">${esc(mLong(k))} · leads created that month</div><div class="ctr-fun">`
+    const funnel = `<div class="ctr-card"><h4>Lead funnel</h4><div class="ctr-cs">${esc(lab)} · leads created ${thatP}</div><div class="ctr-fun">`
       + [["Leads", M.leads, ""], ["Qualified", M.q, "without bad leads"], ["Booked", M.b, pct(M.rate) + " of qualified"]].map(([l, n, s]) =>
         `<div class="ctr-fr"><span>${esc(l)}</span><div class="ctr-fb" style="width:${Math.max(2, Math.round(100 * n / fMax))}%"></div><span class="n">${fmtN(n)}${s ? `<span class="ctr-subt">${esc(s)}</span>` : ""}</span></div>`).join("")
       + `</div></div>`;
-    const oc = (d.outcome || []).filter(r => r.mo === k);
+    const oc = (d.outcome || []).filter(r => inP(r.mo));
     const byG = {}, byF = {};
     OUTCOME_ORDER.forEach(g => { byG[g] = 0; byF[g] = {}; });
     oc.forEach(r => { const g = outcomeOf(r), f = g === "Booked" ? "Booked" : (r.flag || "(no reason recorded)"); byG[g] += r.n; byF[g][f] = (byF[g][f] || 0) + r.n; });
     const nOc = Math.max(OUTCOME_ORDER.reduce((a, g) => a + byG[g], 0), 1);
-    const outcome = `<div class="ctr-card"><h4>What happened to the leads</h4><div class="ctr-cs">${esc(mLong(k))} · ${fmtN(byG.Lost)} lost, ${fmtN(byG.Invalid)} invalid, by the rep's reason</div>`
-      + (!oc.length ? '<div class="ctr-note">No leads that month.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Outcome, then the rep's top reasons</th><th class="num">Leads</th><th class="num">Share</th></tr></thead><tbody>`
+    const outcome = `<div class="ctr-card"><h4>What happened to the leads</h4><div class="ctr-cs">${esc(lab)} · ${fmtN(byG.Lost)} lost, ${fmtN(byG.Invalid)} invalid, by the rep's reason</div>`
+      + (!oc.length ? '<div class="ctr-note">No leads ' + thatP + '.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Outcome, then the rep's top reasons</th><th class="num">Leads</th><th class="num">Share</th></tr></thead><tbody>`
         + OUTCOME_ORDER.filter(g => byG[g]).map(g => `<tr class="ctr-og"><td>${esc(g)}</td><td class="num">${fmtN(byG[g])}</td><td class="num">${pct(byG[g] / nOc)}</td></tr>`
           + (g === "Booked" ? "" : Object.keys(byF[g]).sort((a, b) => byF[g][b] - byF[g][a]).slice(0, 3).map(f =>
             `<tr><td class="ctr-ofl">${esc(f)}</td><td class="num">${fmtN(byF[g][f])}</td><td class="num">${pct(byF[g][f] / Math.max(byG[g], 1))} of ${esc(g.toLowerCase())}</td></tr>`).join(""))).join("")
         + `</tbody></table></div>`) + `</div>`;
-    const reps = (d.reps || []).filter(r => r.mo === k).sort((a, b) => b.q - a.q || b.leads - a.leads);
+    const repG = {};   // ZP-19: a rep's months add up
+    (d.reps || []).filter(r => inP(r.mo)).forEach(r => { const o = repG[r.rep] = repG[r.rep] || { rep: r.rep, leads: 0, q: 0, b: 0 };
+      o.leads += +r.leads || 0; o.q += +r.q || 0; o.b += +r.b || 0; });
+    const reps = Object.values(repG).sort((a, b) => b.q - a.q || b.leads - a.leads);
     const repsT = reps.reduce((a, r) => ({ leads: a.leads + r.leads, q: a.q + r.q, b: a.b + r.b }), { leads: 0, q: 0, b: 0 });
-    const repsHtml = `<div class="ctr-card"><h4>Booking rate by rep in CT</h4><div class="ctr-cs">${esc(mLong(k))} · the rep assigned in MoveBoard</div>`
-      + (!reps.length ? '<div class="ctr-note">No leads that month.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Rep</th><th class="num">Leads</th><th class="num">Qualified</th><th class="num">Booked</th><th class="num">Booking rate</th></tr></thead><tbody>`
+    const repsHtml = `<div class="ctr-card"><h4>Booking rate by rep in CT</h4><div class="ctr-cs">${esc(lab)} · the rep assigned in MoveBoard</div>`
+      + (!reps.length ? '<div class="ctr-note">No leads ' + thatP + '.</div>' : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Rep</th><th class="num">Leads</th><th class="num">Qualified</th><th class="num">Booked</th><th class="num">Booking rate</th></tr></thead><tbody>`
         + capRows("reps", reps, 8).map(r => `<tr><td>${esc(r.rep)}</td><td class="num">${fmtN(r.leads)}</td><td class="num">${fmtN(r.q)}</td><td class="num">${fmtN(r.b)}</td><td class="num">${pct(rate(r.b, r.q))}</td></tr>`).join("")
         + `<tr class="ctr-tot"><td>All reps</td><td class="num">${fmtN(repsT.leads)}</td><td class="num">${fmtN(repsT.q)}</td><td class="num">${fmtN(repsT.b)}</td><td class="num">${pct(rate(repsT.b, repsT.q))}</td></tr></tbody></table></div>${moreBtn("reps", reps.length, 8)}`) + `</div>`;
     const groupSrc = (rows, keys) => { const g = {}; rows.forEach(r => { const o = g[r.src] = g[r.src] || { src: r.src }; keys.forEach(c => { o[c] = (o[c] || 0) + (+r[c] || 0); }); }); return Object.values(g); };
-    const ls = groupSrc(d.leads.filter(r => r.mo === k), ["leads", "q", "b"]).sort((a, b) => b.leads - a.leads);
-    const srcHtml = `<div class="ctr-card"><h4>Leads by source</h4><div class="ctr-cs">${esc(mLong(k))}</div>` + (!ls.length ? '<div class="ctr-note">No leads.</div>'
+    const ls = groupSrc(d.leads.filter(r => inP(r.mo)), ["leads", "q", "b"]).sort((a, b) => b.leads - a.leads);
+    const srcHtml = `<div class="ctr-card"><h4>Leads by source</h4><div class="ctr-cs">${esc(lab)}</div>` + (!ls.length ? '<div class="ctr-note">No leads.</div>'
       : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Source</th><th class="num">Leads</th><th class="num">Booked</th><th class="num">Booking rate</th></tr></thead><tbody>`
         + capRows("ls", ls, 8).map(r => `<tr><td>${esc(r.src)}</td><td class="num">${fmtN(r.leads)}</td><td class="num">${fmtN(r.b)}</td><td class="num">${pct(rate(r.b, r.q))}</td></tr>`).join("") + `</tbody></table></div>${moreBtn("ls", ls.length, 8)}`) + `</div>`;
     const s04 = secHtml(3, `<div class="ctr-two"><div class="ctr-stack">${funnel}${srcHtml}</div>${outcome}</div><div style="margin-top:14px">${repsHtml}</div>`);
 
     /* 03 JOBS AND REVENUE: 12-month momentum, local vs long distance, jobs by source, month by month */
-    const mt = (mo) => { const g = { local: { jobs: 0, rev: 0 }, ld: { jobs: 0, rev: 0 } };
-      (d.movetype || []).filter(r => r.mo === mo).forEach(r => { const o = /local/i.test(r.mt) ? g.local : g.ld; o.jobs += r.jobs; o.rev += r.rev; }); return g; };
-    const MT = mt(k), MTL = mt(ly);
+    const mt = (a, b) => { const g = { local: { jobs: 0, rev: 0 }, ld: { jobs: 0, rev: 0 } };
+      (d.movetype || []).filter(r => r.mo >= a && r.mo <= b).forEach(r => { const o = /local/i.test(r.mt) ? g.local : g.ld; o.jobs += r.jobs; o.rev += r.rev; }); return g; };
+    const MT = mt(k0, k), MTL = mt(ly0, ly);
     const mtRow = (l, a, b) => `<tr><td>${esc(l)}</td><td class="num">${fmtN(a.jobs)}</td><td class="num">${money(a.rev)}</td><td class="num">${a.jobs ? money(a.rev / a.jobs) : "—"}</td>`
       + `<td class="num">${hasLY && !running ? (b.rev ? chip(a.rev, b.rev, "", false, true) : "—") : "—"}</td></tr>`;
-    const mtHtml = `<div class="ctr-card"><h4>Local vs long distance</h4><div class="ctr-cs">${esc(mLong(k))} · revenue against ${esc(mShort(ly))}</div>
+    const mtHtml = `<div class="ctr-card"><h4>Local vs long distance</h4><div class="ctr-cs">${esc(lab)} · revenue against ${esc(lyLab)}</div>
       <div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th></th><th class="num">Jobs</th><th class="num">Revenue</th><th class="num">Average job</th><th class="num">vs last year</th></tr></thead><tbody>`
       + mtRow("Local", MT.local, MTL.local) + mtRow("Long distance", MT.ld, MTL.ld) + `</tbody></table></div></div>`;
-    const js = groupSrc(d.jobs.filter(r => r.mo === k), ["jobs", "rev"]).sort((a, b) => b.rev - a.rev);
-    const jobsSrc = `<div class="ctr-card"><h4>Jobs by source</h4><div class="ctr-cs">${esc(mLong(k))}</div>` + (!js.length ? '<div class="ctr-note">No jobs.</div>'
+    const js = groupSrc(d.jobs.filter(r => inP(r.mo)), ["jobs", "rev"]).sort((a, b) => b.rev - a.rev);
+    const jobsSrc = `<div class="ctr-card"><h4>Jobs by source</h4><div class="ctr-cs">${esc(lab)}</div>` + (!js.length ? '<div class="ctr-note">No jobs.</div>'
       : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Source</th><th class="num">Jobs</th><th class="num">Revenue</th></tr></thead><tbody>`
         + capRows("js", js, 5).map(r => `<tr><td>${esc(r.src)}</td><td class="num">${fmtN(r.jobs)}</td><td class="num">${money(r.rev)}</td></tr>`).join("") + `</tbody></table></div>${moreBtn("js", js.length, 5)}`) + `</div>`;
     const yr = k.slice(0, 4), yms = months.filter(x => x.slice(0, 4) === yr).map(monthOf);
     const tot = yms.reduce((a, o) => ({ leads: a.leads + o.leads, q: a.q + o.q, b: a.b + o.b, jobs: a.jobs + o.jobs, rev: a.rev + o.rev, spend: a.spend + o.spend }), { leads: 0, q: 0, b: 0, jobs: 0, rev: 0, spend: 0 });
-    const byMonth = `<div class="ctr-card"><h4>Month by month, ${esc(yr)}</h4><div class="ctr-cs">the picked month is highlighted</div><div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Month</th><th class="num">Leads</th><th class="num">Booked</th>`
+    const byMonth = `<div class="ctr-card"><h4>Month by month, ${esc(yr)}</h4><div class="ctr-cs">${hl}</div><div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Month</th><th class="num">Leads</th><th class="num">Booked</th>`
       + `<th class="num">Booking rate</th><th class="num">Jobs done</th><th class="num">Revenue</th><th class="num">Ad spend in CT</th><th class="num">Spend per job</th></tr></thead><tbody>`
-      + yms.map(o => `<tr${o.k === k ? ' class="ctr-on"' : ""}><td>${esc(MON[+o.k.slice(5, 7) - 1])}${o.k === cur ? '<span class="ctr-subt">so far</span>' : ""}</td>`
+      + yms.map(o => `<tr${inP(o.k) ? ' class="ctr-on"' : ""}><td>${esc(MON[+o.k.slice(5, 7) - 1])}${o.k === cur ? '<span class="ctr-subt">so far</span>' : ""}</td>`
         + `<td class="num">${fmtN(o.leads)}</td><td class="num">${fmtN(o.b)}</td><td class="num">${pct(o.rate)}</td><td class="num">${fmtN(o.jobs)}</td>`
         + `<td class="num">${money(o.rev)}</td><td class="num">${o.hasSpend ? money(o.spend) : "—"}</td><td class="num">${o.perJob != null ? money(o.perJob) : "—"}</td></tr>`).join("")
       + `<tr class="ctr-tot"><td>${esc(yr)}${yr === cur.slice(0, 4) ? " so far" : ""}</td><td class="num">${fmtN(tot.leads)}</td><td class="num">${fmtN(tot.b)}</td>`
@@ -385,21 +403,24 @@
       + `<div class="ctr-two" style="margin-top:14px">${mtHtml}${jobsSrc}</div><div style="margin-top:14px">${byMonth}</div>`);
 
     /* 04 MARKETING: spend by channel, spend per lead and per job over 12 months, postcards in CT */
-    const sp = groupSrc(d.spend.filter(r => r.mo === k).map(r => ({ src: r.fam, spend: r.spend })), ["spend"]).filter(r => Math.abs(r.spend) >= 0.5).sort((a, b) => b.spend - a.spend);
-    const unpl = (d.unplaced.find(r => r.mo === k) || {}).spend || 0;
-    const spendHtml = `<div class="ctr-card"><h4>Ad spend placed in CT, by channel</h4><div class="ctr-cs">${esc(mLong(k))}</div>` + (!sp.length ? `<div class="ctr-note">No ad spend is placed in CT for ${esc(mLong(k))} yet.</div>`
+    const sp = groupSrc(d.spend.filter(r => inP(r.mo)).map(r => ({ src: r.fam, spend: r.spend })), ["spend"]).filter(r => Math.abs(r.spend) >= 0.5).sort((a, b) => b.spend - a.spend);
+    const unpl = sum((d.unplaced || []).filter(r => inP(r.mo)), "spend");
+    const spendHtml = `<div class="ctr-card"><h4>Ad spend placed in CT, by channel</h4><div class="ctr-cs">${esc(lab)}</div>` + (!sp.length ? `<div class="ctr-note">No ad spend is placed in CT for ${esc(lab)} yet.</div>`
       : `<div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Share</th></tr></thead><tbody>`
         + sp.map(r => `<tr><td>${esc(r.src)}</td><td class="num">${money(r.spend)}</td><td class="num">${M.spend ? Math.round(r.spend / M.spend * 100) + "%" : "—"}</td></tr>`).join("")
         + `<tr class="ctr-tot"><td>Placed in CT</td><td class="num">${money(M.spend)}</td><td class="num">100%</td></tr></tbody></table></div>`
-        + (unpl > 0 ? `<div class="ctr-note">Left out: ${money(unpl)} of company-wide spend that month that no state can be given (Meta, Reddit and the like).</div>` : "")) + `</div>`;
+        + (unpl > 0 ? `<div class="ctr-note">Left out: ${money(unpl)} of company-wide spend ${thatP} that no state can be given (Meta, Reddit and the like).</div>` : "")) + `</div>`;
     const effHtml = `<div class="ctr-card"><h4>What the spend returns</h4><div class="ctr-cs">the last 12 months</div><div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th>Month</th><th class="num">Spend</th><th class="num">Per lead</th><th class="num">Per job</th><th class="num">Revenue per $1</th></tr></thead><tbody>`
-      + last12.map(o => `<tr${o.k === k ? ' class="ctr-on"' : ""}><td>${esc(mShort(o.k))}</td><td class="num">${o.hasSpend ? money(o.spend) : "—"}</td><td class="num">${o.perLead != null ? money(o.perLead) : "—"}</td>`
+      + last12.map(o => `<tr${inP(o.k) ? ' class="ctr-on"' : ""}><td>${esc(mShort(o.k))}</td><td class="num">${o.hasSpend ? money(o.spend) : "—"}</td><td class="num">${o.perLead != null ? money(o.perLead) : "—"}</td>`
         + `<td class="num">${o.perJob != null ? money(o.perJob) : "—"}</td><td class="num">${o.roas != null ? money2(o.roas) : "—"}</td></tr>`).join("") + `</tbody></table></div></div>`;
-    const pcs = d.postcards || [], pcNow = pcs.find(r => r.mo === k), pcLy = pcs.find(r => r.mo === ly);
+    const pcs = d.postcards || [];
+    const pcSum = (a, b) => { const xs = pcs.filter(r => r.mo >= a && r.mo <= b);   // ZP-19: a period's cards add up
+      return xs.length ? ["mailed", "spent", "leads", "jobs", "rev"].reduce((o, c) => { o[c] = sum(xs, c); return o; }, {}) : null; };
+    const pcNow = pcSum(k0, k), pcLy = pcSum(ly0, ly);
     const pcRow = (l, r) => !r ? `<tr><td>${esc(l)}</td><td class="num" colspan="6">no post cards on file</td></tr>`
       : `<tr><td>${esc(l)}</td><td class="num">${fmtN(r.mailed)}</td><td class="num">${money(r.spent)}</td><td class="num">${fmtN(r.leads)}</td><td class="num">${fmtN(r.jobs)}</td><td class="num">${money(r.rev)}</td><td class="num">${r.spent ? money2(r.rev / r.spent) : "—"}</td></tr>`;
     const pcHtml = `<div class="ctr-card"><h4>Post cards in CT</h4><div class="ctr-cs">mailed, their cost, and what came back</div><div class="rs-tablewrap"><table class="rs-table ctr-tight"><thead><tr><th></th><th class="num">Mailed</th><th class="num">Cost</th><th class="num">Leads</th><th class="num">Jobs</th><th class="num">Revenue</th><th class="num">Per $1</th></tr></thead><tbody>`
-      + pcRow(mShort(k), pcNow) + (hasLY ? pcRow(mShort(ly), pcLy) : "") + `</tbody></table></div><div class="ctr-note">Cost of mailed = cards × their unit cost (Post Card Expenditure). Leads and jobs by the state on the lead.</div></div>`;
+      + pcRow(pShort(k0, k), pcNow) + (hasLY ? pcRow(lyLab, pcLy) : "") + `</tbody></table></div><div class="ctr-note">Cost of mailed = cards × their unit cost (Post Card Expenditure). Leads and jobs by the state on the lead.</div></div>`;
     const s06 = secHtml(5, `<div class="ctr-two"><div class="ctr-stack">${spendHtml}${pcHtml}</div>${effHtml}</div>`);
 
     /* 05 OUTLOOK: this month and next, as booked (Month Outlook's numbers for CT) */
@@ -423,6 +444,9 @@
         and pay are not on this page. CT is the move's pickup state.</p>
       <h3>The tiles</h3><p>Each number against the same month last year and the month before; the bars under it are its last 12 months,
         the picked month in green. For the running month there is no year-on-year chip: the month isn't finished.</p>
+      <h3>Several months</h3><p>Pick From and To to merge months (ZP-19): every number then sums those months and is compared with
+        the same months a year earlier and with as many months just before. The 12-month tables and bars stay monthly, with the
+        picked months highlighted.</p>
       <h3>Leads and booking rate</h3><p>Leads are Moveboard requests, counted in the month they came in. Booked = Confirmed. The booking
         rate is booked &divide; leads without bad leads (dead, archive, spam, video estimate), the portal's one rule.</p>
       <h3>What happened to the leads</h3><p>Every lead in one group on top of the rep's reason (Flag) in Moveboard, the same rule as
@@ -446,18 +470,21 @@
         final bill.</p><p>Data: ${esc(asOf)}.</p>`;
     host.innerHTML = `<div class="ctr-wrap">
       ${RSC.pageHeadHtml({ title: "CT Branch Report", key: "ct-report", sub: "Connecticut's monthly review: leads, bookings, jobs, revenue and what we spend on ads.", chip: asOf, how })}
-      <div class="ctr-cover"><div><h2>Report for ${esc(mLong(k))}${running ? " (so far)" : ""}</h2><div class="ctr-sub">Monthly review · Connecticut · Zip to Zip</div></div>
-        <div class="ctr-step"><button type="button" class="rs-btn" data-step="-1" aria-label="Month before">‹</button><div id="ctrMonth"></div>
-        <button type="button" class="rs-btn" data-step="1" aria-label="Month after"${k >= cur ? " disabled" : ""}>›</button><button type="button" class="rs-btn" id="ctrPrint">Print</button></div></div>
+      <div class="ctr-cover"><div><h2>Report for ${esc(lab)}${running ? " (so far)" : ""}</h2><div class="ctr-sub">${one ? "Monthly review" : n + "-month review"} · Connecticut · Zip To Zip Moving</div></div>
+        <div class="ctr-step"><button type="button" class="rs-btn" data-step="-1" aria-label="${one ? "Month" : "Period"} before">‹</button><div id="ctrFrom"></div><div id="ctrMonth"></div>
+        <button type="button" class="rs-btn" data-step="1" aria-label="${one ? "Month" : "Period"} after"${k >= cur ? " disabled" : ""}>›</button><button type="button" class="rs-btn" id="ctrPrint">Print</button></div></div>
       <nav class="ctr-nav" aria-label="Chapters">${CHAPTERS.map(([n, t]) => `<a href="#" data-go="${n}"><b>${n}</b>${esc(t)}</a>`).join("")}</nav>
       ${s01}${s02}${s03}${s04}${s05}${s06}${s07}
     </div>`;
-    RSC.localSelect(host.querySelector("#ctrMonth"), { label: "Month", required: true,
-      values: months.slice().reverse().map(x => ({ v: x, l: mLong(x) + (x === cur ? " (so far)" : "") })),
-      value: k, onChange: v => { S.month = v; render(host); } });
+    const opts = months.slice().reverse().map(x => ({ v: x, l: mLong(x) + (x === cur ? " (so far)" : "") }));
+    // ZP-19: From and To. A From after To makes it one month; From = To is one month
+    RSC.localSelect(host.querySelector("#ctrFrom"), { label: "From", required: true, values: opts, value: k0,
+      onChange: v => { if (v >= S.month) { S.month = v; S.from = ""; } else S.from = v; render(host); } });
+    RSC.localSelect(host.querySelector("#ctrMonth"), { label: "To", required: true, values: opts, value: k,
+      onChange: v => { S.month = v; if (S.from && S.from >= v) S.from = ""; render(host); } });
     host.querySelectorAll("[data-step]").forEach(b => b.onclick = () => {
-      const n = addM(S.month, +b.dataset.step);
-      if (months.indexOf(n) >= 0) { S.month = n; render(host); }
+      const st = +b.dataset.step * n, e = addM(k, st), s0 = addM(k0, st);   // the whole period moves
+      if (months.indexOf(e) >= 0 && months.indexOf(s0) >= 0) { S.month = e; S.from = one ? "" : s0; render(host); }
     });
     host.querySelector("#ctrPrint").onclick = () => window.print();
     host.querySelectorAll("[data-all]").forEach(b => b.onclick = () => { const n = b.dataset.all; S.all.has(n) ? S.all.delete(n) : S.all.add(n); render(host); });
@@ -477,7 +504,7 @@
       const C = pal(), cv = document.createElement("canvas");
       mom.appendChild(cv);
       charts.push(new Chart(cv, { data: { labels: last12.map(o => mShort(o.k)), datasets: [
-        { type: "bar", label: "Revenue", data: last12.map(o => Math.round(o.rev)), backgroundColor: last12.map(o => o.k === k ? C.brand : C.line), yAxisID: "y", order: 2 },
+        { type: "bar", label: "Revenue", data: last12.map(o => Math.round(o.rev)), backgroundColor: last12.map(o => inP(o.k) ? C.brand : C.line), yAxisID: "y", order: 2 },
         { type: "line", label: "Jobs done", data: last12.map(o => o.jobs), borderColor: C.ink, backgroundColor: C.ink, yAxisID: "y1", order: 1, pointRadius: 3, cubicInterpolationMode: "monotone" }] },
         options: { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
           plugins: { tooltip: { callbacks: { label: x => x.dataset.label + ": " + (x.dataset.yAxisID === "y" ? money(x.raw) : fmtN(x.raw)) } } },
