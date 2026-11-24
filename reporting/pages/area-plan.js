@@ -773,6 +773,24 @@ details.ap3-how[open]{padding-bottom:16px}
 .ap3-det .kv span small{display:block;font-size:12px;color:var(--faint)}
 .ap3-det .kv b{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ap3-det .ap2-tip{padding:0;min-width:0;max-width:none}
+/* WHY THIS COLOUR (ZTZ-156) */
+.ap3-det .ap3-why{margin:10px 0 0;padding:10px 12px;border:1px solid var(--ap-rule);border-radius:var(--ap-r1)}
+#apPrintRoot .ap2-mkhow{display:none}
+.ap3-why .wh{font-size:13px;font-weight:600;color:var(--ink);margin:0 0 4px}
+.ap3-why .wl{font-size:13px;color:var(--muted);line-height:1.5;margin:2px 0}
+.ap3-why .wl b{color:var(--ink);font-variant-numeric:tabular-nums}
+.ap3-why table{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:13px}
+.ap3-why td{padding:4px 0;border-bottom:1px solid var(--ap-rule);color:var(--ink);vertical-align:top}
+.ap3-why td small{display:block;font-size:12px;color:var(--faint)}
+.ap3-why td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;padding-left:10px}
+.ap3-why tr.tot td{font-weight:600;border-bottom:0}
+.ap3-glance .why2{margin-top:6px;font-size:12px;color:var(--muted);max-width:300px}
+.ap2-mkhow{position:relative}
+.ap2-mkhow summary{cursor:pointer;color:var(--ink);text-decoration:underline;text-underline-offset:2px;list-style:none}
+.ap2-mkhow summary::-webkit-details-marker{display:none}
+.ap2-mkhow .bd{position:absolute;z-index:700;top:22px;left:0;width:min(440px,86vw);padding:12px 14px;border:1px solid var(--ap-rule-2);
+  border-radius:var(--ap-r1);background:var(--ap-bay);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:13px;color:var(--ink);line-height:1.5}
+.ap2-mkhow .bd p{margin:0 0 6px}
 .ap3-glance{min-width:210px}
 .ap3-glance .g3{display:grid;grid-template-columns:repeat(3,auto);gap:4px 14px;margin-top:6px}
 .ap3-glance .g3 span{font-size:12px;color:var(--muted)}
@@ -5630,6 +5648,124 @@ const AREA_PLAN_PAGE = {
         return out.slice(0, 10).map(x => x.a);
       }
 
+      /* ===================== WHY THIS COLOUR (ZTZ-156) =====================
+         His ask (2026-11-24): "can we show how we got the color we got? like why green, or why yellow and etc."
+         The click sheet shows the rule that decided the area -- first match wins, as in mart_area_tier -- with
+         every part and its points; the hover carries one line; the key has a short "How colours are decided".
+         Under a plan, a re-tiered area shows the plan's own distance and score (its _nb). The market
+         percentiles are not stored in the mart, so they are worked out here exactly as its mk CTE does
+         (PERCENT_RANK within the level, nulls ranking first) and only shown when they rebuild the stored
+         Market Score. */
+      const WHY_CO = (() => {        // the company yardsticks the ticket and CF points are measured against
+        let rev = 0, jobs = 0; AREA_BASE.forEach(a => { if (a.Level === "Zip") { rev += num(a["Revenue 12m"]); jobs += num(a["Jobs 12m"]); } });
+        return { ticket: jobs ? rev / jobs : null };
+      })();
+      const MKT_PR = (() => {
+        const out = {};
+        ["Zip", "City", "County"].forEach(lv => {
+          const rows = AREA_BASE.filter(a => a.Level === lv && num(a.Population) > 0 && a["Median Income"] != null);
+          const n = rows.length; if (n < 2) return;
+          const col = k => { const v = [], nulls = rows.filter(a => a[k] == null).length;
+            rows.forEach(a => { if (a[k] != null) v.push(num(a[k])); }); v.sort((x, y) => x - y);
+            return x => { let lo = 0, hi = v.length; while (lo < hi) { const m = (lo + hi) >> 1; if (v[m] < x) lo = m + 1; else hi = m; }
+              return (nulls + lo) / (n - 1); }; };
+          out[lv] = { inc: col("Median Income"), home: col("Home Value"), own: col("Owner Share Pct") };
+        });
+        return out;
+      })();
+      const ordN = v => { const n = Math.round(v), t = n % 100;
+        return n + (t >= 11 && t <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th"); };
+      /* the market's three parts, or null when they do not rebuild the stored score */
+      function marketParts(a) {
+        const P = MKT_PR[a.Level]; if (!P || a["Median Income"] == null || !num(a.Population)) return null;
+        const pi = P.inc(num(a["Median Income"]));
+        const ph = a["Home Value"] != null ? P.home(num(a["Home Value"])) : null;
+        const po = a["Owner Share Pct"] != null ? P.own(num(a["Owner Share Pct"])) : null;
+        const score = 100 * (0.45 * pi + 0.35 * (ph != null ? ph : pi) + 0.20 * (po != null ? po : pi));
+        if (a["Market Score"] != null && Math.abs(score - num(a["Market Score"])) > 0.6) return null;
+        return { pi, ph, po, score };
+      }
+      /* the facts the colour was decided on: the plan's own when a new or moved base re-tiered it */
+      function whyFacts(a) {
+        const x = a._nb || null, mi = num(a["Miles To Base"]), cut = NB_CUT;
+        const measured = a["Tier Source"] === "Our data";
+        const pd = x && x.pd != null ? x.pd : num(a["Score Distance"]);
+        const score = measured ? (x && x.score != null ? x.score : num(a["Data Score"])) : null;
+        const mtier = x ? x.mtier : (a["Market Tier"] != null ? num(a["Market Tier"]) : null);
+        const m = a["Market Score"] != null ? num(a["Market Score"]) : null;
+        const nb = a["Nearest Base"] || "";
+        // a register base is named by its state ("CT"): say "the CT base"; a plan's site keeps its own name
+        return { mi, base: !nb ? "a base" : /^[A-Z]{2}$/.test(nb) ? "the " + nb + " base" : nb, tier: num(a.Tier), measured, pd, score, mtier, m, cut,
+                 floor: num(a["Leads To Measure"]) || (a.Level === "County" ? 30 : a.Level === "City" ? 20 : 15),
+                 leads: num(a["Leads 12m"]), never: num(a["Never A Lead"]) === 1 };
+      }
+      const nextUp = (v, t, cuts) => {   // how far a score is from the tier above it
+        const need = t === 4 ? cuts[2] : t === 3 ? cuts[1] : t === 2 ? cuts[0] : null;
+        return need == null ? "" : r1(need - v) + " short of Tier " + (t - 1) + " (" + need + ")";
+      };
+      /* one line for the hover */
+      function whyShort(a) {
+        if (!a) return "";
+        const f = whyFacts(a);
+        if (f.tier === 0) return "Not rated · no leads to measure and no Census data";
+        if (f.measured) return "Measured on our leads · " + r1(f.score) + " pts · Tier " + f.tier +
+          (f.tier === 2 && f.score >= f.cut.t1 && f.mi > 50 ? " (Tier 1 score, over 50 mi)" : f.tier > 1 ? " (Tier " + (f.tier - 1) + " at " + [0, 0, f.cut.t1, f.cut.t2, f.cut.t3][f.tier] + ")" : "");
+        if (f.mi > 50) return "Over 50 mi · " + r1(f.mi) + " mi to " + f.base + " · Tier 4";
+        return "Rated on its market (" + fmtN(f.leads) + " of " + f.floor + " leads) · " + (f.m != null ? r1(f.m) : "—") + " · Tier " + f.tier +
+          (f.tier > 1 ? " (Tier " + (f.tier - 1) + " at " + [0, 0, 80, 55, 30][f.tier] + ")" : "");
+      }
+      /* the full breakdown for the click sheet */
+      function whyHtml(a) {
+        const f = whyFacts(a), T = (n, rows) => "<table>" + rows.join("") + "</table>";
+        const tr = (l, sub, v, cls) => '<tr' + (cls ? ' class="' + cls + '"' : "") + "><td>" + l + (sub ? "<small>" + sub + "</small>" : "") + '</td><td class="n">' + v + "</td></tr>";
+        const L = h => '<div class="wl">' + h + "</div>";
+        const plan = a._nb ? " (with the plan's bases)" : "";
+        let body = "";
+        if (f.tier === 0) {
+          body = L("It has no leads to measure and no Census row for its market (a PO box, a single building), so nothing can rate it.");
+        } else if (f.measured) {
+          const shrunk = num(a["Score Booking"]) < 30 ? num(a["Score Booking"]) / 30 * 22 : null;
+          const tBand = { 25: "140%+ of the company's", 20: "110–140% of the company's", 15: "90–110% of the company's", 10: "70–90% of the company's", 5: "50–70% of the company's", 0: "under 50% of the company's" };
+          const cBand = { 15: "135%+ of the company's", 10: "105–135% of the company's", 5: "75–105% of the company's", 0: "under 75% of the company's" };
+          body = L("<b>" + fmtN(f.leads) + "</b> leads in 12 months — enough to measure (it takes " + f.floor + "), so it is scored on our own work" + plan + ":") +
+            T(0, [
+              tr("Distance", r1(f.mi) + " mi to " + esc(f.base) + " · 30 within 20 mi, 25 within 30, 20 within 60", fmtN(f.pd) + " / 30"),
+              tr("Booking", (a["Booking Rate"] != null ? r1(num(a["Booking Rate"])) + "% booked" : "—") +
+                 (shrunk != null ? ", counted as " + r1(shrunk) + "% once evened out with the company's rate" : "") + " · 30 at 22%", r1(num(a["Score Booking"])) + " / 30"),
+              tr("Average ticket", (a["Avg Ticket"] != null ? money0(num(a["Avg Ticket"])) : "—") + (WHY_CO.ticket ? " vs company " + money0(WHY_CO.ticket) : "") +
+                 " · " + (tBand[num(a["Score Estimate"])] || "") + " (evened out over 5 jobs)", fmtN(num(a["Score Estimate"])) + " / 25"),
+              tr("Cubic feet", (a["Avg CF"] != null ? fmtN(num(a["Avg CF"])) + " CF a job" : "—") + " · " + (cBand[num(a["Score CF"])] || "") + " (evened out over 5 jobs)", fmtN(num(a["Score CF"])) + " / 15"),
+              tr("Score", "", r1(f.score) + " / 100", "tot")]) +
+            L("Tier 1 at <b>" + f.cut.t1 + "</b>+, Tier 2 at <b>" + f.cut.t2 + "</b>+, Tier 3 at <b>" + f.cut.t3 + "</b>+, below that Tier 4." +
+              (f.tier === 2 && f.score >= f.cut.t1 && f.mi > 50 ? " It scores Tier 1, but a Tier 1 over 50 mi from a base is held at Tier 2." : f.tier > 1 ? " It is " + nextUp(f.score, f.tier, [f.cut.t1, f.cut.t2, f.cut.t3]) + "." : "")) +
+            (f.mtier != null && f.mtier !== f.tier ? L("Its market alone would make it Tier " + f.mtier + "; our own leads and jobs count first.") : "");
+        } else {
+          const mp = marketParts(a);
+          const pct = v => v == null ? "" : " · " + ordN(100 * v) + " percentile";
+          body = (f.mi > 50
+              ? L("<b>" + r1(f.mi) + " mi</b> from " + esc(f.base) + plan + " — over 50 mi, so Tier 4 whatever its market." +
+                  (f.leads < f.floor ? " (" + fmtN(f.leads) + " of the " + f.floor + " leads it takes to measure it on our own work.)" : ""))
+              : L("Too few leads to measure it on our own work (<b>" + fmtN(f.leads) + "</b> of " + f.floor + "), so it is rated on its market" + plan +
+                  ", against every " + esc(a.Level === "Zip" ? "zip code" : a.Level.toLowerCase()) + " in our states:") +
+                (f.m != null ? T(0, [
+                  tr("Median income", (a["Median Income"] != null ? money0(num(a["Median Income"])) : "—") + (mp ? pct(mp.pi) : ""), "45%"),
+                  tr("Home value", (a["Home Value"] != null ? money0(num(a["Home Value"])) : "— (income counts for it)") + (mp && mp.ph != null ? pct(mp.ph) : ""), "35%"),
+                  tr("Own their home", (a["Owner Share Pct"] != null ? r1(num(a["Owner Share Pct"])) + "%" : "— (income counts for it)") + (mp && mp.po != null ? pct(mp.po) : ""), "20%"),
+                  tr("Market score", "the weighted percentiles", r1(f.m) + " / 100", "tot")]) +
+                  L("Tier 1 at <b>80</b>+, Tier 2 at <b>55</b>+, Tier 3 at <b>30</b>+, below that Tier 4." +
+                    (f.tier > 1 && f.tier <= 4 ? " It is " + nextUp(f.m, f.tier, [80, 55, 30]) + "." : ""))
+                  : L("No Census row for its market, so within 50 mi it is not rated.")));
+        }
+        if (f.never) body += L("It has never sent a lead (two years), so it is <b>hatched</b> over the colour its rating gives.");
+        return '<div class="ap3-why"><div class="wh">Why this colour</div>' + body + "</div>";
+      }
+      /* the key's short note: the rules in plain words */
+      const HOW_COLOURS = '<details class="ap2-mkhow"><summary>How colours are decided</summary><div class="bd">' +
+        "<p><b>1. Over 50 mi from a base</b> — Tier 4 (pale red), whatever else.</p>" +
+        "<p><b>2. Enough of our own leads</b> (zip 15, city 20, county 30 in 12 months) — scored on our work: distance (30), booking rate (30), average ticket (25), cubic feet (15). Tier 1 at 72+, Tier 2 at 64+, Tier 3 at 56+, else Tier 4.</p>" +
+        "<p><b>3. Too few leads</b> — rated on its market: income 45%, home value 35%, home ownership 20%, as percentiles among all our areas. Tier 1 at 80+, Tier 2 at 55+, Tier 3 at 30+, else Tier 4.</p>" +
+        "<p><b>Hatched</b> — never sent a lead; the colour is still its rating. <b>Not rated</b> (grey) — no leads and no Census data.</p>" +
+        "<p>Click an area on Seasonal Planning for its own breakdown.</p></div></details>";
       function tierKeyHtml(rows) {
         const TC = tierColors();
         const cnt = {}; rows.forEach(r => { cnt[r.band] = (cnt[r.band] || 0) + 1; });
@@ -5640,7 +5776,7 @@ const AREA_PLAN_PAGE = {
           (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Over 50 mi from a base <b>' + fmtN(far) + "</b></span>" : "") +
           (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
           (never ? '<span class="ap2-mk"><i class="ap2-sw none"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M0 4 4 0M0 8 8 0M0 12 12 0M2 14 14 2M6 14 14 6M10 14 14 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></i>' + (inputs.mapLevel !== "County" && !mapStOf() ? "Paler" : "Hatched") +
-                   ": no lead yet <b>" + fmtN(never) + "</b></span>" : "");
+                   ": no lead yet <b>" + fmtN(never) + "</b></span>" : "") + HOW_COLOURS;
       }
 
       function mapKeyHtml(N) {
@@ -5746,7 +5882,7 @@ const AREA_PLAN_PAGE = {
           '<button type="button" class="ap3-back" data-sideback>← All ' + (level === "Zip" ? "zip codes" : level === "City" ? "cities" : "counties") + "</button>" +
           '<div class="dh"><b>' + esc(title) + '</b><span>' + where + "</span></div>" +
           '<div class="tierline"><i style="background:' + (TC[band] || TC.grey) + '"></i>' + TIER_LABEL[band] + "</div>" +
-          '<div class="why">' + esc(a["Tier Reason"] || "") + "</div>" + was +
+          '<div class="why">' + esc(a["Tier Reason"] || "") + "</div>" + was + whyHtml(a) +
           '<div class="sec">The ' + esc(String(FC.year || "")) + " plan here</div>" +
             row("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EMD, r1(100 * num(a["State Lead Share"])) + "% of " + esc(a.State) + "'s leads") +
             row("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EMD, "its share of " + esc(a.State) + "'s forecast") +
@@ -6383,13 +6519,14 @@ const AREA_PLAN_PAGE = {
           const glance = (title, band, a) => {
             if (LOCK) return '<div class="ap2-tip ap3-glance"><b>' + esc(title) + '</b><div class="t">' + TIER_LABEL[band] + "</div>" +
               '<div class="g3"><span>Leads<b>' + fmtN(num(a && a["Leads 12m"])) + "</b><small>12 mo</small></span></div>" +
-              (a && a["Tier Reason"] ? '<div class="c">' + esc(a["Tier Reason"]) + "</div>" : "") + "</div>";
+              (a ? '<div class="why2">' + esc(whyShort(a)) + "</div>" : "") + "</div>";
             const P = planOfArea(FC.year ? nextCalc() : null, a);
             return '<div class="ap2-tip ap3-glance"><b>' + esc(title) + '</b><div class="t">' + TIER_LABEL[band] + "</div>" +
               '<div class="g3"><span>Leads<b>' + fmtN(num(a && a["Leads 12m"])) + "</b><small>12 mo</small></span>" +
               "<span>Jobs<b>" + (P.jobs != null && P.jobs >= 0.5 ? fmtN(P.jobs) : "—") + "</b><small>" + esc(String(FC.year || "")) + " plan</small></span>" +
               "<span>Marketing<b>" + (P.budget != null && P.budget >= 1 ? money0(P.budget) : "—") + "</b><small>plan</small></span></div>" +
-              '<div class="hint">Click for the full sheet</div></div>'; };
+              (a ? '<div class="why2">' + esc(whyShort(a)) + "</div>" : "") +
+              '<div class="hint">Click for the full sheet and why it has this colour</div></div>'; };
           const tipOf = r =>
             '<div class="ap2-tip"><b>' + esc(r.county) + " " + esc(r.st) + "</b>" +
             '<div class="t">' + TIER_LABEL[r.band] +
