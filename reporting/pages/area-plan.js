@@ -1786,16 +1786,18 @@ const AREA_PLAN_PAGE = {
          The register (ld_bases) still says Bridgeport and Concord: it decides which truck runs a long-distance job,
          so it changes when the trucks actually move, not before. */
       const PLANS = {
+        /* HIS CREW SPLIT (2026-11-24, ZTZ-155: "make the 2 crew in bases to 1 crew ... 4 in CT and 2 in MA", keeping
+           29): every new base that had 2 crews now has 1, CT 4 + MA 2, and the rest goes to the main bases */
         max: { label: "MAX", leadsPerRep: 220, groups: [
           { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
-            { name: "CT base → New Haven · 06511", fm: 5, la: 41.3083, lo: -72.9279, main: true },
-            { name: "Norwood MA · 02062", fm: 1, la: 42.1946, lo: -71.1995 }] },
+            { name: "CT base → New Haven · 06511", fm: 4, la: 41.3083, lo: -72.9279, main: true },
+            { name: "Norwood MA · 02062", fm: 2, la: 42.1946, lo: -71.1995 }] },
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
-          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
+            { name: "Existing base", fm: 8 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
+          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 1 }] },
           { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [
-            { name: "Existing base", fm: 7 }, { name: "Monroe", fm: 2, cand: "Monroe PA" }] },
-          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
+            { name: "Existing base", fm: 9 }, { name: "Monroe", fm: 1, cand: "Monroe PA" }] },
+          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 1, cand: "Montgomery MD" }] },
         ] },
       };
       /* a plan's main base: the register's own ("Existing base"), or one the plan moves (main: true) */
