@@ -1810,8 +1810,13 @@ const AREA_PLAN_PAGE = {
           { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
             { name: "CT base → New Haven · 06511", fm: 4, la: 41.3083, lo: -72.9279, main: true },
             { name: "Norwood MA · 02062", fm: 2, la: 42.1946, lo: -71.1995 }] },
+          /* BRIDGEWATER, NOT OAKLAND (ZTZ-157, his words 2026-11-24: "the base in oakland should be removed we dont
+             want it - instead of that add it in metuchen bridge water. 2 foreman and 2 trucks ar ethere - move it from
+             NJ"; his pick Bridgewater 08807, I-287 / I-78 / Route 22, keeping 29). Oakland's 3 crews went back to the
+             NJ base, then 2 crews AND 2 of the NJ base's own trucks moved to Bridgewater: `own` is a site's owned
+             trucks when he gave them (NJ base 3 - 2 = 1). */
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 8 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
+            { name: "Existing base", fm: 9, own: 1 }, { name: "Bridgewater · 08807", fm: 2, la: 40.5935, lo: -74.6182, own: 2 }] },
           { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 1 }] },
           { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [
             { name: "Existing base", fm: 9 }, { name: "Monroe", fm: 1, cand: "Monroe PA" }] },
@@ -1988,9 +1993,10 @@ const AREA_PLAN_PAGE = {
         if (N === undefined) N = FC.year ? nextCalc() : null;
         return PLAN.groups.map(g => {
           const main = isMainSite;
-          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm, undefined, ownFor(g.base, main(x))),
+          const ownOf = x => x.own != null ? x.own : ownFor(g.base, main(x));   // his count when the plan names it (ZTZ-157)
+          const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm, undefined, ownOf(x)),
             x.cand && !x.main ? { ns: newStore(x.cand, N, x.fm) } : {}));
-          const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b, ownFor(g.base, main(x))).own, 0);
+          const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b, ownOf(x)).own, 0);
           const sum = k => sites.reduce((a, s) => a + (s[k] || 0), 0);
           const old = g.sites.some(isMainSite);
           const ns = old ? null : (sites.find(s => s.ns) || {}).ns;
@@ -2063,6 +2069,13 @@ const AREA_PLAN_PAGE = {
           const o = (N1.nb || []).find(q => q.label === x.cand);
           if (!o || o.jobs < 10) { delete NB_ON[x.cand]; x.pin = true; dropped = true; } }));
         if (dropped) { nbApplyAreas(); N1 = nextCalc({ mult: {} }); }
+        /* TRUCKS THE PLAN MOVES BETWEEN ITS SITES (ZTZ-157). A new base that stays a base owns the trucks he gave it,
+           and its register base's pool owns that many fewer, so the Trucks tile and the budget agree with the plan's
+           table. A site that became a pin works the pool's ground: its trucks are the pool's, nothing moves. */
+        PLAN.groups.forEach(g => { let moved = 0;
+          g.sites.forEach(x => { if (x.own == null || !x.cand || !NB_ON[x.cand]) return; TR_OWN[x.cand] = x.own; moved += x.own; });
+          const reg = g.sites.find(x => !x.cand && !x.la && x.own != null);
+          if (reg && moved) TR_OWN[g.pool] = Math.max(0, (TR_OWN[g.pool] != null ? TR_OWN[g.pool] : poolOwn(g.pool)) - (ownFor(g.base, true) - reg.own)); });
         const targets = {};
         PLAN.groups.forEach(g => { let crew = 0;
           g.sites.forEach(x => { crew += x.fm;
