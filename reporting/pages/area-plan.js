@@ -557,6 +557,33 @@ body:not(.light) .ap2-mapbox{background:#1d232b}
 .ap3-yrs td small{font-weight:400;color:var(--faint)}
 .ap3-yrs tr.on td{background:var(--ap-sub)}
 .ap3-find{position:relative;min-width:230px;flex:0 1 280px;margin-left:auto}
+/* ZTZ-161: the market is a multi-select -- state toggles with a tick box, "Whole market" clears them */
+.ap3-bar label small{display:block;font-size:11px;font-weight:500;color:var(--faint);line-height:1.1} /* std-ok: control caption */
+.ap3-mkt{display:flex;flex-wrap:wrap;gap:6px}
+.ap3-mkt .rs-tog.ap3-st{padding:5px 11px;gap:6px;min-height:30px}
+.ap3-mkt .rs-tog.ap3-st i{width:12px;height:12px;border-radius:3px;background:transparent;border:1.5px solid var(--line-2);position:relative}
+.ap3-mkt .rs-tog.ap3-st.on i{background:var(--brand-d,#14301F);border-color:var(--brand-d,#14301F)}
+.ap3-mkt .rs-tog.ap3-st.on i::after{content:"";position:absolute;left:3px;top:0;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+/* the key's tiers are buttons: a click shows only that tier on the map and in the list */
+.ap3-tks{display:inline-flex;flex-wrap:wrap;gap:6px}
+.ap2-mk.ap3-tk{font:inherit;color:inherit;background:var(--panel,#fff);border:1px solid var(--ap-rule);border-radius:999px;padding:4px 10px 4px 8px;cursor:pointer}
+.ap2-mk.ap3-tk:hover{border-color:var(--ink)}
+.ap2-mk.ap3-tk.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);color:var(--ink)}
+.ap2-mk.ap3-tk.off{opacity:.5}
+.ap2-mk.ap3-tk.all{font-weight:600;color:var(--ink)}
+.ap3-kbases .ap2-sw{margin-left:2px}.ap3-kbases .ap2-sw.cover{margin-left:10px}
+/* zip codes written on the map, close up; the found place's and the clicked zip's outlines */
+.ap3-zl{position:absolute;transform:translate(-50%,-50%);font:600 11px/1 "IBM Plex Sans",system-ui,sans-serif;color:#1e293b;white-space:nowrap;pointer-events:none;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 4px #fff} /* std-ok: map label */
+.ap3-zl.off{opacity:.35}
+.ap2-stlbl.off{opacity:.18!important}
+.ap3-hlz{filter:drop-shadow(0 0 3px rgba(255,255,255,.95))}
+.ap3-pinz{filter:drop-shadow(0 0 2px rgba(255,255,255,.95))}
+.ap3-pinpop .leaflet-popup-content-wrapper{border-radius:12px;padding:0;box-shadow:0 10px 28px rgba(15,23,42,.18)}
+.ap3-pinpop .leaflet-popup-content{margin:0;min-width:210px;padding:12px 34px 12px 14px;color:var(--ink);font-family:inherit}
+.ap3-pinpop .leaflet-popup-content-wrapper,.ap3-pinpop .leaflet-popup-tip{background:var(--ap-bay,#fff)}
+.ap3-pinpop .ap2-tip{box-shadow:none;border:0}
+.ap3-pinpop a.leaflet-popup-close-button{top:6px;right:6px}
+.ap3-lock .r{width:100%;font:inherit;text-align:left;background:none;border:0;cursor:pointer}
 /* THE MAP ON PAPER: see printMap(). The live nodes are moved into #apPrintRoot, so this is the
    page both on the screen (for the second before the dialog) and on the sheet. */
 body.ap3-printing > *:not(#apPrintRoot){display:none !important}
@@ -1642,9 +1669,7 @@ const AREA_PLAN_PAGE = {
         focus: "",                   // the state focus; "" = all
         city: { minLeads: 20, view: "all", q: "", sort: "Revenue", desc: true, page: 0, pageSize: 30 },
         scn: null, scnSaved: null,   // the What-if pane (additive keys: never bump LS_KEY for them)
-        mapColor: "tier",            // tier | market | capture -- what the county fill means
-        mapLevel: "County",          // County | City | Zip -- the map's grain (2026-09-29)
-        mapSt: "",                   // "" = every state; City and Zip always draw one state
+        mapSts: [],                  // the market: several states at once (ZTZ-161); empty = the whole market
         listTiers: [],               // the ranked list's tier filter, several at once; empty = all
         // trucks & storage per base (2026-10-07; additive keys): null = the measured figure
         trkOwnYear: null, trkRentDay: null, storeCF: 2000, storeSet: {},
@@ -1662,39 +1687,21 @@ const AREA_PLAN_PAGE = {
       inputs.scn.capture = Object.assign({}, (inputs.scn || {}).capture || {});
       inputs.scn.picks = Array.isArray(inputs.scn.picks) ? inputs.scn.picks : [];
       inputs.scn.listing = Array.isArray(inputs.scn.listing) ? inputs.scn.listing : [];
-      if (["tier", "market", "capture", "spend"].indexOf(inputs.mapColor) < 0) inputs.mapColor = "tier";
-      /* the year the map shows (0 = the tiers, on the last twelve months) and what it is coloured by */
-      if (YEARS.indexOf(+inputs.mapYear) < 0) inputs.mapYear = 0;
-      if (!YEAR_BY[inputs.mapYearBy]) inputs.mapYearBy = "jobs";
-      if (LOCK) Object.assign(inputs, { tab: "map", mapLevel: "Zip", mapColor: "tier", mapYear: 0, listTiers: [], focus: "" });
+      /* ZIP CODES AND TIERS, NOTHING ELSE (ZTZ-161, his words 24 Nov 2026: "dont have results selector at all -
+         TIERS is fine. only zip codes is also something that needs to be pre-selected and other options sohuld be
+         removed fully"). The map's level, colour and year are fixed here, whatever an older visit saved: zip
+         codes, the tiers, the last twelve months. The County and City rows still feed the search, the to-do
+         cards and the print frame; they are never drawn. */
+      Object.assign(inputs, { mapLevel: "Zip", mapColor: "tier", mapYear: 0 });
+      ["mapYearBy", "mapSt"].forEach(k => {
+        /* MARKET IS A MULTI-SELECT (ZTZ-161: "market should be multi selects"); a saved single state carries over */
+        if (k === "mapSt" && typeof inputs.mapSt === "string" && inputs.mapSt && !(saved.mapSts || []).length) inputs.mapSts = [inputs.mapSt];
+        delete inputs[k]; });
+      inputs.mapSts = (Array.isArray(inputs.mapSts) ? inputs.mapSts : []).filter((s, i, a) => SERVICE_AREAS.indexOf(s) >= 0 && a.indexOf(s) === i)
+        .sort((a, b) => SERVICE_AREAS.indexOf(a) - SERVICE_AREAS.indexOf(b));
+      if (inputs.mapSts.length === SERVICE_AREAS.length) inputs.mapSts = [];        // every state ticked = the whole market
+      if (LOCK) Object.assign(inputs, { tab: "map", listTiers: [], focus: "" });
       const yearNow = new Date().getFullYear();
-      const yearFmt = v => (inputs.mapYearBy === "rev" || inputs.mapYearBy === "avg") ? money0(v) : fmtN(v);
-      const yearRow = (lvl, key) => ((AY[lvl] || {})[key] || {})[+inputs.mapYear] || null;
-      const yearVal = (lvl, key) => { const r = yearRow(lvl, key); if (!r) return 0;
-        if (inputs.mapYearBy === "avg" && num(r.Jobs) < 3) return 0;          // one job is not an average
-        return num(r[YEAR_BY[inputs.mapYearBy][0]]); };
-      /* five steps, cut at the quintiles of the areas that have anything that year at that level */
-      const YCUT = {};
-      const yearCuts = lvl => { const k = lvl + "|" + inputs.mapYear + "|" + inputs.mapYearBy;
-        if (YCUT[k]) return YCUT[k];
-        const v = Object.keys(AY[lvl] || {}).map(key => yearVal(lvl, key)).filter(x => x > 0).sort((a, b) => a - b);
-        /* most zips have one or two jobs a year, so quintile edges repeat; a repeated edge is an
-           empty step (the key read "up to 1 · 1-1 · 1-2"), so each edge is kept once */
-        return (YCUT[k] = v.length ? Array.from(new Set([.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]))) : []); };
-      const YOPA = [.16, .32, .5, .68, .88];
-      const yearShade = (lvl, key, ramp) => { const v = yearVal(lvl, key);
-        if (!(v > 0)) return { fillColor: "#98a4b3", fillOpacity: .05 };
-        const c = yearCuts(lvl); let i = 0; while (i < c.length && v > c[i]) i++;
-        return { fillColor: ramp, fillOpacity: YOPA[c.length ? Math.round(i * 4 / c.length) : 4] }; };
-      /* the key's steps, from the same edges: whole numbers for jobs and leads, dollar ranges otherwise */
-      const yearSteps = lvl => { const c = yearCuts(lvl), int = inputs.mapYearBy === "jobs" || inputs.mapYearBy === "leads";
-        if (!c.length) return [];
-        const op = i => YOPA[Math.round(i * 4 / c.length)];
-        const out = [];
-        c.forEach((e, i) => { const lo = i === 0 ? (int ? 1 : null) : (int ? c[i - 1] + 1 : c[i - 1]);
-          out.push([lo == null ? "up to " + yearFmt(e) : lo === e ? yearFmt(e) : yearFmt(lo) + "–" + yearFmt(e), op(i)]); });
-        out.push([int ? yearFmt(c[c.length - 1] + 1) + "+" : "over " + yearFmt(c[c.length - 1]), op(c.length)]);
-        return out; };
       /* an area's years, for its sheet */
       function yearTableHtml(lvl, key) {
         const by = (AY[lvl] || {})[key]; if (!by || !YEARS.length) return "";
@@ -1704,8 +1711,6 @@ const AREA_PLAN_PAGE = {
               "</td><td>" + (num(r.Revenue) ? money0(num(r.Revenue)) : "—") + "</td><td>" + (r["Avg Ticket"] != null ? money0(num(r["Avg Ticket"])) : "—") + "</td></tr>"; }).join("") +
           "</tbody></table>";
       }
-      if (["County", "City", "Zip"].indexOf(inputs.mapLevel) < 0) inputs.mapLevel = "County";
-      if (inputs.mapSt && SERVICE_AREAS.indexOf(inputs.mapSt) < 0) inputs.mapSt = "";
       /* SEVERAL TIERS AT ONCE (his ask 2026-10-07: marketing takes "Tier 1 + 2" for a state); a saved
          single tier carries over */
       inputs.listTiers = Array.isArray(inputs.listTiers) ? inputs.listTiers.map(Number).filter(t => t >= 1 && t <= 4)
@@ -1845,6 +1850,7 @@ const AREA_PLAN_PAGE = {
           side: (NB_CANDS.find(c => c.label === x.cand) || {}).side || "" }))), []);
       const movedAway = name => !!PLAN && planMoves().some(m => m.base === name && !!NB_ON[m.label]);
       let PLAN = null;           // the active plan: an editable copy of one of PLANS, with its key
+      const PLAN_KEY = Object.keys(PLANS)[0];   // "max" -- the only plan since ZTZ-161, applied on every visit
       const NB_CAP = {};         // a new base given fewer crews than its ground needs: the share of its jobs it can carry
       const planSite = label => { let hit = null;
         if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.cand === label) hit = x; })); return hit; };
@@ -1993,7 +1999,7 @@ const AREA_PLAN_PAGE = {
       }
       const STORE_TXT = { P: "Parking", PS: "Parking + Storage", S: "Storage only" };
       /* what the map's labels show (his picker, 2026-10-07); kept in the saved inputs like the map's other switches */
-      const mapLbl = () => Object.assign({ n: 1, f: 1, t: 1, st: 0, nw: 1, mv: 0, pl: 1 }, inputs.mapLabels || {});
+      const mapLbl = () => Object.assign({ n: 1, f: 1, t: 1, st: 0, nw: 1, pl: 1, zl: 1 }, inputs.mapLabels || {});
       /* every plan group: per site and summed */
       function planFleet(N) {
         if (!PLAN) return null;
@@ -3145,7 +3151,7 @@ const AREA_PLAN_PAGE = {
            month. The map is its own download (Map PDF). */
         b.onclick = () => {
           const N = FC.year ? nextCalc() : null;
-          const label = PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "Scenario" : "Forecast";
+          const label = PLANS[PLAN_KEY].label + " plan" + (PLAN_EDITED ? " (changed)" : "");
           const basesTbl = () => {
             if (!N) return "";
             if (PLAN) return namedPlanHtml(N);
@@ -5240,31 +5246,37 @@ const AREA_PLAN_PAGE = {
               whatever was clicked -- county, city, zip or base
            6. everything that explains, in one closed section.
          Every number is nextCalc()'s, the engine the other tabs print. */
-      const LEVELS = [["County", "County"], ["City", "City"], ["Zip", "Zip code"]];
-      /* THE MARKET APPLIES AT EVERY LEVEL (his call 2026-09-30: "Zip code still does not have whole
-         market"). City and Zip used to force one state because the eight states' zip shapes are 9 MB;
-         the whole market now loads all eight and draws them on a canvas instead. */
-      const mapStOf = () => inputs.mapSt || "";
+      /* THE MARKET IS SEVERAL STATES AT ONCE (ZTZ-161, his words 24 Nov 2026: "market should be multi selects"):
+         CT + MA + RI is one pick. Every number, list, frame and download reads the picked states through
+         these three; an empty pick is the whole market. */
+      const mapSts = () => inputs.mapSts;
+      const stIn = st => !inputs.mapSts.length || inputs.mapSts.indexOf(st) >= 0;
+      const mktLabel = () => inputs.mapSts.length ? inputs.mapSts.join(" + ") : "whole market";
       const sgN = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + fmtN(Math.abs(v));
       const sgM = v => (v > 0.5 ? "+" : v < -0.5 ? "−" : "±") + money0(Math.abs(v));
       const nbAny = () => NB_CANDS.some(c => NB_ON[c.label]);
 
-      /* the four numbers for the market; the delta line appears only while a base is YES */
+      /* the four numbers for the picked market (one state, several, or the whole market) */
       function planStripHtml(N, N0) {
         if (!N) return "";
-        const st = inputs.mapSt || "";
+        const sts = mapSts(), st = sts.length ? mktLabel() : "";
+        const inMkt = r => sts.indexOf(r.st) >= 0;
+        const sum = (rs, k) => rs.reduce((a, r) => a + (r[k] || 0), 0);
         const pick = M => {
           if (!st) return { jobs: M.tot.jobs, fm: M.tot.peak, have: M.tot.have, hire: M.tot.hire,
                             sales: M.sales.peak, mkt: M.tot.mkt, leads: M.tot.leads,
                             rev: M.tot.revenue, avg: M.tot.revenue != null && M.tot.jobs ? M.tot.revenue / M.tot.jobs : null };
-          const r = M.rows.find(x => x.st === st);
-          if (!r) return null;
-          const q = M.pools.find(p => p.states.includes(st)) || {};
-          const nbHere = (M.nb || []).filter(o => o.st === st).reduce((a, o) => a + o.fm, 0);
-          return { jobs: r.jobs, fm: (r.fmPeak || 0) + nbHere, have: r.have || 0, hire: (q.hire || 0) + nbHere, pool: q.label,
-                   sales: M.tot.leads ? M.sales.peak * r.leads / M.tot.leads : 0,
-                   mkt: r.leads * (M.mkt.cplOf(st) || 0), leads: r.leads,
-                   rev: r.revenue, avg: r.revenue != null && r.jobs ? r.revenue / r.jobs : null };
+          const rs = M.rows.filter(inMkt);
+          if (!rs.length) return null;
+          /* a crew pool is counted once, however many of its states are picked (CT + MA + RI is the CT pool) */
+          const qs = M.pools.filter(p => (p.states || []).some(s => sts.indexOf(s) >= 0));
+          const nbHere = (M.nb || []).filter(o => sts.indexOf(o.st) >= 0).reduce((a, o) => a + o.fm, 0);
+          const jobs = sum(rs, "jobs"), leads = sum(rs, "leads"), withRev = rs.filter(r => r.revenue != null);
+          const rev = withRev.length ? sum(withRev, "revenue") : null;
+          return { jobs, fm: sum(rs, "fmPeak") + nbHere, have: sum(rs, "have"), hire: sum(qs, "hire") + nbHere, pool: qs.map(q => q.label).join(" + "),
+                   sales: M.tot.leads ? M.sales.peak * leads / M.tot.leads : 0,
+                   mkt: rs.reduce((a, r) => a + r.leads * (M.mkt.cplOf(r.st) || 0), 0), leads,
+                   rev, avg: rev != null && jobs ? rev / jobs : null };
         };
         /* WHERE WE STAND (his ask 2026-09-30: "add current situation as well - like what was 2026
            season like"). The season just run, from the same model the plan is built on: the jobs
@@ -5278,12 +5290,13 @@ const AREA_PLAN_PAGE = {
           if (!st) { const rv = revL(M.rows);
             return { jobs: M.mkt.jobsLast, fm: M.tot.ranLast, sales: act, mkt: M.mkt.spendLast, leads: M.mkt.leadsLast,
                      rev: rv || null, avg: rv && M.mkt.jobsLast ? rv / M.mkt.jobsLast : null }; }
-          const r = M.rows.find(x => x.st === st);
-          if (!r) return null;
-          return { jobs: r.jobsLast, fm: num((SEED[st] || {})._all),
-                   sales: act != null && M.mkt.leadsLast ? act * r.leadsLast / M.mkt.leadsLast : null,
-                   mkt: r.leadsLast * (M.mkt.cplOf(st) || 0), leads: r.leadsLast,
-                   rev: revL([r]) || null, avg: r.s && r.s.avg_bill != null ? r.s.avg_bill : null };
+          const rs = M.rows.filter(inMkt);
+          if (!rs.length) return null;
+          const jl = sum(rs, "jobsLast"), ll = sum(rs, "leadsLast"), rv = revL(rs);
+          return { jobs: jl, fm: sts.reduce((a, s) => a + num((SEED[s] || {})._all), 0),
+                   sales: act != null && M.mkt.leadsLast ? act * ll / M.mkt.leadsLast : null,
+                   mkt: rs.reduce((a, r) => a + (r.leadsLast || 0) * (M.mkt.cplOf(r.st) || 0), 0), leads: ll,
+                   rev: rv || null, avg: rv && jl ? rv / jl : null };
         };
         const L = lastOf(N0 || N) || {}, LY = FC.year ? String(FC.year - 1) : "last season";
         const was = (k, f) => { const v = L[k];
@@ -5301,12 +5314,10 @@ const AREA_PLAN_PAGE = {
           if (v == null || !(v > 0) || A[k] == null) return "";
           const d0 = A[k] - v; if (Math.abs(d0) < (k === "sales" && st ? 0.05 : 0.5)) return "";
           return '<em class="d' + (d0 < 0 ? " dn" : "") + '">' + f(d0) + " vs today</em>"; };
-        /* THE LEVERS LIVE ON THE TILES (map-first, his pick 2026-10-07): the Salespeople, Marketing and
-           Foremen steppers repeated the three tiles beside them. Company-wide, so only on the whole
-           market. The value stays the tile's own <b> -- the map sheet reads it from there. */
-        const ctl = kind => st || !N ? "" : '<div class="ap4-kctl"><button type="button" aria-label="less" data-sc="' + kind + '" data-pool="" data-d="-1">−</button>' +
-          '<button type="button" aria-label="more" data-sc="' + kind + '" data-pool="" data-d="1">+</button></div>';
-        const tile = (v, k, sub, d, w, kind) => '<div class="ap3-kpi' + (kind && SC.kind === kind ? " drv" : "") + '"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + (kind ? ctl(kind) : "") + "</div>";
+        /* NO LEVERS ON THE TILES (ZTZ-161): the Salespeople, Marketing and Foremen − / + took the MAX plan off
+           the page ("another driver takes over"), and MAX is now the only plan. The value stays the tile's own
+           <b> -- the print sheet reads it from there. */
+        const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
         /* the fifth tile: trucks, owned by his counts and rented the rest, against what we pay for today */
         const truckTile = () => { if (st || !N || !N.perBase) return "";
           const PF = planFleet(N) || forecastFleet(N); if (!PF) return "";
@@ -5320,21 +5331,24 @@ const AREA_PLAN_PAGE = {
              the desk, marketing. Income and the average job ride on the jobs tile instead of two more. */
           tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), (st ? esc(st) + " forecast" : "whole market forecast") +
                (A.rev != null ? " · " + money0(A.rev) + " income at " + money0(A.avg) + " a job" : ""), dl("jobs", sgN), was("jobs", fmtN)) +
-          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs"), "fmAll") +
-          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? "its share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk"), "sales") +
-          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : "")), "mkt") +
+          tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
+          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? (sts.length > 1 ? "their" : "its") + " share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
+          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
           truckTile() +
           "</div>";
       }
 
-      /* the plan switch: its own bar, first thing on the Map tab (map-first, 2026-10-07) */
+      /* MAX IS THE ONLY PLAN (ZTZ-161, his words 24 Nov 2026: "seasonal planning is once and for all finalized
+         adn done. now i need you to make it only MAX - forecast thing is soething i need you to remove"). The
+         Forecast / MAX switch is gone: the plan is applied on every visit (planMax) and nothing on the page takes
+         it off. The bar only appears after a crew was changed in the plan table, to put MAX back. */
+      let PLAN_EDITED = false;
+      function planMax() { PLAN = JSON.parse(JSON.stringify(PLANS[PLAN_KEY])); PLAN.key = PLAN_KEY; PLAN_EDITED = false; planApply(); }
       function planBarHtml() {
-        return '<div class="ap4-planbar"><b>Plan</b>' +
-          '<div class="rs-seg ap2-seg-s ap3-planseg" role="group" aria-label="Plan">' +
-            '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '">Forecast</button>' +
-            Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") + '">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
-          "<span>− / + on a tile tests a change; a refresh puts it back</span>" +
-          (scAny() || nbAny() || trAny() ? '<button type="button" class="rs-btn ap3-reset" data-screset>Reset</button>' : "") + "</div>";
+        if (!PLAN_EDITED) return "";
+        return '<div class="ap4-planbar"><b>' + esc(PLANS[PLAN_KEY].label) + " plan, changed here</b>" +
+          "<span>a crew was changed in the plan table; a refresh puts it back</span>" +
+          '<button type="button" class="rs-btn ap3-reset" data-screset>Back to the ' + esc(PLANS[PLAN_KEY].label) + " plan</button></div>";
       }
 
       /* ---- what if: one driver, the rest follows ---- */
@@ -5570,10 +5584,9 @@ const AREA_PLAN_PAGE = {
       }
       function todoHtml(N) {
         if (!N) return "";
-        const st = inputs.mapSt || "";
         const names = (xs, n, multi) => xs.slice(0, n).map(a => esc(a.County) + (multi ? " " + esc(a.State) : "")).join(", ") +
           (xs.length > n ? ' <span class="more">+' + (xs.length - n) + "</span>" : "");
-        const cards = N.pools.filter(q => (q.states || []).length && (!st || q.states.includes(st))).map(q => {
+        const cards = N.pools.filter(q => (q.states || []).length && q.states.some(stIn)).map(q => {
           const rs = N.rows.filter(r => q.states.includes(r.st));
           const jobs = rs.reduce((a, r) => a + (r.jobs || 0), 0);
           if (!jobs) return "";
@@ -5598,10 +5611,10 @@ const AREA_PLAN_PAGE = {
       /* one row per area at the chosen level: the mart row plus this plan's money and jobs. A
          state's budget and jobs are split by the area's share of the state's leads and jobs in the
          last 12 months -- the same rule the county sheet always used. */
-      function areaRows(N, level, st) {
+      function areaRows(N, level) {
         const stB = {}, stJ = {};
         if (N) N.rows.forEach(r => { const c = N.mkt.cplOf(r.st); stB[r.st] = c != null ? r.leads * c : null; stJ[r.st] = r.jobs; });
-        return AREA.filter(a => a.Level === level && SERVICE_AREAS.includes(a.State) && (!st || a.State === st)).map(a => ({
+        return AREA.filter(a => a.Level === level && SERVICE_AREAS.includes(a.State) && stIn(a.State)).map(a => ({
           a, key: a["Area Key"], st: a.State, name: a.Name || a["Area Key"], tier: num(a.Tier), band: TIER_BAND(num(a.Tier)),
           never: num(a["Never A Lead"]) === 1, leads: num(a["Leads 12m"]), jobs: num(a["Jobs 12m"]),
           share: num(a["State Lead Share"]),
@@ -5615,49 +5628,44 @@ const AREA_PLAN_PAGE = {
         return { budget: cpl != null ? r.leads * cpl * num(a["State Lead Share"]) : null, jobs: r.jobs * num(a["State Job Share"]) };
       };
 
+      /* ONE TOOLBAR ON BOTH PAGES (ZTZ-161): the market -- one state, several, or the whole market -- and the search.
+         No plan switch (MAX only), no level (zip codes only), no colour or results switch (tiers only). The
+         Target Map keeps its Pickup / Delivery count. The states are toggles with a tick box, so it reads as
+         "pick one or more" rather than a one-of switch. */
       function mapBarHtml() {
-        const lvl = inputs.mapLevel;
+        const sts = mapSts();
         const seg = (attr, items, on) => '<div class="rs-seg ap2-seg-s">' + items.map(([k, l]) =>
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
-        const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
-        /* THE TARGET MAP'S PLAN (2026-10-19): Seasonal Planning's own three -- "Current" is its Forecast
-           button (today's bases, no new one), then the plans in PLANS (MAX only since 2026-11-24) -- wired by the same
-           [data-plan] handler as the plan bar */
-        if (LOCK) return '<div class="ap3-bar"><label>Plan</label>' +
-          '<div class="rs-seg ap2-seg-s ap3-planseg" role="group" aria-label="Plan">' +
-            '<button type="button" data-plan="" class="' + (PLAN ? "" : "on") + '" title="Today\'s bases, no new base">Current</button>' +
-            Object.keys(PLANS).map(k => '<button type="button" data-plan="' + k + '" class="' + (PLAN && PLAN.key === k ? "on" : "") +
-              '" title="Today\'s bases plus the ' + esc(PLANS[k].label) + ' plan\'s new ones">' + esc(PLANS[k].label) + " plan</button>").join("") + "</div>" +
-          "<label>Market</label>" +
-          seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
-          "<label>Counted by</label>" + seg("basis", [["pickup", "Pickup"], ["delivery", "Delivery"]], BASIS) + "</div>" +
-          (BASIS === "delivery" ? '<div class="ap2-note ap3-basisnote">By delivery: a zip counts the leads, bookings and jobs <b>delivered</b> ' +
+        const chip = (k, l, on, title) => '<button type="button" class="rs-tog ap3-st' + (on ? " on" : "") + '" data-mapst="' + esc(k) +
+          '" aria-pressed="' + (on ? "true" : "false") + '" title="' + esc(title) + '">' + (k ? "<i></i>" : "") + esc(l) + "</button>";
+        return '<div class="ap3-bar"><label>Market<small>one or more</small></label>' +
+          '<div class="ap3-mkt" role="group" aria-label="Market: pick one or more states">' +
+            chip("", "Whole market", !sts.length, "All " + N_STATES + " states") +
+            SERVICE_AREAS.map(x => chip(x, x, sts.indexOf(x) >= 0, sts.indexOf(x) >= 0 ? "Take " + x + " out of the market" : "Add " + x + " to the market")).join("") +
+          "</div>" +
+          (LOCK ? "<label>Counted by</label>" + seg("basis", [["pickup", "Pickup"], ["delivery", "Delivery"]], BASIS) : "") +
+          /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight"); since ZTZ-161 on the
+             Target Map too, and a town or a county lights up its own zip codes */
+          '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
+            'placeholder="Find a zip code, town or county…" aria-label="Find a zip code, town or county on the map" value="' + esc(FINDQ) + '">' +
+            '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
+          "</div>" +
+          (LOCK && BASIS === "delivery" ? '<div class="ap2-note ap3-basisnote">By delivery: a zip counts the leads, bookings and jobs <b>delivered</b> ' +
             "there (the lead's Moving To). Distance to a base, the market score and the tier rules are the pickup map's. " +
             "Leads with no delivery address (labor help, storage, blank) are not counted.</div>" : "");
-        /* ONE TOOLBAR, RIGHT ABOVE THE MAP (his call 2026-09-30: the market switch alone at the top
-           of the tab was "crap" positioning -- it is a map control and belongs with the other two) */
-        return '<div class="ap3-bar">' +
-          "<label>Market</label>" + seg("mapst", [["", "Whole market"]].concat(SERVICE_AREAS.map(x => [x, x])), inputs.mapSt || "") +
-          "<label>Show</label>" + seg("maplevel", LEVELS, lvl) +
-          (lvl === "County" && !inputs.mapYear ? "<label>Colour</label>" + seg("mapcolor", MODES, inputs.mapColor) : "") +
-          (YEARS.length ? "<label>Results</label>" + seg("mapyear", [["0", "Tiers"]].concat(YEARS.map(y => [String(y), String(y)])), String(inputs.mapYear || 0)) +
-            (inputs.mapYear ? seg("mapyearby", Object.keys(YEAR_BY).map(k => [k, YEAR_BY[k][1]]), inputs.mapYearBy) : "") : "") +
-          /* FIND A PLACE AND LIGHT IT UP (his ask 2026-09-30: "add search so it can highlight") */
-          '<div class="ap3-find"><input id="apFind" class="rs-inp" type="search" autocomplete="off" spellcheck="false" ' +
-            'placeholder="Find a county, city or zip…" aria-label="Find a county, city or zip on the map" value="' + esc(FINDQ) + '">' +
-            '<div id="apFindRes" class="ap3-findres" style="display:none"></div></div>' +
-          "</div>";
       }
-      /* the search: a zip by its digits, anything else by name -- names that START with the text
-         first, counties before cities before zips, the areas with leads ahead of the empty ones */
+      /* the search: a zip by its digits, anything else by name -- names that START with the text first, towns
+         before counties before zips (the map is zip codes, so a town or a county lights up its own zips), the
+         areas with leads ahead of the empty ones. Every state is searched: a place outside the picked market
+         adds its state to it. */
       let FINDQ = "";
       function findAreas(q) {
         q = String(q || "").trim().toLowerCase();
         if (q.length < 2) return [];
-        const digits = /^\d+$/.test(q), LV = { County: 0, City: 1, Zip: 2 };
+        const digits = /^\d+$/.test(q), LV = { City: 0, County: 1, Zip: 2 };
         const out = [];
         AREA.forEach(a => {
-          if (!num(a.Latitude)) return;
+          if (!num(a.Latitude) || !SERVICE_AREAS.includes(a.State)) return;
           let rank;
           if (digits) { if (a.Level !== "Zip" || String(a.Zip || "").indexOf(q) !== 0) return; rank = 0; }
           else { const nm = String(a.Level === "Zip" ? a.City || "" : a.Name || "").toLowerCase(), full = nm + " " + String(a.State || "").toLowerCase();
@@ -5667,6 +5675,10 @@ const AREA_PLAN_PAGE = {
         out.sort((x, y) => x.rank - y.rank || LV[x.a.Level] - LV[y.a.Level] || num(y.a["Leads 12m"]) - num(x.a["Leads 12m"]));
         return out.slice(0, 10).map(x => x.a);
       }
+      /* the zip codes of a found place: the zip itself, a town's zips, or a county's */
+      const zipsOfPlace = a => !a ? [] : a.Level === "Zip" ? [a["Area Key"]]
+        : Object.keys(AREA_IX.Zip).filter(k => { const z = AREA_IX.Zip[k];
+            return z.State === a.State && (a.Level === "City" ? z.City === a.City : z.County === a.County); });
 
       /* ===================== WHY THIS COLOUR (ZTZ-156) =====================
          His ask (2026-11-24): "can we show how we got the color we got? like why green, or why yellow and etc."
@@ -5786,59 +5798,33 @@ const AREA_PLAN_PAGE = {
         "<p><b>3. Too few leads</b> — rated on its market: income 45%, home value 35%, home ownership 20%, as percentiles among all our areas. Tier 1 at 80+, Tier 2 at 55+, Tier 3 at 30+, else Tier 4.</p>" +
         "<p><b>Hatched</b> — never sent a lead; the colour is still its rating. <b>Not rated</b> (grey) — no leads and no Census data.</p>" +
         "<p>Click an area on Seasonal Planning for its own breakdown.</p></div></details>";
+      /* THE KEY IS ALSO THE FILTER (ZTZ-161, "a better map"): a click on a tier shows only that tier -- several at
+         once, as marketing takes "Tier 1 + 2" -- on the map and in the list beside it; the other zips fade. The
+         same pick as the list's own tier buttons (inputs.listTiers). */
       function tierKeyHtml(rows) {
-        const TC = tierColors();
+        const TC = tierColors(), sel = inputs.listTiers;
         const cnt = {}; rows.forEach(r => { cnt[r.band] = (cnt[r.band] || 0) + 1; });
         const far = rows.filter(r => isFar(r.a)).length;
         const never = rows.filter(r => r.never && !isFar(r.a)).length;
-        return ["t1", "t2", "t3", "t4"].map(b => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC[b] + '"></i>' +
-            TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></span>").join("") +
+        const box = host.querySelector("#apMapBox"), canvas = !!(box && box._zipCanvas);
+        const tierBtn = (b, t) => { const on = sel.indexOf(t) >= 0;
+          return '<button type="button" class="ap2-mk ap3-tk' + (on ? " on" : sel.length ? " off" : "") + '" data-listtier="' + t + '" aria-pressed="' + on +
+            '" title="' + (on ? "Show every tier again" : "Show only " + TIER_LABEL[b].replace(/ · .*/, "") + (sel.length ? " too" : "")) + '"><i class="ap2-sw" style="background:' + TC[b] + '"></i>' +
+            TIER_LABEL[b] + " <b>" + fmtN((cnt[b] || 0) - (b === "t4" ? far : 0)) + "</b></button>"; };
+        return '<span class="ap3-tks" role="group" aria-label="Tiers: click to show only those">' + ["t1", "t2", "t3", "t4"].map((b, i) => tierBtn(b, i + 1)).join("") +
+            (sel.length ? '<button type="button" class="ap2-mk ap3-tk all" data-listtier="0">Show all tiers</button>' : "") + "</span>" +
           (far ? '<span class="ap2-mk"><i class="ap2-sw" style="background:' + TC.t4 + ';opacity:.28"></i>Over 50 mi from a base <b>' + fmtN(far) + "</b></span>" : "") +
           (cnt.grey ? '<span class="ap2-mk"><i class="ap2-sw grey"></i>Not rated <b>' + fmtN(cnt.grey) + "</b></span>" : "") +
-          (never ? '<span class="ap2-mk"><i class="ap2-sw none"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M0 4 4 0M0 8 8 0M0 12 12 0M2 14 14 2M6 14 14 6M10 14 14 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></i>' + (inputs.mapLevel !== "County" && !mapStOf() ? "Paler" : "Hatched") +
+          (never ? '<span class="ap2-mk"><i class="ap2-sw none"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M0 4 4 0M0 8 8 0M0 12 12 0M2 14 14 2M6 14 14 6M10 14 14 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></i>' + (canvas ? "Paler" : "Hatched") +
                    ": no lead yet <b>" + fmtN(never) + "</b></span>" : "") + HOW_COLOURS;
       }
 
       function mapKeyHtml(N) {
-        const lvl = inputs.mapLevel;
-        let key;
-        if (inputs.mapYear) {
-          const st = mapStOf(), c = yearCuts(lvl), ramp = (tierColors().t1);
-          const keys = Object.keys(AY[lvl] || {}).filter(k => !st || ((AY[lvl][k][+inputs.mapYear] || {}).State === st));
-          const tot = keys.reduce((a, k) => { const r = yearRow(lvl, k); if (r) { a.l += num(r.Leads); a.j += num(r.Jobs); a.r += num(r.Revenue); } return a; }, { l: 0, j: 0, r: 0 });
-          const steps = yearSteps(lvl);
-          return '<div class="ap2-mapkey"><span class="ap2-mk"><b>' + esc(String(inputs.mapYear)) + (+inputs.mapYear === yearNow ? " so far" : "") + " · " + esc(YEAR_BY[inputs.mapYearBy][1].toLowerCase()) +
-            " per " + esc(lvl === "Zip" ? "zip code" : lvl.toLowerCase()) + " · Zip to Zip</b></span>" +
-            steps.map(([l, o]) => '<span class="ap2-mk"><i class="ap2-sw" style="background:' + ramp + ";opacity:" + o + '"></i>' + l + "</span>").join("") +
-            '<span class="ap2-mk"><i class="ap2-sw" style="background:#98a4b3;opacity:.25"></i>nothing that year</span>' +
-            '<span class="ap2-mk" style="margin-left:auto">' + esc(st || "whole market") + ": <b>" + fmtN(tot.l) + "</b> leads · <b>" + fmtN(tot.j) + "</b> jobs · <b>" + money0(tot.r) + "</b>" +
-            (tot.j ? " · <b>" + money0(tot.r / tot.j) + "</b> average job" : "") + "</span></div>";
-        }
-        if (lvl !== "County" || inputs.mapColor === "tier") {
-          key = tierKeyHtml(areaRows(N, lvl, mapStOf()));
-        } else {
-          const R = countyRowsFor();
-          const withMovers = R.filter(r => r.movers > 0 && r.leads12 > 0);
-          const bubbles = (label, vals, fmt, cls) => { const v = vals.filter(x => x > 0).sort((a, b) => b - a);
-            if (!v.length) return ""; const mx = v[0], picks = [mx, v[Math.floor(v.length * 0.25)], v[Math.floor(v.length * 0.75)]];
-            const rad = q => 4 + 26 * Math.sqrt(q / mx);
-            return '<span class="ap2-mk">' + label + "&nbsp;" + picks.map(q => '<i class="ap2-bub' + (cls || "") + '" style="width:' +
-              (2 * rad(q)).toFixed(0) + "px;height:" + (2 * rad(q)).toFixed(0) + 'px"></i><b>' + fmt(q) + "</b>").join("&nbsp;&nbsp;") + "</span>"; };
-          if (inputs.mapColor === "market") key = bubbles("People who move a year", R.map(r => r.movers), fmtN);
-          else if (inputs.mapColor === "spend") key = bubbles("Marketing for the season", R.map(r => r.budget || 0), money0, " spend") +
-            '<span class="ap2-mk">coloured by tier</span>';
-          else { const v = withMovers.map(r => 10000 * r.leads12 / r.movers).sort((a, b) => a - b);
-            key = v.length ? '<span class="ap2-mk">Leads per 10,000 movers (' + CAP_WIN_SHORT + ")&nbsp;" +
-              [.14, .28, .44, .62, .82].map(o => '<i class="ap2-rampsw" style="background:' + (tok("--pos") || "#5f7c20") + ";opacity:" + o + '"></i>').join("") +
-              "&nbsp;<b>" + r1(v[0]) + "</b> to <b>" + r1(v[v.length - 1]) + "</b></span>" : ""; }
-        }
-        if (LOCK) return '<div class="ap2-mapkey" id="apMapKey">' + key +
-          '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>' +
-          (PLAN ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>new base in the ' + esc(PLAN.label) + " plan</span>" : "") + "</div>";
+        const key = tierKeyHtml(areaRows(N, "Zip"));
+        const label = PLANS[PLAN_KEY].label;
         return '<div class="ap2-mapkey" id="apMapKey">' + key +
-          (FLEET.has ? "" : '<span class="ap2-mk"><i class="ap2-sw have"></i>our bases</span>') +
-          (NB_CANDS.length ? '<span class="ap2-mk"><i class="ap2-sw cover"></i>possible new base</span>' : "") +
-          (FLEET.has ? '<span class="ap2-mk ap2-mkfleet">' + icoHtml("P") + "<b>P</b> parking &nbsp; " + icoHtml("PS") + "<b>P+S</b> parking + storage &nbsp; " + icoHtml("S") + "<b>Storage only</b> room needed, no base · " +
+          '<span class="ap2-mk ap3-kbases"><i class="ap2-sw have"></i>our bases <i class="ap2-sw cover"></i>new in the ' + esc(label) + " plan</span>" +
+          (!LOCK && FLEET.has ? '<span class="ap2-mk ap2-mkfleet">' + icoHtml("P") + "<b>P</b> parking &nbsp; " + icoHtml("PS") + "<b>P+S</b> parking + storage &nbsp; " + icoHtml("S") + "<b>Storage only</b> room needed, no base · " +
             "<b>3 own + 2–4 rent</b> trucks owned + rented on a standard–busiest day</span>" : "") +
           "</div>";
       }
@@ -5846,9 +5832,8 @@ const AREA_PLAN_PAGE = {
       /* ---- the right panel: the ranked list, or the full sheet of whatever was clicked ---- */
       let SIDE = null;               // null = the list; { kind: "area", level, key } | { kind: "base", label } | { kind: "pick" }
       function areaListHtml(N) {
-        const lvl = inputs.mapLevel, st = mapStOf();
-        const R = areaRows(N, lvl, st);
-        if (!R.length) return '<div class="ap2-note" style="padding:12px">No ' + esc(lvl.toLowerCase()) + " rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>";
+        const R = areaRows(N, "Zip"), mk = esc(mktLabel());
+        if (!R.length) return '<div class="ap2-note" style="padding:12px">No zip code rows yet — the tier mart (mart_area_tier) builds with the next refresh.</div>';
         const TC = tierColors();
         const cnt = { 0: R.length }; R.forEach(r => { if (r.tier > 0) cnt[r.tier] = (cnt[r.tier] || 0) + 1; });
         const shown = R.filter(tierOk)
@@ -5856,25 +5841,26 @@ const AREA_PLAN_PAGE = {
         const CAP = 250;
         const tabs = [0, 1, 2, 3, 4].map(t => '<button type="button" data-listtier="' + t + '" class="rs-tog' + ((t ? inputs.listTiers.indexOf(t) >= 0 : !inputs.listTiers.length) ? " on" : "") + '">' +
           (t ? '<i style="background:' + TC["t" + t] + '"></i>' + t : "All") + "<small>" + fmtN(cnt[t] || 0) + "</small></button>").join("");
-        const place = r => lvl === "County" ? r.st : esc(r.a.County || "") + " County";
-        if (LOCK) { const T = shown.filter(r => r.tier >= 1 && r.tier <= 3);
+        const place = r => esc(r.a.County || "") + " County" + (mapSts().length === 1 ? "" : ", " + esc(r.st));
+        const plan = PLANS[PLAN_KEY].label + " plan";
+        /* THE TARGET MAP'S LIST: Tier 1-3 unless tiers are picked on the key; a row frames its zip on the map */
+        if (LOCK) { const T = inputs.listTiers.length ? shown : shown.filter(r => r.tier >= 1 && r.tier <= 3);
+          const tiers = inputs.listTiers.length ? "Tier " + inputs.listTiers.join(" + ") : "Tier 1–3";
           return '<div class="ap3-list ap3-lock">' +
-            '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + (st ? esc(st) : "whole market") + " · Tier 1–3 · " +
-              (PLAN ? esc(PLAN.label) + " plan" : "current bases") + " · by " + BASIS + "</span>" +
-              '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code in our ' + SERVICE_AREAS.length + " states under the " +
-                (PLAN ? esc(PLAN.label) + " plan" : "current bases") + ' — zip, state and tier — as one CSV for Google Ads, Meta and the other tools">Download all</button></div>' +
+            '<div class="lh"><b>' + fmtN(T.length) + " target zip codes</b><span>" + mk + " · " + tiers + " · " + esc(plan) + " · by " + BASIS + "</span>" +
+              '<button type="button" class="rs-btn" id="apTmDl" title="Every zip code in ' + mk + " under the " + esc(plan) +
+                ' — zip, state and tier — as one CSV for Google Ads, Meta and the other tools">Download</button></div>' +
             '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span></div>' +
             '<div class="rows">' + T.slice(0, CAP).map(r =>
-              '<div class="r"><i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + r.tier + "</i>" +
+              '<button type="button" class="r" data-area="' + esc(r.key) + '" title="Show it on the map"><i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + r.tier + "</i>" +
                 '<span class="n"><b>' + esc(r.name) + "</b><small>" + place(r) + "</small></span>" +
-                '<span class="v">' + (r.leads ? fmtN(r.leads) : "—") + "</span></div>").join("") +
+                '<span class="v">' + (r.leads ? fmtN(r.leads) : "—") + "</span></button>").join("") +
               (T.length > CAP ? '<div class="ap2-note" style="padding:8px 10px">The first ' + CAP + " of " + fmtN(T.length) + " — the download has them all.</div>" : "") +
             "</div></div>"; }
         return '<div class="ap3-list">' +
-          '<div class="lh"><b>' + fmtN(R.length) + " " + (lvl === "Zip" ? "zip codes" : lvl === "City" ? "cities" : "counties") +
-            "</b><span>" + (st ? esc(st) : "whole market") + ' · click one for its full sheet</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
+          '<div class="lh"><b>' + fmtN(R.length) + " zip codes</b><span>" + mk + ' · click one for its full sheet</span><button type="button" class="rs-btn" id="apAreaCsv">CSV</button></div>' +
           '<div class="tt">' + tabs + "</div>" +
-          '<div class="cols"><span>Area</span><span>Leads<small>12 mo</small></span><span>Jobs<small>plan</small></span><span>Marketing<small>plan</small></span></div>' +
+          '<div class="cols"><span>Zip code</span><span>Leads<small>12 mo</small></span><span>Jobs<small>plan</small></span><span>Marketing<small>plan</small></span></div>' +
           '<div class="rows">' + shown.slice(0, CAP).map(r =>
             '<button type="button" class="r" data-area="' + esc(r.key) + '">' +
               '<i class="tb ' + r.band + '" style="background:' + (TC[r.band] || TC.grey) + '">' + (r.tier || "–") + "</i>" +
@@ -5899,7 +5885,7 @@ const AREA_PLAN_PAGE = {
                     : esc(a.County || "") + " County, " + esc(a.State);
         const was = a._nbWas != null && a._nbWas !== num(a.Tier) ? '<div class="was">Tier ' + a._nbWas + " → " + num(a.Tier) + " with the new base</div>" : "";
         return '<div class="ap3-det">' +
-          '<button type="button" class="ap3-back" data-sideback>← All ' + (level === "Zip" ? "zip codes" : level === "City" ? "cities" : "counties") + "</button>" +
+          '<button type="button" class="ap3-back" data-sideback>← All zip codes</button>' +
           '<div class="dh"><b>' + esc(title) + '</b><span>' + where + "</span></div>" +
           '<div class="tierline"><i style="background:' + (TC[band] || TC.grey) + '"></i>' + TIER_LABEL[band] + "</div>" +
           '<div class="why">' + esc(a["Tier Reason"] || "") + "</div>" + was + whyHtml(a) +
@@ -5942,16 +5928,16 @@ const AREA_PLAN_PAGE = {
         wireMapColor();
       }
 
-      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools").
-         Every zip code behind the map -- all eight states whatever market is picked, every tier, rated
-         or not -- as Zip, State and the plan's Tier, and nothing else. 2026-10-20, his words: "marketing
-         managers should not see this much of a data ... it should only provide tier and zip and state"
-         (the 47-column file carried revenue, tickets and the plan's marketing dollars, and went to Angi).
-         Tier 1-3 first, then 4 (don't target) and 0 (not rated); within a tier by state, then zip. */
+      /* THE TARGET MAP'S DOWNLOAD (his ask 2026-10-19: "we will upload it later on marketing tools"). Every zip
+         code of the picked market (ZTZ-161: the download follows the picked states; the whole market = all
+         nine), every tier, rated or not -- as Zip, State and the plan's Tier, and nothing else. 2026-10-20, his
+         words: "marketing managers should not see this much of a data ... it should only provide tier and zip
+         and state" (the 47-column file carried revenue, tickets and the plan's marketing dollars, and went to
+         Angi). Tier 1-3 first, then 4 (don't target) and 0 (not rated); within a tier by state, then zip. */
       function targetRows(N) {
-        const plan = PLAN ? PLAN.label + " plan" : "Current bases";
+        const plan = PLANS[PLAN_KEY].label + " plan";
         const rank = t => (t >= 1 && t <= 4 ? t : 5);
-        const rows = areaRows(N, "Zip", "")
+        const rows = areaRows(N, "Zip")
           .map(r => [String(r.a.Zip != null ? r.a.Zip : r.key).replace(/\D/g, "").padStart(5, "0"), r.st, r.tier || 0])
           .sort((x, y) => (rank(x[2]) - rank(y[2])) || String(x[1]).localeCompare(String(y[1])) || x[0].localeCompare(y[0]));
         return { plan, head: ["Zip", "State", "Tier"], rows };
@@ -5962,12 +5948,11 @@ const AREA_PLAN_PAGE = {
         const lines = [T.head.map(q).join(",")].concat(T.rows.map(r => r.map(q).join(",")));
         const blob = new Blob(["\ufeff" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "Target Map - " + T.plan + " - all zip codes by " + BASIS + " - " + new Date().toISOString().slice(0, 10) + ".csv";
+        a.download = "Target Map - " + T.plan + " - " + (mapSts().length ? mapSts().join(" ") : "all states") + " - zip codes by " + BASIS + " - " + new Date().toISOString().slice(0, 10) + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
       function areaCsv(N) {
-        const lvl = inputs.mapLevel, st = mapStOf();
-        const R = areaRows(N, lvl, st).filter(tierOk);
+        const R = areaRows(N, "Zip").filter(tierOk);
         const cols = ["Level", "State", "County", "City", "Zip", "Name", "Tier", "Tier Source", "Tier Reason", "Leads 12m", "Booked 12m",
                       "Jobs 12m", "Booking Rate", "Avg Ticket", "Miles To Base", "Nearest Base", "Foremen Within 60mi", "Data Score",
                       "Market Score", "Population", "Movers Per Year", "Median Income", "Home Value", "Owner Share Pct"];
@@ -5977,7 +5962,7 @@ const AREA_PLAN_PAGE = {
                                           q(r.budget != null ? Math.round(r.budget) : "")]).join(",")));
         const blob = new Blob([lines.join("\n")], { type: "text/csv" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "seasonal-plan-" + lvl.toLowerCase() + "s" + (st ? "-" + st : "") + "-" + (PLAN ? PLAN.label : "forecast") +
+        a.download = "seasonal-plan-zips" + (mapSts().length ? "-" + mapSts().join("-") : "") + "-" + PLANS[PLAN_KEY].label +
           (inputs.listTiers.length ? "-tier-" + inputs.listTiers.join("-") : "") + ".csv";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
@@ -5987,15 +5972,15 @@ const AREA_PLAN_PAGE = {
          market's Tier 1 and 2 zips as the page tiers them right now -- so a plan's new base counts --
          best first, one per line */
       function zipTargets(btn) {
-        const N = FC.year ? nextCalc() : null, st = mapStOf();
-        const R = areaRows(N, "Zip", st).filter(r => r.tier === 1 || r.tier === 2)
+        const N = FC.year ? nextCalc() : null, st = mapSts().join(" + ");
+        const R = areaRows(N, "Zip").filter(r => r.tier === 1 || r.tier === 2)
           .sort((x, y) => (x.tier - y.tier) || (num(y.a["Market Score"]) - num(x.a["Market Score"])) || (y.leads - x.leads));
         if (!R.length) { const t = btn.textContent; btn.textContent = "No Tier 1–2 zips " + (st ? "in " + st : "") + " under this plan";
           setTimeout(() => { btn.textContent = t; }, 3500); return; }
         const zips = R.map(r => String(r.a.Zip || r.key).replace(/\D/g, "").padStart(5, "0"));
         const blob = new Blob([zips.join("\r\n") + "\r\n"], { type: "text/plain;charset=utf-8" });
         const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-        a.download = "target zips - " + (st || "all states") + " - " + (PLAN ? PLAN.label + " plan" : "Forecast") +
+        a.download = "target zips - " + (st || "all states") + " - " + PLANS[PLAN_KEY].label + " plan" +
           " - " + R.filter(r => r.tier === 1).length + " T1 + " + R.filter(r => r.tier === 2).length + " T2.txt";
         document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       }
@@ -6043,27 +6028,27 @@ const AREA_PLAN_PAGE = {
       function routesHtml() {
         if (!LOCK) return "";
         if (!ROUTES.length) return '<div class="ap2-note">The lead routes (mart_lead_route) build with the next hourly refresh.</div>';
-        const st = mapStOf(), agg = {};
+        const sts = mapSts(), st = mktLabel(), agg = {}, touch = a => !sts.length || stIn(a.from) || stIn(a.to);
         ROUTES.forEach(r => { const a = agg[r.from + ">" + r.to] = agg[r.from + ">" + r.to] || { from: r.from, to: r.to, leads: 0, booked: 0, ld: 0 };
           a.leads += r.leads; a.booked += r.booked; a.ld += r.ld; });
         const all = Object.values(agg), known = a => a.from !== "Unknown" && a.to !== "Unknown";
-        const mine = all.filter(a => known(a) && (!st || a.from === st || a.to === st));
+        const mine = all.filter(a => known(a) && touch(a));
         const base = mine.reduce((t, a) => t + a.leads, 0);
-        const unknown = all.filter(a => !known(a) && (!st || a.from === st || a.to === st)).reduce((t, a) => t + a.leads, 0);
+        const unknown = all.filter(a => !known(a) && touch(a)).reduce((t, a) => t + a.leads, 0);
         const list = mine.filter(a => !RT.cross || a.from !== a.to).sort((x, y) => y.leads - x.leads);
         const rows = list.slice(0, 30).map(a => "<tr><td><b>" + esc(a.from) + " → " + esc(a.to) + "</b>" +
             (a.from === a.to ? ' <span class="ap3-rtin">in-state</span>' : "") + "</td>" +
           '<td class="num">' + fmtN(a.leads) + '</td><td class="num">' + pct(base ? a.leads / base : null) + '</td><td class="num">' + fmtN(a.booked) +
           '</td><td class="num">' + pct(a.leads ? a.booked / a.leads : null) + '</td><td class="num">' + pct(a.leads ? a.ld / a.leads : null) + "</td></tr>").join("");
         return '<div class="ap3-routes"><div class="lh"><b>Lead routes</b><span>pickup state → delivery state · leads created in the last 12 months · ' +
-            (st ? "routes that start or end in " + esc(st) : "whole market") + "</span>" +
+            (sts.length ? "routes that start or end in " + esc(st) : "whole market") + "</span>" +
           '<div class="rs-seg ap2-seg-s"><button type="button" data-rtcross="1" class="' + (RT.cross ? "on" : "") + '">Between states</button>' +
             '<button type="button" data-rtcross="0" class="' + (RT.cross ? "" : "on") + '">All routes</button></div></div>' +
           '<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Route</th><th class="num">Leads</th>' +
             '<th class="num" title="the route\'s leads ÷ every lead with a known pickup and delivery state in this view">Share</th>' +
             '<th class="num">Booked</th><th class="num">Booking rate</th><th class="num" title="leads quoted as Long Distance">Long distance</th></tr></thead><tbody>' +
             (rows || '<tr><td colspan="6">No route in this view.</td></tr>') + "</tbody></table></div>" +
-          '<div class="ap2-note">Share is of every lead with a known pickup and delivery state' + (st ? " that starts or ends in " + esc(st) : "") +
+          '<div class="ap2-note">Share is of every lead with a known pickup and delivery state' + (sts.length ? " that starts or ends in " + esc(st) : "") +
             " (" + fmtN(base) + " leads)" + (list.length > 30 ? "; the 30 biggest routes of " + fmtN(list.length) : "") + ". " + fmtN(unknown) +
             " more have no pickup or delivery state (labor help, storage, a blank address) and are left out.</div></div>";
       }
@@ -6093,7 +6078,6 @@ const AREA_PLAN_PAGE = {
             '<div id="apAreaList" class="ap3-side">' + sideHtml(N) + "</div></div>" +
           (LOCK ? '<div id="apRoutes">' + routesHtml() + "</div>" : "") +
           msec("apMsPlan", "Plan by base — foremen, trucks and storage", '<div id="apScn">' + scHtml(N, N0) + "</div>", true) +
-          msec("apMsNew", "New bases to try", '<div id="apNewBases">' + nbHtml(N) + "</div>") +
           msec("apMsTodo", "What to do next", '<div id="apTodos">' + todoHtml(N) + "</div>") +
           howHtml();
       }
@@ -6124,6 +6108,16 @@ const AREA_PLAN_PAGE = {
         const box = host.querySelector("#apMapBox"); if (box && box._restyle) box._restyle();
       }
       function wireNewBases() { wireMapColor(); }
+      /* the market, set from its toggles or from the search: in SERVICE_AREAS order, all nine ticked = the whole market */
+      function setMarket(next) {
+        next = SERVICE_AREAS.filter(x => next.indexOf(x) >= 0);
+        if (next.length === SERVICE_AREAS.length) next = [];
+        if (next.join() === inputs.mapSts.join()) return false;
+        inputs.mapSts = next; SIDE = null; save();
+        repaintMapTab({ bases: false });
+        const box = host.querySelector("#apMapBox"); if (box && box._applyLevel) box._applyLevel(true);
+        return true;
+      }
       function wireMapColor() {
         const box = host.querySelector("#apMapBox");
         host.querySelectorAll("#apMapBar [data-basis]").forEach(b => { b.onclick = () => {
@@ -6133,44 +6127,22 @@ const AREA_PLAN_PAGE = {
           AREA_PLAN_PAGE.render(host, Object.assign({}, LOCK, { basis: b.dataset.basis }));
         }; });
         wireRoutes();
-        host.querySelectorAll("[data-mapst]").forEach(b => { b.onclick = () => {
-          if ((inputs.mapSt || "") === b.dataset.mapst) return;
-          inputs.mapSt = b.dataset.mapst; inputs.listTiers = []; SIDE = null;
-          save(); repaintMapTab({ bases: false });
-          if (box && box._applyLevel) box._applyLevel(true);
+        /* a state toggles in and out of the market; "Whole market" clears the pick */
+        host.querySelectorAll("#apMapBar [data-mapst]").forEach(b => { b.onclick = () => {
+          const k = b.dataset.mapst, cur = inputs.mapSts;
+          setMarket(!k ? [] : cur.indexOf(k) >= 0 ? cur.filter(x => x !== k) : cur.concat([k]));
         }; });
-        host.querySelectorAll("#apMapBar [data-mapcolor]").forEach(b => { b.onclick = () => {
-          if (inputs.mapColor === b.dataset.mapcolor) return;
-          inputs.mapColor = b.dataset.mapcolor; save();
-          if (box && box._applyLevel) box._applyLevel(false);
-          repaintMapTab({ bases: false });
-        }; });
-        host.querySelectorAll("#apMapBar [data-mapyear]").forEach(b => { b.onclick = () => {
-          const y = +b.dataset.mapyear || 0; if (+inputs.mapYear === y) return;
-          inputs.mapYear = y; save();
-          if (y && inputs.mapColor !== "tier") { inputs.mapColor = "tier"; if (box && box._applyLevel) box._applyLevel(false); }
-          repaintMapTab({ bases: false });
-          if (box && box._restyle) box._restyle();
-        }; });
-        host.querySelectorAll("#apMapBar [data-mapyearby]").forEach(b => { b.onclick = () => {
-          if (inputs.mapYearBy === b.dataset.mapyearby) return;
-          inputs.mapYearBy = b.dataset.mapyearby; save();
-          repaintMapTab({ bases: false });
-          if (box && box._restyle) box._restyle();
-        }; });
-        host.querySelectorAll("#apMapBar [data-maplevel]").forEach(b => { b.onclick = () => {
-          if (inputs.mapLevel === b.dataset.maplevel) return;
-          inputs.mapLevel = b.dataset.maplevel; inputs.listTiers = []; SIDE = null;
-          save(); repaintMapTab({ bases: false });
-          if (box && box._applyLevel) box._applyLevel(true);
-        }; });
-        host.querySelectorAll("#apAreaList [data-listtier]").forEach(b => { b.onclick = () => {
+        /* the tiers: the list's buttons and the key's swatches are one pick; the map fades the rest */
+        host.querySelectorAll(":is(#apAreaList,#apMapKeyWrap) [data-listtier]").forEach(b => { b.onclick = () => {
           const t = +b.dataset.listtier, cur = inputs.listTiers;
           inputs.listTiers = !t ? [] : cur.indexOf(t) >= 0 ? cur.filter(x => x !== t) : cur.concat([t]).sort();
-          save(); showSide(null); }; });
+          save();
+          const kw = host.querySelector("#apMapKeyWrap"); if (kw) kw.innerHTML = mapKeyHtml(FC.year ? nextCalc() : null);
+          if (box && box._restyle) box._restyle();
+          showSide(null); }; });
         host.querySelectorAll("#apAreaList [data-area]").forEach(b => { b.onclick = () => {
           const key = b.dataset.area;
-          showSide({ kind: "area", level: inputs.mapLevel, key });
+          showSide({ kind: "area", level: "Zip", key });
           if (box && box._focusArea) box._focusArea(key);
         }; });
         host.querySelectorAll("#apAreaList [data-sideback]").forEach(b => { b.onclick = () => showSide(null); });
@@ -6182,16 +6154,22 @@ const AREA_PLAN_PAGE = {
         const fi = host.querySelector("#apFind"), fr = host.querySelector("#apFindRes");
         if (fi && fr) {
           const TC = tierColors();
-          const go = a => { fr.style.display = "none"; FINDQ = fi.value = a.Level === "Zip" ? a.Name : a.Name + ", " + a.State;
-            showSide({ kind: "area", level: a.Level, key: a["Area Key"] });
-            if (box && box._highlight) box._highlight(a); };
+          const kind = a => a.Level === "Zip" ? "zip · " + a.State : a.Level === "City" ? "town · " + (a.County || "") + " County" : "county · " + a.State;
+          const go = a => { fr.style.display = "none"; FINDQ = a.Level === "Zip" ? a.Name : a.Name + ", " + a.State;
+            /* a place outside the picked market brings its state in, then lights up once its zips are drawn */
+            if (box) box._pendingHl = a;
+            if (!stIn(a.State)) setMarket(inputs.mapSts.concat([a.State]));
+            /* zip codes only: a zip opens its sheet; a town or a county is outlined over its zips, the list stays */
+            showSide(a.Level === "Zip" ? { kind: "area", level: "Zip", key: a["Area Key"] } : null);
+            const f2 = host.querySelector("#apFind"); if (f2) f2.value = FINDQ;
+            if (box && box._highlight && box._zipReady && box._zipReady()) { box._pendingHl = null; box._highlight(a); } };
           const list = () => { FINDQ = fi.value;
             const hits = findAreas(fi.value); fr._hits = hits;
             if (!fi.value.trim()) { if (box && box._highlight) box._highlight(null); }
             fr.innerHTML = hits.length ? hits.map((a, i) => '<button type="button" data-find="' + i + '"><i class="tchip t' + num(a.Tier) + '" style="background:' +
                 (TC["t" + num(a.Tier)] || "var(--faint)") + '">' + (num(a.Tier) >= 1 ? "T" + num(a.Tier) : "–") + "</i><span>" + esc(a.Name) +
-                (a.Level === "Zip" ? "" : ", " + esc(a.State)) + "</span><small>" + esc(a.Level === "Zip" ? "zip · " + a.State : a.Level === "City" ? "city · " + (a.County || "") : "county") + "</small></button>").join("")
-              : fi.value.trim().length >= 2 ? '<div class="none">Nothing by that name in our states.</div>' : "";
+                (a.Level === "Zip" ? "" : ", " + esc(a.State)) + "</span><small>" + esc(kind(a)) + "</small></button>").join("")
+              : fi.value.trim().length >= 2 ? '<div class="none">Nothing by that name in our ' + N_STATES + " states.</div>" : "";
             fr.style.display = fr.innerHTML ? "" : "none";
             fr.querySelectorAll("[data-find]").forEach(b => { b.onmousedown = e => { e.preventDefault(); go(hits[+b.dataset.find]); }; }); };
           fi.oninput = list;
@@ -6200,60 +6178,15 @@ const AREA_PLAN_PAGE = {
           fi.onkeydown = e => { if (e.key === "Enter" && fr._hits && fr._hits.length) { e.preventDefault(); go(fr._hits[0]); fi.blur(); }
             else if (e.key === "Escape") { fr.style.display = "none"; } };
         }
-        const pk = host.querySelector("#apNewBases [data-nbpick]");
-        if (pk) pk.onclick = () => { PICK = !PICK;
-          if (box) { box.classList.toggle("ap3-picking", PICK); if (PICK) box.scrollIntoView({ block: "center", behavior: "smooth" }); }
-          const el = host.querySelector("#apNewBases"); if (el) { el.innerHTML = nbHtml(FC.year ? nextCalc() : null); wireMapColor(); } };
-        host.querySelectorAll("#apNewBases [data-nb], #apAreaList [data-nb]").forEach(card => {
-          const label = card.dataset.nb;
-          card.querySelectorAll("[data-nbon]").forEach(b => { b.onclick = () => {
-            const want = b.dataset.nbon === "1"; if (!!NB_ON[label] === want) return;
-            if (PLAN) { planEnd(); SC.kind = null; SC.targets = null; }      // a base flipped by hand: no longer his table
-            if (want) NB_ON[label] = true; else { delete NB_ON[label]; delete NB_FM[label]; delete TR_OWN[label]; }
-            nbRepaint(); }; });
-        });
-        /* #apMapBar: the Target Map's Plan switch; there the pick is remembered (TM_KEY) */
-        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis,#apMapBar) [data-plan]").forEach(b => { b.onclick = () => {
-          const k = b.dataset.plan;
-          if (!k) { if (!PLAN) return; planEnd(); planCandsClear(); SC.kind = null; SC.targets = null;
-            [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(x => delete o[x])); if (LOCK) save(); nbRepaint(); return; }
-          if (PLAN && PLAN.key === k) return;
-          PLAN = JSON.parse(JSON.stringify(PLANS[k])); PLAN.key = k;
-          planApply(); if (LOCK) save(); nbRepaint();
-        }; });
         host.querySelectorAll("#apScn [data-grptg]").forEach(b => { b.onclick = () => {
           const d = host.querySelector('#apScn [data-grpd="' + b.dataset.grptg + '"]'); if (!d) return;
           d.hidden = !d.hidden; b.setAttribute("aria-expanded", String(!d.hidden)); b.classList.toggle("on", !d.hidden); }; });
+        /* a crew changed in the MAX table stays MAX: the plan is edited, never switched off */
         host.querySelectorAll("#apScn [data-plansite]").forEach(b => { b.onclick = () => {
           if (!PLAN) return;
           const [gi, si] = b.dataset.plansite.split(":").map(Number), x = PLAN.groups[gi].sites[si];
-          x.fm = Math.max(0, x.fm + (+b.dataset.d));
+          x.fm = Math.max(0, x.fm + (+b.dataset.d)); PLAN_EDITED = true;
           planApply(); nbRepaint();
-        }; });
-        host.querySelectorAll(":is(#apScn,#apPlanBar,#apKpis) [data-sc]").forEach(b => { b.onclick = () => {
-          const kind = b.dataset.sc, pool = b.dataset.pool || null, dd = +b.dataset.d;
-          if (PLAN) planEnd();               // another driver takes over: the bases stay, the plan's crews no longer hold
-          const N = nextCalc(), P = nextCalc({ nb: "none", mult: {} });
-          if (kind === "nbfm") {           // a new base's crew: set directly, it is not a driver
-            const o = (N.nb || []).find(x => x.label === pool);
-            if (o) { NB_FM[pool] = Math.max(1, o.fm + dd); repaintPlan(); }
-            return;
-          }
-          let target;
-          if (kind === "sales") target = Math.max(1, N.sales.peak + dd);
-          else if (kind === "fm") target = Math.max(0, baseFm(N, pool) + dd);
-          else if (kind === "fmAll") target = Math.max(1, N.tot.peak + dd);
-          else target = Math.max(0, N.tot.mkt + dd * 0.05 * P.tot.mkt);      // 5% of the plan's budget a click
-          /* STEPPED BACK ONTO THE FORECAST'S OWN NUMBER, THE LEVER LETS GO (check 2026-09-30: 25 ->
-             24 -> 25 foremen showed 2,140 jobs, the forecast's 25 show 2,040 -- the solver answers
-             "the most work 25 can carry", which is not the forecast). Back at the forecast's figure,
-             the forecast is what shows. */
-          const F = nextCalc({ mult: {} });
-          const fv = kind === "sales" ? F.sales.peak : kind === "fm" ? baseFm(F, pool) : kind === "fmAll" ? F.tot.peak : F.tot.mkt;
-          if (kind === "mkt" ? Math.abs(target - fv) <= 0.01 * fv : target === fv) {
-            SC.kind = null; SC.pool = null; SC.target = null; SC.dir = 0; repaintPlan(); return; }
-          SC.kind = kind; SC.pool = pool; SC.target = target; SC.dir = dd;
-          repaintPlan();
         }; });
         host.querySelectorAll("#apScn [data-fk]").forEach(inp => { inp.onchange = () => {
           inputs[inp.dataset.fk] = inp.value === "" ? null : +inp.value; save(); repaintPlan();
@@ -6268,13 +6201,14 @@ const AREA_PLAN_PAGE = {
         host.querySelectorAll("#apScn [data-tro]").forEach(b => { b.onclick = () => {
           const key = b.dataset.tro, N = nextCalc();
           const o = N.pools.find(q => q.pk === key) || (N.nb || []).find(x => x.label === key);
-          if (o) { TR_OWN[key] = Math.max(0, (o.owned || 0) + (+b.dataset.d)); repaintPlan(); }
+          if (o) { TR_OWN[key] = Math.max(0, (o.owned || 0) + (+b.dataset.d)); PLAN_EDITED = true; repaintPlan(); }
         }; });
+        /* back to the MAX plan as written -- never to the forecast or today's bases */
         const scr = host.querySelector("[data-screset]");
-        if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null;
-          Object.keys(NB_ON).forEach(k => delete NB_ON[k]); Object.keys(NB_FM).forEach(k => delete NB_FM[k]); Object.keys(TR_OWN).forEach(k => delete TR_OWN[k]);
-          planEnd(); planCandsClear(); SC.targets = null;
-          nbPickClear(); if (SIDE && SIDE.kind === "pick") SIDE = null; nbRepaint(); };
+        if (scr) scr.onclick = () => { SC.kind = null; SC.pool = null; SC.target = null; SC.targets = null;
+          [NB_ON, NB_FM, TR_OWN].forEach(o => Object.keys(o).forEach(k => delete o[k]));
+          planEnd(); planCandsClear(); nbPickClear(); SIDE = null;
+          planMax(); nbRepaint(); };
       }
 
       /* ONLY THE MAP, ON ONE SHEET (his ask 2026-09-30: "i want only MAP to be printed - without list
@@ -6286,14 +6220,11 @@ const AREA_PLAN_PAGE = {
       function printMap() {
         const box = host.querySelector("#apMapBox");
         if (!box || !box._map || document.getElementById("apPrintRoot")) return;
-        if (inputs.mapLevel !== "Zip") { inputs.mapLevel = "Zip"; inputs.listTiers = []; SIDE = null; save();
-          repaintMapTab({ bases: false }); if (box._applyLevel) box._applyLevel(true); }
         if (box._highlight) box._highlight(null);
         const N = FC.year ? nextCalc() : null;
         const root = document.createElement("div"); root.id = "apPrintRoot"; root.className = "ap2-pane";
         root.innerHTML = '<div class="ap3-print-h"><b>Seasonal Planning — Season ' + esc(String(FC.year || "")) + "</b><span>" +
-          esc((PLAN ? PLAN.label + " plan" : scAny() || nbAny() ? "scenario" : "forecast") + " (± vs today)" + " · " + (mapStOf() || "whole market") + " · zip codes" +
-              (inputs.mapYear ? " · " + inputs.mapYear + " " + YEAR_BY[inputs.mapYearBy][1].toLowerCase() : " · tiers") +
+          esc(PLANS[PLAN_KEY].label + " plan" + (PLAN_EDITED ? ", changed" : "") + " (± vs today)" + " · " + mktLabel() + " · zip codes · tiers" +
               (N ? " · " + fmtN(N.tot.peak) + " foremen" : "") + " · " + new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })) + "</span></div>";
         /* THE SHEET'S TILES ARE ITS OWN (his design review of the first print, 2026-09-30: "margins on
            top, wrap texts to be similar"). The screen tiles wrap each line where it happens to fall,
@@ -6335,12 +6266,12 @@ const AREA_PLAN_PAGE = {
            level 6 and cut off at 7), so the frame is fitted to a tenth of a level while it prints */
         const snap0 = m.options.zoomSnap; m.options.zoomSnap = 0.1;
         const frame = () => { m.invalidateSize(false);
-          const st = mapStOf(), pts = [];
+          const st = mapSts().length, pts = [];
           AREA.forEach(a => { if (a.Level !== "County" || !num(a.Latitude)) return;
             /* a county with NO distance on file read as 0 miles and pulled all of western PA into the
                frame (live print, 2026-10-07): only a measured distance counts */
             const mi = a["Miles To Base"];
-            if (st ? a.State === st : (SERVICE_AREAS.includes(a.State) && mi != null && mi !== "" && num(mi) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
+            if (st ? stIn(a.State) : (SERVICE_AREAS.includes(a.State) && mi != null && mi !== "" && num(mi) <= 50)) pts.push([num(a.Latitude), num(a.Longitude)]); });
           if (!st) { NB_CANDS.forEach(c => { if (NB_ON[c.label]) pts.push([c.la, c.lo]); });
             if (PLAN) PLAN.groups.forEach(g => g.sites.forEach(x => { if (x.la) pts.push([x.la, x.lo]); })); }
           /* a label runs right of its base, so the frame leaves room on the right for it */
@@ -6369,6 +6300,9 @@ const AREA_PLAN_PAGE = {
         if (!box || !box._map || !box.clientWidth || !box.clientHeight) return;
         const m = box._map;
         m.invalidateSize();
+        /* PICKED STATES ARE FRAMED ON THEIR OWN ZIPS (ZTZ-161, "framing on the picked states") */
+        if (mapSts().length && box._mktBounds) { const mb = box._mktBounds();
+          if (mb && mb.isValid()) { m.fitBounds(mb, { padding: [14, 14], animate: false }); return; } }
         if (!(box._fit && box._fit.length)) return;
         /* WHOLE ZOOM LEVELS COST HALF THE PICTURE. fitBounds at zoomSnap 1 rounds DOWN to the
            level that certainly fits, which put Cleveland and West Virginia on a map about New
@@ -6412,15 +6346,19 @@ const AREA_PLAN_PAGE = {
              is remembered in this browser; a real mouse-over is ignored, the search's own highlight
              is not (it fires mouseover with no originalEvent). */
           const grid = box.closest(".ap3-mapgrid");
-          let quiet = true; try { quiet = localStorage.getItem("ap_map_hover") !== "on"; } catch (e) { /* storage blocked: keep the default */ }
+          /* THE TARGET MAP HOVERS BY DEFAULT (ZTZ-161): it has no side sheet, so a quiet map there showed nothing at all
+             until clicked. It keeps its own remembered choice; Seasonal Planning keeps his "off". */
+          const HV_KEY = LOCK ? "ap_tm_hover" : "ap_map_hover";
+          let quiet = !LOCK; try { const v = localStorage.getItem(HV_KEY); if (v) quiet = v !== "on"; } catch (e) { /* storage blocked: keep the default */ }
           box.classList.toggle("ap-quiet", quiet);
           const hush = e => quiet && !!(e && e.originalEvent);
-          const applyLbl = () => { const on = mapLbl(); box.classList.toggle("ap-nomv", !on.mv); box.classList.toggle("ap-nopl", !on.pl); };
+          const applyLbl = () => { const on = mapLbl(); box.classList.toggle("ap-nopl", !on.pl); if (box._zipLabels) box._zipLabels(); };
           applyLbl();
           const MapCtl = L.Control.extend({ options: { position: "topright" }, onAdd() {
             const d = L.DomUtil.create("div", "leaflet-bar ap3-mapctl");
-            const LBL_ITEMS = [["n", "Base name"], ["f", "Foremen"], ["t", "Trucks"], ["st", "Storage"], ["nw", "New chip"], null,
-                               ["mv", "County movers"], ["pl", "Place names"]];
+            /* the Target Map's bases carry their names only, so its labels are the map's own two */
+            const LBL_ITEMS = (LOCK ? [] : [["n", "Base name"], ["f", "Foremen"], ["t", "Trucks"], ["st", "Storage"], ["nw", "New chip"], null])
+              .concat([["pl", "Place names"], ["zl", "Zip codes, close up"]]);
             const on0 = mapLbl();
             d.innerHTML = '<button type="button" data-mc="fs"></button><button type="button" data-mc="hv"></button>' +
               '<button type="button" data-mc="lb" title="Pick what the labels on the map show">Labels ▾</button>' +
@@ -6460,7 +6398,7 @@ const AREA_PLAN_PAGE = {
             if (grid) { grid._fsOff = () => setFs(false); grid._fsSync = fsSync; }
             fs.onclick = () => setFs(!(grid && grid.classList.contains("ap3-fs")));
             hv.onclick = () => { quiet = !quiet; box.classList.toggle("ap-quiet", quiet);
-              try { localStorage.setItem("ap_map_hover", quiet ? "off" : "on"); } catch (e) { /* not remembered */ }
+              try { localStorage.setItem(HV_KEY, quiet ? "off" : "on"); } catch (e) { /* not remembered */ }
               m.eachLayer(l => { if (l.closeTooltip) l.closeTooltip(); }); paint(); };
             paint(); return d; } });
           new MapCtl().addTo(m);
@@ -6585,116 +6523,11 @@ const AREA_PLAN_PAGE = {
           R.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
           const pts = [];
           if (GEO && GEO.features) {
-            /* THE CENSUS CAN COLOUR THE MAP, NOT JUST SIT IN A CARD (his call 2026-09-22: "i loved
-               this CENSUS ... that data, it proved the point"). Three ways to paint the same
-               counties, and they answer three different questions:
-                 TIER      where is it worth chasing -- his Power BI model, the default
-                 MARKET    how many people move there at all -- the size of the prize
-                 CAPTURE   how many of them become a lead -- the argument itself, because New
-                           Jersey comes out dark and Maryland and Virginia come out nearly white,
-                           and that is the whole case for spending on demand before yards.
-               MARKET and CAPTURE are quantile ramps over one hue, so a county is shaded against
-               the others rather than against a number nobody has a feel for. A county that has
-               never sent a lead keeps the hatch in every mode: it is an absence, not a low value. */
-            const RAMP = { market: tok("--ink") || "#22303f", capture: tok("--pos") || "#5f7c20" };
-            const qcuts = key => { const v = R.map(key).filter(x => x > 0).sort((a, b) => a - b);
-              if (!v.length) return [];
-              return [.2, .4, .6, .8].map(q => v[Math.floor(q * (v.length - 1))]); };
-            const CUTS = { market: qcuts(r => r.movers),
-                           capture: qcuts(r => (r.movers ? 10000 * r.leads12 / r.movers : 0)) };
-            const rank = (v, cuts) => { let i = 0; while (i < cuts.length && v > cuts[i]) i++; return i; };
-            const OPA = [.14, .28, .44, .62, .82];
-            const shadeOf = r => {
-              const mode = inputs.mapColor;
-              if (mode === "market") { const v = r.movers || 0;
-                return v > 0 ? { fill: RAMP.market, op: OPA[rank(v, CUTS.market)] } : null; }
-              const v = r.movers ? 10000 * r.leads12 / r.movers : 0;
-              return v > 0 ? { fill: RAMP.capture, op: OPA[rank(v, CUTS.capture)] } : null;
-            };
-            const layer = L.geoJSON(GEO, {
-              style: f => {
-                const r = byKey[f.properties.st + "|" + f.properties.key];
-                const band = r ? r.band : "none";
-                const base = { color: r && r.uncovered ? col.fix : tok("--ap-rule-2") || "#98a4b3",
-                               weight: r && r.uncovered ? 1 : 0.6,
-                               opacity: r && r.uncovered ? .5 : .7,
-                               lineJoin: "round",
-                               dashArray: r && r.uncovered ? "3 3" : null };
-                if (inputs.mapYear) return Object.assign({ color: tok("--ap-rule-2") || "#98a4b3", weight: 0.6, opacity: .7, lineJoin: "round" },
-                  yearShade("County", r && r.area ? r.area["Area Key"] : null, col.t1));
-                /* MARKET SIZE IS A COUNT, AND A COUNT MUST NOT BE A CHOROPLETH. Shading a county by
-                   how many people move there makes a big empty county shout and a small dense one
-                   whisper -- the reader is really being shown acreage. Worse, the first build only
-                   shaded counties with leads, so the 168 we have never sold in came out hatched and
-                   the map HID the white space it was supposed to reveal. Market size is drawn as
-                   proportional circles instead (below), and the counties go quiet underneath. */
-                if (inputs.mapColor === "market" || inputs.mapColor === "spend") {
-                  return Object.assign(base, { fillColor: tok("--ap-rule-2") || "#98a4b3",
-                                               fillOpacity: .10, weight: 0.5, opacity: .45 });
-                }
-                if (inputs.mapColor === "capture") {
-                  const sh = r && r.leads12 > 0 ? shadeOf(r) : null;   // same window as the ramp (2026-09-23)
-                  return Object.assign(base, sh ? { fillColor: sh.fill, fillOpacity: sh.op }
-                                                : { fillColor: "url(#" + HATCH + ")", fillOpacity: 1 });
-                }
-                return Object.assign(base, fillOf(band, r && r.never, isFar(r && r.area)));
-              },
-              onEachFeature: (f, lyr) => {
-                const r = byKey[f.properties.st + "|" + f.properties.key];
-                /* read at hover time: a new-base toggle refreshes byKey (box._restyle) */
-                lyr.bindTooltip(() => { const rr = byKey[f.properties.st + "|" + f.properties.key];
-                  return rr ? glance(rr.county + " " + rr.st, rr.band, rr.area)
-                  : '<div class="ap2-tip"><b>' + esc(f.properties.name) + " " + esc(f.properties.st) +
-                    '</b><div class="t">Not in the lead directory</div></div>'; },
-                  { sticky: true, className: "ap2-tipwrap", opacity: 1 });
-                /* the fill is flat, so the hover needs its own signal */
-                lyr.on("mouseover", e => { if (!hush(e)) lyr.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f" }); });
-                lyr.on("mouseout", () => layer.resetStyle(lyr));
-                lyr.on("click", () => { const rr = byKey[f.properties.st + "|" + f.properties.key];
-                  if (rr && rr.area) showSide({ kind: "area", level: "County", key: rr.area["Area Key"] }); });
-              },
-            }).addTo(m);
-            box._geo = layer;                  // so the colour switch can restyle without a rebuild
-
-            /* PROPORTIONAL CIRCLES FOR THE MARKET. Area is proportional to movers, which is why the
-               radius goes as the SQUARE ROOT -- a circle twice as wide is four times the market, and
-               drawing it any other way lies about the ratio. Every county with a Census figure gets
-               one whether or not it has ever sent us a lead: the whole value of this view is seeing
-               a large market where we have no business at all. */
-            const mktPane = m.createPane("apMkt");
-            mktPane.style.zIndex = 480; mktPane.style.pointerEvents = "none";
-            const MKT_HUE = tok("--blue") || "#2f62d8";
-            const withMk = R.filter(x => x.movers > 0 && x.la && x.lo);
-            const mkMax = withMk.length ? Math.max.apply(null, withMk.map(x => x.movers)) : 1;
-            const mkR = v => 4 + 26 * Math.sqrt(v / mkMax);
-            box._mkt = L.layerGroup();
-            withMk.slice().sort((a, b) => b.movers - a.movers).forEach(x =>
-              L.circleMarker([x.la, x.lo], { pane: "apMkt", interactive: false, radius: mkR(x.movers),
-                color: MKT_HUE, weight: 1.4, opacity: .85, fillColor: MKT_HUE,
-                fillOpacity: x.leads > 0 ? .30 : .10,
-                dashArray: x.leads > 0 ? null : "3 3" }).addTo(box._mkt));
-            if (inputs.mapColor === "market") box._mkt.addTo(m);
-
-            /* WHERE THE MONEY LANDS, AND ON WHAT KIND OF COUNTY (his question, asked three times:
-               "if we identify a base as negative, why do we push marketing there?"). Dollars are a
-               COUNT, so they are circles like the market; what makes this view answer his question
-               is that the circle is COLOURED BY TIER. A fat red circle is marketing going into a
-               county the model rates badly, and the eye finds it instantly instead of having to
-               read a table. The honest caveat is in the strip above the map and in the tooltip:
-               the budget is a county's share of its STATE's leads, so it follows demand and never
-               the tier, and about 44% of what lands on red is pay-per-lead that bills wherever the
-               lead appears -- roughly a third of the red is actually steerable. */
-            const spendPane = m.createPane("apSpend");
-            spendPane.style.zIndex = 481; spendPane.style.pointerEvents = "none";
-            const withSp = R.filter(x => x.budget > 0 && x.la && x.lo);
-            const spMax = withSp.length ? Math.max.apply(null, withSp.map(x => x.budget)) : 1;
-            const spR = v => 4 + 26 * Math.sqrt(v / spMax);
-            box._spend = L.layerGroup();
-            withSp.slice().sort((a, b) => b.budget - a.budget).forEach(x =>
-              L.circleMarker([x.la, x.lo], { pane: "apSpend", interactive: false, radius: spR(x.budget),
-                color: col[x.band] || col.grey, weight: 1.4, opacity: .9,
-                fillColor: col[x.band] || col.grey, fillOpacity: .42 }).addTo(box._spend));
-            if (inputs.mapColor === "spend") box._spend.addTo(m);
+            /* ZIP CODES ONLY, TIERS ONLY (ZTZ-161). The county fills and their three other colourings -- market
+               size, our capture, the marketing circles -- left with the Show and Colour switches. The county
+               shapes stay as the thin lines over the zips (cntyLines) and as the frame's fallback. */
+            const layer = L.geoJSON(GEO, { interactive: false, style: { stroke: false, fill: false } });
+            box._geo = layer;
             /* STATE BORDERS OVER THE FILLS (his note 2026-09-21: "the forms, layout, roads, countries").
                327 county fills with no state line run Pennsylvania into New Jersey. Their own pane,
                above the fills and under the flags, and deaf to the mouse so the county tooltips
@@ -6703,43 +6536,24 @@ const AREA_PLAN_PAGE = {
               const sp = m.createPane("apStates"); sp.style.zIndex = 450; sp.style.pointerEvents = "none";
               L.geoJSON(host._apStates, { pane: "apStates", interactive: false,
                 style: { color: tok("--ink") || "#22303f", weight: 1.7, opacity: .62, lineJoin: "round", fill: false } }).addTo(m);
+              /* Rhode Island had no label (ZTZ-161); the picked states' labels read stronger (box._stLabels) */
+              const stl = box._stLbl = {};
               [["NJ", 40.02, -74.62], ["PA", 41.05, -77.65], ["NY", 42.85, -75.4], ["CT", 41.62, -72.72], ["MA", 42.36, -71.95],
-               ["MD", 39.42, -77.05], ["VA", 37.55, -78.7], ["DE", 38.95, -75.47]].forEach(([st, la, lo]) =>
-                L.marker([la, lo], { pane: "apStates", interactive: false, keyboard: false,
-                  icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<span class="ap2-stlbl">' + st + "</span>" }) }).addTo(m));
+               ["RI", 41.68, -71.53], ["MD", 39.42, -77.05], ["VA", 37.55, -78.7], ["DE", 38.95, -75.47]].forEach(([st, la, lo]) =>
+                (stl[st] = L.marker([la, lo], { pane: "apStates", interactive: false, keyboard: false,
+                  icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<span class="ap2-stlbl">' + st + "</span>" }) })).addTo(m));
+              box._stLabels = () => Object.keys(stl).forEach(st => { const el = stl[st].getElement && stl[st].getElement();
+                const sp = el && el.querySelector(".ap2-stlbl"); if (sp) sp.classList.toggle("off", mapSts().length > 0 && !stIn(st)); });
+              box._stLabels();
             }
             ensureHatch();
-            /* NAME THE BIG MARKETS (his ask 2026-09-22). The basemap labels cities; these label the
-               COUNTIES the argument is about, so nobody has to hover to find Philadelphia or the
-               Maryland suburbs. Eight is the most that can sit on this frame without becoming
-               clutter, and they are the eight biggest moving markets we can actually reach. */
-            /* THE MARKETS WE ACTUALLY WORK, one label per place. Two passes were wrong before this
-               one. Ranked on movers alone the top eight are New York, Kings, Queens, Bronx and
-               Nassau -- five names stacked over one city. Excluding anything near a base flag then
-               threw out New York and Philadelphia, which are the two the reader most wants named,
-               and filled the map with Centre PA and Onondaga NY, where we do no business at all.
-               So: only counties that have actually sent us leads, biggest first, each at least 0.6
-               degrees from one already picked -- and the flags are left to look after themselves,
-               because the label sits above the centroid and the flag beside it. */
-            const FAR = 0.6;
-            const taken = [];
-            const named = [];
-            R.filter(x => x.movers > 0 && x.leads > 0 && x.la && x.lo)
-              .slice().sort((a, b) => b.movers - a.movers)
-              .forEach(x => { if (named.length >= 7) return;
-                if (taken.some(t => Math.abs(t[0] - x.la) < FAR && Math.abs(t[1] - x.lo) < FAR)) return;
-                named.push(x); taken.push([x.la, x.lo]); });
-            const namePane = m.createPane("apNames");
-            namePane.style.zIndex = 470; namePane.style.pointerEvents = "none";     // same: never above a tooltip
-            named.forEach(x => L.marker([x.la, x.lo], { pane: "apNames", interactive: false, keyboard: false,
-              icon: L.divIcon({ className: "", iconSize: [0, 0],
-                html: '<span class="ap2-cname">' + esc(x.county) + "<b>" + fmtN(x.movers) + " movers</b></span>" }) })
-              .addTo(box._names = box._names || L.layerGroup().addTo(m)));
             /* THE OPENING FRAME is the ground the page argues about: every county big enough to be
                rated, and every flag. It used to take any county with one lead, so a single long-haul
                pickup in the far corner of Virginia set the zoom for the whole company. */
             const framed = R.filter(r => r.leads >= 30 && r.la && r.lo).map(r => [r.la, r.lo]);
-            (B.have || []).concat(B.coverage || []).forEach(x => framed.push([x.la, x.lo]));
+            /* the bases we have and the MAX plan's own places -- not every candidate (ZTZ-161: they are off the map) */
+            (B.have || []).forEach(x => framed.push([x.la, x.lo]));
+            PLANS[PLAN_KEY].groups.forEach(g => g.sites.forEach(x => { if (x.la) framed.push([x.la, x.lo]); }));
             /* the ground that must never leave the frame: the bases we run and the picks we chose */
             const core = (B.have || []).map(x => [x.la, x.lo]);
             ((model.expansion || {}).steps || []).forEach(st => {
@@ -6941,14 +6755,14 @@ const AREA_PLAN_PAGE = {
                 (x.far && isFinite(x.far.mi) ? " — " + fmtN(Math.round(x.far.mi)) + " mi from the nearest base (" + esc(x.far.who) + "), more than " + STORE_FAR + " mi" : "") +
                 ". Rent one facility here, or click a base's label to make it Parking + Storage instead.</div></div>",
                 { className: "ap2-tipwrap", direction: "top", opacity: 1 }).addTo(soLayer)); };
-          /* the Target Map draws only the plan's own new bases: a candidate outside the picked plan (all of
-             them under Current, Monroe under MID) leaves the map instead of standing there as a dashed flag */
+          /* BOTH PAGES DRAW ONLY THE PLAN'S OWN NEW BASES (the Target Map since 2026-10-19, Seasonal Planning since
+             ZTZ-161): a candidate outside MAX leaves the map instead of standing there as a dashed flag */
           /* a base the plan moves (ZTZ-155) leaves the map, ring and flag, until the plan is switched off */
           const moveShow = x => { if (x.b.kind !== "have") return;
             const gone = movedAway(x.b.name), r = haveRings[x.b.name];
             if (gone && baseLayer.hasLayer(x.mk)) baseLayer.removeLayer(x.mk); else if (!gone && !baseLayer.hasLayer(x.mk)) x.mk.addTo(baseLayer);
             if (r) { if (gone && m.hasLayer(r)) m.removeLayer(r); else if (!gone && !m.hasLayer(r)) r.addTo(m); } };
-          const lockShow = x => { moveShow(x); if (!LOCK || x.b.kind === "have") return;
+          const lockShow = x => { moveShow(x); if (x.b.kind === "have") return;
             const on = !!NB_ON[x.b.label];
             if (on && !baseLayer.hasLayer(x.mk)) x.mk.addTo(baseLayer); else if (!on && baseLayer.hasLayer(x.mk)) baseLayer.removeLayer(x.mk); };
           box._flags = () => { const N = FC.year ? nextCalc() : null;
@@ -6962,12 +6776,12 @@ const AREA_PLAN_PAGE = {
               riseOnHover: true,
               zIndexOffset: b.kind === "have" ? 600 : b.kind === "cover" ? 500 : 400 });
             if (LOCK) mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
-              (b.kind === "have" ? "our base today" : NB_ON[b.label] && PLAN ? "new base in the " + esc(PLAN.label) + " plan" : "possible new base") + "</div></div>",
+              (b.kind === "have" ? "our base today" : "new base in the " + esc(PLANS[PLAN_KEY].label) + " plan") + "</div></div>",
               { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             else mk.bindTooltip(() => '<div class="ap2-tip ap3-glance"><b>' + esc(b.kind === "have" ? b.name + " base" : b.label) + '</b><div class="t">' +
               (b.kind === "have" ? fmtN(b.foremen) + (b.foremen === 1 ? " foreman" : " foremen") + " today" +
                   (() => { const pc = planCrew(b, FC.year ? nextCalc() : null); return pc != null ? " · plan " + fmtN(pc) : ""; })()
-                                 : "possible new base · " + (NB_ON[b.label] ? "YES in this scenario" : "No in this scenario")) +
+                                 : "new base in the " + esc(PLANS[PLAN_KEY].label) + " plan" + (() => { const pc = planCrew(b, FC.year ? nextCalc() : null); return pc != null ? " · " + fmtN(pc) + (pc === 1 ? " foreman" : " foremen") : ""; })()) +
               '</div><div class="hint">Click for the full sheet</div></div>',
               { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 });
             /* ONE CIRCLE PER BASE (his call 2026-10-07: "i see 2 circles when i hover over a base ... i
@@ -6983,7 +6797,7 @@ const AREA_PLAN_PAGE = {
             options: { position: "topleft" },
             onAdd: function () {
               const a = L.DomUtil.create("a", "ap2-mapbtn");
-              a.href = "#"; a.title = "Back to the whole territory"; a.innerHTML = "&#10227;";
+              a.href = "#"; a.title = "Frame the picked market again"; a.setAttribute("aria-label", "Frame the picked market again"); a.innerHTML = "&#10227;";
               L.DomEvent.on(a, "click", L.DomEvent.stop).on(a, "click", () => fitMap());
               return a;
             },
@@ -7005,163 +6819,138 @@ const AREA_PLAN_PAGE = {
           });
           m.addControl(new Toggle());
 
-          /* ---- CITY AND ZIP (2026-09-29) ---------------------------------------------------
-             His ask: "planning on county level ... i may even want to go as down as zip. i need a
-             selector for that", with ZIP POLYGONS ("zip polygons - and it must be ready"). The
-             shapes are the Census 2020 ZCTAs, one file per state (scripts/build_zip_geojson.py,
-             run in Cloud Build because the Census blocks Georgia), fetched only when a state is
-             drawn at City or Zip grain. A CITY is drawn as its zips, each filled with the city's
-             tier -- mart_area_tier counts a city off exactly those zips, so the picture and the
-             numbers are the same thing -- and hovering one lights the whole city. */
-          const countyLayer = box._geo;
+          /* ---- ZIP CODES (2026-09-29; the only level since ZTZ-161) -----------------------------
+             His ask: "i may even want to go as down as zip ... zip polygons - and it must be ready". The shapes
+             are the Census 2020 ZCTAs, one file per state (scripts/build_zip_geojson.py, run in Cloud Build
+             because the Census blocks Georgia), fetched for the picked states only. Up to ZIP_SVG_MAX shapes
+             are drawn as SVG, so "no lead yet" can be hatched; the whole market (~6,600 shapes) goes on a
+             canvas, which cannot hatch, so those read paler instead (the key says which). */
           const ZIPGEO = host._apZipGeo = host._apZipGeo || {};
-          let zipLayer = null, zipSt = null, zipLvl = null, cntyLines = null;
-          const zipArea = (z, lvl) => { const za = AREA_IX.Zip[z];
-            if (lvl === "Zip" || !za) return za || null;
-            return AREA_IX.City[za.State + "|" + za.City] || null; };
-          const planOf = a => {
-            const N0 = FC.year ? nextCalc() : null; if (!N0 || !a) return { budget: null, jobs: null };
-            const r = N0.rows.find(x => x.st === a.State); if (!r) return { budget: null, jobs: null };
-            const cpl = N0.mkt.cplOf(r.st);
-            return { budget: cpl != null ? r.leads * cpl * num(a["State Lead Share"]) : null,
-                     jobs: r.jobs * num(a["State Job Share"]) }; };
-          const areaTip = (a, lvl, z) => {
-            if (!a) return '<div class="ap2-tip"><b>' + esc(z || "") + '</b><div class="t">No leads and no Census data</div></div>';
-            const band = TIER_BAND(num(a.Tier)), P = planOf(a);
-            const where = lvl === "Zip" ? esc(a.City || "") + ", " + esc(a.County || "") + " County"
-                                        : esc(a.County || "") + " County · " + fmtN(num(a.Zips)) + (num(a.Zips) === 1 ? " zip code" : " zip codes");
-            return '<div class="ap2-tip"><b>' + esc(lvl === "Zip" ? a.Zip : a.Name) + " " + esc(a.State) + "</b>" +
-              '<div class="t">' + TIER_LABEL[band] + " " + MID + " " + r1(num(a["Miles To Base"])) + " mi to " + esc(a["Nearest Base"] || "a base") + "</div>" +
-              '<div class="c">' + where + "</div>" +
-              (a["Tier Reason"] ? '<div class="c">' + esc(a["Tier Reason"]) + "</div>" : "") +
-              '<div class="hd">The ' + esc(String(FC.year || "")) + ' plan here</div><div class="grid">' +
-                gRow("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EM, r1(100 * num(a["State Lead Share"])) + "% of the state's leads") +
-                gRow("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EM, "its share of the state's forecast") +
-              "</div>" +
-              '<div class="hd">Our work, last 12 months</div><div class="grid">' +
-                gRow("Leads", fmtN(num(a["Leads 12m"]))) +
-                gRow("Booked", num(a["Leads 12m"]) ? r1(num(a["Booking Rate"])) + "%" : EM) +
-                gRow("Jobs", fmtN(num(a["Jobs 12m"]))) +
-                gRow("Average ticket", a["Avg Ticket"] != null ? money0(num(a["Avg Ticket"])) : EM) +
-                gRow("Foremen within 60 mi", fmtN(num(a["Foremen Within 60mi"]))) +
-              "</div>" +
-              (num(a.Population) ? '<div class="hd">The market</div><div class="grid">' +
-                gRow("People", fmtN(num(a.Population))) +
-                gRow("Move a year", fmtN(num(a["Movers Per Year"]))) +
-                gRow("Median income", a["Median Income"] != null ? money0(num(a["Median Income"])) : EM) +
-                gRow("Home value", a["Home Value"] != null ? money0(num(a["Home Value"])) : EM) +
-                gRow("Own their home", a["Owner Share Pct"] != null ? r1(num(a["Owner Share Pct"])) + "%" : EM) +
-              "</div>" : "") + "</div>";
-          };
+          const ZIP_SVG_MAX = 2000;
+          let zipLayer = null, zipWant = null, cntyLines = null, zipCanvas = false, pinned = null;
+          const zipArea = z => AREA_IX.Zip[z] || null;
+          const wantKey = () => (mapSts().length ? mapSts() : SERVICE_AREAS).join(",");
+          const INK = tok("--ink") || "#22303f";
+          const tierPicked = a => !inputs.listTiers.length || (!!a && inputs.listTiers.indexOf(num(a.Tier)) >= 0);
           const zipStyle = f => {
-            const lvl = zipLvl, a = zipArea(f.properties.z, lvl);
-            if (inputs.mapYear) return Object.assign({ color: "#8d99a8", weight: zipCanvas ? 0.3 : 0.45, opacity: .8, lineJoin: "round" },
-              yearShade(lvl, a ? a["Area Key"] : null, col.t1));
-            const band = a ? TIER_BAND(num(a.Tier)) : "grey";
+            const a = zipArea(f.properties.z), band = a ? TIER_BAND(num(a.Tier)) : "grey";
             const fill = fillOf(band, a && num(a["Never A Lead"]) === 1, isFar(a));
             /* a canvas cannot paint an SVG pattern: "no lead yet" reads as a paler tier colour there */
             if (zipCanvas && /^url\(/.test(String(fill.fillColor))) { fill.fillColor = col[band] || col.grey; fill.fillOpacity = .34; }
-            return Object.assign({ color: lvl === "City" ? (col[band] || col.grey) : "#8d99a8",
-                                   weight: zipCanvas ? 0.3 : lvl === "City" ? 0.6 : 0.45, opacity: lvl === "City" ? .5 : .8, lineJoin: "round" }, fill);
+            /* THE KEY'S TIER PICK: the zips outside it fade to a whisper, so "Tier 1 + 2" stands out alone */
+            const on = tierPicked(a);
+            if (!on) { fill.fillColor = col[band] || col.grey; fill.fillOpacity = .06; }
+            /* A CALMER MAP (ZTZ-161, "map visual ... needs a touch"): the zips we can reach are tiles split by white
+               hairlines; the far-away ones and the faded ones are a flat wash with no border at all, so the 3,800
+               zips over 50 miles out stop drawing a grey mesh over half the map */
+            if (!on || isFar(a)) return Object.assign({ stroke: false }, fill);
+            return Object.assign({ stroke: true, color: "#ffffff", weight: zipCanvas ? 0.5 : 0.7, opacity: .85, lineJoin: "round" }, fill);
           };
+          const HOVER = { stroke: true, weight: 2.4, color: INK, opacity: 1 };
+          const tipZip = z => { const az = zipArea(z);
+            return az ? glance(az.Zip + " " + (az.City || ""), TIER_BAND(num(az.Tier)), az)
+              : '<div class="ap2-tip"><b>' + esc(z || "") + '</b><div class="t">No leads and no Census data</div></div>'; };
           const ctyPane = m.createPane("apCtyLines");
           ctyPane.style.zIndex = 445; ctyPane.style.pointerEvents = "none";
-          /* one state is drawn as SVG (so the hatch for "no lead yet" works); the whole market is
-             ~6,000 shapes, so it is drawn on a canvas -- which cannot hatch, so those read pale instead */
-          let zipCanvas = false;
-          function showZips(st, refit) {
-            const lvl = inputs.mapLevel;
+          const hlPane = m.createPane("apHl");
+          hlPane.style.zIndex = 455; hlPane.style.pointerEvents = "none";
+          /* THE CLICKED ZIP STAYS LIT (ZTZ-161, "hover and click"): its outline holds until the next click or Esc,
+             and on the Target Map -- which has no side sheet -- its card opens on the map */
+          const pinLayer = L.layerGroup().addTo(m);
+          let pinPop = null, pinClick = false;
+          const unpin = () => { pinned = null; pinLayer.clearLayers(); if (pinPop) { m.closePopup(pinPop); pinPop = null; } };
+          const pinZip = (z, ll) => { unpin(); if (!zipLayer || !zipLayer._byKey[z]) return;
+            pinned = z;
+            zipLayer._byKey[z].forEach(l => L.geoJSON(l.feature, { pane: "apHl", interactive: false,
+              style: { color: INK, weight: 3, opacity: 1, fill: false, className: "ap3-pinz" } }).addTo(pinLayer));
+            if (LOCK) pinPop = L.popup({ className: "ap3-pinpop", closeButton: true, autoPan: true, autoPanPadding: [20, 20], maxWidth: 300, offset: [0, -4] })
+              .setLatLng(ll || zipLayer._byKey[z][0].getBounds().getCenter()).setContent(tipZip(z)).openOn(m); };
+          m.on("click", () => { if (pinClick) { pinClick = false; return; } unpin(); });
+          if (!window.__apPinEsc) { window.__apPinEsc = 1;
+            document.addEventListener("keydown", e => { if (e.key === "Escape") { const bx = document.querySelector("#apMapBox"); if (bx && bx._unpin) bx._unpin(); } }); }
+          box._unpin = unpin;
+          function showZips(refit) {
+            const sts = mapSts().length ? mapSts().slice() : SERVICE_AREAS.slice(), want = sts.join(",");
             box.classList.add("ap3-busy");
             const one = code => ZIPGEO[code] ? Promise.resolve(ZIPGEO[code])
               : fetch("assets/vendor/geo/zips-" + code + ".json")
                   .then(r => r.ok ? r.json() : Promise.reject(new Error(code + " HTTP " + r.status)))
                   .then(j => (ZIPGEO[code] = j));
-            const got = st ? one(st) : Promise.all(SERVICE_AREAS.map(one)).then(all =>
-              ({ type: "FeatureCollection", features: [].concat.apply([], all.map(j => j.features || [])) }));
-            got.then(gj => {
-              if (inputs.mapLevel !== lvl || mapStOf() !== st) return;      // the reader has moved on
+            Promise.all(sts.map(one)).then(all => {
+              if (wantKey() !== want) return;                        // the reader has moved on
+              const feats = [].concat.apply([], all.map(j => j.features || []));
               if (zipLayer) { m.removeLayer(zipLayer); zipLayer = null; }
-              zipLvl = lvl; zipCanvas = !st;
+              unpin();
+              zipCanvas = box._zipCanvas = feats.length > ZIP_SVG_MAX;
               const byKey = {};
-              zipLayer = L.geoJSON(gj, { style: zipStyle, renderer: zipCanvas ? L.canvas({ padding: 0.4 }) : undefined, onEachFeature: (f, lyr) => {
-                const a = zipArea(f.properties.z, lvl);
-                const k = lvl === "Zip" ? f.properties.z : (a ? a["Area Key"] : "z" + f.properties.z);
+              zipLayer = L.geoJSON({ type: "FeatureCollection", features: feats }, { style: zipStyle,
+                renderer: zipCanvas ? L.canvas({ padding: 0.4 }) : undefined, onEachFeature: (f, lyr) => {
+                const k = f.properties.z;
                 (byKey[k] = byKey[k] || []).push(lyr);
-                lyr.bindTooltip(() => { const az = zipArea(f.properties.z, lvl);
-                  return az ? glance(lvl === "Zip" ? az.Zip + " " + (az.City || "") : az.Name + " " + az.State, TIER_BAND(num(az.Tier)), az)
-                            : areaTip(null, lvl, f.properties.z); }, { sticky: true, className: "ap2-tipwrap", opacity: 1 });
-                lyr.on("click", () => { const az = zipArea(f.properties.z, lvl);
-                  if (az) showSide({ kind: "area", level: lvl, key: az["Area Key"] }); });
-                lyr.on("mouseover", e => { if (!hush(e)) byKey[k].forEach(x => x.setStyle({ weight: 2.2, color: tok("--ink") || "#22303f", opacity: 1 })); });
+                lyr.bindTooltip(() => tipZip(k), { sticky: true, className: "ap2-tipwrap", opacity: 1 });
+                lyr.on("click", e => { pinClick = true; pinZip(k, e.latlng); if (LOCK) lyr.closeTooltip();
+                  const az = zipArea(k); if (az) showSide({ kind: "area", level: "Zip", key: az["Area Key"] }); });
+                lyr.on("mouseover", e => { if (!hush(e)) byKey[k].forEach(x => x.setStyle(HOVER)); });
                 lyr.on("mouseout", () => byKey[k].forEach(x => zipLayer && zipLayer.resetStyle(x)));
               } }).addTo(m);
-              zipLayer._byKey = byKey; zipSt = st;
-              box._zipReady = () => !!(zipLayer && zipLayer._byKey) && zipLvl === inputs.mapLevel && zipSt === mapStOf();
+              zipLayer._byKey = byKey; zipWant = want;
+              box._zipReady = () => !!(zipLayer && zipLayer._byKey) && zipWant === wantKey();
+              box._mktBounds = () => zipLayer ? zipLayer.getBounds() : null;
               ensureHatch();
-              if (refit) { if (!st) fitMap(); else { const b = zipLayer.getBounds(); if (b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false }); } }
+              if (refit) fitMap();
+              /* the key says "Hatched" or "Paler" by the renderer just chosen */
+              const kw = host.querySelector("#apMapKeyWrap");
+              if (kw) { kw.innerHTML = mapKeyHtml(FC.year ? nextCalc() : null); wireMapColor(); }
+              if (box._zipLabels) box._zipLabels();
               if (box._pendingFocus) { const k = box._pendingFocus; box._pendingFocus = null; box._focusArea(k); }
+              if (box._pendingHl) { const a = box._pendingHl; box._pendingHl = null; box._highlight(a); }
             }).catch(e => {
               const ls = host.querySelector("#apAreaList");
-              if (ls) ls.insertAdjacentHTML("afterbegin", '<div class="ap2-note" style="color:var(--neg)">The ' + esc(st || "whole-market") +
+              if (ls) ls.insertAdjacentHTML("afterbegin", '<div class="ap2-note" style="color:var(--neg)">The ' + esc(mktLabel()) +
                 " zip shapes could not be read (" + esc(e && e.message || "error") + ").</div>");
             }).then(() => box.classList.remove("ap3-busy"));
           }
+          /* the market changed (or the first paint): the county lines over the zips, the state labels, the zips */
           box._applyLevel = refit => {
-            const lvl = inputs.mapLevel;
-            if (lvl === "County") {
-              if (zipLayer) { m.removeLayer(zipLayer); zipLayer = null; zipSt = null; }
-              if (cntyLines) m.removeLayer(cntyLines);
-              if (countyLayer && !m.hasLayer(countyLayer)) countyLayer.addTo(m);
-              if (countyLayer) countyLayer.setStyle(countyLayer.options.style);
-              [["market", box._mkt], ["spend", box._spend]].forEach(([mode, lyr]) => { if (!lyr) return;
-                if (inputs.mapColor === mode) lyr.addTo(m); else m.removeLayer(lyr); });
-              if (box._names && !m.hasLayer(box._names)) box._names.addTo(m);
-              if (refit) {
-                const st = inputs.mapSt;
-                if (st && countyLayer) { let b = null;
-                  countyLayer.eachLayer(l => { if (l.feature && l.feature.properties.st === st) { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); } });
-                  if (b && b.isValid()) m.fitBounds(b, { padding: [12, 12], animate: false });
-                } else fitMap();
-              }
-            } else {
-              if (countyLayer && m.hasLayer(countyLayer)) m.removeLayer(countyLayer);
-              [box._mkt, box._spend, box._names].forEach(l => { if (l && m.hasLayer(l)) m.removeLayer(l); });
-              if (!cntyLines && GEO) cntyLines = L.geoJSON(GEO, { pane: "apCtyLines", interactive: false,
-                style: { color: tok("--ink") || "#22303f", weight: 1, opacity: .38, fill: false } });
-              if (cntyLines && !m.hasLayer(cntyLines)) cntyLines.addTo(m);
-              showZips(mapStOf(), refit || zipSt !== mapStOf() || zipLvl !== lvl);
-            }
+            if (!cntyLines && GEO) cntyLines = L.geoJSON(GEO, { pane: "apCtyLines", interactive: false,
+              style: { color: INK, weight: .8, opacity: .28, fill: false } });
+            if (cntyLines && !m.hasLayer(cntyLines)) cntyLines.addTo(m);
+            if (box._stLabels) box._stLabels();
+            if (zipLayer && zipWant === wantKey()) { if (refit) fitMap(); return; }
+            showZips(refit !== false);
           };
-          /* a new base toggled: refresh the county rows the fills and sheets read, then restyle */
+          /* a re-tier under the plan or a tier pick: restyle the zips in place */
           box._restyle = () => {
-            const R2 = countyRowsFor();
-            Object.keys(byKey).forEach(k => delete byKey[k]);
-            R2.forEach(r => { byKey[r.st + "|" + ckey(r.county)] = r; });
-            if (countyLayer && m.hasLayer(countyLayer)) countyLayer.setStyle(countyLayer.options.style);
             if (zipLayer) zipLayer.setStyle(zipStyle);
             if (box._nbRings) box._nbRings();
           };
-          /* the ranked list's click: frame the area and open its sheet */
+          /* ZIP CODES WRITTEN ON THE MAP once it is close enough to read them (zoom 11+), only those in view */
+          const zlPane = m.createPane("apZipLbl");
+          zlPane.style.zIndex = 452; zlPane.style.pointerEvents = "none";
+          const zipLbls = L.layerGroup().addTo(m);
+          box._zipLabels = () => { zipLbls.clearLayers();
+            if (!zipLayer || m.getZoom() < 11 || !mapLbl().zl) return;
+            const vb = m.getBounds().pad(0.05); let n = 0;
+            Object.keys(zipLayer._byKey).some(z => { const a = zipArea(z);
+              if (!a || !num(a.Latitude)) return false;
+              const ll = [num(a.Latitude), num(a.Longitude)]; if (!vb.contains(ll)) return false;
+              L.marker(ll, { pane: "apZipLbl", interactive: false, keyboard: false,
+                icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<span class="ap3-zl' + (tierPicked(a) ? "" : " off") + '">' + esc(z) + "</span>" }) }).addTo(zipLbls);
+              return ++n >= 500; }); };
+          m.on("moveend", () => box._zipLabels());
+          /* the list's click: frame the zip, outline it, and say what it is */
           box._focusArea = key => {
-            const lvl = inputs.mapLevel;
-            let lyrs = [];
-            if (lvl === "County" && countyLayer) {
-              const i = key.indexOf("|"), st = key.slice(0, i), ck = ckey(key.slice(i + 1));
-              countyLayer.eachLayer(l => { if (l.feature && l.feature.properties.st === st && l.feature.properties.key === ck) lyrs.push(l); });
-            } else if (zipLayer && zipLayer._byKey) {
-              lyrs = zipLayer._byKey[key] || [];
-            } else { box._pendingFocus = key; return; }
-            if (!lyrs.length) return;
+            if (!(box._zipReady && box._zipReady())) { box._pendingFocus = key; return; }
+            const lyrs = zipLayer._byKey[key] || []; if (!lyrs.length) return;
             let b = null;
             lyrs.forEach(l => { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast()); });
-            m.fitBounds(b, { padding: [40, 40], maxZoom: lvl === "Zip" ? 12 : 10, animate: false });
-            lyrs.forEach(l => l.fire("mouseover"));
-            box.classList.add("ap-showtip");           // a search result shows its card even with hover off
-            setTimeout(() => { lyrs.forEach(l => l.fire("mouseout")); box.classList.remove("ap-showtip"); }, 2600);
-            lyrs[0].openTooltip(b.getCenter());
+            m.fitBounds(b, { padding: [60, 60], maxZoom: 12, animate: false });
+            pinZip(key, b.getCenter());
+            if (!LOCK) { box.classList.add("ap-showtip");      // the card shows even with hover off
+              lyrs[0].openTooltip(b.getCenter());
+              setTimeout(() => { lyrs[0].closeTooltip(); box.classList.remove("ap-showtip"); }, 2600); }
           };
-          if (inputs.mapLevel !== "County") box._applyLevel(true);
-          else if (inputs.mapColor !== "tier") box._applyLevel(false);
+          box._applyLevel(true);
 
           /* the base's full sheet for the right panel (the hover is only a glance) */
           box._baseSheet = lbl => { const b = B.have.concat(B.coverage).find(x => (x.kind === "have" ? x.name : x.label) === lbl);
@@ -7180,7 +6969,13 @@ const AREA_PLAN_PAGE = {
                     st = sf && sf.ns ? sf.ns.store : x.main && PF && PF[gi] ? PF[gi].store : "P";   // a moved base keeps its storage
               // the Target Map names its bases and nothing else (his pick 2026-10-19)
               L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: LOCK ? [] : [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
-                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, x.main ? "moved" : true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, x.main ? "moved" : true), zIndexOffset: 450 })
+                /* the plan's own bases answer a hover too (ZTZ-161): what the place is and its crew */
+                .bindTooltip('<div class="ap2-tip ap3-glance"><b>' + esc(x.name.split(" · ")[0]) + '</b><div class="t">' +
+                  (x.main ? "our " + esc(g.base) + " base, moved here in the " : "new base in the ") + esc(PLANS[PLAN_KEY].label) + " plan" +
+                  (LOCK ? "" : " · " + fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen")) + "</div></div>",
+                  { sticky: true, className: "ap2-tipwrap", direction: "top", opacity: 1 })
+                .addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
@@ -7211,22 +7006,19 @@ const AREA_PLAN_PAGE = {
             box._flags = () => { f0(); declutter(); };
             box._nbRings = () => { n0(); declutter(); }; }
           m.on("zoomend resize", () => setTimeout(declutter, 30));
-          /* THE FOUND PLACE, LIT UP: framed, ringed until the next search, and -- when the map is
-             showing that level -- its own outline flashed by the list's focus */
+          /* THE FOUND PLACE, LIT UP (ZTZ-161): a zip, a town or a county is framed with its own zip codes outlined,
+             until the next search or the box is cleared */
           const hlLayer = L.layerGroup().addTo(m);
           box._highlight = a => { hlLayer.clearLayers(); if (!a) return;
-            const ll = [num(a.Latitude), num(a.Longitude)];
-            if (a.Level === inputs.mapLevel && box._focusArea) box._focusArea(a["Area Key"]);
-            if (a.Level !== inputs.mapLevel || !m.getBounds().contains(ll))
+            const keys = zipLayer ? zipsOfPlace(a).filter(k => zipLayer._byKey[k]) : [];
+            if (!keys.length) { const ll = [num(a.Latitude), num(a.Longitude)];
               m.setView(ll, a.Level === "County" ? 9 : a.Level === "City" ? 11 : 12, { animate: false });
-            L.circleMarker(ll, { radius: 16, interactive: false, className: "ap3-hl", color: tok("--ink") || "#22303f", weight: 3, fill: false }).addTo(hlLayer);
-            L.circleMarker(ll, { radius: 4, interactive: false, color: "#fff", weight: 2, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(hlLayer); };
-          /* the click that places it: an area under the cursor has just opened its own sheet, so the
-             picked base's sheet replaces it */
-          m.on("click", e => { if (!PICK) return;
-            PICK = false; box.classList.remove("ap3-picking");
-            if (PLAN) { planEnd(); SC.kind = null; SC.targets = null; }
-          if (nbPickAt(e.latlng.lat, e.latlng.lng)) { SIDE = { kind: "pick" }; nbRepaint(); } });
+              L.circleMarker(ll, { radius: 16, interactive: false, className: "ap3-hl", color: INK, weight: 3, fill: false }).addTo(hlLayer); return; }
+            let b = null;
+            keys.forEach(k => zipLayer._byKey[k].forEach(l => { const lb = l.getBounds(); b = b ? b.extend(lb) : L.latLngBounds(lb.getSouthWest(), lb.getNorthEast());
+              L.geoJSON(l.feature, { pane: "apHl", interactive: false, style: { color: INK, weight: 3, opacity: 1, fill: false, className: "ap3-hlz" } }).addTo(hlLayer); }));
+            m.fitBounds(b, { padding: [50, 50], maxZoom: a.Level === "Zip" ? 12 : 11, animate: false });
+            if (a.Level === "Zip") pinZip(keys[0], b.getCenter()); };
           box._nbRings();
           box._fit = pts;
           box._map = m;
@@ -8182,10 +7974,11 @@ const AREA_PLAN_PAGE = {
       let HOW_CITY = "", HOW_WHATIF = "";        // filled by bandBHtml / whatIfHtml, read when the panel opens
       function headHtml() {
         const season = "Season " + String(FC.year || "") +
-          (SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "");
+          (SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "") +
+          " · " + PLANS[PLAN_KEY].label + " plan";
         return RSC.pageHeadHtml({
           title: PAGE_TITLE, key: PAGE_KEY,
-          sub: LOCK ? "Where to advertise: every zip code by tier, under today's bases or the MAX plan with its new bases."
+          sub: LOCK ? "Where to advertise: every zip code by tier under the MAX plan, with a download for the ad tools."
             : "How many crews, how many salespeople and what marketing budget Season " + String(FC.year || "next") + " needs.",
           chip: FC.year ? season : "",
           actions: LOCK ? [] : [{ html: dlMenuHtml() }],
@@ -8193,8 +7986,9 @@ const AREA_PLAN_PAGE = {
         });
       }
       function pageHow() {
-        if (LOCK) return "<h3>What this map shows</h3><p>Where to advertise: every zip code by tier, under today's bases or the MAX plan with its new bases. " +
-            "Pick a plan and a market; the download holds every zip code under the plan, for the ad tools.</p>" +
+        if (LOCK) return "<h3>What this map shows</h3><p>Where to advertise: every zip code by tier under the MAX plan and its bases. " +
+            "Pick one or more states as the market (or the whole market), and click a tier on the key to show only it. " +
+            "The list and the download follow the picked states; the download holds every zip code there with its tier, for the ad tools.</p>" +
           "<h3>The tier</h3><p>" + tierHowText() + "</p>";
         return "<h3>What this page answers</h3><p>How many crews, how many salespeople and what marketing budget Season " + esc(String(FC.year || "next")) +
             " needs — state by state, month by month, with the working under every answer.</p>" +
@@ -8213,9 +8007,7 @@ const AREA_PLAN_PAGE = {
       function lockCss() {
         return "<style>" +
           ".ap2-tabs,#apPlanBar,#apKpis,.ap4-msec,#apHow,.ap2-pane:not([data-ap-pane=map]),.ap4-dl{display:none!important}" +
-          ".ap3-mapctl [data-mc=hv],.ap3-mapctl [data-mc=lb],.ap3-mapctl .ap3-lblp{display:none!important}" +
           ".ap3-lock .cols,.ap3-lock .r{grid-template-columns:24px minmax(0,1fr) 64px}" +
-          ".ap3-lock .r{cursor:default}.ap3-lock .r:hover{background:transparent}" +
           ".ap3-lock .lh .rs-btn{margin-left:auto}" +
           /* the market · tiers · plan line goes under the count and the button: beside them it was
              squeezed to a word a line */
@@ -8411,18 +8203,13 @@ const AREA_PLAN_PAGE = {
         if (host.querySelector("#apKpis")) repaintMapTab();
       }
       function save() { try {
-        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSt: inputs.mapSt || "", plan: PLAN ? PLAN.key : "", basis: BASIS }));
+        if (LOCK) localStorage.setItem(TM_KEY, JSON.stringify({ mapSts: inputs.mapSts, basis: BASIS, mapLabels: inputs.mapLabels || null }));
         else localStorage.setItem(LS_KEY, JSON.stringify(inputs)); } catch (e) {} }
 
-      /* the Target Map opens on the plan it was left on ("" = Current), else LOCK.plan (MAX) -- applied
-         after the first paint, exactly as a click on its button */
-      const lockPlan = !LOCK ? null : typeof saved.plan === "string" && (saved.plan === "" || PLANS[saved.plan]) ? saved.plan : LOCK.plan;
+      /* BOTH PAGES OPEN ON THE MAX PLAN, EVERY TIME (ZTZ-161: MAX is the only plan). Applied after the first paint,
+         as the old "MAX plan" button did, so every number on the page is MAX's before anyone reads it. */
       paint();
-      if (lockPlan && PLANS[lockPlan]) {
-        PLAN = JSON.parse(JSON.stringify(PLANS[lockPlan])); PLAN.key = lockPlan;
-        planApply(); nbRepaint();
-      }
-      // paint() already saved once with no plan yet: a first visit would have come back on Current
+      planMax(); nbRepaint();
       if (LOCK) save();
 
       /* live edits: the hero and the edited row repaint; the input keeps focus; the dials
@@ -8478,14 +8265,14 @@ registerPage(AREA_PLAN_PAGE);
    bases are names only (his pick); the zip list is read-only with a download for the ad tools ("we
    will upload it later on marketing tools"). The same code draws both pages, so the two can never
    disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here.
-   PLAN SWITCH (2026-10-19, second ask): Current / MAX plan beside the market -- Seasonal Planning's own
-   Forecast / MAX buttons (MID removed 2026-11-24) -- remembered with the market; MAX until one is picked.
-   The download is every zip in the eight states as Zip, State, Tier only (targetRows, 2026-10-20). */
+   MAX ONLY (ZTZ-161, 24 Nov 2026): the Current / MAX switch is gone, as Seasonal Planning's Forecast button is;
+   both pages open on MAX every time. The market is a multi-select; the list and the download (Zip, State, Tier
+   only -- targetRows, 2026-10-20) follow the picked states. */
 registerPage({
   id: "target-map",
   group: "marketing",
   title: "Target Map",
-  subtitle: "Where to advertise: every zip code by tier under today's bases or the MAX plan, with a download for the ad tools.",
+  subtitle: "Where to advertise: every zip code by tier under the MAX plan, with a download for the ad tools.",
   datasets: [],
   render: function (host) { return AREA_PLAN_PAGE.render.call(this, host, { plan: "max" }); },
 });
