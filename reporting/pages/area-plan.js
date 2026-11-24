@@ -1720,8 +1720,10 @@ const AREA_PLAN_PAGE = {
       const NB_YEAR1 = 0.5;
       const NB_CUT = { t1: num(OVR.tier_cut_1) || 72, t2: num(OVR.tier_cut_2) || 64, t3: num(OVR.tier_cut_3) || 56 };
       const pDistOf = mi => mi <= 20 ? 30 : mi <= 30 ? 25 : mi <= 60 ? 20 : mi <= 90 ? 15 : mi <= 120 ? 10 : mi <= 150 ? 5 : 0;
-      const NB_HIDE = st => st === "VA";          // his call 2026-09-29: Charles City and Chesapeake are too far
-      const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label && !NB_HIDE(c.st))
+      // his calls: Charles City and Chesapeake are too far (2026-09-29); Tolland is removed -- one CT base, moved to
+      // New Haven, covers its ground (ZP-22, 2026-11-24)
+      const NB_HIDE = (st, label) => st === "VA" || /^Tolland\b/.test(label || "");
+      const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label && !NB_HIDE(c.st, c.label))
         .map(c => ({ label: c.label, st: c.st, la: +c.lat, lo: +c.lon, county: c.county || "", side: sideOf(c.st, c.county),
                      step: c.step || null, zip: c.zip || "" }));
       /* the yardstick: leads a year per 10,000 movers and jobs per lead, by tier, over the counties
@@ -1747,7 +1749,10 @@ const AREA_PLAN_PAGE = {
          named after the county it stands in, switched to Yes at once -- so it is measured by exactly
          the rules the three listed candidates are. One at a time, memory only: a new pick replaces
          the old one, Reset removes it. */
-      /* ===================== NAMED PLANS: MAX (MID and MIN to follow) =====================
+      /* ===================== THE NAMED PLAN: MAX =====================
+         ONE PLAN ONLY (his word 2026-11-24: "remove the mid plan fully please we are not interested in it"). MID
+         (25 foremen, 2026-09-30) is gone from Seasonal Planning and the Target Map; a Target Map that remembered
+         MID opens on MAX. The plan switch still builds its buttons from PLANS.
          His table, 2026-09-30 ("create a new click for MAX PLAN where this bases and numbers will
          appear. then we will create MIN and MID as well"): every base he would run, existing and
          new, with the crews he would put there. His three answers:
@@ -1769,24 +1774,22 @@ const AREA_PLAN_PAGE = {
            * THE SALES DESK IS SIZED AT 220 LEADS A PERSON in this plan ("make 220 total leads for
              sales"); the forecast keeps the Planning Variables figure.
          A plan is a test scenario like everything else on this tab: memory only, Reset ends it. */
+      /* ONE CT BASE AND ONE MA BASE (ZP-22, his post 2026-11-24: "go from 2 base in CT to 1 base ... so we have 1 in
+         CT and 1 in MA ... moving main CT base up - removing tolland base and moving middlesex base down and left", with
+         the Business Profile listings in the analysis). Picked from three modelled pairs: NEW HAVEN + NORWOOD. On the
+         CT pool's last 12 months that puts 98% of its jobs within 50 miles (Bridgeport alone 83%), Fairfield County --
+         45% of the pool's revenue -- about 29 miles out (Cheshire would be 36), and as many good-income movers within
+         reach as the old three-base MAX. Norwood's listing would reach 305k movers within 15 miles (Concord's 215k)
+         and brings Providence within ~25 miles. Analysis: Vault "2026-11-24 – ZP-22 CT and MA bases".
+         The CT base MOVES (main: true): it keeps the main base's owned trucks and storage, and its crews work the
+         ground the move opens first, then the ground Bridgeport covers today. Tolland's crews join it; MAX stays 29.
+         The register (ld_bases) still says Bridgeport and Concord: it decides which truck runs a long-distance job,
+         so it changes when the trucks actually move, not before. */
       const PLANS = {
-        /* MID, 25 FOREMEN (his answer 2026-09-30: "kinda skip this min - make MID as 25 foreman"):
-           the forecast's own crew count, placed the way MAX places it but without the two bases
-           that need more than they were given to be worth opening -- Middlesex MA (its ground wants
-           four crews) and Monroe (six jobs). Tolland, Oakland and Montgomery stay. No MIN. */
-        mid: { label: "MID", leadsPerRep: 220, groups: [
-          { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
-            { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 1, cand: "Tolland CT" }] },
-          { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
-          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
-          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 7 }] },
-          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
-        ] },
         max: { label: "MAX", leadsPerRep: 220, groups: [
           { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
-            { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 2, cand: "Tolland CT" },
-            { name: "Middlesex MA · 01801", fm: 1, la: 42.4876, lo: -71.1543 }] },
+            { name: "CT base → New Haven · 06511", fm: 5, la: 41.3083, lo: -72.9279, main: true },
+            { name: "Norwood MA · 02062", fm: 1, la: 42.1946, lo: -71.1995 }] },
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
             { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
           { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 2 }] },
@@ -1795,6 +1798,8 @@ const AREA_PLAN_PAGE = {
           { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
         ] },
       };
+      /* a plan's main base: the register's own ("Existing base"), or one the plan moves (main: true) */
+      const isMainSite = x => !!x.main || (!x.cand && !x.la);
       let PLAN = null;           // the active plan: an editable copy of one of PLANS, with its key
       const NB_CAP = {};         // a new base given fewer crews than its ground needs: the share of its jobs it can carry
       const planSite = label => { let hit = null;
@@ -1950,12 +1955,12 @@ const AREA_PLAN_PAGE = {
         if (!PLAN) return null;
         if (N === undefined) N = FC.year ? nextCalc() : null;
         return PLAN.groups.map(g => {
-          const main = x => !x.cand && !x.la;
+          const main = isMainSite;
           const sites = g.sites.map(x => Object.assign({ x }, siteFleet(g.pool, x.fm, undefined, ownFor(g.base, main(x))),
-            x.cand ? { ns: newStore(x.cand, N, x.fm) } : {}));
+            x.cand && !x.main ? { ns: newStore(x.cand, N, x.fm) } : {}));
           const ownAt = b => g.sites.reduce((a, x) => a + siteFleet(g.pool, x.fm, b, ownFor(g.base, main(x))).own, 0);
           const sum = k => sites.reduce((a, s) => a + (s[k] || 0), 0);
-          const old = g.sites.some(x => !x.cand && !x.la);
+          const old = g.sites.some(isMainSite);
           const ns = old ? null : (sites.find(s => s.ns) || {}).ns;
           return { g, sites, ownAt, own: sum("own"), std: sum("std"), hi: sum("hi"), rentStd: sum("rentStd"), rentHi: sum("rentHi"),
                    cost: sum("cost"), allRent: sum("allRent"), store: ns ? ns.store : storeLabel(g),
@@ -4169,7 +4174,7 @@ const AREA_PLAN_PAGE = {
           const rate = chainOf(st) || chainOf("_all") || 1.27;
           return { jobs, fm: jobs / (rate * DAYS_PER_MONTH * (N.core.length || 4)) };
         };
-        const coverage = (D.coverage || []).filter(c => !NB_HIDE(c.st)).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
+        const coverage = (D.coverage || []).filter(c => !NB_HIDE(c.st, c.label)).map(c => { const rate = chainOf(c.st) || chainOf("_all"); const need = num(AIM[c.st]) || null;
           const xp = xpFor(c.st);
           return { kind: "cover", name: c.label, label: c.label, la: c.lat, lo: c.lon, st: c.st,
                    county: c.county, side: sideOf(c.st, c.county),
@@ -5296,7 +5301,7 @@ const AREA_PLAN_PAGE = {
       function fleetCard(f, ownToday) {
         const s = f.store;
         /* the existing site's truck slots, so the reason is on the card: "#3 201 days - own" */
-        const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
+        const s0 = f.sites.find(x => isMainSite(x.x)) || f.sites[0];
         const slotTxt = (s0 && s0.slots || []).map(s => "#" + s.k + " " + fmtN(s.days) + "d" + (s.owned ? " own" : "")).join(" · ");
         return '<div class="ap3-fleet">' +
           '<div class="r"><span>Trucks</span><b>' + fmtN(f.own) + " own</b>" +
@@ -5364,18 +5369,19 @@ const AREA_PLAN_PAGE = {
           const body = PLAN.groups.map((g, gi) => {
             const f = PF[gi], crew = g.sites.reduce((a, x) => a + x.fm, 0);
             const today = ownBy ? g.states.reduce((a, st) => a + num(ownBy[st]), 0) : null;
-            const s0 = f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0];
+            const s0 = f.sites.find(x => isMainSite(x.x)) || f.sites[0];
             const slots = (s0 && s0.slots || []).map(q => "#" + q.k + " " + fmtN(q.days) + "d" + (q.owned ? " own" : "")).join(" · ");
             const cf = f.store === "PS" ? "~" + fmtN(Math.round(f.cf != null ? f.cf : STORE.need[f.zone] || 0)) + " CF of storage on a typical day" : "";
             return '<tr class="ap4-grp"><td colspan="2"><button type="button" class="ap4-tg" data-grptg="' + gi + '" aria-expanded="false" title="Show the truck working">▸</button>' +
                 "<b>" + esc(g.base) + " base</b><small>covers " + esc(g.states.join(" + ")) + (today != null ? " · " + fmtN(today) + " truck" + (today === 1 ? "" : "s") + " here today" : "") + "</small></td>" +
                 td(fmtN(crew)) + td(fmtN(f.own)) + td(rentTxt(f)) + td("", "") + td(money0(f.cost)) + "</tr>" +
               g.sites.map((x, si) => { const o = x.cand ? (N.nb || []).find(q => q.label === x.cand) : null, sf = f.sites[si] || {};
-                const st = sf.ns ? storeBtn(x.cand, sf.ns.store) : (!x.cand && !x.la ? storeBtn(f.storeKey || g.base, f.store) : STORE_TXT.P);
+                const st = sf.ns ? storeBtn(x.cand, sf.ns.store) : (isMainSite(x) ? storeBtn(f.storeKey || g.base, f.store) : STORE_TXT.P);
                 return '<tr class="ap4-site"><td><span class="nm">' + esc(x.name) + "</span>" +
                     (x.pin ? "<small>inside ground we cover</small>" : "") +
                     (o && o.cap < 1 ? '<small class="w">its ground wants ' + fmtN(Math.round(o.fm / o.cap)) + "</small>" : "") + "</td>" +
-                  td(x.cand || x.la ? '<span class="rs-pill info">New</span>' : '<span class="rs-pill mute">Existing</span>', "") +
+                  td(x.main ? '<span class="rs-pill warn" title="The existing base, moved here by the plan">Moved</span>'
+                     : x.cand || x.la ? '<span class="rs-pill info">New</span>' : '<span class="rs-pill mute">Existing</span>', "") +
                   td('<span class="ap4-stp"><button type="button" aria-label="one less" data-plansite="' + gi + ":" + si + '" data-d="-1">−</button><b>' + fmtN(x.fm) +
                      '</b><button type="button" aria-label="one more" data-plansite="' + gi + ":" + si + '" data-d="1">+</button></span>') +
                   td(fmtN(sf.own || 0)) + td(rentTxt(sf)) + td(st, "") + td(money0(sf.cost || 0)) + "</tr>"; }).join("") +
@@ -5528,7 +5534,7 @@ const AREA_PLAN_PAGE = {
           '<button type="button" data-' + attr + '="' + esc(k) + '" class="' + (k === on ? "on" : "") + '">' + esc(l) + "</button>").join("") + "</div>";
         const MODES = [["tier", "Tier"], ["market", "Market size"], ["capture", "Our capture"], ["spend", "Marketing"]];
         /* THE TARGET MAP'S PLAN (2026-10-19): Seasonal Planning's own three -- "Current" is its Forecast
-           button (today's bases, no new one), then MID and MAX from PLANS -- wired by the same
+           button (today's bases, no new one), then the plans in PLANS (MAX only since 2026-11-24) -- wired by the same
            [data-plan] handler as the plan bar */
         if (LOCK) return '<div class="ap3-bar"><label>Plan</label>' +
           '<div class="rs-seg ap2-seg-s ap3-planseg" role="group" aria-label="Plan">' +
@@ -6564,14 +6570,14 @@ const AREA_PLAN_PAGE = {
           const flag = (kind, txt, ico, isNew) => {
             const o = txt && typeof txt === "object" ? txt : { name: String(txt || ""), always: true };
             const on = mapLbl();
-            const l1 = ((o.always || on.n) && o.name ? esc(o.name) : "") + (isNew && on.nw ? '<em class="ap2-new">New</em>' : "");
+            const l1 = ((o.always || on.n) && o.name ? esc(o.name) : "") + (isNew && on.nw ? '<em class="ap2-new">' + (isNew === "moved" ? "Moved" : "New") + "</em>" : "");
             const l2 = (o.parts || []).filter(x => x.v && on[x.k]).map(x => esc(x.v)).join(" · ");
             const body = (l1 ? '<span class="l1">' + l1 + "</span>" : "") + (l2 ? '<span class="l2">' + l2 + "</span>" : "");
             return L.divIcon({ className: "", iconSize: [0, 0],
               html: '<span class="ap2-flag ' + kind + '">' + icoHtml(ico) + (body ? "<b>" + body + "</b>" : "") + "</span>" }); };
           const trkTxt = f => !f ? "" : fmtN(f.own) + " own" + (f.rentHi ? " + " + fmtN(f.rentStd) + (f.rentHi !== f.rentStd ? "–" + fmtN(f.rentHi) : "") + " rent" : "");
           const storeTxt = st => st === "PS" ? "Parking + Storage" : st === "S" ? "Storage only" : st ? "Parking" : "";
-          /* a planned new base under MID / MAX wears the NEW chip, as on the plan cards */
+          /* a planned new base under MAX wears the NEW chip, as on the plan cards */
           const flagNew = (b, N) => !!PLAN && b.kind !== "have" && planCrew(b, N) != null;
           let hoverRing = null;
           const ring = (la, lo, kind) => L.circle([la, lo], {
@@ -6696,7 +6702,9 @@ const AREA_PLAN_PAGE = {
               return o ? Object.assign({ store: newStore(b.label, N, pc).store }, siteFleet(POOL_OF[o.st] || o.st, pc, undefined, 1)) : null; }
             const PF = planFleet(N); if (!PF) return null;
             if (b.kind === "have") { const f = PF.find(x => x.g.base === b.name); if (!f) return null;
-              return Object.assign({}, f.sites.find(x => !x.x.cand && !x.x.la) || f.sites[0], { store: f.store }); }
+              const reg = f.sites.find(x => !x.x.cand && !x.x.la);
+              if (!reg && f.sites.some(x => x.x.main)) return null;      // the plan moves this base (ZP-22): the new flag carries it
+              return Object.assign({}, reg || f.sites[0], { store: f.store }); }
             // a candidate base by its label; a placed site (Oakland, Middlesex) by its name
             let hit = null; PF.forEach(f => f.sites.forEach(x => { if (x.x.cand === b.label ||
               (x.x.la && b.label && b.label.indexOf(x.x.name.split(" ·")[0]) === 0)) hit = x; }));
@@ -6955,10 +6963,11 @@ const AREA_PLAN_PAGE = {
               dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 }).addTo(nbRings));
             const PF = planFleet();
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
-              const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null, st = sf && sf.ns ? sf.ns.store : "P";
+              const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null,
+                    st = sf && sf.ns ? sf.ns.store : x.main && PF && PF[gi] ? PF[gi].store : "P";   // a moved base keeps its storage
               // the Target Map names its bases and nothing else (his pick 2026-10-19)
               L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: LOCK ? [] : [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
-                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
+                { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, x.main ? "moved" : true), interactive: false, zIndexOffset: 450 }).addTo(nbRings); } })); 
             /* the picked point keeps its pin whether it is Yes or No */
             NB_CANDS.filter(c => c.custom).forEach(c => L.circleMarker([c.la, c.lo], { radius: 8, interactive: false,
               color: "#fff", weight: 3, fillColor: tok("--ink") || "#22303f", fillOpacity: 1 }).addTo(nbRings)); };
@@ -7963,7 +7972,7 @@ const AREA_PLAN_PAGE = {
           (SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "");
         return RSC.pageHeadHtml({
           title: PAGE_TITLE, key: PAGE_KEY,
-          sub: LOCK ? "Where to advertise: every zip code by tier, under today's bases or the MID or MAX plan with its new bases."
+          sub: LOCK ? "Where to advertise: every zip code by tier, under today's bases or the MAX plan with its new bases."
             : "How many crews, how many salespeople and what marketing budget Season " + String(FC.year || "next") + " needs.",
           chip: FC.year ? season : "",
           actions: LOCK ? [] : [{ html: dlMenuHtml() }],
@@ -7971,7 +7980,7 @@ const AREA_PLAN_PAGE = {
         });
       }
       function pageHow() {
-        if (LOCK) return "<h3>What this map shows</h3><p>Where to advertise: every zip code by tier, under today's bases or the MID or MAX plan with its new bases. " +
+        if (LOCK) return "<h3>What this map shows</h3><p>Where to advertise: every zip code by tier, under today's bases or the MAX plan with its new bases. " +
             "Pick a plan and a market; the download holds every zip code under the plan, for the ad tools.</p>" +
           "<h3>The tier</h3><p>" + tierHowText() + "</p>";
         return "<h3>What this page answers</h3><p>How many crews, how many salespeople and what marketing budget Season " + esc(String(FC.year || "next")) +
@@ -8256,14 +8265,14 @@ registerPage(AREA_PLAN_PAGE);
    bases are names only (his pick); the zip list is read-only with a download for the ad tools ("we
    will upload it later on marketing tools"). The same code draws both pages, so the two can never
    disagree on a zip's tier. Seasonal Planning's saved settings are never read or written here.
-   PLAN SWITCH (2026-10-19, second ask): Current / MID plan / MAX plan beside the market -- Seasonal
-   Planning's own Forecast / MID / MAX buttons -- remembered with the market; MAX until one is picked.
+   PLAN SWITCH (2026-10-19, second ask): Current / MAX plan beside the market -- Seasonal Planning's own
+   Forecast / MAX buttons (MID removed 2026-11-24) -- remembered with the market; MAX until one is picked.
    The download is every zip in the eight states as Zip, State, Tier only (targetRows, 2026-10-20). */
 registerPage({
   id: "target-map",
   group: "marketing",
   title: "Target Map",
-  subtitle: "Where to advertise: every zip code by tier under today's bases, the MID plan or the MAX plan, with a download for the ad tools.",
+  subtitle: "Where to advertise: every zip code by tier under today's bases or the MAX plan, with a download for the ad tools.",
   datasets: [],
   render: function (host) { return AREA_PLAN_PAGE.render.call(this, host, { plan: "max" }); },
 });
