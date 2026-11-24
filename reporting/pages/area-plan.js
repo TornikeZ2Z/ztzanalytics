@@ -1739,8 +1739,8 @@ const AREA_PLAN_PAGE = {
       const NB_CUT = { t1: num(OVR.tier_cut_1) || 72, t2: num(OVR.tier_cut_2) || 64, t3: num(OVR.tier_cut_3) || 56 };
       const pDistOf = mi => mi <= 20 ? 30 : mi <= 30 ? 25 : mi <= 60 ? 20 : mi <= 90 ? 15 : mi <= 120 ? 10 : mi <= 150 ? 5 : 0;
       // his calls: Charles City and Chesapeake are too far (2026-09-29); Tolland is removed -- one CT base, moved to
-      // New Haven, covers its ground (ZP-22, 2026-11-24)
-      const NB_HIDE = (st, label) => st === "VA" || /^Tolland\b/.test(label || "");
+      // New Haven, covers its ground (ZP-22, 2026-11-24); Monroe is removed too ("remove monroe", 2026-11-24)
+      const NB_HIDE = (st, label) => st === "VA" || /^(Tolland|Monroe)\b/.test(label || "");
       const NB_CANDS = ((model.depots || {}).coverage || []).filter(c => c.lat && c.lon && c.label && !NB_HIDE(c.st, c.label))
         .map(c => ({ label: c.label, st: c.st, la: +c.lat, lo: +c.lon, county: c.county || "", side: sideOf(c.st, c.county),
                      step: c.step || null, zip: c.zip || "" }));
@@ -1814,12 +1814,19 @@ const AREA_PLAN_PAGE = {
              want it - instead of that add it in metuchen bridge water. 2 foreman and 2 trucks ar ethere - move it from
              NJ"; his pick Bridgewater 08807, I-287 / I-78 / Route 22, keeping 29). Oakland's 3 crews went back to the
              NJ base, then 2 crews AND 2 of the NJ base's own trucks moved to Bridgewater: `own` is a site's owned
-             trucks when he gave them (NJ base 3 - 2 = 1). */
+             trucks when he gave them (NJ base 3 - 2 = 1).
+             OAKLAND BACK, MONROE OUT (his word the same evening: "remove monroe and return oklande"; his pick "Oakland 3,
+             as before"): Oakland returns with its 3 crews from the NJ base (9 -> 6), Bridgewater stays, and Monroe's crew
+             goes to the PA base (9 -> 10). Still 29. */
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 9, own: 1 }, { name: "Bridgewater · 08807", fm: 2, la: 40.5935, lo: -74.6182, own: 2 }] },
-          { base: "NY", pool: "NJ", states: ["NY"], sites: [{ name: "Existing base", fm: 1 }] },
-          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [
-            { name: "Existing base", fm: 9 }, { name: "Monroe", fm: 1, cand: "Monroe PA" }] },
+            { name: "Existing base", fm: 6, own: 1 }, { name: "Bridgewater · 08807", fm: 2, la: 40.5935, lo: -74.6182, own: 2 },
+            { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
+          /* NY BASE ON LONG ISLAND (his word 2026-11-24: "move NY base to the right more in Long Island territory"; his
+             pick Farmingdale 11735, on the Nassau / Suffolk line). Moved like New Haven: the register still says
+             Brooklyn, the plan measures the map from Farmingdale (main: true). */
+          { base: "NY", pool: "NJ", states: ["NY"], sites: [
+            { name: "NY base → Farmingdale · 11735", fm: 1, la: 40.7326, lo: -73.4454, main: true }] },
+          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 10 }] },
           { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 1, cand: "Montgomery MD" }] },
         ] },
       };
