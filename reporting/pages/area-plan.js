@@ -1296,10 +1296,16 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
     { st: "DE", cur: 3,  add: 3, note: "" },
     { st: "CT", cur: 5,  add: 2, note: "" },
     { st: "MA", cur: 0,  add: 0, note: "" },
+    // RHODE ISLAND (ZP-21, his post 24 Nov 2026: "why is it gray? it should have its own statistics, and if from
+    // Tolland we cant reach it ... make it red at least"). It was in none of the map's data, shapes or markets, so it
+    // drew as a blank hole between CT and MA. A service area like MA: no crew of its own, the CT pool works it.
+    { st: "RI", cur: 0,  add: 0, note: "served from CT" },
     { st: "MD", cur: 0,  add: 0, note: "Tuji + Zip in the aim" },
     { st: "VA", cur: 0,  add: 0, note: "a stated bet — no demand" },
   ];
   const SERVICE_AREAS = HIS_TABLE.map(b => b.st);
+  // "the nine states" in the page's sentences, whatever the list holds
+  const N_STATES = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][SERVICE_AREAS.length] || String(SERVICE_AREAS.length);
   const AIM_FALLBACK = { NJ: 10, PA: 8, MD: 3, CT: 4, MA: 2, VA: 1 };
   const DAYS_PER_MONTH_DEFAULT = 30;
 
@@ -1559,7 +1565,7 @@ const AREA_PLAN_PAGE = {
       const DAYS_PER_MONTH = num(OVR.days_per_month) || DAYS_PER_MONTH_DEFAULT;
 
       /* ------- the seeds: measured (his call), his table, the aim ------------------------ */
-      // which states get a row: the eight service areas, plus any state the measured seed
+      // which states get a row: the service areas, plus any state the measured seed
       // puts 3+ foremen in (so a real new market appears without anyone editing code)
       const seedStates = SERVICE_AREAS.slice();
       Object.entries(SEED).forEach(([st, d]) => {
@@ -1769,7 +1775,7 @@ const AREA_PLAN_PAGE = {
            that need more than they were given to be worth opening -- Middlesex MA (its ground wants
            four crews) and Monroe (six jobs). Tolland, Oakland and Montgomery stay. No MIN. */
         mid: { label: "MID", leadsPerRep: 220, groups: [
-          { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
+          { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
             { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 1, cand: "Tolland CT" }] },
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
             { name: "Existing base", fm: 7 }, { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
@@ -1778,7 +1784,7 @@ const AREA_PLAN_PAGE = {
           { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 2, cand: "Montgomery MD" }] },
         ] },
         max: { label: "MAX", leadsPerRep: 220, groups: [
-          { base: "CT", pool: "CT", states: ["CT", "MA"], sites: [
+          { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
             { name: "Existing base", fm: 3 }, { name: "Tolland", fm: 2, cand: "Tolland CT" },
             { name: "Middlesex MA · 01801", fm: 1, la: 42.4876, lo: -71.1543 }] },
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
@@ -3115,7 +3121,7 @@ const AREA_PLAN_PAGE = {
       const FC = model.forecast || {};
       const FCS = FC.states || {};
       // which depot's crews serve a state (his state->depot map 2026-09-15; MD and VA ride PA/DE)
-      const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT" };
+      const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT", RI: "CT" };
       const POOL_ORDER = ["NJ", "PA", "CT"];
       /* THE PLAN GROWS WITH THE LEADS MARKETING BRINGS (2026-09-30). His words: "i dont want less jobs
          then previous season - we need to plan for more", and, asked by how much: "you have to figure
@@ -4108,7 +4114,7 @@ const AREA_PLAN_PAGE = {
         const R = countyRowsFor();
         const N = FC.year ? nextCalc() : null;
         /* which depot pool a base draws its hire from -- his state->depot map, same as the plan */
-        const poolOfBase = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", CT: "CT", MA: "CT" };
+        const poolOfBase = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", CT: "CT", MA: "CT", RI: "CT" };
         const hireOf = nm => {
           if (!N) return null;
           const q = N.pools.find(x => x.pk === poolOfBase[nm]);
@@ -4277,7 +4283,7 @@ const AREA_PLAN_PAGE = {
         /* lead with the market that is BIGGER than home and barely touched; failing that, the least-touched */
         const cold = colds.filter(g => g.mov > home.mov).sort((a, b) => cap(a) - cap(b))[0] || colds.slice().sort((a, b) => cap(a) - cap(b))[0];
         const say = home ? '<div class="ap2-say" style="margin:0 0 10px"><b>What the survey says.</b> ' +
-          fmtN(T.mov) + " people move house in these eight states every year; in " + CAP_WIN + " " + fmtN(T.leads) + " of them became a lead — <b>" +
+          fmtN(T.mov) + " people move house in these " + N_STATES + " states every year; in " + CAP_WIN + " " + fmtN(T.leads) + " of them became a lead — <b>" +
           r1(cap(T)) + " per 10,000 movers</b>. At home in " + esc(home.st) + " it is <b>" + r1(cap(home)) + "</b>." +
           /* the leads that sit in no county (2026-09-24, NOADDR_ST): said beside the capture they are missing from */
           (noAddrSay() ? " " + noAddrSay() : "") +
@@ -6338,7 +6344,7 @@ const AREA_PLAN_PAGE = {
             (r.movers
               ? '<div class="big">' + fmtN(r.movers) + " move a year</div>" +
                 '<div class="c"><b>' + r1(10000 * r.leads12 / (r.movers || 1)) + "</b> of every 10,000 become a lead in " + CAP_WIN +
-                  "<small>the eight states run " + r1(coCap) + ", New Jersey " + r1(njCap) + "</small></div>"
+                  "<small>the " + N_STATES + " states run " + r1(coCap) + ", New Jersey " + r1(njCap) + "</small></div>"
               : '<div class="big">' + fmtN(r.leads) + " leads this year</div>") +
             '<div class="hd">Our work here</div><div class="grid">' +
               gRow("Leads this year", fmtN(r.leads)) +
@@ -7088,7 +7094,7 @@ const AREA_PLAN_PAGE = {
         const th = (t, cls) => '<th class="' + (cls || "num") + '">' + t + "</th>", td = (v, cls) => '<td class="' + (cls || "num") + '">' + v + "</td>";
         /* MA showed "MA depot" beside 0 foremen and 21 jobs: it has no crew of its own, its pool's
            do the work. A state that carries no foreman at peak names the state that runs it. */
-        const POOL_HOME = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "DE", CT: "CT", MA: "CT", MD: "DE / PA", VA: "DE / PA" };
+        const POOL_HOME = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "DE", CT: "CT", MA: "CT", RI: "CT", MD: "DE / PA", VA: "DE / PA" };
         const baseOf = r => (r.fmPeak > 0 && POOL_HOME[r.st] === r.st) ? r.st + " depot"
           : "from " + (POOL_HOME[r.st] || "—");
         const dim = '<span class="ap2-dim">—</span>';
@@ -7432,7 +7438,7 @@ const AREA_PLAN_PAGE = {
         return '<div class="ap2-note" style="line-height:1.75"><b>' + (n ? fmtN(n) + " cities carry a search volume today." : "No search volume on file yet.") + "</b> " +
           "Google will not run Keyword Planner through our API connection, but it works in the browser for an account admin, so the volumes come in as a file, once a season:" +
           "<ol style=\"margin:6px 0 8px 18px;padding:0\"><li>Copy the keyword list below — four phrases for each of the " + KW_CITIES + " cities our leads come from.</li>" +
-          "<li>In Google Ads: <b>Tools → Keyword Planner → Get search volume and forecasts</b>, paste. Set <b>Locations</b> to the eight states we serve (NJ, PA, NY, DE, CT, MA, MD, VA) — not the whole country, or Wilmington NC answers for Wilmington DE.</li>" +
+          "<li>In Google Ads: <b>Tools → Keyword Planner → Get search volume and forecasts</b>, paste. Set <b>Locations</b> to the " + N_STATES + " states we serve (" + SERVICE_AREAS.join(", ") + ") — not the whole country, or Wilmington NC answers for Wilmington DE.</li>" +
           "<li>Open <b>Saved keywords</b>, then download <b>Plan historical metrics</b> (.csv).</li><li>Choose that file here.</li></ol></div>" +
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">' +
           '<button class="rs-btn" id="apKwCopy" type="button">Copy the ' + fmtN(kwTargets().length * 4) + " keywords</button>" +
