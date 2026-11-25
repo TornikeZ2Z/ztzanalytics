@@ -297,18 +297,21 @@
           + kpi(fmt(needs), "Needs a count", "pages the check cannot read, with an old count", needs ? "warn" : "")
           + kpi(M.lastAuto ? M.lastAuto.slice(0, 10) : "—", "Last check", "weekly, automatic", "")
           + "</div>";
+        const items = ST.items || [], gone = items.filter(r => r["Removed At"]).length;
         const tabs = [["map", "Map"], ["table", "Table"], ["monthly", "Monthly counts · " + nLines],
+                      ["reviews", "Every review · " + fmt(items.length) + (gone ? " · " + gone + " removed" : "")],
                       ["changes", "Changes · " + M.changes.length], ["needs", "Needs a count · " + needs], ["edit", "Edit the list"]];
         h += '<div class="rvm-tabs">' + tabs.map(([k, l]) => '<div class="rs-tog' + (S.tab === k ? " on" : "")
           + '" data-rvtab="' + k + '"><i></i>' + esc(l) + "</div>").join("") + "</div>";
         if (S.err) h += '<div class="rvm-err">' + esc(S.err) + "</div>";
         if (S.msg) h += '<div class="rvm-ok">' + esc(S.msg) + "</div>";
-        if (!M.all.length && S.tab !== "edit") {
+        if (!M.all.length && S.tab !== "edit" && S.tab !== "reviews") {
           h += '<div class="panel">No review sites yet. Tako\'s list arrives with the import of her page, or add sites '
             + 'under <b>Edit the list</b>.</div>';
         } else if (S.tab === "map") h += mapView(M);
         else if (S.tab === "table") h += tableView(M);
         else if (S.tab === "monthly") h += monthlyView(M);
+        else if (S.tab === "reviews") h += reviewsView(M);
         else if (S.tab === "changes") h += changesView(M);
         else if (S.tab === "needs") h += needsView(M);
         else h += editView(M);
@@ -409,6 +412,81 @@
                   + '<button class="rs-btn" data-rvlink="' + esc(q["Page Key"]) + '">Save the link</button>').join("<br>") + "</td></tr>";
         }).join("");
         return h + "</tbody></table></div></div>";
+      }
+
+      /* Every review (ZTZ-138 step 1, 25 Nov 2026): the loader keeps each review it can read one by one
+         (Birdeye today; Google's own API once Google approves it) and reads them all again every morning. A
+         review missing two mornings running is "removed" and stays here with its date: his 17 Sep rule,
+         removed reviews are kept apart, never netted. Above the list, the monthly lines that read themselves,
+         morning by morning (ZTZ-135 step 2). Matching each review to its job comes next, beside Tako's sheet. */
+      function dailyLines(M) {
+        const day = c => String(c["Checked At"] || "").slice(0, 10);
+        const ms = d => Date.parse(d + "T00:00:00Z");
+        const by = {};
+        CHECKS.forEach(c => { if (c["Status"] === "ok" && c["Count"] != null) (by[c["Page Key"]] = by[c["Page Key"]] || []).push(c); });
+        const newest = Object.values(by).reduce((a, arr) => arr.reduce((b, c) => day(c) > b ? day(c) : b, a), "");
+        return M.linePages.map(pg => {
+          const arr = (by[pg["Page Key"]] || []).slice().sort((a, b) => (a["Checked At"] < b["Checked At"] ? -1 : 1));
+          if (!arr.length) return null;
+          const last = arr[arr.length - 1];
+          if (!newest || ms(newest) - ms(day(last)) > 2 * 864e5) return null;     // only the lines read daily
+          const back = n => { const t = ms(day(last)) - n * 864e5;
+            for (let i = arr.length - 1; i >= 0; i--) if (ms(day(arr[i])) <= t) return arr[i]["Count"] - 0;
+            return null; };
+          const dif = n => { const b = back(n); return b == null ? null : last["Count"] - b; };
+          return { pg, line: lineOf(pg), co: pg["Company"] || CO0, now: last["Count"], at: day(last),
+                   d1: dif(1), d7: dif(7), d30: dif(30) };
+        }).filter(Boolean).sort((a, b) => (a.line < b.line ? -1 : 1));
+      }
+
+      function reviewsView(M) {
+        const items = ST.items || [];
+        const difTd = n => "<td>" + (n == null ? '<span class="muted">—</span>'
+          : '<span class="rvm-dif' + (n > 0 ? " up" : n < 0 ? " down" : "") + '">' + (n > 0 ? "+" : "") + fmt(n) + "</span>") + "</td>";
+        let h = '<p class="rvm-note">Every review the portal can read, one by one, read again every morning. A review that '
+          + "disappears from its site two mornings running is marked <b>removed</b> and kept here with its date; removed "
+          + "reviews are counted apart, never netted. Today this is what Birdeye holds (one Google location, Facebook, "
+          + "BBB, HomeAdvisor and a few directories); every Google listing joins once Google approves our access. "
+          + "A removal or a drop is posted in Slack the same morning.</p>";
+        const L = dailyLines(M);
+        if (L.length) {
+          h += '<div class="panel" style="padding:0;margin-bottom:12px"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even">'
+            + "<thead><tr><th>Monthly line, read every morning</th><th>Now</th><th>Since yesterday</th><th>7 days</th>"
+            + "<th>30 days</th><th>Last read</th></tr></thead><tbody>"
+            + L.map(r => "<tr><td><b>" + esc(r.line) + "</b>" + (r.co !== CO0 ? ' <span class="rs-pill info">' + esc(r.co) + "</span>" : "")
+              + "</td><td><b>" + fmt(r.now) + "</b></td>" + difTd(r.d1) + difTd(r.d7) + difTd(r.d30)
+              + '<td class="muted">' + esc(fmtD(r.at)) + "</td></tr>").join("")
+            + "</tbody></table></div></div>";
+        }
+        if (!items.length) {
+          return h + '<div class="panel">No reviews stored yet. The first morning read fills this list (the loader\'s '
+            + "review-daily job, 06:20 New York).</div>";
+        }
+        const f = S.rvf || "all";
+        const nGone = items.filter(r => r["Removed At"]).length, nBack = items.filter(r => r["Came Back At"]).length;
+        h += '<div class="rvm-tabs">' + [["all", "All · " + fmt(items.length)], ["removed", "Removed · " + fmt(nGone)],
+            ["back", "Came back · " + fmt(nBack)]].map(([k, l]) => '<div class="rs-tog' + (f === k ? " on" : "")
+            + '" data-rvf="' + k + '"><i></i>' + esc(l) + "</div>").join("") + "</div>";
+        const shown = items.filter(r => f === "removed" ? r["Removed At"] : f === "back" ? r["Came Back At"] : true).slice(0, 400);
+        const starTxt = r => {
+          const n = Math.round(+r["Rating"] || 0);
+          if (String(r["Source"] || "").toLowerCase() === "facebook" && !n)
+            return r["Recommended"] === 1 ? "recommends" : r["Recommended"] === 0 ? "doesn't recommend" : "";
+          return n ? "★".repeat(n) : "";
+        };
+        h += '<div class="panel" style="padding:0"><div class="rs-tablewrap" style="border:0"><table class="rs-table rs-even"><thead><tr>'
+          + "<th>Written</th><th>Site</th><th>Stars</th><th>Reviewer · review</th><th>Status</th><th>Review</th></tr></thead><tbody>"
+          + shown.map(r => "<tr><td class=\"rvm-cell\">" + (r["Review Date"] ? esc(fmtD(r["Review Date"])) : "—") + "</td>"
+            + "<td><b>" + esc(r["Source"] || "?") + "</b><span class=\"rvm-dom\">" + esc(r["Location"] || "") + "</span></td>"
+            + '<td class="rvm-cell">' + esc(starTxt(r)) + "</td>"
+            + "<td>" + esc(r["Reviewer"] || "—") + (r["Text"] ? '<span class="rvm-dom">' + esc(String(r["Text"]).slice(0, 160))
+              + (String(r["Text"]).length > 160 ? "…" : "") + "</span>" : "") + "</td>"
+            + "<td>" + (r["Removed At"] ? '<span class="rs-pill warn">removed ' + esc(fmtD(r["Removed At"])) + "</span>"
+              : r["Came Back At"] ? '<span class="rs-pill info">came back ' + esc(fmtD(r["Came Back At"])) + "</span>" : "") + "</td>"
+            + '<td class="rvm-cell">' + (r["URL"] ? '<a href="' + esc(r["URL"]) + '" target="_blank" rel="noopener">Open ↗</a>' : "") + "</td></tr>").join("")
+          + "</tbody></table></div></div>";
+        if (shown.length === 400) h += '<p class="rvm-note">The newest 400 are shown.</p>';
+        return h;
       }
 
       /* Tako's sheet beside the Review Map, line by line: the November check, and every month after it the
@@ -598,6 +676,7 @@
       }
       function wire(M) {
         host.querySelectorAll("[data-rvtab]").forEach(t => { t.onclick = () => { S.tab = t.dataset.rvtab; S.msg = S.err = ""; paint(); }; });
+        host.querySelectorAll("[data-rvf]").forEach(t => { t.onclick = () => { S.rvf = t.dataset.rvf; paint(); }; });
         host.querySelectorAll("[data-rvloc]").forEach(t => { t.onclick = () => { S.loc = t.dataset.rvloc; S.tab = "table"; paint(); }; });
         if (S.tab === "map") drawMap(M);
         const q = host.querySelector("#rvmQ");
