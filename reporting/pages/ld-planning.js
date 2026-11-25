@@ -1939,7 +1939,7 @@ registerPage({
     // Map pin picker — Leaflet is fetched from the CDN the first time it is needed so the
     // page carries no extra weight for dispatchers who never open it.
     // M1 journey maps: Leaflet is vendored (assets/vendor/leaflet), loaded on first use.
-    var LD_BASE_ZIP = "07728";   // NJ base, same as the route engine
+    var LD_BASE_ZIP = "07753";   // NJ base, same as the route engine: 3212 Shafto Rd, Tinton Falls (ZTZ-171; was Freehold 07728)
     // A bare 5-digit run is USUALLY a street number ("20345 Main St") -- trust only a zip
     // beside a state code or terminating the address (stateZip's and the route engine's rule)
     function zipOnly(s2) {

@@ -1448,7 +1448,7 @@ const AREA_PLAN_PAGE = {
       RS.load("area_year").catch(() => null),
       RS.load("base_fleet").catch(() => null),
       RS.load("storage_plan").catch(() => null),
-      LOCK ? RS.load("lead_route").catch(() => null) : Promise.resolve(null),
+      LOCK && !LOCK.headless ? RS.load("lead_route").catch(() => null) : Promise.resolve(null),
     ]).then(([rows, model, cityAll, wsAll, countyRows, cityAllSeason, pcm, tierRows, yearRows, fleetRows, storeRows, routeRows]) => {
       /* a year's results per area: level -> area key -> year -> row */
       const AY = { County: {}, City: {}, Zip: {} };
@@ -1826,12 +1826,15 @@ const AREA_PLAN_PAGE = {
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
             { name: "Existing base", fm: 6, own: 1 }, { name: "Bridgewater · 08807", fm: 2, la: 40.5935, lo: -74.6182, own: 2 },
             { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
-          /* NY BASE ON LONG ISLAND (his word 2026-11-24: "move NY base to the right more in Long Island territory"; his
-             pick Farmingdale 11735, on the Nassau / Suffolk line). Moved like New Haven: the register still says
-             Brooklyn, the plan measures the map from Farmingdale (main: true). */
+          /* NY: BROOKLYN STAYS, AND FARMINGDALE IS A SECOND NY BASE (ZTZ-171, his words 2026-11-25 ~21:00: "instead of
+             having it as 3 crew in ny - lets add 1 more base close to brooklyn - which will have that 2 crews"; his pick:
+             keep the Brooklyn base, Bath Beach 11214, with the 2 crews from the PA base, and Farmingdale 11735 a new
+             1-crew base for Nassau and Suffolk). This undoes the 24 Nov move of the NY base to Farmingdale. PA 10 -> 8;
+             still 29. Each base has one own truck (Brooklyn's on the register, Farmingdale's a new site's default), so
+             own trucks go 12 -> 13, as in the Season 2027 documents. */
           { base: "NY", pool: "NJ", states: ["NY"], sites: [
-            { name: "NY base → Farmingdale · 11735", fm: 1, la: 40.7326, lo: -73.4454, main: true }] },
-          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 10 }] },
+            { name: "Existing base", fm: 2 }, { name: "Farmingdale · 11735", fm: 1, la: 40.7326, lo: -73.4454 }] },
+          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 8 }] },
           { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 1, cand: "Montgomery MD" }] },
         ] },
       };
@@ -8208,6 +8211,19 @@ const AREA_PLAN_PAGE = {
 
       /* BOTH PAGES OPEN ON THE MAX PLAN, EVERY TIME (ZTZ-161: MAX is the only plan). Applied after the first paint,
          as the old "MAX plan" button did, so every number on the page is MAX's before anyone reads it. */
+      /* HEADLESS (ZTZ-170, Area Review): the MAX plan for every zip, handed back without drawing anything or
+         touching anyone's saved settings -- the Area Review page's "MAX plan" row reads Seasonal Planning's own plan */
+      if (LOCK && LOCK.headless) {
+        let out = null;
+        try {
+          inputs.mapSts = [];
+          planMax();
+          const N = FC.year ? nextCalc() : null;
+          out = N ? areaRows(N, "Zip").map(r => ({ zip: String(r.key), st: r.st, planJobs: r.planJobs, budget: r.budget })) : null;
+        } catch (e) { out = null; }
+        LOCK.headless(out);
+        return;
+      }
       paint();
       planMax(); nbRepaint();
       if (LOCK) save();
@@ -8257,6 +8273,18 @@ const AREA_PLAN_PAGE = {
   },
 };
 registerPage(AREA_PLAN_PAGE);
+
+/* THE MAX PLAN WITHOUT THE PAGE (ZTZ-170): the Area Review page asks Seasonal Planning for its plan per zip
+   (May-Sep jobs and marketing under MAX), drawn into a detached element and never painted. `cb` gets the rows,
+   or null when the plan could not be read; it is called once. */
+window.AREA_PLAN_HEADLESS = function (cb) {
+  let done = false;
+  const once = r => { if (!done) { done = true; try { cb(r); } catch (e) { /* the caller's own error */ } } };
+  try {
+    Promise.resolve(AREA_PLAN_PAGE.render.call({}, document.createElement("div"), { plan: "max", basis: "pickup", headless: once }))
+      .then(() => once(null), () => once(null));
+  } catch (e) { once(null); }
+};
 
 /* TARGET MAP (his ask 2026-10-19): "i need to show this map with targetings part on marketing section --
    only TIERS for MAX PLAN for ZIP CODE. i dont need them to able to select anything besides MARKET."
