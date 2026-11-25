@@ -415,6 +415,7 @@
       color:var(--muted);margin-bottom:3px}
     .ap2-eyebrow + .panel-title{margin-bottom:5px}
     .ap2-note{font-size:13px;color:var(--muted);line-height:1.6}
+    .ap3-ratenote{margin:8px 2px 2px}
     .ap2-callout{background:color-mix(in srgb,var(--brand-d) 7%,transparent);
       border:1px solid color-mix(in srgb,var(--brand-d) 30%,transparent);border-radius:12px;
       padding:14px 16px;font-size:13px;line-height:1.65;margin-top:12px}
@@ -2101,7 +2102,9 @@ const AREA_PLAN_PAGE = {
             NB_FM[x.cand] = use; if (use < need) NB_CAP[x.cand] = use / need;
             crew -= use; });
           targets[g.pool] = (targets[g.pool] || 0) + Math.max(0, crew); });
-        SC.kind = "plan"; SC.pool = null; SC.target = null; SC.targets = targets;
+        const crews = {};
+        PLAN.groups.forEach(g => { crews[g.pool] = (crews[g.pool] || 0) + g.sites.reduce((a, x) => a + (x.fm || 0), 0); });
+        SC.kind = "plan"; SC.pool = null; SC.target = null; SC.targets = targets; SC.crews = crews;
       }
       let PICK = false;
       function nbPickClear() {
@@ -2268,6 +2271,21 @@ const AREA_PLAN_PAGE = {
           const out = {};
           Object.keys(SC.targets || {}).forEach(pk => {
             const sts = baseStates(P0, pk), b = m => { const o = {}; sts.forEach(st => { o[st] = m; }); return o; };
+            /* JOBS FOLLOW THE CREWS (ZTZ-174, his words 2026-11-25: "plan should account for crew size as well :) like
+               we increase crew size, we increase marketing budgets - why average of prev period?"; his pick: each
+               pool's own 2026 rate). The pool's May-Sep jobs = its plan crews x what one of its crews carried last
+               season. States and months keep the forecast's shape (one factor per pool); leads, marketing, revenue
+               and the desk follow the jobs, so more crews means more marketing. New bases' own jobs count inside. */
+            const R = POOL_RATE[pk], crewsPk = (SC.crews || {})[pk];
+            if (R && R.rate > 0 && crewsPk > 0) {
+              const inSeason = ym => (R.months || [5, 6, 7, 8, 9]).indexOf(+String(ym).slice(5, 7)) >= 0;
+              let base = 0, nb = 0;
+              P0.rows.filter(r => sts.indexOf(r.st) >= 0).forEach(r => r.cells.forEach(c => { if (!inSeason(c.ym)) return;
+                base += (c.jobs || 0) - (c.nbJobs || 0); nb += c.nbJobs || 0; }));
+              const m = base > 0 ? Math.max(0, crewsPk * R.rate - nb) / base : 1;
+              sts.forEach(st => { out[st] = m; });
+              return;
+            }
             let lo = 0.1, hi = 6, t = SC.targets[pk];
             const least = baseFm(nextCalc({ mult: b(lo) }), pk); if (t < least) t = least;
             for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2;
@@ -3221,6 +3239,9 @@ const AREA_PLAN_PAGE = {
          helper, one truck per foreman, leads needed a month earlier. Zip to Zip only. ------------ */
       const FC = model.forecast || {};
       const FCS = FC.states || {};
+      /* JOBS FOLLOW THE CREWS (ZTZ-174): each pool's jobs per peak crew over the last full season (May-Sep), measured
+         by the loader (src/area_plan.py pool_rates) -- {CT|NJ|PA: {year, jobs, peak_crews, rate, months}} */
+      const POOL_RATE = model.pool_rate || {};
       // which depot's crews serve a state (his state->depot map 2026-09-15; MD and VA ride PA/DE)
       const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT", RI: "CT" };
       const POOL_ORDER = ["NJ", "PA", "CT"];
@@ -3419,7 +3440,8 @@ const AREA_PLAN_PAGE = {
           const coreCells = cells.filter(c => !c.shoulder);
           const peak0 = Math.max(0, ...coreCells.map(c => c.need));
           const fix = planLive(opts) && SC.targets && SC.targets[pk] != null ? SC.targets[pk] : null;
-          const peak = fix != null && fix > peak0 ? fix : peak0;       // a named plan: the crews he gave this pool
+          const byRate = fix != null && POOL_RATE[pk] && POOL_RATE[pk].rate > 0;   // ZTZ-174: jobs follow the crews
+          const peak = fix != null && (fix > peak0 || byRate) ? fix : peak0;       // a named plan: the crews he gave this pool
           const first = coreCells.find(c => c.need > have);
           return { pk, label: prs.map(r => r.st).join(" + "), states: prs.map(r => r.st), worked, have, cells, peak, calibrated: worked > 0 && refLoad > 0,
                    peakFc: Math.max(0, ...coreCells.map(c => c.needFc)), floored: coreCells.some(c => c.floored),
@@ -5338,7 +5360,17 @@ const AREA_PLAN_PAGE = {
           tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? (sts.length > 1 ? "their" : "its") + " share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
           tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
           truckTile() +
-          "</div>";
+          "</div>" + rateNote();
+      }
+      /* the rule in one line, under the tiles (ZTZ-174) */
+      function rateNote() {
+        const ks = POOL_ORDER.filter(pk => POOL_RATE[pk] && POOL_RATE[pk].rate > 0);
+        if (!ks.length || !PLAN || !SC.crews) return "";
+        const name = { NJ: "NJ + NY", PA: "PA + DE + MD + VA", CT: "CT + MA + RI" };
+        return '<div class="ap2-note ap3-ratenote"><b>Jobs follow the crews.</b> Each pool\'s May–Sep jobs are its MAX crews × what one of '
+          + "its crews carried in " + esc(String(POOL_RATE[ks[0]].year)) + ": " + ks.map(pk => esc(name[pk] || pk) + " " + fmtN(SC.crews[pk] || 0)
+          + " × " + r1(POOL_RATE[pk].rate)).join(", ") + ". States and months keep the forecast's shape; leads, marketing, "
+          + "income and the sales desk follow the jobs, so more crews means more marketing.</div>";
       }
 
       /* MAX IS THE ONLY PLAN (ZTZ-161, his words 24 Nov 2026: "seasonal planning is once and for all finalized
@@ -8218,8 +8250,12 @@ const AREA_PLAN_PAGE = {
         try {
           inputs.mapSts = [];
           planMax();
+          scSolve();          // the plan's per-pool scaling: on the page it runs with the repaint (repaintPlan)
           const N = FC.year ? nextCalc() : null;
           out = N ? areaRows(N, "Zip").map(r => ({ zip: String(r.key), st: r.st, planJobs: r.planJobs, budget: r.budget })) : null;
+          if (out) out.plan = { states: N.rows.map(r => ({ st: r.st, cells: r.cells.map(c => ({ ym: c.ym, jobs: c.jobs || 0, shoulder: !!c.shoulder })) })),
+                                pools: (N.pools || []).map(p => ({ pk: p.pk, peak: p.peak })), crews: SC.crews || {}, rate: POOL_RATE,
+                                tot: { jobs: N.tot.jobs, leads: N.tot.leads, mkt: N.tot.mkt, revenue: N.tot.revenue, peak: N.tot.peak } };
         } catch (e) { out = null; }
         LOCK.headless(out);
         return;
