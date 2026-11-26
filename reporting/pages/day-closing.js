@@ -82,6 +82,7 @@
       .dcl-pos{color:${POS}} .dcl-neg{color:${NEG}}
       .dcl-note{padding:10px 14px;font-size:12px;color:var(--faint);border-top:1px solid var(--line)}
       .dcl-load{padding:40px;text-align:center;color:var(--faint)}
+      .dcl-moved{border:1px solid var(--line);border-radius:10px;margin:0 0 14px}
       .dcl-more{display:block;margin:10px auto}
       .dcl-pill.dcl-nc{background:var(--panel-2);color:var(--muted);margin:0 8px 0 0}
       .dcl-tbl tr.dcl-ncrow td{white-space:normal}
@@ -894,7 +895,13 @@ registerPage({
       how: how });
     // embedded in Money Flow's tab, the heading steps down to an h2 under Money Flow's h1 (as before)
     if (opt.embedded) head = head.replace("<h1>", '<h2 class="dcl-h2">').replace("</h1>", "</h2>");
-    host.innerHTML = head + '<div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
+    /* CONTROLLED FROM THE SOFTWARE (Tornike, 27 Nov 2026: "on the page show that from now on it's controlled from
+       software"; "close it as soon as all the data migrates"). The software's own 8 PM close is the official one; the
+       portal's days stay readable here until its history is imported, then this Day Closing closes. */
+    var moved = '<div class="rs-banner dcl-moved" role="note"><span><b>Day Closing is now controlled from the software.</b> '
+      + "From now on the day is closed in the software at 8:00 PM New York. This page keeps the portal's own days only until "
+      + "their history moves to the software; then it closes.</span></div>";
+    host.innerHTML = head + moved + '<div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
     var $b = function () { return host.querySelector("#dclBody"); };
     var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, popen: {}, fopen: {}, lines: {}, shown: 30 });
     if (!S.popen) S.popen = {};
