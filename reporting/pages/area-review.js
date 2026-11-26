@@ -22,8 +22,8 @@
  *    so this year only);
  *  - next year: the year-to-date figures grown to a full year by last year's ratio for the state; moved or added
  *    money earns 40-65% of what that source's money earned this year (a range); the cut source's money moves
- *    70/30 to Google and Reddit; the MAX plan row is Seasonal Planning's own plan for the area's zips (its May-Aug
- *    season; April and September are shoulder months), scaled to a year by last year's May-Aug share of the state's jobs.
+ *    70/30 to Google and Reddit; the MAX plan row is Seasonal Planning's own plan for the area's zips (its May-Sep
+ *    season since ZTZ-180; April is the shoulder month), scaled to a year by last year's May-Sep share of the state's jobs.
  */
 (function () {
   if (window.RS && RS.DATASETS && !RS.DATASETS.arv_late) {
@@ -53,7 +53,7 @@
     "null"]);
   const MOVE_TO = { Google: 0.7, Reddit: 0.3 };          // where a cut source's money goes
   const EARN = [0.40, 0.65];                              // what moved or added money earns, against this year's
-  const SEASON = [5, 6, 7, 8];                            // the plan's season (May-Aug): a state's plan jobs are its core months; Apr and Sep are shoulders
+  const SEASON = [5, 6, 7, 8, 9];                         // the plan's season (May-Sep since ZTZ-180): a state's plan jobs are its season months; Apr is the shoulder
 
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -283,19 +283,19 @@
       rows.push(row("Grow +50%, " + worst + " out", baseSp * 1.5, T.jobs - wj + gain(ws, EARN[0]) + gain(baseSp * 0.5, EARN[0]),
                     T.jobs - wj + gain(ws, EARN[1]) + gain(baseSp * 0.5, EARN[1]), "the extra half goes to " + toTxt + " too"));
     }
-    // the MAX plan: Seasonal Planning's own season plan (May-Aug) for these zips, scaled to a year
+    // the MAX plan: Seasonal Planning's own season plan (May-Sep) for these zips, scaled to a year
     let maxRow = null;
     if (plan && plan.length) {
       let pj = 0, pm = 0;
       plan.forEach(p => { const g = M.ZIP[p.zip]; if (!g || g.st !== st || !subs.some(s => subMatch(s, g.county))) return;
         pj += num(p.planJobs); pm += num(p.budget); });
-      // the state's May-Aug share of last year's jobs: steadier than one county's
+      // the state's May-Sep share of last year's jobs: steadier than one county's
       const stPrev = M.prevFull.filter(j => j.st === st);
       const share = stPrev.length ? stPrev.filter(j => SEASON.indexOf(j.m) >= 0).length / stPrev.length : 0;
       if (pj && share) {
         const jy = pj / share, my = pm / share;
-        maxRow = { name: "MAX plan", note: "Seasonal Planning's MAX plan for these zips, May–Aug, grown to a year (" +
-                   Math.round(share * 100) + "% of last year's " + st + " jobs fell in May–Aug)",
+        maxRow = { name: "MAX plan", note: "Seasonal Planning's MAX plan for these zips, May–Sep, grown to a year (" +
+                   Math.round(share * 100) + "% of last year's " + st + " jobs fell in May–Sep)",
                    spend: my, jobs: [jy, jy], rev: [jy * avgRev, jy * avgRev], gpa: [jy * avgGp - my, jy * avgGp - my] };
       }
     }

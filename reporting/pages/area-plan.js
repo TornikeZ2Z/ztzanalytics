@@ -416,6 +416,9 @@
     .ap2-eyebrow + .panel-title{margin-bottom:5px}
     .ap2-note{font-size:13px;color:var(--muted);line-height:1.6}
     .ap3-ratenote{margin:8px 2px 2px}
+.ap3-crewwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:8px 0 4px;overflow-x:auto}
+.ap3-crewtab td small,.ap3-crewtab th small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.ap3-crewtab td:first-child,.ap3-crewtab th:first-child{text-align:left}
     .ap2-callout{background:color-mix(in srgb,var(--brand-d) 7%,transparent);
       border:1px solid color-mix(in srgb,var(--brand-d) 30%,transparent);border-radius:12px;
       padding:14px 16px;font-size:13px;line-height:1.65;margin-top:12px}
@@ -1335,19 +1338,22 @@ body.rs-app.light.v2 .ap2-gt-ln{stroke-width:2}
   const TM_KEY = "ztzTargetMap.v1";
   // HIS TABLE (2026-08-19), kept as a NAMED alternative seed. Rows are SERVICE AREAS, not
   // garages: NY is worked from the NJ base.
+  /* MAIN BRANCH FIRST (ZTZ-180, the Season 2027 team plan he approved 27 Nov 2026): wherever states are listed --
+     the market switch, the plan's tables, the download -- New Jersey, Pennsylvania, Delaware, New York, Maryland and
+     Virginia come first, then the Kolbaia branch (Connecticut, Massachusetts, Rhode Island). */
   const HIS_TABLE = [
     { st: "NJ", cur: 11, add: 2, note: "also covers NY" },
     { st: "PA", cur: 8,  add: 2, note: "" },
-    { st: "NY", cur: 3,  add: 3, note: "served from NJ" },
     { st: "DE", cur: 3,  add: 3, note: "" },
+    { st: "NY", cur: 3,  add: 3, note: "served from NJ" },
+    { st: "MD", cur: 0,  add: 0, note: "Tuji + Zip in the aim" },
+    { st: "VA", cur: 0,  add: 0, note: "a stated bet — no demand" },
     { st: "CT", cur: 5,  add: 2, note: "" },
     { st: "MA", cur: 0,  add: 0, note: "" },
     // RHODE ISLAND (ZP-21, his post 24 Nov 2026: "why is it gray? it should have its own statistics, and if from
     // Tolland we cant reach it ... make it red at least"). It was in none of the map's data, shapes or markets, so it
     // drew as a blank hole between CT and MA. A service area like MA: no crew of its own, the CT pool works it.
     { st: "RI", cur: 0,  add: 0, note: "served from CT" },
-    { st: "MD", cur: 0,  add: 0, note: "Tuji + Zip in the aim" },
-    { st: "VA", cur: 0,  add: 0, note: "a stated bet — no demand" },
   ];
   const SERVICE_AREAS = HIS_TABLE.map(b => b.st);
   // "the nine states" in the page's sentences, whatever the list holds
@@ -1812,10 +1818,11 @@ const AREA_PLAN_PAGE = {
       const PLANS = {
         /* HIS CREW SPLIT (2026-11-24, ZTZ-155: "make the 2 crew in bases to 1 crew ... 4 in CT and 2 in MA", keeping
            29): every new base that had 2 crews now has 1, CT 4 + MA 2, and the rest goes to the main bases */
-        max: { label: "MAX", leadsPerRep: 220, groups: [
-          { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
-            { name: "CT base → New Haven · 06511", fm: 4, la: 41.3083, lo: -72.9279, main: true },
-            { name: "Norwood MA · 02062", fm: 2, la: 42.1946, lo: -71.1995 }] },
+        /* THE SALES DESK IS 18 SALESPEOPLE (ZTZ-180, his word 26 Nov 2026 ~23:45: "increase sales person quantities to
+           18 and decrease how many leads they handle by that"). It replaces the "220 leads a person" of 30 Sep, which
+           was never measured: the sales scorecard shows 254-267 a person in the busiest months and 302 in the record
+           one. The page shows the leads each of the 18 works, month by month, against the people working leads today. */
+        max: { label: "MAX", desk: 18, groups: [
           /* BRIDGEWATER, NOT OAKLAND (ZTZ-157, his words 2026-11-24: "the base in oakland should be removed we dont
              want it - instead of that add it in metuchen bridge water. 2 foreman and 2 trucks ar ethere - move it from
              NJ"; his pick Bridgewater 08807, I-287 / I-78 / Route 22, keeping 29). Oakland's 3 crews went back to the
@@ -1824,8 +1831,12 @@ const AREA_PLAN_PAGE = {
              OAKLAND BACK, MONROE OUT (his word the same evening: "remove monroe and return oklande"; his pick "Oakland 3,
              as before"): Oakland returns with its 3 crews from the NJ base (9 -> 6), Bridgewater stays, and Monroe's crew
              goes to the PA base (9 -> 10). Still 29. */
+          /* THE SEASON 2027 TEAM PLAN (ZTZ-180, his word 27 Nov 2026 ~00:00): Bridgewater 3 crews and Exton 9, so 9 bases,
+             31 crews (CT + MA + RI 6, NJ + NY 15, PA + DE + MD + VA 10) and 13 own trucks. `place` is the name the plan
+             gives a register base; `home` the states a site takes when a zip is more than 50 miles from every base. */
           { base: "NJ", pool: "NJ", states: ["NJ"], sites: [
-            { name: "Existing base", fm: 6, own: 1 }, { name: "Bridgewater · 08807", fm: 2, la: 40.5935, lo: -74.6182, own: 2 },
+            { name: "Existing base", place: "Tinton Falls", fm: 6, own: 1, home: ["NJ"] },
+            { name: "Bridgewater · 08807", fm: 3, la: 40.5935, lo: -74.6182, own: 2 },
             { name: "Oakland · 07436", fm: 3, la: 41.029, lo: -74.2404 }] },
           /* NY: BROOKLYN STAYS, AND FARMINGDALE IS A SECOND NY BASE (ZTZ-171, his words 2026-11-25 ~21:00: "instead of
              having it as 3 crew in ny - lets add 1 more base close to brooklyn - which will have that 2 crews"; his pick:
@@ -1834,9 +1845,14 @@ const AREA_PLAN_PAGE = {
              still 29. Each base has one own truck (Brooklyn's on the register, Farmingdale's a new site's default), so
              own trucks go 12 -> 13, as in the Season 2027 documents. */
           { base: "NY", pool: "NJ", states: ["NY"], sites: [
-            { name: "Existing base", fm: 2 }, { name: "Farmingdale · 11735", fm: 1, la: 40.7326, lo: -73.4454 }] },
-          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", fm: 8 }] },
-          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", fm: 1, cand: "Montgomery MD" }] },
+            { name: "Existing base", place: "Brooklyn", fm: 2, home: ["NY"] },
+            { name: "Farmingdale · 11735", fm: 1, la: 40.7326, lo: -73.4454, li: true }] },
+          { base: "PA", pool: "PA", states: ["PA", "DE"], sites: [{ name: "Existing base", place: "Exton", fm: 9, home: ["PA", "DE"] }] },
+          { base: "MD", pool: "PA", states: ["MD", "VA"], sites: [{ name: "Montgomery", place: "Montgomery Co.", fm: 1, cand: "Montgomery MD", home: ["MD", "VA"] }] },
+          /* the Kolbaia branch last: Main Branch is listed first (ZTZ-180) */
+          { base: "CT", pool: "CT", states: ["CT", "MA", "RI"], sites: [
+            { name: "CT base → New Haven · 06511", place: "New Haven", fm: 4, la: 41.3083, lo: -72.9279, main: true, home: ["CT"] },
+            { name: "Norwood MA · 02062", place: "Norwood", fm: 2, la: 42.1946, lo: -71.1995, home: ["MA", "RI"] }] },
         ] },
       };
       /* a plan's main base: the register's own ("Existing base"), or one the plan moves (main: true) */
@@ -2263,11 +2279,17 @@ const AREA_PLAN_PAGE = {
           have: N.rows.filter(r => baseOfState(r.st) === k).reduce((a, r) => a + (r.have || 0), 0) })); };
       const SC = { kind: null, pool: null, target: null };
       let SC_MULT = {};
+      let SC_SET = {};             // ZTZ-180: the plan's jobs per state and month, before the new bases' own (nextCalc adds those)
       const scAny = () => !!SC.kind;
       function scSolve() {
-        if (!SC.kind) { SC_MULT = {}; return; }
+        if (!SC.kind) { SC_MULT = {}; SC_SET = {}; PLAN_CF = null; return; }
+        SC_SET = {}; PLAN_CF = null;
         const P0 = nextCalc({ mult: {} });
         if (SC.kind === "plan") {            // a named plan: every pool scaled to its own crews, independently
+          /* THE CREWS SET THE JOBS, MONTH BY MONTH (ZTZ-180, the Season 2027 team plan): planCrewsFirst. When the model
+             has no 2026 month shape yet, the one-factor-a-pool rule below (ZTZ-174) still runs. */
+          const CF = planCrewsFirst(P0);
+          if (CF) { PLAN_CF = CF; SC_SET = CF.set; SC_MULT = {}; return; }
           const out = {};
           Object.keys(SC.targets || {}).forEach(pk => {
             const sts = baseStates(P0, pk), b = m => { const o = {}; sts.forEach(st => { o[st] = m; }); return o; };
@@ -3245,6 +3267,194 @@ const AREA_PLAN_PAGE = {
       // which depot's crews serve a state (his state->depot map 2026-09-15; MD and VA ride PA/DE)
       const POOL_OF = { NJ: "NJ", NY: "NJ", PA: "PA", DE: "PA", MD: "PA", VA: "PA", CT: "CT", MA: "CT", RI: "CT" };
       const POOL_ORDER = ["NJ", "PA", "CT"];
+      /* ===================== THE SEASON 2027 TEAM PLAN (ZTZ-180) =====================
+         His pick 27 Nov 2026 (~00:10 Tbilisi): "Portal page to match" -- the plan he approved that night (Vault:
+         Reporting Portal/Notes/2026-11-25 – Season 2027 plan – team.pdf). His words while it was built:
+         "based on crew we should plan number of jobs and then how many leads and then how many sales persons ... if i
+         have 3 crew there, they need at least 21-23 jobs a month so they can make enough money to not run away";
+         "in june and august - 1 crew may do 25-27 jobs"; "since we change the crew quantities - it should reflect on
+         job quantities too - and on marketing expenditures". So, for the MAX plan:
+           * THE SEASON IS MAY-SEP, as the plan's (April stays the ramp shoulder).
+           * JOBS START FROM THE CREWS. Each pool-month is the lower of two: the crews' target, crews x 22 jobs (26 in
+             June and August), never under the pool's own 2026 level a crew (PA 23.8); and 2026's month shape, the
+             pool's 2026 May-Sep jobs scaled to the target's season total.
+           * A BASE'S JOBS = its crews x its pool's plan per crew, spread over the states of its ground (the zip codes
+             nearest to it), so every base runs 21-26 jobs a crew a month. A state's jobs are what the bases bring it.
+           * MA, RI, MD AND VA had too few 2026 jobs (27, 2, 31, 6) for a month shape or a revenue per job: they take
+             Connecticut's (MA, RI) and Pennsylvania's (MD, VA).
+           * Leads and marketing follow the jobs at each state's own leads per job and cost per lead; each (state,
+             base) budget is that base's jobs there x the state's marketing per job, and inside it the tiers re-split
+             (zipPlan). The desk is 18 salespeople (PLANS.max.desk). */
+      const PLAN_SEASON = [5, 6, 7, 8, 9];
+      const CREW_MONTH = { 5: 22, 6: 26, 7: 22, 8: 26, 9: 22 };
+      const THIN_SRC = { MA: "CT", RI: "CT", MD: "PA", VA: "PA" };
+      const DESK_TODAY = model.desk_today || null;
+      const planOn = () => SC.kind === "plan" && !!PLAN;
+      const planShoulder = (ym, r0) => planOn() ? PLAN_SEASON.indexOf(+String(ym).slice(5, 7)) < 0 : !!(r0 && r0.shoulder);
+      const BASE_MI = 50;               // a zip further than this from every base of its branch goes to its state's home base
+      /* the plan's bases, with where they stand: a register base where the register has it, a placed site by its own
+         coordinates, a candidate (Montgomery) by the candidate's */
+      function planSites() {
+        if (!PLAN) return [];
+        const out = [];
+        PLAN.groups.forEach(g => g.sites.forEach(x => {
+          if (!(x.fm > 0)) return;
+          let la = x.la, lo = x.lo;
+          if (la == null && x.cand) { const c = NB_CANDS.find(q => q.label === x.cand); if (c) { la = c.la; lo = c.lo; } }
+          if (la == null) { const r = REG_BASES.find(b => b.label === g.base); if (r) { la = r.la; lo = r.lo; } }
+          if (la == null) return;
+          out.push({ key: x.cand || g.base, x, g, pool: g.pool, fm: x.fm, la: +la, lo: +lo,
+                     name: x.place || x.name.split(" · ")[0].replace(/ [A-Z]{2}$/, ""),
+                     ny: g.states.indexOf("NY") >= 0, li: !!x.li, home: x.home || [] });
+        }));
+        return out;
+      }
+      const onLongIsland = a => a.State === "NY" && (a.County === "Nassau" || a.County === "Suffolk");
+      /* each zip's base in the plan (the Season 2027 plan's rule): the nearest base of its own branch -- the CT pool's
+         bases work CT, MA and RI and nothing else; Farmingdale takes Nassau and Suffolk, and only those; the NY bases
+         work New York only (no crossing the harbor into New Jersey); past 50 miles the state's home base */
+      function zipBases(sites) {
+        const home = {}; sites.forEach(x => x.home.forEach(st => { if (!home[st]) home[st] = x.key; }));
+        sites.forEach(x => x.g.states.forEach(st => { if (!home[st]) home[st] = x.key; }));
+        const out = {};
+        AREA.forEach(a => {
+          if (a.Level !== "Zip" || !SERVICE_AREAS.includes(a.State)) return;
+          const k = POOL_OF[a.State] === "CT";
+          let cand = sites.filter(x => (x.pool === "CT") === k);
+          if (a.State === "NY") { const li = onLongIsland(a);
+            cand = li ? (cand.some(x => x.li) ? cand.filter(x => x.li) : cand.filter(x => x.ny)) : cand.filter(x => !x.li); }
+          else cand = cand.filter(x => !x.ny);
+          let best = null, bd = Infinity;
+          if (num(a.Latitude)) cand.forEach(x => { const d = miBetween(num(a.Latitude), num(a.Longitude), x.la, x.lo); if (d < bd) { bd = d; best = x.key; } });
+          out[a["Area Key"]] = best && bd <= BASE_MI ? best : (home[a.State] || best);
+        });
+        return { zip: out, home };
+      }
+      /* the crews set the jobs: the pool-month plan, the bases' months and each state's months. Null when the model has
+         no 2026 month shape for a pool (then the plan keeps ZTZ-174's one factor a pool). */
+      let PLAN_CF = null;
+      function planCrewsFirst(P0) {
+        const yr = +FC.year, crews = SC.crews || {};
+        if (!yr) return null;
+        const ymOf = m => yr + "-" + String(m).padStart(2, "0"), yms = PLAN_SEASON.map(ymOf);
+        const pools = {};
+        for (const pk of POOL_ORDER) {
+          const R = POOL_RATE[pk], c = crews[pk];
+          if (!R || !(R.rate > 0) || !(c > 0) || !R.jobs_by_month) return null;
+          const floor = R.rate / ((R.months || PLAN_SEASON).length || 5);
+          const per = PLAN_SEASON.map(m => Math.max(CREW_MONTH[m], floor));
+          const target = per.map(v => Math.round(c * v));
+          const shape = PLAN_SEASON.map(m => num(R.jobs_by_month[R.year + "-" + String(m).padStart(2, "0")]));
+          const T = target.reduce((a, v) => a + v, 0), S = shape.reduce((a, v) => a + v, 0);
+          const season = shape.map(v => S > 0 ? T * v / S : null);
+          const plan = target.map((t, i) => season[i] != null ? Math.min(t, season[i]) : t);
+          pools[pk] = { crews: c, per, target, season, plan, binds: plan.map((v, i) => v < target[i] - 1e-9 ? "season" : "crews"),
+                        byYm: Object.fromEntries(yms.map((ym, i) => [ym, plan[i]])), floor };
+        }
+        // the forecast's cells (new bases' jobs inside), the thin states in their source's month shape
+        const fc = {}, raw = {};
+        P0.rows.forEach(r => { fc[r.st] = {}; raw[r.st] = {}; r.cells.forEach(c => { fc[r.st][c.ym] = c.jobs || 0; raw[r.st][c.ym] = c.jobs || 0; }); });
+        const s5 = (o, st) => yms.reduce((a, ym) => a + (((o[st] || {})[ym]) || 0), 0);
+        Object.keys(THIN_SRC).forEach(st => { const src = THIN_SRC[st]; if (!fc[st] || !raw[src]) return;
+          const t = s5(raw, st), ts = s5(raw, src); if (ts > 0) yms.forEach(ym => { fc[st][ym] = t * raw[src][ym] / ts; }); });
+        // each pool-month's plan split between its states as the forecast splits that month
+        const s3 = {};
+        P0.rows.forEach(r => { const pk = POOL_OF[r.st]; if (!pools[pk]) return;
+          s3[r.st] = yms.reduce((a, ym) => { const pt = P0.rows.filter(x => POOL_OF[x.st] === pk).reduce((b, x) => b + (fc[x.st][ym] || 0), 0);
+            return a + (pt > 0 ? pools[pk].byYm[ym] * (fc[r.st][ym] || 0) / pt : 0); }, 0); });
+        // the ground: each state's jobs go to its zips' bases in the zips' job shares
+        const sites = planSites(), ZB = zipBases(sites), shareG = {};
+        AREA.forEach(a => { const k = a.Level === "Zip" ? ZB.zip[a["Area Key"]] : null; if (!k) return;
+          const o = shareG[a.State] = shareG[a.State] || {}; o[k] = (o[k] || 0) + num(a["State Job Share"]); });
+        Object.keys(shareG).forEach(st => { const t = Object.values(shareG[st]).reduce((a, v) => a + v, 0);
+          Object.keys(shareG[st]).forEach(k => { shareG[st][k] = t > 0 ? shareG[st][k] / t : 0; }); });
+        sites.forEach(x => {
+          const w = {}; Object.keys(shareG).forEach(st => { const v = (shareG[st][x.key] || 0) * (s3[st] || 0); if (v > 0) w[st] = v; });
+          const t = Object.values(w).reduce((a, v) => a + v, 0);
+          x.ground = {}; Object.keys(w).forEach(st => { x.ground[st] = w[st] / t; });
+          x.months = Object.fromEntries(yms.map(ym => [ym, x.fm * pools[x.pool].byYm[ym] / pools[x.pool].crews]));
+          x.jobs = yms.reduce((a, ym) => a + x.months[ym], 0);
+          x.perCrew = x.jobs / x.fm / yms.length;
+        });
+        // a state's months are what the bases bring it
+        const F = {};
+        sites.forEach(x => Object.keys(x.ground).forEach(st => { const o = F[st] = F[st] || {};
+          yms.forEach(ym => { o[ym] = (o[ym] || 0) + x.months[ym] * x.ground[st]; }); }));
+        /* the cells before the new bases' own jobs: nextCalc adds those on top, spread in the cells' own shape, so the
+           season months are set to F x (season - their jobs) / season, and April keeps its forecast ratio to May */
+        const set = {}, apr = yr + "-04";
+        P0.rows.forEach(r => { const f = F[r.st]; if (!f) { if (pools[POOL_OF[r.st]]) set[r.st] = Object.fromEntries(r.cells.map(c => [c.ym, 0])); return; }
+          const tot = yms.reduce((a, ym) => a + (f[ym] || 0), 0);
+          const nb = r.cells.filter(c => !c.shoulder).reduce((a, c) => a + (c.nbJobs || 0), 0);
+          const k = tot > 0 ? Math.max(0, tot - nb) / tot : 0, o = {};
+          yms.forEach(ym => { o[ym] = (f[ym] || 0) * k; });
+          const src = raw[THIN_SRC[r.st]] ? THIN_SRC[r.st] : r.st, may = yr + "-05";
+          if (raw[src] && raw[src][apr] != null) o[apr] = raw[src][may] > 0 ? o[may] * raw[src][apr] / raw[src][may] : 0;
+          set[r.st] = o; });
+        return { pools, sites, zip: ZB.zip, home: ZB.home, shareG, s3, F, set, yms };
+      }
+      /* ZIP BY ZIP (ZTZ-180): the jobs and the marketing of every zip under the plan. A (state, base) cell's budget is
+         that base's jobs in the state x the state's marketing per job; inside the cell the zips start from their share
+         of the state's leads (the split the page used alone until now) and the tiers re-split it, the cell's money
+         unchanged (his question 26 Nov: "why do we promote area 3 or 4? ... why dont we focus on lvl 1 and 2?"):
+           Tier 4 gets no paid ads; Tier 3 keeps 60%; the freed money goes to Tier 1 up to +30%, then Tier 2 up to +30%,
+           then to both pro rata -- unless the cell's Tier 1-2 zips had under 50 jobs in 12 months, when the rest is
+           held as the base's reserve (released May-June where the leads come in). */
+      const TIER_CUT3 = 0.40, TIER_CAP = 0.30, TIER_MIN_JOBS = 50;
+      const planBaseName = k => { const x = PLAN_CF && PLAN_CF.sites.find(q => q.key === k); return x ? x.name : String(k || ""); };
+      function zipPlan(N) {
+        if (!N || !N.planned || !PLAN_CF) return null;
+        if (N._zp) return N._zp;
+        const C = PLAN_CF, out = { z: {}, reserve: {}, reserveTot: 0, moved: 0, cells: {} };
+        const rowOf = {}; N.rows.forEach(r => { rowOf[r.st] = r; });
+        const stB = {}; N.rows.forEach(r => { const c = N.mkt.cplOf(r.st); stB[r.st] = c != null ? r.leads * c : 0; });
+        const zips = AREA.filter(a => a.Level === "Zip" && SERVICE_AREAS.includes(a.State) && C.zip[a["Area Key"]]);
+        // the jobs: each cell's jobs over its zips by their job share
+        const cellJ = {}, jsh = {};
+        C.sites.forEach(x => Object.keys(x.ground).forEach(st => { cellJ[st + "|" + x.key] = x.jobs * x.ground[st]; }));
+        zips.forEach(a => { const ck = a.State + "|" + C.zip[a["Area Key"]]; jsh[ck] = (jsh[ck] || 0) + num(a["State Job Share"]); });
+        const zj = {}, zjs = {};
+        zips.forEach(a => { const ck = a.State + "|" + C.zip[a["Area Key"]];
+          const v = jsh[ck] > 0 ? (cellJ[ck] || 0) * num(a["State Job Share"]) / jsh[ck] : 0; zj[a["Area Key"]] = v; zjs[a.State] = (zjs[a.State] || 0) + v; });
+        // the marketing: the zips' lead share, then each cell scaled to its base's jobs there, then each state to its budget
+        const stJ = {}; Object.keys(cellJ).forEach(ck => { const st = ck.split("|")[0]; stJ[st] = (stJ[st] || 0) + cellJ[ck]; });
+        const lsh = {}; zips.forEach(a => { const ck = a.State + "|" + C.zip[a["Area Key"]]; lsh[ck] = (lsh[ck] || 0) + num(a["State Lead Share"]); });
+        // a base's sliver (under 0.5%) of another state's budget goes to that state's home base, so no figure is off by one
+        const bOf = a => { const k = C.zip[a["Area Key"]], ck = a.State + "|" + k;
+          return k !== C.home[a.State] && (lsh[ck] || 0) < 0.005 ? C.home[a.State] : k; };
+        const b0 = {}, cb = {};
+        zips.forEach(a => { const v = (stB[a.State] || 0) * num(a["State Lead Share"]); b0[a["Area Key"]] = v;
+          const ck = a.State + "|" + bOf(a); cb[ck] = (cb[ck] || 0) + v; });
+        const cf = {}; Object.keys(cb).forEach(ck => { const st = ck.split("|")[0], j = cellJ[ck];
+          cf[ck] = j > 0 && cb[ck] > 0 && stJ[st] > 0 ? (j / stJ[st]) * (stB[st] || 0) / cb[ck] : 1; });
+        const ss = {};
+        zips.forEach(a => { const v = b0[a["Area Key"]] * cf[a.State + "|" + bOf(a)]; b0[a["Area Key"]] = v; ss[a.State] = (ss[a.State] || 0) + v; });
+        zips.forEach(a => { if (ss[a.State] > 0) b0[a["Area Key"]] *= (stB[a.State] || 0) / ss[a.State]; });
+        // the tiers inside every cell
+        out.byBase = {};
+        zips.forEach(a => { const k = bOf(a); out.byBase[k] = (out.byBase[k] || 0) + b0[a["Area Key"]]; });
+        const cell = {};
+        zips.forEach(a => { const ck = a.State + "|" + bOf(a), t = Math.max(0, Math.min(4, Math.round(num(a.Tier)))) || 0;
+          const c = cell[ck] = cell[ck] || { t: [0, 0, 0, 0, 0], j12: 0 }; c.t[t] += b0[a["Area Key"]];
+          if (t === 1 || t === 2) c.j12 += num(a["Jobs 12m"]); });
+        const mult = {};
+        Object.keys(cell).forEach(ck => { const c = cell[ck].t, k = ck.split("|")[1];
+          let free = c[4] + TIER_CUT3 * c[3];
+          let a1 = Math.min(free, TIER_CAP * c[1]); free -= a1;
+          let a2 = Math.min(free, TIER_CAP * c[2]); free -= a2;
+          if (free > 1e-6) {
+            if (c[1] + c[2] > 0 && cell[ck].j12 >= TIER_MIN_JOBS) { a1 += free * c[1] / (c[1] + c[2]); a2 += free * c[2] / (c[1] + c[2]); }
+            else { out.reserve[k] = (out.reserve[k] || 0) + free; out.reserveTot += free; }
+          }
+          out.moved += c[4] + TIER_CUT3 * c[3];
+          mult[ck] = [1, c[1] ? (c[1] + a1) / c[1] : 1, c[2] ? (c[2] + a2) / c[2] : 1, 1 - TIER_CUT3, 0];
+          out.cells[ck] = { before: c.slice(), after: c.map((v, t) => v * mult[ck][t]) }; });
+        zips.forEach(a => { const key = a["Area Key"], ck = a.State + "|" + bOf(a), t = Math.max(0, Math.min(4, Math.round(num(a.Tier)))) || 0;
+          const r = rowOf[a.State];
+          out.z[key] = { base: C.zip[key], jobs: zjs[a.State] > 0 && r ? zj[key] * r.jobs / zjs[a.State] : 0,
+                         budget0: b0[key], budget: b0[key] * mult[ck][t] }; });
+        return (N._zp = out);
+      }
       /* THE PLAN GROWS WITH THE LEADS MARKETING BRINGS (2026-09-30). His words: "i dont want less jobs
          then previous season - we need to plan for more", and, asked by how much: "you have to figure
          that out based on marketing". The 3-season average (the default since 22 Sep, because it
@@ -3275,7 +3485,8 @@ const AREA_PLAN_PAGE = {
         const perFm = Math.max(1, DAYS_PER_MONTH * util);              // jobs one foreman does in a month
         const crew = FC.crew_per_foreman || { helpers: 1, drivers: 1, trucks: 1 };
         const months = (FC.months || []).map(m => FC.year + "-" + String(m).padStart(2, "0"));
-        const core = months.filter(ym => !((FCS[Object.keys(FCS)[0]] || { months: {} }).months[ym] || {}).shoulder);
+        // the season the plan counts: May-Sep under the MAX plan (ZTZ-180), the model's own season otherwise
+        const core = months.filter(ym => !planShoulder(ym, (FCS[Object.keys(FCS)[0]] || { months: {} }).months[ym]));
         // the service areas, plus any other state with a real season (a one-off long-distance job is not a market)
         const sts = seedStates.filter(st => FCS[st]).concat(Object.keys(FCS).filter(st => !seedStates.includes(st) && (FCS[st].season_jobs_last || 0) >= 10).sort());
         const method = METHODS_ALL.includes(inputs.method) ? inputs.method : (MKT_TREND ? "mkt" : (FC.method || "growth"));
@@ -3295,17 +3506,22 @@ const AREA_PLAN_PAGE = {
         const rows = sts.map(st => {
           const s = FCS[st], have = haveOf(st);
           const scM = ((opts && opts.mult) || SC_MULT)[st];      // the What-if scenario's job multiplier (1 = the plan)
-          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const jobs = (method === "mkt" ? (r0.last || 0) * (1 + mktG)
-              : ((r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0))) * (scM != null ? scM : 1);
+          const set = planLive(opts) ? SC_SET[st] : null;        // ZTZ-180: the jobs the plan's crews set, month by month
+          const cells = months.map(ym => { const r0 = s.months[ym] || {}; const fc = (method === "mkt" ? (r0.last || 0) * (1 + mktG)
+              : ((r0.methods && r0.methods[method] != null) ? r0.methods[method] : (r0.jobs || 0)));
+            const jobs = set && set[ym] != null ? set[ym] : fc * (scM != null ? scM : 1);
             const conv = s.conversion; const need = jobs ? Math.ceil(jobs * (r0.headroom || 1) / perFm) : 0;
-            return Object.assign({}, r0, { ym, need, jobs, leads_needed: conv ? Math.round(jobs / conv) : null }); });
+            return Object.assign({}, r0, { ym, need, jobs, shoulder: planShoulder(ym, r0), leads_needed: conv ? Math.round(jobs / conv) : null }); });
           const coreCells = cells.filter(c => !c.shoulder);
           const peak = Math.max(0, ...coreCells.map(c => c.need));
           const first = coreCells.find(c => c.need > have);
           const jobs = coreCells.reduce((a, c) => a + (c.jobs || 0), 0);
           const leads = coreCells.reduce((a, c) => a + (c.leads_needed || 0), 0);
-          const revenue = s.avg_bill != null ? jobs * s.avg_bill : null, expense = s.avg_expense != null ? jobs * s.avg_expense : null;
-          return { st, s, have, cells, peak, hire: Math.max(0, peak - have), hireBy: first ? first.hire_by : null, jobs, leads, revenue, expense,
+          /* a state with too few 2026 jobs to measure (MA, RI, MD, VA) takes its source state's revenue a job (ZTZ-180) */
+          const src = planOn() && THIN_SRC[st] && FCS[THIN_SRC[st]] ? FCS[THIN_SRC[st]] : s;
+          const bill = src.avg_bill != null ? src.avg_bill : s.avg_bill, cost = src.avg_bill != null ? src.avg_expense : s.avg_expense;
+          const revenue = bill != null ? jobs * bill : null, expense = cost != null ? jobs * cost : null;
+          return { st, s, bill, cost, have, cells, peak, hire: Math.max(0, peak - have), hireBy: first ? first.hire_by : null, jobs, leads, revenue, expense,
                    helpers: Math.ceil(peak * (crew.helpers || 0)), drivers: Math.ceil(peak * (crew.drivers || 0)), trucks: Math.ceil(peak * (crew.trucks || 0)) };
         });
         /* LEADS AND MARKETING DOLLARS ON ONE BASIS, TIED TO THE LEDGER (2026-09-19).
@@ -3329,21 +3545,29 @@ const AREA_PLAN_PAGE = {
         const shiftYm = (ym, n) => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1);
           return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
         const lastLeadYm = ym => shiftYm(ym, -12 - lagM0);              // the month last season's leads for this move month arrived
-        const coreLeadYms = core.map(lastLeadYm);
-        const stLeadsLast = st => coreLeadYms.reduce((a, m) => a + (((MS[m] || {})[st] || {}).leads || 0), 0);
-        const coreJobsLast = r => r.cells.filter(c => !c.shoulder).reduce((a, c) => a + (c.last || 0), 0);
-        const leadsLastAll = rows.reduce((a, r) => a + stLeadsLast(r.st), 0), jobsLastAll = rows.reduce((a, r) => a + coreJobsLast(r), 0);
-        const lpjAll = jobsLastAll ? leadsLastAll / jobsLastAll : null;
-        rows.forEach(r => { const jl = coreJobsLast(r), ll = stLeadsLast(r.st);
-          r.lpjOwn = jl >= 40 && ll > 0; r.leadsPerJob = r.lpjOwn ? ll / jl : lpjAll; r.leadsLast = ll; r.jobsLast = jl;
+        /* WHAT THE RATIOS ARE MEASURED ON, AND WHAT THEY ARE COMPARED WITH (ZTZ-180). Leads a job, the ledger's $ a
+           lead and the per-job floor are measured on the model's own season (May-Aug, `mCore`), as the Season 2027
+           plan he approved took them from this page; the plan counts its season May-Sep (`core`), and "last season"
+           beside it is the same May-Sep of 2026. Without the plan the two are the same months. */
+        const mCore = months.filter(ym => !((((FCS[Object.keys(FCS)[0]] || { months: {} }).months[ym]) || {}).shoulder));
+        const coreLeadYms = core.map(lastLeadYm), measLeadYms = mCore.map(lastLeadYm);
+        const leadsIn = (st, yms) => yms.reduce((a, m) => a + (((MS[m] || {})[st] || {}).leads || 0), 0);
+        const jobsIn = (r, yms) => r.cells.filter(c => yms.indexOf(c.ym) >= 0).reduce((a, c) => a + (c.last || 0), 0);
+        const leadsMeasAll = rows.reduce((a, r) => a + leadsIn(r.st, measLeadYms), 0), jobsMeasAll = rows.reduce((a, r) => a + jobsIn(r, mCore), 0);
+        const leadsLastAll = rows.reduce((a, r) => a + leadsIn(r.st, coreLeadYms), 0), jobsLastAll = rows.reduce((a, r) => a + jobsIn(r, core), 0);
+        const lpjAll = jobsMeasAll ? leadsMeasAll / jobsMeasAll : null;
+        rows.forEach(r => { const jm = jobsIn(r, mCore), lm = leadsIn(r.st, measLeadYms);
+          r.lpjOwn = jm >= 40 && lm > 0; r.leadsPerJob = r.lpjOwn ? lm / jm : lpjAll; r.leadsMeas = lm;
+          r.leadsLast = leadsIn(r.st, coreLeadYms); r.jobsLast = jobsIn(r, core);
           r.cells.forEach(c => { if (r.leadsPerJob != null) c.leads_needed = c.jobs ? Math.round(c.jobs * r.leadsPerJob) : 0; });
           r.leads = r.cells.filter(c => !c.shoulder).reduce((a, c) => a + (c.leads_needed || 0), 0); });
+        const spendMeas = measLeadYms.reduce((a, m) => a + ((MKT[m] || {}).ad_spend || 0), 0);
         const spendLast = coreLeadYms.reduce((a, m) => a + ((MKT[m] || {}).ad_spend || 0), 0);
         const CPLA = stateCpl(CITYYTD);              // pinned: Band B's Window toggle is a display choice, never a plan input
         const attrOf = st => CPLA[st] != null ? CPLA[st] : CPLA._all;
-        const blendAttr = leadsLastAll ? rows.reduce((a, r) => a + r.leadsLast * (attrOf(r.st) || 0), 0) / leadsLastAll : null;
-        const ledgerFull = coreLeadYms.length > 0 && coreLeadYms.every(m => ((MKT[m] || {}).ad_spend || 0) > 0);
-        const cplActual = (ledgerFull && leadsLastAll > 0) ? spendLast / leadsLastAll : null;   // a missing month must not shrink the budget
+        const blendAttr = leadsMeasAll ? rows.reduce((a, r) => a + r.leadsMeas * (attrOf(r.st) || 0), 0) / leadsMeasAll : null;
+        const ledgerFull = measLeadYms.length > 0 && measLeadYms.every(m => ((MKT[m] || {}).ad_spend || 0) > 0);
+        const cplActual = (ledgerFull && leadsMeasAll > 0) ? spendMeas / leadsMeasAll : null;   // a missing month must not shrink the budget
         const kCal = (cplActual != null && blendAttr) ? cplActual / blendAttr : 1;
         const mkt = { cplActual, spendLast, leadsLast: leadsLastAll, jobsLast: jobsLastAll, lpjAll, k: kCal, blendAttr, coreLeadYms,
                       measured: cplActual != null, cplOf: st => { const a = attrOf(st); return a != null ? a * kCal : cplActual; } };
@@ -3360,7 +3584,7 @@ const AREA_PLAN_PAGE = {
         /* over the jobs THE PLANNED STATES ran, not every closing: the forecast covers only them, so
            dividing by the national count (a handful of one-off jobs elsewhere) would hold the plan a
            shade UNDER last season's spend scaled by its own growth — the direction he objected to. */
-        const perJobLast = (cplActual != null && jobsLastAll > 0) ? spendLast / jobsLastAll : null;
+        const perJobLast = (cplActual != null && jobsMeasAll > 0) ? spendMeas / jobsMeasAll : null;
         const floorF = (perJobLast != null && builtMkt > 0) ? Math.max(1, planJobsCore * perJobLast / builtMkt) : 1;
         if (floorF > 1) rows.forEach(r => { r.leadsPerJobBuilt = r.leadsPerJob; if (r.leadsPerJob != null) r.leadsPerJob *= floorF;
           r.cells.forEach(c => { if (c.leads_needed) c.leads_needed = Math.round(c.leads_needed * floorF); });
@@ -3390,8 +3614,8 @@ const AREA_PLAN_PAGE = {
               if (r.leadsPerJob != null) c.leads_needed = Math.round(c.jobs * r.leadsPerJob); });
             r.jobs = cc.reduce((a, c) => a + (c.jobs || 0), 0);
             r.leads = cc.reduce((a, c) => a + (c.leads_needed || 0), 0);
-            if (r.s.avg_bill != null) r.revenue = r.jobs * r.s.avg_bill;
-            if (r.s.avg_expense != null) r.expense = r.jobs * r.s.avg_expense;
+            if (r.bill != null) r.revenue = r.jobs * r.bill;
+            if (r.cost != null) r.expense = r.jobs * r.cost;
             r.nbJobs = (r.nbJobs || 0) + jobs;
           });
           nbOut.push(o);
@@ -3544,11 +3768,20 @@ const AREA_PLAN_PAGE = {
         /* SALESPEOPLE, NEXT SEASON (2026-09-19). Leads arrive `lead_lag_months` before the move, so a
            month's desk load is the leads needed for the jobs that many months LATER. Reps = that load /
            the leads-per-rep dial. Sales is one desk, not a state thing, so this is company-wide. */
-        const lagM = FC.lead_lag_months || 1, lpr = Math.max(1, (planLive(opts) && num(PLAN.leadsPerRep)) || num(inputs.leadsPerRep) || 140);
         const leadsFor = ym => rows.reduce((a, r) => a + (((r.cells.find(c => c.ym === ym) || {}).leads_needed) || 0), 0);
+        /* THE PLAN'S DESK IS 18 (ZTZ-180): the MAX plan does not size the desk from a load a person; it has 18
+           salespeople, and each month shows the leads each of them works (leads / 18). `lpr` is then their season
+           average, so "salespeople = leads / leads a person" still reads 18. */
+        const deskN = planLive(opts) && num(PLAN.desk) > 0 ? num(PLAN.desk) : 0;
+        const seasonLeads = core.reduce((a, ym) => a + leadsFor(ym), 0);
+        const lagM = FC.lead_lag_months || 1,
+              lpr = deskN ? Math.max(1, seasonLeads / Math.max(1, core.length) / deskN) : Math.max(1, num(inputs.leadsPerRep) || 140);
         const desk = months.map(ym => { const d = new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1 - lagM, 1);
-          const leads = leadsFor(ym); return { forYm: ym, shoulder: !core.includes(ym), when: MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear(), leads, reps: Math.ceil(leads / lpr - 1e-9) }; });
-        const sales = { desk, lpr, peak: Math.max(0, ...desk.filter(x => !x.shoulder).map(x => x.reps)),
+          const leads = leadsFor(ym), sh = !core.includes(ym);
+          return { forYm: ym, shoulder: sh, when: MONTH_NAMES[d.getMonth() + 1] + " " + d.getFullYear(), leads,
+                   reps: deskN && !sh ? deskN : Math.ceil(leads / lpr - 1e-9), perRep: deskN ? leads / deskN : null }; });
+        const sales = { desk, lpr, plan: deskN || null, working: DESK_TODAY ? DESK_TODAY.working : null,
+                        peak: deskN || Math.max(0, ...desk.filter(x => !x.shoulder).map(x => x.reps)),
                         peakWhen: (desk.filter(x => !x.shoulder).sort((a, b) => b.leads - a.leads)[0] || {}).when || "",
                         active: seasonDesk().repsActive || P.M.repsActive || null };   // last season's desk, not the what-if period's
         const ranLast = pools.reduce((a, q) => a + (q.worked || 0), 0);
@@ -3562,7 +3795,8 @@ const AREA_PLAN_PAGE = {
                       salesPay: rows.some(r => r.salesPay != null) ? sum("salesPay") : null, salesPct: SALES_PCT,
                       gross: rows.some(r => r.gross != null) ? sum("gross") : null };
         tot.parking = nbOut.length * 800 * (core.length || 4);        // a yard per base, the what-if's $800 a month
-        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut, perBase };
+        return { months, core, rows, pools, sales, mkt, tot, perFm, util, crew, owned, perDay, rentTrucks, coreDays, method, rentWays, rentPick, nb: nbOut, perBase,
+                 planned: planLive(opts) && !!PLAN_CF && Object.keys(SC_SET).length > 0 };
       }
       function nextHtml() {
         if (!FC.year) return '<div class="ap2-note">The forecast block is not in the model yet — it appears after the next plan rebuild (07:50 NJ, or run <b>sources=area-plan</b>).</div>';
@@ -5343,6 +5577,17 @@ const AREA_PLAN_PAGE = {
            the page ("another driver takes over"), and MAX is now the only plan. The value stays the tile's own
            <b> -- the print sheet reads it from there. */
         const tile = (v, k, sub, d, w) => '<div class="ap3-kpi"><b>' + v + "</b><span>" + k + "</span><small>" + sub + "</small>" + (d || "") + (w || "") + "</div>";
+        /* THE PLAN'S DESK (ZTZ-180): 18 salespeople, the leads each works month by month (the month the leads are
+           worked, for the jobs a month later), against the people working leads today. No hiring ramp: hiring is
+           ongoing, and 18 is the target (his word, 26 Nov 2026: "we need to find sp periodically - we started it already"). */
+        const deskTile = () => { const S = N.sales, d = S.desk.filter(x => !x.shoulder && x.perRep != null);
+          const lo = Math.min(...d.map(x => x.perRep)), hi = Math.max(...d.map(x => x.perRep));
+          const w = S.working, gap = w != null ? S.plan - w : null;
+          return tile(fmtN(S.plan), "Salespeople", "the plan's desk · " + (d.length ? fmtN(Math.round(lo)) + "–" + fmtN(Math.round(hi)) + " leads each a month" : ""),
+            gap != null && gap > 0 ? '<em class="d">+' + fmtN(gap) + " vs today</em>" : "",
+            w != null ? '<div class="was">Working leads today <b>' + fmtN(w) + "</b></div>" : ""); };
+        /* the marketing held back by the tier re-split where a base's Tier 1-2 ground is too thin to take it (ZTZ-180) */
+        const reserveSub = () => { if (st) return ""; const Z = zipPlan(N); return Z && Z.reserveTot >= 1 ? " · " + money0(Z.reserveTot) + " held as base reserve" : ""; };
         /* the fifth tile: trucks, owned by his counts and rented the rest, against what we pay for today */
         const truckTile = () => { if (st || !N || !N.perBase) return "";
           const PF = planFleet(N) || forecastFleet(N); if (!PF) return "";
@@ -5354,13 +5599,58 @@ const AREA_PLAN_PAGE = {
         return '<div class="ap3-kpis">' +
           /* FOUR TILES (his pick 2026-10-07, "compact header"): jobs and the three decisions -- crews,
              the desk, marketing. Income and the average job ride on the jobs tile instead of two more. */
-          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), (st ? esc(st) + " forecast" : "whole market forecast") +
+          tile(fmtN(A.jobs), "Jobs " + esc(String(FC.year)), (N.planned ? (st ? esc(st) + ", " : "") + "May–Sep, from the crews" : st ? esc(st) + " forecast" : "whole market forecast") +
                (A.rev != null ? " · " + money0(A.rev) + " income at " + money0(A.avg) + " a job" : ""), dl("jobs", sgN), was("jobs", fmtN)) +
           tile(fmtN(A.fm), "Foremen at peak", fmtN(A.have) + " today" + (A.hire ? " · <em>hire +" + fmtN(A.hire) + "</em>" + (st ? " in " + esc(A.pool || "") : "") : " · covered"), dl("fm", sgN), was("fm", v => fmtN(v) + " ran jobs")) +
-          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? (sts.length > 1 ? "their" : "its") + " share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk")) +
-          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside", dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
+          (N.sales.plan && !st ? deskTile() :
+          tile(st ? r1(A.sales) : fmtN(A.sales), "Salespeople at peak", st ? (sts.length > 1 ? "their" : "its") + " share of the one sales desk" : esc(String(N.sales.peakWhen || "").split(" ")[0]) + " · " + fmtN(N.sales.lpr) + " leads each", dl("sales", v => (v > 0 ? "+" : "−") + (st ? r1(Math.abs(v)) : fmtN(Math.abs(v)))), was("sales", v => (st ? r1(v) : fmtN(v)) + " on the desk"))) +
+          tile(money0(A.mkt), "Marketing", fmtN(A.leads) + " leads · post cards inside" + reserveSub(), dl("mkt", sgM), was("mkt", v => money0(v) + (L.leads ? " · " + fmtN(L.leads) + " leads" : ""))) +
           truckTile() +
-          "</div>" + rateNote();
+          "</div>" + crewsPlanHtml(N);
+      }
+      /* THE PLAN UNDER THE TILES (ZTZ-180): the rule in two lines, each month's two numbers, and the nine bases -- crews,
+         own trucks, rented a day, their jobs and their budget. Main Branch first. No truck costs, expenses or profit here
+         (his rule for the Season 2027 plan). */
+      function crewsPlanHtml(N) {
+        const C = PLAN_CF; if (!C || !N || !N.planned) return rateNote();
+        const yms = C.yms, mL = ym => MONTH_NAMES[+ym.slice(5, 7)].slice(0, 3);
+        const tot = k => yms.map((ym, i) => POOL_ORDER.reduce((a, pk) => a + (C.pools[pk] ? C.pools[pk][k][i] || 0 : 0), 0));
+        const tgt = tot("target"), sea = tot("season"), pl = tot("plan"), crews = POOL_ORDER.reduce((a, pk) => a + (C.pools[pk] ? C.pools[pk].crews : 0), 0);
+        const pa = C.pools.PA, paFloor = pa && pa.floor > Math.min(...PLAN_SEASON.map(m => CREW_MONTH[m])) ? pa.floor : null;
+        const yr = POOL_RATE[POOL_ORDER[0]] ? POOL_RATE[POOL_ORDER[0]].year : FC.year - 1;
+        const th = (t, c) => '<th class="' + (c || "num") + '">' + t + "</th>", td = (t, c) => '<td class="' + (c || "num") + '">' + t + "</td>";
+        const months = '<table class="rs-table ap3-crewtab" data-name="Each month: the lower of two"><thead><tr>' + th("Jobs, all bases", "") +
+          yms.map(ym => th(esc(mL(ym)))).join("") + th("May–Sep") + "</tr></thead><tbody>" +
+          "<tr>" + td("Crews' target <small>" + fmtN(crews) + " crews × 22, × 26 in Jun and Aug" + (paFloor ? "; PA's at least its " + esc(String(yr)) + " " + r1(paFloor) : "") + "</small>", "") +
+            tgt.map(v => td(fmtN(Math.round(v)))).join("") + td(fmtN(Math.round(tgt.reduce((a, v) => a + v, 0)))) + "</tr>" +
+          "<tr>" + td(esc(String(yr)) + "'s month shape <small>each pool's " + esc(String(yr)) + " May–Sep, at the target's season total</small>", "") +
+            sea.map(v => td(fmtN(Math.round(v)))).join("") + td("") + "</tr>" +
+          '<tr class="ap2-tot">' + td("<b>Plan: the lower</b>", "") + pl.map(v => td("<b>" + fmtN(Math.round(v)) + "</b>")).join("") +
+            td("<b>" + fmtN(Math.round(pl.reduce((a, v) => a + v, 0))) + "</b>") + "</tr>" +
+          "<tr>" + td("A crew a month", "") + pl.map(v => td(r1(v / crews))).join("") + td(r1(pl.reduce((a, v) => a + v, 0) / crews / yms.length)) + "</tr>" +
+          "</tbody></table>";
+        const PF = planFleet(N) || [], fl = x => { let hit = null; PF.forEach(f => f.sites.forEach(q => { if ((q.x.cand || f.g.base) === x.key) hit = q; })); return hit; };
+        const Z = zipPlan(N) || { byBase: {}, reserve: {} };
+        const stOf = x => (x.key.match(/ ([A-Z]{2})$/) || [])[1] || x.g.base;
+        const order = C.sites.slice().sort((a, b) => SERVICE_AREAS.indexOf(stOf(a)) - SERVICE_AREAS.indexOf(stOf(b)));
+        let tc = 0, to = 0, tj = 0, tb = 0, rs = 0, rh = 0;
+        const rows = order.map(x => { const f = fl(x), own = f ? f.own : null, b = Z.byBase[x.key] || 0, res = Z.reserve[x.key] || 0;
+          const sts = Object.entries(x.ground).sort((p, q) => q[1] - p[1]).filter(e => e[1] >= 0.005).map(e => esc(e[0])).join(", ");
+          tc += x.fm; to += own || 0; tj += x.jobs; tb += b; if (f) { rs += f.rentStd; rh += f.rentHi; }
+          return "<tr>" + td("<b>" + esc(x.name) + "</b> <small>" + esc(stOf(x)) + " · works " + sts + "</small>", "") + td(fmtN(x.fm)) +
+            td(own != null ? fmtN(own) : "—") + td(f ? (f.rentHi ? fmtN(f.rentStd) + "–" + fmtN(f.rentHi) : "none") : "—") +
+            td(fmtN(Math.round(x.jobs))) + td(r1(x.perCrew)) + td(money0(b) + (res >= 1 ? " <small>" + money0(res) + " reserve</small>" : "")) + "</tr>"; }).join("");
+        const bases = '<table class="rs-table ap3-crewtab" data-name="The bases in the plan"><thead><tr>' + th("Base", "") + th("Crews") + th("Own trucks") +
+          th("Rented a day<small> normal–busiest</small>") + th("Season jobs<small> May–Sep</small>") + th("A crew a month") + th("Marketing") + "</tr></thead><tbody>" + rows +
+          '<tr class="ap2-tot">' + td("<b>" + fmtN(order.length) + " bases</b>", "") + td("<b>" + fmtN(tc) + "</b>") + td("<b>" + fmtN(to) + "</b>") +
+            td("<b>" + fmtN(rs) + "–" + fmtN(rh) + "</b>") + td("<b>" + fmtN(Math.round(tj)) + "</b>") + td("<b>" + r1(tj / tc / yms.length) + "</b>") + td("<b>" + money0(tb) + "</b>") + "</tr></tbody></table>";
+        return '<div class="ap2-note ap3-ratenote"><b>Jobs start from the crews.</b> A crew needs 21–23 jobs a month to stay and can do 25–27 in June and ' +
+          "August, so every month is planned at 22 jobs a crew and June and August at 26" + (paFloor ? " (Pennsylvania's crews at least their " + esc(String(yr)) + " " + r1(paFloor) + ")" : "") +
+          ", lower only where " + esc(String(yr)) + "'s month shape can't give that many. A base's jobs are its crews × its pool's plan for a crew, spread over the states " +
+          "of its own ground (the zip codes nearest to it). Leads and marketing follow the jobs at each state's own leads a job and cost a lead; Massachusetts, " +
+          "Rhode Island, Maryland and Virginia had too few jobs in " + esc(String(yr)) + " and take Connecticut's and Pennsylvania's month shape and revenue a job. " +
+          "Inside each base's budget the tiers re-split: Tier 4 no paid ads, Tier 3 keeps 60%, Tier 1 and 2 take the rest.</div>" +
+          '<div class="ap3-crewwrap">' + months + bases + "</div>";
       }
       /* the rule in one line, under the tiles (ZTZ-174) */
       function rateNote() {
@@ -5646,19 +5936,25 @@ const AREA_PLAN_PAGE = {
       /* one row per area at the chosen level: the mart row plus this plan's money and jobs. A
          state's budget and jobs are split by the area's share of the state's leads and jobs in the
          last 12 months -- the same rule the county sheet always used. */
+      /* a zip's plan: under the MAX plan from zipPlan (its base's jobs there, the tier re-split -- ZTZ-180); otherwise
+         its state's jobs and marketing by the zip's share of the state's jobs and leads */
       function areaRows(N, level) {
-        const stB = {}, stJ = {};
+        const stB = {}, stJ = {}, ZP = level === "Zip" ? zipPlan(N) : null;
         if (N) N.rows.forEach(r => { const c = N.mkt.cplOf(r.st); stB[r.st] = c != null ? r.leads * c : null; stJ[r.st] = r.jobs; });
-        return AREA.filter(a => a.Level === level && SERVICE_AREAS.includes(a.State) && stIn(a.State)).map(a => ({
+        return AREA.filter(a => a.Level === level && SERVICE_AREAS.includes(a.State) && stIn(a.State)).map(a => {
+          const zp = ZP ? ZP.z[a["Area Key"]] || { jobs: 0, budget: 0 } : null;
+          return {
           a, key: a["Area Key"], st: a.State, name: a.Name || a["Area Key"], tier: num(a.Tier), band: TIER_BAND(num(a.Tier)),
           never: num(a["Never A Lead"]) === 1, leads: num(a["Leads 12m"]), jobs: num(a["Jobs 12m"]),
           share: num(a["State Lead Share"]),
-          budget: stB[a.State] != null ? stB[a.State] * num(a["State Lead Share"]) : null,
-          planJobs: stJ[a.State] != null ? stJ[a.State] * num(a["State Job Share"]) : null }));
+          budget: zp ? zp.budget : stB[a.State] != null ? stB[a.State] * num(a["State Lead Share"]) : null,
+          planJobs: zp ? zp.jobs : stJ[a.State] != null ? stJ[a.State] * num(a["State Job Share"]) : null }; });
       }
       const planOfArea = (N, a) => {
         if (!N || !a) return { budget: null, jobs: null };
         const r = N.rows.find(x => x.st === a.State); if (!r) return { budget: null, jobs: null };
+        const ZP = a.Level === "Zip" ? zipPlan(N) : null, zp = ZP ? ZP.z[a["Area Key"]] : null;
+        if (ZP) return { budget: zp ? zp.budget : 0, jobs: zp ? zp.jobs : 0, budget0: zp ? zp.budget0 : 0, base: zp ? zp.base : null };
         const cpl = N.mkt.cplOf(r.st);
         return { budget: cpl != null ? r.leads * cpl * num(a["State Lead Share"]) : null, jobs: r.jobs * num(a["State Job Share"]) };
       };
@@ -5925,8 +6221,15 @@ const AREA_PLAN_PAGE = {
           '<div class="tierline"><i style="background:' + (TC[band] || TC.grey) + '"></i>' + TIER_LABEL[band] + "</div>" +
           '<div class="why">' + esc(a["Tier Reason"] || "") + "</div>" + was + whyHtml(a) +
           '<div class="sec">The ' + esc(String(FC.year || "")) + " plan here</div>" +
-            row("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EMD, r1(100 * num(a["State Lead Share"])) + "% of " + esc(a.State) + "'s leads") +
-            row("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EMD, "its share of " + esc(a.State) + "'s forecast") +
+            (P.base != null ? (() => {      // the MAX plan (ZTZ-180): its base's cell, re-split by tier
+              const b = planBaseName(P.base), t = Math.round(num(a.Tier));
+              const how = t === 4 ? "Tier 4: no paid ads" : t === 3 ? "Tier 3 keeps 60%" : t === 1 || t === 2 ? "Tier " + t + ", topped up from Tier 3–4" : "not rated: as split";
+              const bs = esc(b) + (/s$/.test(b) ? "'" : "'s");      // Tinton Falls' budget
+              return row("Marketing", P.budget >= 1 ? money0(P.budget) : EMD, bs + " budget in " + esc(a.State) + " · " + how +
+                  (Math.abs(P.budget - P.budget0) >= 1 ? " (" + money0(P.budget0) + " by its leads)" : "")) +
+                row("Jobs", P.jobs >= 0.05 ? r1(P.jobs) : EMD, "its share of " + bs + " jobs in " + esc(a.State)); })()
+            : row("Marketing", P.budget != null && P.budget >= 1 ? money0(P.budget) : EMD, r1(100 * num(a["State Lead Share"])) + "% of " + esc(a.State) + "'s leads") +
+              row("Jobs", P.jobs != null && P.jobs >= 0.05 ? r1(P.jobs) : EMD, "its share of " + esc(a.State) + "'s forecast")) +
           '<div class="sec">Our work, last 12 months</div>' +
             row("Leads", fmtN(num(a["Leads 12m"]))) +
             row("Booked", num(a["Leads 12m"]) ? r1(num(a["Booking Rate"])) + "%" : EMD) +
@@ -6774,9 +7077,14 @@ const AREA_PLAN_PAGE = {
             return storeLabel({ base: b.name }); };
           const flagText = (b, N) => { if (LOCK) return { name: b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""), parts: [] };
             const pc = planCrew(b, N), f = baseFleetOf(b, N);
-            const fm = b.kind === "have" ? fmtN(b.foremen) + (pc != null && pc !== b.foremen ? " → " + fmtN(pc) : "") + " foremen"
-                                         : pc != null ? fmtN(pc) + (pc === 1 ? " foreman" : " foremen") : "";
-            return { name: b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""),
+            /* ZTZ-180: under the plan a base also carries its season jobs (its crews x its pool's plan for a crew), and a
+               register base the plan's own name for it (Tinton Falls, Brooklyn, Exton) */
+            const ps = PLAN_CF && N && N.planned ? PLAN_CF.sites.find(x => b.kind === "have" ? x.key === b.name
+              : x.key === b.label || (x.x.la && b.label && b.label.indexOf(x.x.name.split(" ·")[0]) === 0)) : null;
+            const jb = ps ? " · " + fmtN(Math.round(ps.jobs)) + " jobs" : "";
+            const fm = (b.kind === "have" ? fmtN(b.foremen) + (pc != null && pc !== b.foremen ? " → " + fmtN(pc) : "") + " foremen"
+                                         : pc != null ? fmtN(pc) + (pc === 1 ? " foreman" : " foremen") : "") + jb;
+            return { name: ps && ps.x.place ? ps.x.place : b.kind === "have" ? b.name + " base" : b.label.replace(/ [A-Z]{2}$/, ""),
                      parts: [{ k: "f", v: fm }, { k: "t", v: trkTxt(f) }, { k: "st", v: f ? storeTxt(f.store) : "" }] }; };
           const flagMks = [];
           /* "STORAGE ONLY" (2026-10-07): a zone that needs rented room with no storage base in the
@@ -6998,12 +7306,14 @@ const AREA_PLAN_PAGE = {
             NB_CANDS.filter(c => NB_ON[c.label]).forEach(c => L.circle([c.la, c.lo], { pane: "apRings", radius: B.work * MI_PER_M,
               interactive: false, color: tok("--ink") || "#22303f", weight: 1, opacity: .28,
               dashArray: "3 5", fillColor: tok("--ink") || "#22303f", fillOpacity: .04 }).addTo(nbRings));
-            const PF = planFleet();
+            const PF = planFleet(), NP = !LOCK && PLAN_CF && FC.year ? nextCalc() : null;
             if (PLAN) PLAN.groups.forEach((g, gi) => g.sites.forEach(x => { if (x.la && x.fm > 0) {
               const sf = PF && PF[gi] ? PF[gi].sites.find(q => q.x === x) : null,
                     st = sf && sf.ns ? sf.ns.store : x.main && PF && PF[gi] ? PF[gi].store : "P";   // a moved base keeps its storage
               // the Target Map names its bases and nothing else (his pick 2026-10-19)
-              L.marker([x.la, x.lo], { icon: flag("cover", { name: x.name.split(" · ")[0], parts: LOCK ? [] : [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") },
+              /* ZTZ-180: under the plan its season jobs ride with the crews, and it wears the plan's own name for it */
+              const ps = NP && NP.planned ? PLAN_CF.sites.find(q => q.x === x || q.key === x.cand) : null;
+              L.marker([x.la, x.lo], { icon: flag("cover", { name: x.place || x.name.split(" · ")[0], parts: LOCK ? [] : [{ k: "f", v: fmtN(x.fm) + (x.fm === 1 ? " foreman" : " foremen") + (ps ? " · " + fmtN(Math.round(ps.jobs)) + " jobs" : "") },
                 { k: "t", v: trkTxt(sf) }, { k: "st", v: sf ? storeTxt(st) : "" }] }, sf && !LOCK ? st : null, x.main ? "moved" : true), zIndexOffset: 450 })
                 /* the plan's own bases answer a hover too (ZTZ-161): what the place is and its crew */
                 .bindTooltip('<div class="ap2-tip ap3-glance"><b>' + esc(x.name.split(" · ")[0]) + '</b><div class="t">' +
@@ -7082,8 +7392,12 @@ const AREA_PLAN_PAGE = {
           return { st: r.st, leads: r.leads, cpl, mkt: cpl != null ? r.leads * cpl : null, pc: pc && pc.cards && !pc.unknown ? pc.cost : 0 }; });
         const HS = mktHistory(N), lastS = HS.rows[HS.rows.length - 1];
         const mktTot = mkt.reduce((a, x) => a + (x.mkt || 0), 0), pcTot = mkt.reduce((a, x) => a + (x.pc || 0), 0);
-        const crewLines = N.pools.map(q => "<tr><td><b>" + esc(q.label) + "</b></td><td class=\"num\"><b>" + q.peak + "</b></td><td class=\"num\">" + fmtN(q.have) +
-          "</td><td class=\"num\">" + (q.hire ? '<b class="ap2-hire">+' + q.hire + "</b>" : '<span class="ap2-ok">covered</span>') + "</td><td>" + (q.hire && q.hireBy ? esc(dayLabel(q.hireBy)) : "—") + "</td></tr>").join("");
+        /* a pool's line counts its new bases' crews too (ZTZ-180: NJ + NY 15, PA + DE + MD + VA 10, CT + MA + RI 6), so the
+           lines add up to the foremen at the peak; nobody works at a new base today, so all of them are hires */
+        const nbIn = q => (N.nb || []).filter(o => (POOL_OF[o.st] || o.st) === q.pk).reduce((a, o) => a + (o.fm || 0), 0);
+        const crewLines = N.pools.map(q => { const nq = nbIn(q), hire = q.hire + nq;
+          return "<tr><td><b>" + esc(q.label) + "</b></td><td class=\"num\"><b>" + (q.peak + nq) + "</b></td><td class=\"num\">" + fmtN(q.have) +
+          "</td><td class=\"num\">" + (hire ? '<b class="ap2-hire">+' + hire + "</b>" : '<span class="ap2-ok">covered</span>') + "</td><td>" + (hire && q.hireBy ? esc(dayLabel(q.hireBy)) : "—") + "</td></tr>"; }).join("");
         const topM = mkt.filter(x => x.mkt).sort((a, b) => b.mkt - a.mkt);
         const mktLines = topM.slice(0, 5).map(x => "<tr><td><b>" + esc(x.st) + "</b></td><td class=\"num\">" + fmtN(x.leads) + "</td><td class=\"num\">" + money0(x.cpl) + "</td><td class=\"num\"><b>" + money0(x.mkt) + "</b></td></tr>").join("") +
           (topM.length > 5 ? "<tr><td>" + (topM.length - 5) + " more</td><td class=\"num\">" + fmtN(topM.slice(5).reduce((a, x) => a + x.leads, 0)) + "</td><td></td><td class=\"num\"><b>" + money0(topM.slice(5).reduce((a, x) => a + x.mkt, 0)) + "</b></td></tr>" : "");
@@ -7106,7 +7420,18 @@ const AREA_PLAN_PAGE = {
                 fmtN(N.tot.ranLast) + " ran last season — that figure sizes the need, but the ones no longer active are not people you can put on a truck in May.</div>" : "") +
               '<div class="dx">Each foreman runs with ' + (N.crew.helpers || 0) + " helper and " + (N.crew.drivers || 0) + " driver: <b>" + fmtN(N.tot.helpers) + "</b> helpers, <b>" + fmtN(N.tot.drivers) + "</b> drivers, <b>" + fmtN(N.tot.trucks) + "</b> trucks" +
               (N.rentTrucks ? " (" + fmtN(N.owned) + " owned, <b>" + fmtN(N.rentTrucks) + " rented</b>)" : "") + ".</div>" + go("apFullCrew", "Crews state by state") + "</div>" +
-            '<div class="ap2-d"><div class="dq">How many salespeople, and when?</div><div class="dh"><b>' + S.peak + " salespeople</b> at the peak in " + esc(String(S.peakWhen || "").split(" ")[0]) +
+            (S.plan ? '<div class="ap2-d"><div class="dq">How many salespeople, and when?</div><div class="dh"><b>' + fmtN(S.plan) + " salespeople</b>, the plan's desk" +
+              (S.working != null ? " · " + fmtN(S.working) + " working leads today" : "") + "</div>" +
+              /* ZTZ-180: the desk is the plan's 18; each month shows the leads each of them works (no hiring ramp) */
+              '<table class="ap2-dt"><thead><tr><th>Month worked</th><th class="num">Leads to work</th><th class="num">Each of ' + fmtN(S.plan) + "</th>" +
+              (S.working != null ? '<th class="num">Still to add</th>' : "") + "</tr></thead><tbody>" +
+              S.desk.filter(x => !x.shoulder).map(x => "<tr><td><b>" + esc(x.when) + "</b></td><td class=\"num\">" + fmtN(x.leads) +
+                "</td><td class=\"num\"><b>" + fmtN(Math.round(x.perRep)) + "</b></td>" +
+                (S.working != null ? '<td class="num">' + (S.plan > S.working ? '<span class="ap2-hire">+' + fmtN(S.plan - S.working) + "</span>" : '<span class="ap2-ok">ok</span>') + "</td>" : "") + "</tr>").join("") +
+              "</tbody></table>" +
+              (DESK_TODAY ? '<div class="dx">Working today = on the sales team list with a month of ' + fmtN(DESK_TODAY.min_leads) + "+ leads since " +
+                esc(ymLabel(DESK_TODAY.since)) + " (" + fmtN(DESK_TODAY.working) + " of " + fmtN(DESK_TODAY.on_roster) + " on the list). Hiring is ongoing; 18 is the target, not a ramp.</div>" : "")
+            : '<div class="ap2-d"><div class="dq">How many salespeople, and when?</div><div class="dh"><b>' + S.peak + " salespeople</b> at the peak in " + esc(String(S.peakWhen || "").split(" ")[0]) +
               (S.active ? " · " + fmtN(S.active) + " carried a full load last season" : "") + "</div>" +
               /* this card used to carry one line and 45% white space (w1264_00.png); the desk it is
                  answering for is four rows, so it shows them */
@@ -7114,8 +7439,8 @@ const AREA_PLAN_PAGE = {
               S.desk.filter(x => !x.shoulder).map(x => "<tr><td><b>" + esc(x.when) + "</b></td><td class=\"num\">" + fmtN(x.leads) +
                 "</td><td class=\"num\"><b>" + x.reps + "</b></td><td class=\"num\">" +
                 (S.active && x.reps > S.active ? '<span class="ap2-hire">+' + (x.reps - S.active) + "</span>" : '<span class="ap2-ok">ok</span>') + "</td></tr>").join("") +
-              "</tbody></table>" +
-              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks ahead of the crews. Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson a month, counted on <b>every lead marketing buys</b>" +
+              "</tbody></table>") +
+              '<div class="dx">Leads land about ' + (FC.lead_lag_months || 1) + " month before the move, so the desk peaks ahead of the crews. " + (S.plan ? "The plan's " + fmtN(S.plan) + " work <b>" + fmtN(Math.round(S.lpr)) + "</b> leads each a month on average" : "Sized at <b>" + fmtN(S.lpr) + "</b> leads per salesperson a month") + ", counted on <b>every lead marketing buys</b>" +
               (() => { const d = deadRate(N.mkt.coreLeadYms); return d
                 ? " — " + r1(d.pct) + "% of which were dead on arrival last season (" + fmtN(d.dead) + " of " + fmtN(d.leads) + "). That share tripled in 2026, so it is tracked beside the load, never inside it" : ""; })() +
               ".</div>" + go("apFullSales", "The desk month by month") + "</div>" +
@@ -7173,7 +7498,10 @@ const AREA_PLAN_PAGE = {
           N.rows.filter(r => r.leads).map(r => "<tr>" + td("<b>" + esc(r.st) + "</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '">' + (stLeads(r, x.forYm) ? fmtN(stLeads(r, x.forYm)) : dim) + "</td>").join("") +
             td(fmtN(r.leads)) + td(N.tot.leads ? pct(r.leads / N.tot.leads) : "—") + "</tr>").join("") +
           '<tr class="ap2-tot">' + td("<b>All leads</b>", "strong") + S.desk.map(x => td("<b>" + fmtN(x.leads) + "</b>", "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + td("<b>" + fmtN(N.tot.leads) + "</b>") + td("100%") + "</tr>" +
-          '<tr class="ap2-pool">' + td("<b>Salespeople needed</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '"><b>' + x.reps + "</b></td>").join("") + td("<b>peak " + S.peak + "</b>") + td(fmtN(S.lpr) + " / rep") + "</tr></tbody></table>";
+          (S.plan   // ZTZ-180: the plan's desk is 18; the row is the leads each of them works
+            ? '<tr class="ap2-pool">' + td("<b>Leads a salesperson</b><small> the plan's desk of " + fmtN(S.plan) + "</small>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '"><b>' + fmtN(Math.round(x.perRep)) + "</b></td>").join("") +
+              td("<b>" + fmtN(S.plan) + " salespeople</b>") + td(S.working != null ? fmtN(S.working) + " working today" : "") + "</tr></tbody></table>"
+            : '<tr class="ap2-pool">' + td("<b>Salespeople needed</b>", "strong") + S.desk.map(x => '<td class="num' + (x.shoulder ? " ap2-sh" : "") + '"><b>' + x.reps + "</b></td>").join("") + td("<b>peak " + S.peak + "</b>") + td(fmtN(S.lpr) + " / rep") + "</tr></tbody></table>");
         // ---- marketing: leads to buy and dollars, by state and the month the money is spent
         const cplOf = r => N.mkt.cplOf(r.st);
         const mkT = '<table data-name="Marketing budget by state" class="rs-table ap2-next"><thead><tr>' + th("State", "") + th("$ / lead") + S.desk.map(x => th(esc(x.when.slice(0, 3)), "num" + (x.shoulder ? " ap2-sh" : ""))).join("") + th("Season leads") + th("Leads / job") + th("Marketing") + th('Post cards mailed there<small> 2026 actual</small>') + "</tr></thead><tbody>" +
@@ -7195,7 +7523,7 @@ const AREA_PLAN_PAGE = {
           '<div style="overflow-x:auto">' + salesT + "</div>" +
           '<h3 class="ap2-sech" id="apFullMkt">3 · Marketing — leads to buy and the budget, by state</h3>' +
           mktHistoryHtml(N) +
-          note("Dollars in the month they are <b>spent</b> (hover a cell for the leads). <b>Leads</b> are every lead, good or bad: forecast jobs × the leads each job took last season (a * marks a state too small for its own ratio)" + (N.mkt.held ? ", lifted " + (Math.round((N.mkt.floorF - 1) * 1000) / 10) + "% so the season is not planned cheaper per job than the last one was" : "") + ". <b>$ / lead</b> is the whole advertising ledger over those leads, so the total is what was really spent, scaled to the jobs; the split between states follows each state's source mix, because no ad spend is recorded by state. <b>Post cards are inside the budget</b> — the last column only shows how much of it they were. <b>Shaded months are the shoulders</b> (April and September jobs): shown so the ramp is visible, left out of the season totals on the right.") +
+          note("Dollars in the month they are <b>spent</b> (hover a cell for the leads). <b>Leads</b> are every lead, good or bad: forecast jobs × the leads each job took last season (a * marks a state too small for its own ratio)" + (N.mkt.held ? ", lifted " + (Math.round((N.mkt.floorF - 1) * 1000) / 10) + "% so the season is not planned cheaper per job than the last one was" : "") + ". <b>$ / lead</b> is the whole advertising ledger over those leads, so the total is what was really spent, scaled to the jobs; the split between states follows each state's source mix, because no ad spend is recorded by state. <b>Post cards are inside the budget</b> — the last column only shows how much of it they were. <b>Shaded months are the shoulders</b> (" + (planOn() ? "April jobs; the MAX plan's season is May–Sep" : "April and September jobs") + "): shown so the ramp is visible, left out of the season totals on the right.") +
           '<div style="overflow-x:auto">' + mkT + "</div></div>";
       }
 
@@ -8009,7 +8337,8 @@ const AREA_PLAN_PAGE = {
       let HOW_CITY = "", HOW_WHATIF = "";        // filled by bandBHtml / whatIfHtml, read when the panel opens
       function headHtml() {
         const season = "Season " + String(FC.year || "") +
-          (SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "") +
+          (PLANS[PLAN_KEY] && FC.year ? " · " + ymLabel(FC.year + "-" + String(PLAN_SEASON[0]).padStart(2, "0")) + " – " + ymLabel(FC.year + "-" + String(PLAN_SEASON[PLAN_SEASON.length - 1]).padStart(2, "0"))
+            : SEASON.next && SEASON.next[0] ? " · " + ymLabel(SEASON.next[0]) + " – " + ymLabel(SEASON.next[1]) : "") +
           " · " + PLANS[PLAN_KEY].label + " plan";
         return RSC.pageHeadHtml({
           title: PAGE_TITLE, key: PAGE_KEY,
@@ -8252,10 +8581,15 @@ const AREA_PLAN_PAGE = {
           planMax();
           scSolve();          // the plan's per-pool scaling: on the page it runs with the repaint (repaintPlan)
           const N = FC.year ? nextCalc() : null;
-          out = N ? areaRows(N, "Zip").map(r => ({ zip: String(r.key), st: r.st, planJobs: r.planJobs, budget: r.budget })) : null;
+          out = N ? areaRows(N, "Zip").map(r => ({ zip: String(r.key), st: r.st, tier: r.tier, planJobs: r.planJobs, budget: r.budget })) : null;
           if (out) out.plan = { states: N.rows.map(r => ({ st: r.st, cells: r.cells.map(c => ({ ym: c.ym, jobs: c.jobs || 0, shoulder: !!c.shoulder })) })),
                                 pools: (N.pools || []).map(p => ({ pk: p.pk, peak: p.peak })), crews: SC.crews || {}, rate: POOL_RATE,
-                                tot: { jobs: N.tot.jobs, leads: N.tot.leads, mkt: N.tot.mkt, revenue: N.tot.revenue, peak: N.tot.peak } };
+                                tot: { jobs: N.tot.jobs, leads: N.tot.leads, mkt: N.tot.mkt, revenue: N.tot.revenue, peak: N.tot.peak },
+                                // ZTZ-180: the bases' own jobs and the marketing held as their reserve
+                                bases: PLAN_CF ? PLAN_CF.sites.map(x => ({ key: x.key, name: x.name, pool: x.pool, crews: x.fm, jobs: x.jobs,
+                                  perCrew: x.perCrew, months: x.months, ground: x.ground })) : null,
+                                reserve: (zipPlan(N) || {}).reserve || null,
+                                desk: (N.sales.desk || []).map(d => ({ when: d.when, forYm: d.forYm, leads: d.leads, perRep: d.perRep, shoulder: d.shoulder })) };
         } catch (e) { out = null; }
         LOCK.headless(out);
         return;
