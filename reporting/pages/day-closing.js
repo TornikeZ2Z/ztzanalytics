@@ -780,7 +780,8 @@
     var o = d.open, t = o.totals, me = String((d.me && d.me.email) || "").toLowerCase();
     var mine = (o.people || []).filter(function (p) { return p.person === me; })[0];
     var deadline = o.closes_in_s != null ? Date.now() + o.closes_in_s * 1000 : null;
-    var when = t.n_lines && deadline == null ? "closes automatically at 8:00 PM NJ"
+    var when = d.handed_over ? "not closed here any more — the software closes the day at 8:00 PM New York"
+      : t.n_lines && deadline == null ? "closes automatically at 8:00 PM NJ"
       : t.n_lines ? '<span class="dcl-cd" data-deadline="' + deadline + '">closes automatically in ' + left(o.closes_in_s) + "</span> · 8:00 PM NJ"
       : "nothing recorded yet — the day closes at 8:00 PM NJ only once something is recorded";
     return '<div class="dcl-shead"><span class="lbl">Open day · since ' + esc(fmtAt(o.since)) + "</span>"
@@ -896,11 +897,11 @@ registerPage({
     // embedded in Money Flow's tab, the heading steps down to an h2 under Money Flow's h1 (as before)
     if (opt.embedded) head = head.replace("<h1>", '<h2 class="dcl-h2">').replace("</h1>", "</h2>");
     /* CONTROLLED FROM THE SOFTWARE (Tornike, 27 Nov 2026: "on the page show that from now on it's controlled from
-       software"; "close it as soon as all the data migrates"). The software's own 8 PM close is the official one; the
-       portal's days stay readable here until its history is imported, then this Day Closing closes. */
+       software"; "close it as soon as all the data migrates"). The app imported this history on 27 Nov, so the portal
+       closes no more days (the bridge's day_closing.HANDED_OVER): the days below are its record, read only. */
     var moved = '<div class="rs-banner dcl-moved" role="note"><span><b>Day Closing is now controlled from the software.</b> '
-      + "From now on the day is closed in the software at 8:00 PM New York. This page keeps the portal's own days only until "
-      + "their history moves to the software; then it closes.</span></div>";
+      + "The day is closed in the software at 8:00 PM New York. The portal's history moved to the software on 27 Nov 2026, "
+      + "so the portal closes no more days; the days below are its record, kept read only.</span></div>";
     host.innerHTML = head + moved + '<div id="dclBody"><div class="dcl-load">Loading days…</div></div>';
     var $b = function () { return host.querySelector("#dclBody"); };
     var S = window.__DCL || (window.__DCL = { view: "all", q: "", open: {}, popen: {}, fopen: {}, lines: {}, shown: 30 });
@@ -975,7 +976,7 @@ registerPage({
         : d.kind === "open" && t.n_lines && d.closes_in_s != null
           ? '<span class="dcl-meta" style="margin-left:0">8:00 PM · <span class="dcl-cd" data-deadline="' + (Date.now() + d.closes_in_s * 1000) + '">closes automatically in …</span></span>' : "";
       var acts = '<button class="dcl-btn sm" data-pdf="' + esc(k) + '">PDF</button>';
-      if (d.kind === "signed" && data.me.manager) {
+      if (d.kind === "signed" && data.me.manager && !data.handed_over) {
         acts += d.status === "locked"
           ? ' <button class="dcl-btn sm" data-unlock="' + d.id + '">Unlock</button>'
           : ' <button class="dcl-btn sm" data-lock="' + d.id + '">Lock</button>';
@@ -1021,7 +1022,7 @@ registerPage({
       var acts = "";
       if (d.kind === "open" && l.current !== false && !l.withdrawn && (mine || data.me.manager)) {
         acts = '<button class="dcl-btn sm" data-ocfix="' + esc(l.src_id) + '">Edit</button> <button class="dcl-btn sm" data-ocwd="' + esc(l.src_id) + '">Withdraw</button>';
-      } else if (d.kind === "signed" && data.me.manager && d.status !== "locked" && l.source !== "form") {
+      } else if (d.kind === "signed" && data.me.manager && !data.handed_over && d.status !== "locked" && l.source !== "form") {
         acts = '<button class="dcl-btn sm" data-take="' + esc(d.id + "|office|" + l.src_id) + '">Take out</button>';
       }
       var what = '<span class="dcl-pill ' + (l.office_kind === "income" ? "inc" : "exp") + '" style="margin:0 6px 0 0">' + (l.office_kind === "income" ? "income" : "expense") + "</span>"
@@ -1053,7 +1054,7 @@ registerPage({
         : (l.kind === "Advance" ? '<span class="dcl-pill card" style="margin:0 6px 0 0">advance</span>' : "")
           + (l.paid_from ? '<span class="dcl-pill card" style="margin:0 6px 0 0">pay-out</span>' + esc(l.paid_from)
              : l.correction ? "correction " + money2(l.prev) + " → " + money2(l.value) : "");
-      var take = d.kind === "signed" && data.me.manager && d.status !== "locked" && (l.src === "portal" || l.src === "fine")
+      var take = d.kind === "signed" && data.me.manager && !data.handed_over && d.status !== "locked" && (l.src === "portal" || l.src === "fine")
         ? '<button class="dcl-btn sm" data-take="' + esc(d.id + "|" + l.src + "|" + l.src_id) + '">Take out</button>' : "";
       return '<tr class="ln"><td class="first" title="' + esc(l.customer || "") + '">' + esc(l.job_code || "—") + " · " + esc(l.customer || "—")
         + "</td><td>" + esc(Z.fmtAt(l.at)) + ' <span class="dcl-meta">' + esc(Z.short(l.by)) + '</span></td><td colspan="5">' + what
